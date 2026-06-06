@@ -477,9 +477,10 @@ async function laadiTulevasteToodTabel() {
     const kp = new Date(t.kuupaev);
     const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
     const kellaaeg = `${t.algus_kell||''}${t.lopp_kell?'-'+t.lopp_kell:''}`;
+    const emailTo = t.worker_email || "";
     const teema = encodeURIComponent(`Tulevane töö: ${t.ettevote_nimi} ${kuupaevTekst}`);
     const keha = encodeURIComponent(`Tere ${t.worker_nimi}!\n\nSul on töö planeeritud:\n\nKuupäev: ${kuupaevTekst}\nKellaaeg: ${kellaaeg}\nEttevõte: ${t.ettevote_nimi}\nObjekt: ${t.objekt_nimi||'—'}${t.kirjeldus?'\nKirjeldus: '+t.kirjeldus:''}\n\nRoyal Paigaldus`);
-    html+=`<tr><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:?subject=${teema}&body=${keha}" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email">✉️</a><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
+    html+=`<tr><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email">✉️</a><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
   });
   document.getElementById('tulevasteToodTabel').innerHTML=html+'</tbody></table>';
 }
