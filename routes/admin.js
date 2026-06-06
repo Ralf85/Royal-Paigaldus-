@@ -222,11 +222,11 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
             TO_CHAR(t.kuupaev, 'DD.MM.YYYY') as kuupaev,
             TO_CHAR(t.algus, 'HH24:MI') as algus,
             TO_CHAR(t.lopp, 'HH24:MI') as lopp,
-            CAST(t.tunnid AS FLOAT) as tunnid,
-            CAST(COALESCE(we.tunnitasu,0) AS FLOAT) as tunnitasu,
-            CAST(ROUND(t.tunnid * COALESCE(we.tunnitasu,0), 2) AS FLOAT) as summa,
-            COALESCE(t.kilomeetrid, 0) as km,
-            COALESCE(t.km_raha, 0) as km_raha,
+            t.tunnid::numeric as tunnid,
+            COALESCE(we.tunnitasu,0)::numeric as tunnitasu,
+            ROUND(t.tunnid * COALESCE(we.tunnitasu,0), 2)::numeric as summa,
+            COALESCE(t.kilomeetrid, 0)::numeric as km,
+            COALESCE(t.km_raha, 0)::numeric as km_raha,
             t.kommentaar
      FROM tookirjed t
      JOIN workers w ON t.worker_id=w.id
@@ -237,12 +237,29 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
      ORDER BY w.nimi, t.kuupaev`,
     [aasta, kuu]
   );
-  const parser = new Parser({ delimiter: ';' });
-  const csv = parser.parse(r.rows);
+
+  // Ehita CSV kÃ¤sitsi et kontrollida formaati tÃ¤pselt
+  const read = r.rows;
+  if (!read.length) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send('\uFEFF' + 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;kommentaar\r\n');
+    return;
+  }
+  const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;kommentaar';
+  const rows = read.map(k => [
+    k.tootaja, k.ettevote, k.objekt, k.kuupaev, k.algus, k.lopp,
+    String(parseFloat(k.tunnid)).replace('.', ','),
+    String(parseFloat(k.tunnitasu)).replace('.', ','),
+    String(parseFloat(k.summa)).replace('.', ','),
+    String(parseFloat(k.km)).replace('.', ','),
+    String(parseFloat(k.km_raha)).replace('.', ','),
+    k.kommentaar || ''
+  ].join(';')).join('\r\n');
+
   const kuu2 = `${aasta}-${String(kuu).padStart(2,'0')}`;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="raport-${kuu2}.csv"`);
-  res.send('\uFEFF' + csv);
+  res.send('\uFEFF' + header + '\r\n' + rows);
 });
 
 module.exports = router;
