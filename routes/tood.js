@@ -46,9 +46,16 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     const [lh, lm] = lopp.split(':').map(Number);
     let minutid = (lh * 60 + lm) - (ah * 60 + am);
     if (minutid < 0) minutid += 1440; // Ã¶Ã¶vahetus
-    const tunnid = minutid / 60;
+    let tunnid = minutid / 60;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     if (tunnid > 16) return res.json({ ok: false, veateade: 'Ãœle 16 tunni? Kontrolli kellaaegu' });
+
+    // CRAMO: lahuta 0.5h lÃµuna kui 6+ tundi
+    const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
+    const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
+    if (tyyp === 'cramo' && tunnid >= 6) {
+      tunnid = tunnid - 0.5;
+    }
 
     const km = parseFloat(kilomeetrid) || 0;
     const km_raha = km > 0 ? (km / 100 * 12) : 0;
@@ -58,7 +65,7 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha]
     );
-    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2) });
+    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -87,9 +94,7 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     const kirjed = await pool.query(
       `SELECT t.*, e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp,
               COALESCE(o.nimi, '') as objekt_nimi,
-              we.tunnitasu,
-              COALESCE(t.kilomeetrid, 0) as kilomeetrid,
-              COALESCE(t.km_raha, 0) as km_raha
+              we.tunnitasu
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id = e.id
        LEFT JOIN objektid o ON t.objekt_id = o.id
@@ -102,7 +107,6 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     let teenitud = 0;
     kirjed.rows.forEach(k => {
       teenitud += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
-      teenitud += parseFloat(k.km_raha || 0);
     });
 
     const kogutunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
