@@ -128,3 +128,17 @@ router.delete('/admin/:id', noudaAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+// Muuda vahetust (admin)
+router.put('/admin/:id', noudaAdmin, async (req, res) => {
+  const { algus, lopp, märkus } = req.body;
+  try {
+    await pool.query(
+      'UPDATE merekohvik_graafik SET algus=$1, lopp=$2, märkus=$3 WHERE id=$4',
+      [algus, lopp, märkus||'', req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
