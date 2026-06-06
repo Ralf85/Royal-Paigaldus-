@@ -86,6 +86,29 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
 
 // ── ADMIN ──────────────────────────────────────────────────────────
 
+// Admin: lisa vahetus
+router.post('/admin/lisa', noudaAdmin, async (req, res) => {
+  const { worker_id, kuupaev, algus, lopp, märkus } = req.body;
+  if (!worker_id || !kuupaev || !algus || !lopp) {
+    return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  }
+  // Kontrolli kas päev on lukustatud
+  const lukk = await pool.query('SELECT lukustatud FROM merekohvik_paevad WHERE kuupaev=$1', [kuupaev]);
+  if (lukk.rows.length && lukk.rows[0].lukustatud) {
+    return res.json({ ok: false, veateade: 'See päev on lukustatud' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO merekohvik_graafik (worker_id, kuupaev, algus, lopp, märkus)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [worker_id, kuupaev, algus, lopp, märkus || '']
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // Admin: kuu graafik
 router.get('/admin/kuu', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
