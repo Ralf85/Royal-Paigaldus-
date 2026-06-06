@@ -57,7 +57,7 @@
     .kirje { display: flex; gap: 10px; font-size: 12px; padding: 5px 0; color: #666; border-bottom: 0.5px solid rgba(255,255,255,0.03); }
     .kirje:last-child { border-bottom: none; }
     .kirje span:first-child { color: #aaa; min-width: 70px; }
-    .ettevote-rida { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); width: 100%; }
+    .ettevote-rida { display: grid; grid-template-columns: 24px 1fr 100px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
     .ettevote-rida:last-child { border-bottom: none; }
   </style>
 </head>
@@ -269,7 +269,7 @@ async function laadiTootajad() {
         const tasu = weMap[e.id] || '';
         return `<div class="ettevote-rida">
           <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this)">
-          <span style="flex:1;font-size:13px;min-width:120px">${e.nimi}</span>
+          <span style="flex:1;font-size:13px">${e.nimi}</span>
           <input type="number" id="et-${w.id}-${e.id}" value="${tasu}" placeholder="€/h" step="0.5" style="width:90px" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">
         </div>`;
       }).join('')}
