@@ -78,6 +78,21 @@
     .lr-komm { font-size: 11px; color: #505560; margin-top: 1px; }
     .lr-summa { font-size: 15px; font-weight: 700; color: #4ade80; }
     .tyhi-olek { padding: 24px 16px; text-align: center; color: #3a3d45; font-size: 13px; }
+    .tp-rida { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+    .tp-rida:last-child { border-bottom: none; }
+    .tp-kp { min-width: 38px; background: #1e2128; border-radius: 8px; padding: 6px 4px; text-align: center; }
+    .tp-kp-paev { font-size: 16px; font-weight: 700; color: #fff; line-height: 1; }
+    .tp-kp-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .tp-info { flex: 1; }
+    .tp-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 5px; }
+    .badge-lidl { background: #FFF200; color: #002060; }
+    .badge-cramo { background: #CD2200; color: #fff; }
+    .badge-muu { background: #0369a1; color: #fff; }
+    .badge-merekohvik { background: #065f46; color: #4ade80; }
+    .tp-objekt { font-size: 13px; color: #d0d0d0; }
+    .tp-aeg { font-size: 11px; color: #505560; margin-top: 2px; }
+    .tp-komm { font-size: 11px; color: #505560; margin-top: 2px; font-style: italic; }
+    .tp-tunnid { font-size: 15px; font-weight: 700; color: #c9a84c; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -122,6 +137,16 @@
         <div class="laek-kv-item"><div class="laek-kv-label">Ootel</div><div class="laek-kv-val v-kollane" id="kv-ootel">—</div></div>
       </div>
       <div id="laekumisteSisu"><div class="tyhi-olek">Laekumisi pole</div></div>
+    </div>
+
+    <!-- Tööpäevik -->
+    <div class="kaart">
+      <div class="kaart-hdr">
+        <span>📋</span>
+        <span class="kaart-hdr-tekst">Tööpäevik</span>
+        <span class="kaart-hdr-arv" id="toopaeviku-kuu">—</span>
+      </div>
+      <div id="toopaevikuSisu"><div class="tyhi-olek">Selle kuu kirjeid pole</div></div>
     </div>
   </div>
 
@@ -180,7 +205,7 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik()]);
     }
 
     async function laadiEttevotted() {
@@ -264,6 +289,34 @@
             </div>
           </div>
           <div class="lr-summa">+${parseFloat(m.summa).toFixed(0)} €</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function laadiToopaevik() {
+      document.getElementById('toopaeviku-kuu').textContent = KUUD[aktiivsKuu-1];
+      const vastus = await api(`/api/tood/kokkuvote?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
+      const div = document.getElementById('toopaevikuSisu');
+      if (!vastus.ok || !vastus.kirjed || !vastus.kirjed.length) {
+        div.innerHTML = '<div class="tyhi-olek">Selle kuu kirjeid pole</div>';
+        return;
+      }
+      div.innerHTML = vastus.kirjed.map(k => {
+        const d = new Date(k.kuupaev);
+        const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
+        const kmInfo = parseFloat(k.kilomeetrid||0) > 0 ? ` · 🚗 ${k.kilomeetrid}km` : '';
+        const lisakuluInfo = parseFloat(k.lisakulu_summa||0) > 0 ? ` · 💸 ${parseFloat(k.lisakulu_summa).toFixed(2)}€${k.lisakulu_selgitus ? ' ('+k.lisakulu_selgitus+')' : ''}` : '';
+        return `<div class="tp-rida">
+          <div class="tp-kp">
+            <div class="tp-kp-paev">${d.getDate()}</div>
+            <div class="tp-kp-kuu">${KUUD_LYHIKE[d.getMonth()]}</div>
+          </div>
+          <div class="tp-info">
+            <div><span class="tp-badge badge-${tyyp}">${k.ettevote_nimi}</span><span class="tp-objekt">${k.objekt_nimi||''}</span></div>
+            <div class="tp-aeg">${k.algus.slice(0,5)} – ${k.lopp.slice(0,5)}${kmInfo}${lisakuluInfo}</div>
+            ${k.kommentaar ? `<div class="tp-komm">${k.kommentaar}</div>` : ''}
+          </div>
+          <div class="tp-tunnid">${parseFloat(k.tunnid).toFixed(1)}h</div>
         </div>`;
       }).join('');
     }
