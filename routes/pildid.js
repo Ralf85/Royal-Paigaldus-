@@ -7,11 +7,14 @@ const archiver = require('archiver');
 const https = require('https');
 const http = require('http');
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  return cloudinary;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -51,7 +54,7 @@ router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12)
     const uploaded = [];
     for (const file of req.files) {
       const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
+        const stream = getCloudinary().uploader.upload_stream(
           { folder, resource_type: 'image', quality: 'auto', fetch_format: 'auto' },
           (err, result) => err ? reject(err) : resolve(result)
         );
@@ -87,7 +90,7 @@ router.delete('/:piltId', noudaSisslogimist, async (req, res) => {
     const pilt = await pool.query('SELECT p.*, t.worker_id FROM tookirje_pildid p JOIN tookirjed t ON p.tookirje_id=t.id WHERE p.id=$1', [req.params.piltId]);
     if (!pilt.rows.length) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
     if (pilt.rows[0].worker_id !== req.session.workerId && !req.session.isAdmin) return res.status(401).json({ ok: false });
-    await cloudinary.uploader.destroy(pilt.rows[0].public_id);
+    await getCloudinary().uploader.destroy(pilt.rows[0].public_id);
     await pool.query('DELETE FROM tookirje_pildid WHERE id=$1', [req.params.piltId]);
     res.json({ ok: true });
   } catch (err) {
