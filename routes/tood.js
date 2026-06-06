@@ -26,7 +26,7 @@ router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
 });
 
 // Objektid ettevõtte järgi
-router.get('/objektid/:ettevoteId', noudaSisslogimist, async (req, res) => {
+router.get('/objektid/:ettevoteId', async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT * FROM objektid WHERE ettevote_id = $1 AND aktiivne = true ORDER BY nimi`,
