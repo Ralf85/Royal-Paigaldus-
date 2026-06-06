@@ -7,7 +7,11 @@ function noudaSisslogimist(req, res, next) {
   next();
 }
 
-// Kontrolli kas töötaja on Merekohvikuga seotud
+function noudaAdmin(req, res, next) {
+  if (!req.session.isAdmin) return res.status(401).json({ ok: false });
+  next();
+}
+
 async function onMerekohvik(workerId) {
   const r = await pool.query(
     `SELECT we.id FROM worker_ettevotted we
@@ -18,12 +22,12 @@ async function onMerekohvik(workerId) {
   return r.rows.length > 0;
 }
 
-// Kuu graafik
+// Kuu graafik (töötajale)
 router.get('/kuu', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
   if (!await onMerekohvik(req.session.workerId)) return res.status(403).json({ ok: false });
   
-  const r = await pool.query(
+  const vahetused = await pool.query(
     `SELECT g.*, w.nimi as worker_nimi
      FROM merekohvik_graafik g
      JOIN workers w ON g.worker_id=w.id
@@ -31,7 +35,14 @@ router.get('/kuu', noudaSisslogimist, async (req, res) => {
      ORDER BY g.kuupaev, g.algus`,
     [aasta, kuu]
   );
-  res.json(r.rows);
+
+  const paevad = await pool.query(
+    `SELECT * FROM merekohvik_paevad
+     WHERE EXTRACT(YEAR FROM kuupaev)=$1 AND EXTRACT(MONTH FROM kuupaev)=$2`,
+    [aasta, kuu]
+  );
+
+  res.json({ vahetused: vahetused.rows, paevad: paevad.rows });
 });
 
 // Lisa vahetus
@@ -40,6 +51,12 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
   
   const { kuupaev, algus, lopp, märkus } = req.body;
   if (!kuupaev || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  
+  // Kontrolli kas päev on lukustatud
+  const lukk = await pool.query('SELECT lukustatud FROM merekohvik_paevad WHERE kuupaev=$1', [kuupaev]);
+  if (lukk.rows.length && lukk.rows[0].lukustatud) {
+    return res.json({ ok: false, veateade: 'See päev on lukustatud' });
+  }
   
   try {
     await pool.query(
@@ -67,11 +84,12 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Admin: kõik vahetused
-router.get('/admin/kuu', async (req, res) => {
-  if (!req.session.isAdmin) return res.status(401).json([]);
+// ── ADMIN ──────────────────────────────────────────────────────────
+
+// Admin: kuu graafik
+router.get('/admin/kuu', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
-  const r = await pool.query(
+  const vahetused = await pool.query(
     `SELECT g.*, w.nimi as worker_nimi
      FROM merekohvik_graafik g
      JOIN workers w ON g.worker_id=w.id
@@ -79,12 +97,32 @@ router.get('/admin/kuu', async (req, res) => {
      ORDER BY g.kuupaev, g.algus`,
     [aasta, kuu]
   );
-  res.json(r.rows);
+  const paevad = await pool.query(
+    `SELECT * FROM merekohvik_paevad
+     WHERE EXTRACT(YEAR FROM kuupaev)=$1 AND EXTRACT(MONTH FROM kuupaev)=$2`,
+    [aasta, kuu]
+  );
+  res.json({ vahetused: vahetused.rows, paevad: paevad.rows });
+});
+
+// Admin: uuenda päeva staatust
+router.post('/admin/paev', noudaAdmin, async (req, res) => {
+  const { kuupaev, staatus, märkus, lukustatud } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO merekohvik_paevad (kuupaev, staatus, märkus, lukustatud)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (kuupaev) DO UPDATE SET staatus=$2, märkus=$3, lukustatud=$4`,
+      [kuupaev, staatus || 'tavaline', märkus || '', lukustatud || false]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
 });
 
 // Admin: kustuta vahetus
-router.delete('/admin/:id', async (req, res) => {
-  if (!req.session.isAdmin) return res.status(401).json({ ok: false });
+router.delete('/admin/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM merekohvik_graafik WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
