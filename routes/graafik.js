@@ -131,11 +131,11 @@ module.exports = router;
 
 // Muuda vahetust (admin)
 router.put('/admin/:id', noudaAdmin, async (req, res) => {
-  const { algus, lopp, märkus } = req.body;
+  const { worker_id, algus, lopp, märkus } = req.body;
   try {
     await pool.query(
-      'UPDATE merekohvik_graafik SET algus=$1, lopp=$2, märkus=$3 WHERE id=$4',
-      [algus, lopp, märkus||'', req.params.id]
+      'UPDATE merekohvik_graafik SET worker_id=$1, algus=$2, lopp=$3, märkus=$4 WHERE id=$5',
+      [worker_id, algus, lopp, märkus||'', req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
