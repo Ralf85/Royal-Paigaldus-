@@ -329,6 +329,8 @@
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
     <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda vahetust</h3>
     <input type="hidden" id="mv-id">
+    <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Töötaja</label>
+      <select id="mv-worker" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
         <input type="time" id="mv-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
@@ -981,11 +983,17 @@ function kuvаKalender(andmed) {
   div.innerHTML = html;
 }
 
-function avaaMuutaVahetus(v) {
+async function avaaMuutaVahetus(v) {
   document.getElementById('mv-id').value = v.id;
   document.getElementById('mv-algus').value = v.algus;
   document.getElementById('mv-lopp').value = v.lopp;
   document.getElementById('mv-markus').value = v.märkus || '';
+  // Laadi Merekohviku töötajad
+  const workers = await api('/api/admin/tootajad');
+  const sel = document.getElementById('mv-worker');
+  sel.innerHTML = workers.filter(w=>w.aktiivne).map(w =>
+    `<option value="${w.id}" ${w.id == v.worker_id ? 'selected' : ''}>${w.nimi}</option>`
+  ).join('');
   document.getElementById('muutaVahetusModal').style.display = 'flex';
 }
 
@@ -994,6 +1002,7 @@ async function salvestaMuutaVahetus() {
   const r = await api(`/api/graafik/admin/${id}`, {
     method: 'PUT',
     body: JSON.stringify({
+      worker_id: document.getElementById('mv-worker').value,
       algus: document.getElementById('mv-algus').value,
       lopp: document.getElementById('mv-lopp').value,
       märkus: document.getElementById('mv-markus').value
