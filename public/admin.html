@@ -203,13 +203,12 @@ function avatTab(i) {
   if(i===1) { laadiWorkerSelect(); laadiMaksed(); }
   if(i===2) laadiTootajad();
   if(i===3) laadiObjektid();
- if(i===4) { laadiTTInit(); laadiTulevasteToodTabel(); }
+  if(i===4) { laadiTTWorkers(); laadiTulevasteToodTabel(); }
 }
 
 async function init() {
-  const s = await api('/api/auth/sessioon');
-  if (!s.isAdmin) { window.location='/admin-login'; return; }
   kõikEttevotted = await api('/api/admin/ettevotted');
+  if (!Array.isArray(kõikEttevotted)) { window.location='/admin-login'; return; }
   const t = new Date();
   const kvKuu = document.getElementById('kv-kuu');
   KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kvKuu.appendChild(o); });
@@ -372,27 +371,7 @@ async function kustutaMakse(id) {
   laadiMaksed();
 }
 
-async function laadiTTInit() {
-  // Laadi ettevõtted
-  const ettSel = document.getElementById('tt-ettevote');
-  ettSel.innerHTML = '';
-  kõikEttevotted.forEach(e => ettSel.innerHTML += `<option value="${e.id}">${e.nimi}</option>`);
-  laadiTTObjektid();
-
-  // Laadi töötajad linnukestega
-  const workers = await api('/api/admin/tootajad');
-  const div = document.getElementById('tt-workers-valik');
-  if(!workers || !workers.length) {
-    div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>';
-    return;
-  }
-  div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
-    <label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0">
-      <input type="checkbox" value="${w.id}" style="width:auto;margin:0"> ${w.nimi}
-    </label>`).join('');
-}
-
-async function laadiTTWorkers() { await laadiTTInit(); }
+async function laadiTTWorkers() {
   const workers = await api('/api/admin/tootajad');
   // Lisa ettevõtted dropdown
   const ettevotted = kõikEttevotted;
