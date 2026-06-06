@@ -13,22 +13,38 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(100) NOT NULL,
         pin VARCHAR(10) NOT NULL UNIQUE,
-        tunnitasu DECIMAL(10,2) NOT NULL DEFAULT 0,
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ettevotted (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(50) NOT NULL UNIQUE,
+        tyyp VARCHAR(20) NOT NULL DEFAULT 'muu',
+        aktiivne BOOLEAN DEFAULT true
       );
 
       CREATE TABLE IF NOT EXISTS objektid (
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(200) NOT NULL,
+        ettevote_id INTEGER REFERENCES ettevotted(id),
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS worker_ettevotted (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        ettevote_id INTEGER REFERENCES ettevotted(id) ON DELETE CASCADE,
+        tunnitasu DECIMAL(10,2) NOT NULL DEFAULT 0,
+        UNIQUE(worker_id, ettevote_id)
       );
 
       CREATE TABLE IF NOT EXISTS tookirjed (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id),
         objekt_id INTEGER REFERENCES objektid(id),
+        ettevote_id INTEGER REFERENCES ettevotted(id),
         kuupaev DATE NOT NULL,
         algus TIME NOT NULL,
         lopp TIME NOT NULL,
@@ -40,8 +56,8 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS tulevased_tood (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id),
-        firma VARCHAR(20) NOT NULL,
-        objekt VARCHAR(200),
+        ettevote_id INTEGER REFERENCES ettevotted(id),
+        objekt_id INTEGER REFERENCES objektid(id),
         kuupaev DATE NOT NULL,
         algus_kell VARCHAR(5),
         lopp_kell VARCHAR(5),
@@ -57,6 +73,13 @@ async function initDB() {
         kommentaar TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
+
+      INSERT INTO ettevotted (nimi, tyyp) VALUES
+        ('LIDL', 'lidl'),
+        ('CRAMO', 'cramo'),
+        ('MUU', 'muu'),
+        ('MEREKOHVIK', 'muu')
+      ON CONFLICT (nimi) DO NOTHING;
     `);
     console.log('✅ Andmebaas valmis');
   } finally {

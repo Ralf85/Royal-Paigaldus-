@@ -18,10 +18,12 @@ app.use(session({
   cookie: { maxAge: 8 * 60 * 60 * 1000 }
 }));
 
+// Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tood', require('./routes/tood'));
 app.use('/api/admin', require('./routes/admin'));
 
+// HTML lehed
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
