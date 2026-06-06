@@ -184,6 +184,21 @@
       <textarea id="kommentaar" placeholder="nt. ladu, riiulite paigaldus, ülevaatus..."></textarea>
     </div>
 
+    <!-- 8. Lisakulu -->
+    <div class="km-sekts" style="background:#1a1208;border-color:#3a2a10;margin-bottom:16px">
+      <div class="km-pealkiri" style="color:#f0b84e">💸 Lisakulu (vabatahtlik)</div>
+      <div class="km-grid">
+        <div class="valik-grupp" style="margin:0">
+          <label class="valik-label">Summa (€)</label>
+          <input type="number" id="lisakulu_summa" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="valik-grupp" style="margin:0">
+          <label class="valik-label">Selgitus</label>
+          <input type="text" id="lisakulu_selgitus" placeholder="nt. Bolt Drive, parkimine...">
+        </div>
+      </div>
+    </div>
+
     <!-- Lisa nupp -->
     <button class="lisa-nupp" id="lisaNupp" onclick="lisaKirje()" disabled>
       ➕ Lisa töökirje
@@ -329,6 +344,8 @@
       const kommentaar = document.getElementById('kommentaar').value;
       const objekt_id = document.getElementById('objektValik').value || null;
       const km = parseFloat(document.getElementById('kilomeetrid').value) || 0;
+      const lisakulu_summa = parseFloat(document.getElementById('lisakulu_summa').value) || 0;
+      const lisakulu_selgitus = document.getElementById('lisakulu_selgitus').value;
 
       const nupp = document.getElementById('lisaNupp');
       nupp.disabled = true;
@@ -343,7 +360,9 @@
           algus,
           lopp,
           kommentaar,
-          kilomeetrid: km
+          kilomeetrid: km,
+          lisakulu_summa,
+          lisakulu_selgitus
         })
       });
 
@@ -354,6 +373,8 @@
         naita('ok', `✓ Lisatud! ${vastus.tunnid} tundi${vastus.km_raha > 0 ? ' + ' + parseFloat(vastus.km_raha).toFixed(2) + '€ sõiduraha' : ''}`);
         document.getElementById('kommentaar').value = '';
         document.getElementById('kilomeetrid').value = '';
+        document.getElementById('lisakulu_summa').value = '';
+        document.getElementById('lisakulu_selgitus').value = '';
         arvutaKm();
         await laadiTanaKirjed();
       } else {
@@ -383,10 +404,11 @@
       div.innerHTML = tanaKirjed.map(k => {
         const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
         const kmInfo = k.kilomeetrid > 0 ? ` · 🚗 ${k.kilomeetrid}km (${parseFloat(k.km_raha||0).toFixed(2)}€)` : '';
+        const lisakuluInfo = k.lisakulu_summa > 0 ? ` · 💸 ${parseFloat(k.lisakulu_summa).toFixed(2)}€${k.lisakulu_selgitus ? ' ('+k.lisakulu_selgitus+')' : ''}` : '';
         return `<div class="kirje-rida">
           <div class="kirje-vasak">
             <div><span class="kirje-firma ${tyyp}">${k.ettevote_nimi}</span>${k.objekt_nimi ? `<span style="font-size:12px;color:#888">${k.objekt_nimi}</span>` : ''}</div>
-            <div class="kirje-aeg">${k.algus} – ${k.lopp}${kmInfo}</div>
+            <div class="kirje-aeg">${k.algus} – ${k.lopp}${kmInfo}${lisakuluInfo}</div>
             ${k.kommentaar ? `<div class="kirje-komm">${k.kommentaar}</div>` : ''}
           </div>
           <div style="display:flex;align-items:center">
