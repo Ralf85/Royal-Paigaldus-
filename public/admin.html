@@ -149,10 +149,9 @@
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa tulevane töö</div>
       <div class="kaart-body">
-        <div class="vorm-rida col3">
-          <div class="vorm-grupp"><label>Töötaja</label><select id="tt-worker" onchange="laadiTTEttevotted()"></select></div>
+        <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Ettevõte</label><select id="tt-ettevote" onchange="laadiTTObjektid()"></select></div>
-          <div class="vorm-grupp"><label>Objekt</label><select id="tt-objekt"><option value="">— Pole määratud —</option></select></div>
+          <div class="vorm-grupp"><label>Objekt (vabatahtlik)</label><select id="tt-objekt"><option value="">— Pole määratud —</option></select></div>
         </div>
         <div class="vorm-rida col3">
           <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="tt-kuupaev"></div>
@@ -162,7 +161,13 @@
         <div class="vorm-rida">
           <div class="vorm-grupp"><label>Kirjeldus</label><input type="text" id="tt-kirjeldus" placeholder="nt. Riiulite paigaldus..."></div>
         </div>
-        <button class="nupp kull" onclick="lisaTulevaneToo()">📅 Lisa</button>
+        <div class="vorm-grupp" style="margin-bottom:12px">
+          <label style="margin-bottom:8px;display:block">Töötajad (vali üks või mitu)</label>
+          <div id="tt-workers-valik" style="background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
+            <span style="color:#555;font-size:13px">Laadimine...</span>
+          </div>
+        </div>
+        <button class="nupp kull" onclick="lisaTulevaneToo()">📅 Lisa töö valitud töötajatele</button>
         <div class="teade" id="tt-teade"></div>
       </div>
     </div>
@@ -369,20 +374,19 @@ async function kustutaMakse(id) {
 
 async function laadiTTWorkers() {
   const workers = await api('/api/admin/tootajad');
-  const sel = document.getElementById('tt-worker');
-  sel.innerHTML = '';
-  workers.filter(w=>w.aktiivne).forEach(w => sel.innerHTML += `<option value="${w.id}">${w.nimi}</option>`);
-  laadiTTEttevotted();
-}
-
-async function laadiTTEttevotted() {
-  const workerId = document.getElementById('tt-worker').value;
-  if(!workerId) return;
-  const ettevotted = await api(`/api/admin/tootaja-ettevotted/${workerId}`);
-  const sel = document.getElementById('tt-ettevote');
-  sel.innerHTML = '';
-  ettevotted.forEach(e => sel.innerHTML += `<option value="${e.ettevote_id}">${e.ettevote_nimi}</option>`);
+  // Lisa ettevõtted dropdown
+  const ettevotted = kõikEttevotted;
+  const ettSel = document.getElementById('tt-ettevote');
+  ettSel.innerHTML = '';
+  ettevotted.forEach(e => ettSel.innerHTML += `<option value="${e.id}">${e.nimi}</option>`);
   laadiTTObjektid();
+  // Lisa töötajate valik linnukestega
+  const div = document.getElementById('tt-workers-valik');
+  if(!workers.length) { div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>'; return; }
+  div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
+    <label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0">
+      <input type="checkbox" value="${w.id}" style="width:auto;margin:0"> ${w.nimi}
+    </label>`).join('');
 }
 
 async function laadiTTObjektid() {
@@ -395,7 +399,6 @@ async function laadiTTObjektid() {
 }
 
 async function lisaTulevaneToo() {
-  const worker_id=document.getElementById('tt-worker').value;
   const ettevote_id=document.getElementById('tt-ettevote').value;
   const objekt_id=document.getElementById('tt-objekt').value||null;
   const kuupaev=document.getElementById('tt-kuupaev').value;
@@ -403,9 +406,15 @@ async function lisaTulevaneToo() {
   const lopp_kell=document.getElementById('tt-lopp').value;
   const kirjeldus=document.getElementById('tt-kirjeldus').value;
   if(!kuupaev) return naitaTeade('tt-teade','viga','Vali kuupäev!');
-  const r = await api('/api/admin/tulevased', {method:'POST', body: JSON.stringify({worker_id,ettevote_id,objekt_id,kuupaev,algus_kell,lopp_kell,kirjeldus})});
-  if(r.ok){naitaTeade('tt-teade','ok','✅ Lisatud!');document.getElementById('tt-kirjeldus').value='';laadiTulevasteToodTabel();}
-  else naitaTeade('tt-teade','viga',r.veateade||'Viga');
+  const valitudWorkers = [...document.querySelectorAll('#tt-workers-valik input:checked')].map(cb => cb.value);
+  if(!valitudWorkers.length) return naitaTeade('tt-teade','viga','Vali vähemalt üks töötaja!');
+  let ok = 0;
+  for(const worker_id of valitudWorkers) {
+    const r = await api('/api/admin/tulevased', {method:'POST', body: JSON.stringify({worker_id,ettevote_id,objekt_id,kuupaev,algus_kell,lopp_kell,kirjeldus})});
+    if(r.ok) ok++;
+  }
+  if(ok > 0){ naitaTeade('tt-teade','ok',`✅ Lisatud ${ok} töötajale!`); document.getElementById('tt-kirjeldus').value=''; laadiTulevasteToodTabel(); }
+  else naitaTeade('tt-teade','viga','Viga lisamisel');
 }
 
 async function laadiTulevasteToodTabel() {
