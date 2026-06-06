@@ -221,6 +221,19 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+router.put('/tulevased/:id', noudaAdmin, async (req, res) => {
+  const { kuupaev, algus_kell, lopp_kell, kirjeldus } = req.body;
+  try {
+    await pool.query(
+      'UPDATE tulevased_tood SET kuupaev=$1, algus_kell=$2, lopp_kell=$3, kirjeldus=$4 WHERE id=$5',
+      [kuupaev, algus_kell, lopp_kell, kirjeldus||'', req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM tulevased_tood WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
