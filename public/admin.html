@@ -37,6 +37,8 @@
     .nupp.roheline { background: #16a34a; color: #fff; }
     .nupp.punane { background: #dc2626; color: #fff; font-size: 12px; padding: 5px 10px; }
     .nupp.hall { background: #252830; color: #aaa; }
+    .nupp.kustuta-tootaja { background: #3d0a0a; border: 0.5px solid #6b1010; color: #ef4444; font-size: 12px; padding: 6px 12px; }
+    .nupp.kustuta-tootaja:hover { background: #5a1010; }
     .teade { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 10px; display: none; }
     .teade.ok { background: #14532d; color: #86efac; }
     .teade.viga { background: #7f1d1d; color: #fca5a5; }
@@ -182,10 +184,8 @@
 const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
 let kõikEttevotted = [];
 let TOKEN = localStorage.getItem('adminToken') || '';
-// Uuenda token iga 30 sekundi tagant
 setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
 
-// Kõik API päringud kasutavad tokenit
 async function api(url, opts = {}) {
   opts.headers = opts.headers || {};
   opts.headers['x-session-token'] = TOKEN;
@@ -259,7 +259,7 @@ async function laadiTootajad() {
     we.forEach(x => weMap[x.ettevote_id] = x.tunnitasu);
     html += `<div style="padding:16px 18px;border-bottom:0.5px solid rgba(255,255,255,0.05)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <input type="text" value="${w.nimi}" id="wn-${w.id}" style="width:130px;font-weight:600">
           <span style="color:#555;font-size:12px">PIN:</span>
           <input type="text" value="${w.pin}" id="wp-${w.id}" style="width:70px">
@@ -267,7 +267,10 @@ async function laadiTootajad() {
             <input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"> Aktiivne
           </label>
         </div>
-        <button class="nupp hall" style="font-size:12px;padding:6px 14px" onclick="uuendaTootaja(${w.id})">Salvesta</button>
+        <div style="display:flex;gap:8px">
+          <button class="nupp hall" style="font-size:12px;padding:6px 14px" onclick="uuendaTootaja(${w.id})">Salvesta</button>
+          <button class="nupp kustuta-tootaja" onclick="kustutaTootaja(${w.id}, '${w.nimi}')">🗑 Kustuta</button>
+        </div>
       </div>
       <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Ettevõtted ja tunnitasud</div>
       ${kõikEttevotted.map(e => {
@@ -299,6 +302,13 @@ async function uuendaTootaja(id) {
   const aktiivne = document.getElementById(`wa-${id}`).checked;
   await api(`/api/admin/tootajad/${id}`, {method:'PUT', body: JSON.stringify({nimi,pin,aktiivne})});
   laadiTootajad();
+}
+
+async function kustutaTootaja(id, nimi) {
+  if(!confirm(`Kustutad töötaja "${nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed, maksed ja tulevased tööd!\n\nSee on pöördumatu!`)) return;
+  const r = await api(`/api/admin/tootajad/${id}`, {method:'DELETE'});
+  if(r.ok) { naitaTeade('tootaja-teade','ok',`✅ ${nimi} kustutatud`); laadiTootajad(); }
+  else naitaTeade('tootaja-teade','viga', r.veateade || 'Kustutamine ebaõnnestus');
 }
 
 async function toggleEttevote(workerId, ettevoteId, checkbox) {
@@ -375,13 +385,11 @@ async function kustutaMakse(id) {
 
 async function laadiTTWorkers() {
   const workers = await api('/api/admin/tootajad');
-  // Lisa ettevõtted dropdown
   const ettevotted = kõikEttevotted;
   const ettSel = document.getElementById('tt-ettevote');
   ettSel.innerHTML = '';
   ettevotted.forEach(e => ettSel.innerHTML += `<option value="${e.id}">${e.nimi}</option>`);
   laadiTTObjektid();
-  // Lisa töötajate valik linnukestega
   const div = document.getElementById('tt-workers-valik');
   if(!workers || !Array.isArray(workers) || !workers.length) { div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>'; return; }
   div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
