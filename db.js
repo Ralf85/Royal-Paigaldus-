@@ -100,6 +100,15 @@ async function initDB() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE,
+        subscription TEXT NOT NULL,
+        uuendatud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
