@@ -83,7 +83,7 @@ router.get('/ettevotted', noudaAdmin, async (req, res) => {
 
 // â”€â”€ OBJEKTID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/objektid', noudaAdmin, async (req, res) => {
+router.get('/objektid', async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o
