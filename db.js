@@ -9,19 +9,19 @@ async function initDB() {
   const client = await pool.connect();
   try {
     await client.query(`
+      CREATE TABLE IF NOT EXISTS ettevotted (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(50) NOT NULL UNIQUE,
+        tyyp VARCHAR(20) NOT NULL DEFAULT 'muu',
+        aktiivne BOOLEAN DEFAULT true
+      );
+
       CREATE TABLE IF NOT EXISTS workers (
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(100) NOT NULL,
         pin VARCHAR(10) NOT NULL UNIQUE,
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE TABLE IF NOT EXISTS ettevotted (
-        id SERIAL PRIMARY KEY,
-        nimi VARCHAR(50) NOT NULL UNIQUE,
-        tyyp VARCHAR(20) NOT NULL DEFAULT 'muu',
-        aktiivne BOOLEAN DEFAULT true
       );
 
       CREATE TABLE IF NOT EXISTS objektid (
@@ -73,7 +73,9 @@ async function initDB() {
         kommentaar TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
+    `);
 
+    await client.query(`
       INSERT INTO ettevotted (nimi, tyyp) VALUES
         ('LIDL', 'lidl'),
         ('CRAMO', 'cramo'),
@@ -81,6 +83,7 @@ async function initDB() {
         ('MEREKOHVIK', 'muu')
       ON CONFLICT (nimi) DO NOTHING;
     `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
