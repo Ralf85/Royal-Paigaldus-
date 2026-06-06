@@ -284,6 +284,37 @@
           <select id="g-admin-aasta" style="width:auto"></select>
           <button class="nupp kull" onclick="laadiAdminGraafik()">Näita</button>
         </div>
+        <!-- Lisa vahetus -->
+        <div style="background:#0d0f13;border:0.5px solid #252830;border-radius:10px;padding:14px;margin-bottom:12px">
+          <div style="font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Lisa vahetus</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div>
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Töötaja</label>
+              <select id="g-lisa-worker" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:auto">
+                <option value="">Laadimine...</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+              <input type="date" id="g-lisa-kuupaev" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;color-scheme:dark">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
+              <input type="time" id="g-lisa-algus" value="10:00" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
+              <input type="time" id="g-lisa-lopp" value="18:00" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px">
+            </div>
+            <div style="flex:1;min-width:120px">
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus</label>
+              <input type="text" id="g-lisa-markus" placeholder="vabatahtlik" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:100%">
+            </div>
+            <button onclick="adminLisaVahetus()" style="background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">+ Lisa</button>
+          </div>
+          <div id="g-lisa-teade" style="margin-top:8px;font-size:12px;display:none"></div>
+        </div>
+
         <!-- Päeva staatuse muutmine -->
         <div style="background:#0d0f13;border:0.5px solid #252830;border-radius:10px;padding:14px;margin-bottom:16px">
           <div style="font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Päeva haldus</div>
@@ -403,7 +434,18 @@ function avatTab(i) {
   if(i===5) laadiFotod();
   if(i===6) laadiAuditLogi();
   if(i===7) laadiRaportTab();
-  if(i===8) laadiAdminGraafik();
+  if(i===8) {
+    laadiAdminGraafik();
+    // Laadi töötajad vahetuse lisamiseks
+    api('/api/admin/tootajad').then(workers => {
+      const sel = document.getElementById('g-lisa-worker');
+      if (sel) sel.innerHTML = workers.filter(w=>w.aktiivne).map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+    });
+    // Täna kuupäev
+    const t = new Date();
+    const el = document.getElementById('g-lisa-kuupaev');
+    if (el) el.value = t.toISOString().split('T')[0];
+  }
 }
 
 async function init() {
@@ -838,6 +880,37 @@ async function salvestaMuuTasu(kirjeId) {
   }
 }
 
+
+async function adminLisaVahetus() {
+  const worker_id = document.getElementById('g-lisa-worker').value;
+  const kuupaev = document.getElementById('g-lisa-kuupaev').value;
+  const algus = document.getElementById('g-lisa-algus').value;
+  const lopp = document.getElementById('g-lisa-lopp').value;
+  const märkus = document.getElementById('g-lisa-markus').value;
+  const teade = document.getElementById('g-lisa-teade');
+
+  if (!worker_id || !kuupaev || !algus || !lopp) {
+    teade.style.display = 'block';
+    teade.style.color = '#ef4444';
+    teade.textContent = 'Täida kõik väljad!';
+    return;
+  }
+
+  const r = await api('/api/graafik/admin/lisa', {
+    method: 'POST',
+    body: JSON.stringify({ worker_id, kuupaev, algus, lopp, märkus })
+  });
+
+  if (r.ok) {
+    teade.style.display = 'none';
+    document.getElementById('g-lisa-markus').value = '';
+    laadiAdminGraafik();
+  } else {
+    teade.style.display = 'block';
+    teade.style.color = '#ef4444';
+    teade.textContent = r.veateade || 'Viga lisamisel';
+  }
+}
 
 async function laadiAdminGraafik() {
   const kuu = document.getElementById('g-admin-kuu')?.value || (new Date().getMonth()+1);
