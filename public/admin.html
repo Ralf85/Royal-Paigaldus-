@@ -82,6 +82,7 @@
     <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
     <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
     <button class="tab" onclick="avatTab(7)">📄 Raport</button>
+    <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
   </div>
 
   <div class="sektsioon nhtav" id="tab0">
@@ -272,6 +273,50 @@
   </div>
 </div>
 
+
+  <!-- Tab 8: Merekohviku graafik -->
+  <div class="sektsioon" id="tab8">
+    <div class="kaart">
+      <div class="kaart-hdr">☕ Merekohviku graafik</div>
+      <div class="kaart-body">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <select id="g-admin-kuu" style="width:auto"></select>
+          <select id="g-admin-aasta" style="width:auto"></select>
+          <button class="nupp kull" onclick="laadiAdminGraafik()">Näita</button>
+        </div>
+        <!-- Päeva staatuse muutmine -->
+        <div style="background:#0d0f13;border:0.5px solid #252830;border-radius:10px;padding:14px;margin-bottom:16px">
+          <div style="font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Päeva haldus</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="date" id="g-admin-paev" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;color-scheme:dark">
+            <select id="g-admin-staatus" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:auto">
+              <option value="tavaline">Tavaline</option>
+              <option value="suuryritus">🔵 Suurüritus</option>
+              <option value="kohvik">🟢 Ainult kohvik</option>
+              <option value="suletud">🔴 Suletud</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#aaa;cursor:pointer">
+              <input type="checkbox" id="g-admin-lukk"> 🔒 Lukusta
+            </label>
+            <input type="text" id="g-admin-markus" placeholder="Märkus (vabatahtlik)" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;flex:1;min-width:150px">
+            <button class="nupp kull" onclick="salvestaPaev()" style="padding:7px 16px">Salvesta</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <span style="font-size:11px;color:#555">Kiirvalik:</span>
+            <button onclick="setStaatus('suuryritus',false)" style="background:#1e3a5f;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#5b9cf6;cursor:pointer">🔵 Suurüritus</button>
+            <button onclick="setStaatus('kohvik',false)" style="background:#0f2d1a;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#4ade80;cursor:pointer">🟢 Kohvik</button>
+            <button onclick="setStaatus('suletud',true)" style="background:#2d0a0a;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#ef4444;cursor:pointer">🔒 Lukusta</button>
+            <button onclick="setStaatus('tavaline',false)" style="background:#252830;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#aaa;cursor:pointer">Tühista</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="kaart">
+      <div class="kaart-hdr">📅 Kuu graafik</div>
+      <div id="adminGraafikSisu" style="padding:16px">Laadimine...</div>
+    </div>
+  </div>
+
 <!-- Töökirje muutmise modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
@@ -329,6 +374,7 @@ function avatTab(i) {
   if(i===5) laadiFotod();
   if(i===6) laadiAuditLogi();
   if(i===7) laadiRaportTab();
+  if(i===8) laadiAdminGraafik();
 }
 
 async function init() {
@@ -341,6 +387,12 @@ async function init() {
   for(let y=t.getFullYear(); y>=t.getFullYear()-2; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; kvAasta.appendChild(o); }
   document.getElementById('makse-kuupaev').value = t.toISOString().split('T')[0];
   document.getElementById('tt-kuupaev').value = t.toISOString().split('T')[0];
+  document.getElementById('g-admin-paev').value = t.toISOString().split('T')[0];
+  // Lisa graafiku kuu/aasta valikud
+  const gKuu = document.getElementById('g-admin-kuu');
+  const gAasta = document.getElementById('g-admin-aasta');
+  if (gKuu) { KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; gKuu.appendChild(o); }); }
+  if (gAasta) { for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; gAasta.appendChild(o); } }
   const objEttevote = document.getElementById('obj-ettevote');
   kõikEttevotted.forEach(e => { objEttevote.innerHTML += `<option value="${e.id}">${e.nimi}</option>`; });
   laadiKokkuvote();
@@ -755,6 +807,91 @@ async function salvestaMuuTasu(kirjeId) {
   } else {
     input.style.borderColor = '#ef4444';
   }
+}
+
+
+async function laadiAdminGraafik() {
+  const kuu = document.getElementById('g-admin-kuu')?.value || (new Date().getMonth()+1);
+  const aasta = document.getElementById('g-admin-aasta')?.value || new Date().getFullYear();
+  const vastus = await api(`/api/graafik/admin/kuu?aasta=${aasta}&kuu=${kuu}`);
+  const div = document.getElementById('adminGraafikSisu');
+  if (!vastus || !vastus.vahetused) { div.innerHTML = '<div style="color:#444;text-align:center;padding:20px">Viga laadimisel</div>'; return; }
+
+  const vahetused = vastus.vahetused;
+  const paevadInfo = vastus.paevad || [];
+  const paevadMap = {};
+  paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
+
+  const paevadGrupp = {};
+  vahetused.forEach(v => {
+    const kp = v.kuupaev.split('T')[0];
+    if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
+    paevadGrupp[kp].push(v);
+  });
+  paevadInfo.forEach(p => {
+    const kp = p.kuupaev.split('T')[0];
+    if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
+  });
+
+  const staatusVarv = { tavaline: '', suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
+  const staatusNimi = { tavaline: '', suuryritus: '🔵 Suurüritus', kohvik: '🟢 Ainult kohvik', suletud: '🔴 Suletud' };
+
+  if (!Object.keys(paevadGrupp).length) {
+    div.innerHTML = '<div style="color:#444;text-align:center;padding:20px">Selle kuu kirjeid pole</div>';
+    return;
+  }
+
+  div.innerHTML = Object.entries(paevadGrupp).sort().map(([kp, vahetusedKuupaev]) => {
+    const d = new Date(kp + 'T12:00:00');
+    const nadalaPaev = ['P','E','T','K','N','R','L'][d.getDay()];
+    const info = paevadMap[kp];
+    const staatus = info?.staatus || 'tavaline';
+    const bg = staatusVarv[staatus];
+    return `<div style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.05)${bg?';background:'+bg+';padding:10px;border-radius:8px;margin-bottom:4px':''}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:700;color:${info?.lukustatud?'#555':'#e2e8f0'};cursor:pointer" onclick="dokliPaev('${kp}')">${d.getDate()}. ${KUUD[d.getMonth()].slice(0,3)} (${nadalaPaev})</span>
+        ${info?.lukustatud ? '<span style="font-size:10px;color:#ef4444">🔒</span>' : ''}
+        ${staatusNimi[staatus] ? `<span style="font-size:11px;color:#888">${staatusNimi[staatus]}</span>` : ''}
+        ${info?.märkus ? `<span style="font-size:11px;color:#666;font-style:italic">${info.märkus}</span>` : ''}
+      </div>
+      ${vahetusedKuupaev.length ? vahetusedKuupaev.map(v => `
+        <div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px">
+          <span style="color:#888;min-width:90px">${v.algus}–${v.lopp}</span>
+          <span style="color:#d0d0d0;font-weight:600">${v.worker_nimi}</span>
+          ${v.märkus ? `<span style="color:#555;font-style:italic">${v.märkus}</span>` : ''}
+          <button onclick="adminKustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer;margin-left:auto">🗑</button>
+        </div>`).join('') : '<div style="font-size:12px;color:#333">Vahetusi pole</div>'}
+    </div>`;
+  }).join('');
+}
+
+function dokliPaev(kp) {
+  document.getElementById('g-admin-paev').value = kp;
+}
+
+function setStaatus(staatus, lukustatud) {
+  document.getElementById('g-admin-staatus').value = staatus;
+  document.getElementById('g-admin-lukk').checked = lukustatud;
+}
+
+async function salvestaPaev() {
+  const kuupaev = document.getElementById('g-admin-paev').value;
+  const staatus = document.getElementById('g-admin-staatus').value;
+  const lukustatud = document.getElementById('g-admin-lukk').checked;
+  const märkus = document.getElementById('g-admin-markus').value;
+  if (!kuupaev) { alert('Vali kuupäev!'); return; }
+  const r = await api('/api/graafik/admin/paev', {
+    method: 'POST',
+    body: JSON.stringify({ kuupaev, staatus, märkus, lukustatud })
+  });
+  if (r.ok) { laadiAdminGraafik(); document.getElementById('g-admin-markus').value = ''; }
+  else alert(r.veateade || 'Viga');
+}
+
+async function adminKustutaVahetus(id) {
+  if (!confirm('Kustutad selle vahetuse?')) return;
+  await api(`/api/graafik/admin/${id}`, { method: 'DELETE' });
+  laadiAdminGraafik();
 }
 
 async function laadiRaportTab() {
