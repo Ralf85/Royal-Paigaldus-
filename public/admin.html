@@ -203,7 +203,7 @@ function avatTab(i) {
   if(i===1) { laadiWorkerSelect(); laadiMaksed(); }
   if(i===2) laadiTootajad();
   if(i===3) laadiObjektid();
-  if(i===4) { laadiTTWorkers(); laadiTulevasteToodTabel(); }
+  if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();}, 500); laadiTulevasteToodTabel(); }
 }
 
 async function init() {
@@ -378,10 +378,10 @@ async function laadiTTWorkers() {
   const ettSel = document.getElementById('tt-ettevote');
   ettSel.innerHTML = '';
   ettevotted.forEach(e => ettSel.innerHTML += `<option value="${e.id}">${e.nimi}</option>`);
-  setTimeout(laadiTTObjektid, 100);
+  laadiTTObjektid();
   // Lisa töötajate valik linnukestega
   const div = document.getElementById('tt-workers-valik');
-  if(!workers.length) { div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>'; return; }
+  if(!workers || !Array.isArray(workers) || !workers.length) { div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>'; return; }
   div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
     <label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0">
       <input type="checkbox" value="${w.id}" style="width:auto;margin:0"> ${w.nimi}
@@ -391,11 +391,10 @@ async function laadiTTWorkers() {
 async function laadiTTObjektid() {
   const ettevoteId = document.getElementById('tt-ettevote').value;
   if(!ettevoteId) return;
-  const objektid = await api(`/api/admin/objektid`);
-  const filtered = Array.isArray(objektid) ? objektid.filter(o => o.ettevote_id == ettevoteId && o.aktiivne) : [];
+  const objektid = await api(`/api/tood/objektid/${ettevoteId}`);
   const sel = document.getElementById('tt-objekt');
   sel.innerHTML = '<option value="">— Pole määratud —</option>';
-  filtered.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
+  if(Array.isArray(objektid)) objektid.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
 }
 
 async function lisaTulevaneToo() {
