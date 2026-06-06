@@ -42,6 +42,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tood', require('./routes/tood'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/pildid', require('./routes/pildid'));
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
@@ -50,5 +51,5 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 app.get('/tootaja-tood', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja-tood.html')));
 
 initDB().then(() => {
-  app.listen(PORT, () => console.log(`ðŸš€ Server kÃ¤ib pordil ${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
