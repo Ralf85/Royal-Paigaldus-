@@ -182,6 +182,8 @@
 const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
 let kõikEttevotted = [];
 let TOKEN = localStorage.getItem('adminToken') || '';
+// Uuenda token iga 30 sekundi tagant
+setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
 
 // Kõik API päringud kasutavad tokenit
 async function api(url, opts = {}) {
