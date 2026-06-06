@@ -312,10 +312,37 @@
       </div>
     </div>
     <div class="kaart">
-      <div class="kaart-hdr">📅 Kuu graafik</div>
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📅 Kuu graafik</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="setGraafikVaade('nimekiri')" id="vaade-nimekiri" style="background:#c9a84c;color:#0d0f13;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">☰ Nimekiri</button>
+          <button onclick="setGraafikVaade('kalender')" id="vaade-kalender" style="background:#252830;color:#aaa;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">📅 Kalender</button>
+        </div>
+      </div>
       <div id="adminGraafikSisu" style="padding:16px">Laadimine...</div>
+      <div id="adminGraafikKalender" style="display:none;padding:16px"></div>
     </div>
   </div>
+
+<!-- Graafiku vahetuse muutmise modal -->
+<div id="muutaVahetusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
+    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda vahetust</h3>
+    <input type="hidden" id="mv-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
+        <input type="time" id="mv-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
+        <input type="time" id="mv-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    </div>
+    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus</label>
+      <input type="text" id="mv-markus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="salvestaMuutaVahetus()" style="flex:1;background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="document.getElementById('muutaVahetusModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
+    </div>
+  </div>
+</div>
 
 <!-- Töökirje muutmise modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
@@ -816,6 +843,8 @@ async function laadiAdminGraafik() {
   const vastus = await api(`/api/graafik/admin/kuu?aasta=${aasta}&kuu=${kuu}`);
   const div = document.getElementById('adminGraafikSisu');
   if (!vastus || !vastus.vahetused) { div.innerHTML = '<div style="color:#444;text-align:center;padding:20px">Viga laadimisel</div>'; return; }
+  graafikAndmed = vastus;
+  if (aktiivsGraafikVaade === 'kalender') { kuvаKalender(vastus); }
 
   const vahetused = vastus.vahetused;
   const paevadInfo = vastus.paevad || [];
@@ -859,7 +888,8 @@ async function laadiAdminGraafik() {
           <span style="color:#888;min-width:90px">${v.algus}–${v.lopp}</span>
           <span style="color:#d0d0d0;font-weight:600">${v.worker_nimi}</span>
           ${v.märkus ? `<span style="color:#555;font-style:italic">${v.märkus}</span>` : ''}
-          <button onclick="adminKustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer;margin-left:auto">🗑</button>
+          <button onclick='avaaMuutaVahetus(${JSON.stringify(v)})' style="background:none;border:none;color:#5b9cf6;cursor:pointer">✏️</button>
+          <button onclick="adminKustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer">🗑</button>
         </div>`).join('') : '<div style="font-size:12px;color:#333">Vahetusi pole</div>'}
     </div>`;
   }).join('');
@@ -886,6 +916,93 @@ async function salvestaPaev() {
   });
   if (r.ok) { laadiAdminGraafik(); document.getElementById('g-admin-markus').value = ''; }
   else alert(r.veateade || 'Viga');
+}
+
+let graafikAndmed = null;
+let aktiivsGraafikVaade = 'nimekiri';
+
+function setGraafikVaade(vaade) {
+  aktiivsGraafikVaade = vaade;
+  document.getElementById('vaade-nimekiri').style.background = vaade === 'nimekiri' ? '#c9a84c' : '#252830';
+  document.getElementById('vaade-nimekiri').style.color = vaade === 'nimekiri' ? '#0d0f13' : '#aaa';
+  document.getElementById('vaade-kalender').style.background = vaade === 'kalender' ? '#c9a84c' : '#252830';
+  document.getElementById('vaade-kalender').style.color = vaade === 'kalender' ? '#0d0f13' : '#aaa';
+  document.getElementById('adminGraafikSisu').style.display = vaade === 'nimekiri' ? 'block' : 'none';
+  document.getElementById('adminGraafikKalender').style.display = vaade === 'kalender' ? 'block' : 'none';
+  if (vaade === 'kalender' && graafikAndmed) kuvаKalender(graafikAndmed);
+}
+
+function kuvаKalender(andmed) {
+  const kuu = parseInt(document.getElementById('g-admin-kuu').value) - 1;
+  const aasta = parseInt(document.getElementById('g-admin-aasta').value);
+  const div = document.getElementById('adminGraafikKalender');
+
+  const paevadMap = {};
+  andmed.paevad.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
+  const vahetusedMap = {};
+  andmed.vahetused.forEach(v => {
+    const kp = v.kuupaev.split('T')[0];
+    if (!vahetusedMap[kp]) vahetusedMap[kp] = [];
+    vahetusedMap[kp].push(v);
+  });
+
+  const staatusVarv = { tavaline: '#13161c', suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
+  const esimene = new Date(aasta, kuu, 1);
+  const viimane = new Date(aasta, kuu + 1, 0).getDate();
+  let algusNädalapäev = esimene.getDay();
+  algusNädalapäev = algusNädalapäev === 0 ? 6 : algusNädalapäev - 1;
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+    ${['E','T','K','N','R','L','P'].map(p => `<div style="text-align:center;font-size:11px;color:#555;padding:4px">${p}</div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">`;
+
+  for (let i = 0; i < algusNädalapäev; i++) {
+    html += `<div style="min-height:80px;background:#0d0f13;border-radius:6px"></div>`;
+  }
+
+  for (let p = 1; p <= viimane; p++) {
+    const d = new Date(aasta, kuu, p);
+    const iso = `${aasta}-${String(kuu+1).padStart(2,'0')}-${String(p).padStart(2,'0')}`;
+    const info = paevadMap[iso];
+    const vahetused = vahetusedMap[iso] || [];
+    const staatus = info?.staatus || 'tavaline';
+    const bg = staatusVarv[staatus] || '#13161c';
+    const lukustatud = info?.lukustatud;
+    const taana = new Date().toISOString().split('T')[0] === iso;
+
+    html += `<div onclick="dokliPaev('${iso}')" style="min-height:80px;background:${bg};border-radius:6px;padding:5px;cursor:pointer;border:${taana?'1.5px solid #c9a84c':'1px solid rgba(255,255,255,0.04)'}">
+      <div style="font-size:12px;font-weight:700;color:${lukustatud?'#555':taana?'#c9a84c':'#e2e8f0'};margin-bottom:3px">${p}${lukustatud?' 🔒':''}</div>
+      ${vahetused.map(v => `<div style="font-size:10px;background:rgba(74,222,128,0.15);border-radius:3px;padding:2px 4px;margin-bottom:2px;color:#4ade80;white-space:nowrap;overflow:hidden">${v.algus}–${v.lopp} ${v.worker_nimi.split(' ')[0]}</div>`).join('')}
+    </div>`;
+  }
+
+  html += '</div>';
+  div.innerHTML = html;
+}
+
+function avaaMuutaVahetus(v) {
+  document.getElementById('mv-id').value = v.id;
+  document.getElementById('mv-algus').value = v.algus;
+  document.getElementById('mv-lopp').value = v.lopp;
+  document.getElementById('mv-markus').value = v.märkus || '';
+  document.getElementById('muutaVahetusModal').style.display = 'flex';
+}
+
+async function salvestaMuutaVahetus() {
+  const id = document.getElementById('mv-id').value;
+  const r = await api(`/api/graafik/admin/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      algus: document.getElementById('mv-algus').value,
+      lopp: document.getElementById('mv-lopp').value,
+      märkus: document.getElementById('mv-markus').value
+    })
+  });
+  if (r.ok) {
+    document.getElementById('muutaVahetusModal').style.display = 'none';
+    laadiAdminGraafik();
+  } else alert(r.veateade || 'Viga');
 }
 
 async function adminKustutaVahetus(id) {
