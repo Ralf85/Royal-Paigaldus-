@@ -3,6 +3,8 @@ const router = express.Router();
 const { pool } = require('../db');
 const { Parser } = require('json2csv');
 const { saadaTeavitus } = require('./push');
+const { Resend } = require('resend');
+function getResend() { return new Resend(process.env.RESEND_API_KEY); }
 
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
@@ -19,9 +21,9 @@ router.get('/tootajad', noudaAdmin, async (req, res) => {
 });
 
 router.post('/tootajad', noudaAdmin, async (req, res) => {
-  const { nimi, pin } = req.body;
+  const { nimi, pin, email } = req.body;
   try {
-    await pool.query('INSERT INTO workers (nimi, pin) VALUES ($1, $2)', [nimi, pin]);
+    await pool.query('INSERT INTO workers (nimi, pin, email) VALUES ($1, $2, $3)', [nimi, pin, email || null]);
     res.json({ ok: true });
   } catch (err) {
     if (err.code === '23505') return res.json({ ok: false, veateade: 'See PIN on juba kasutusel' });
@@ -30,9 +32,9 @@ router.post('/tootajad', noudaAdmin, async (req, res) => {
 });
 
 router.put('/tootajad/:id', noudaAdmin, async (req, res) => {
-  const { nimi, pin, aktiivne } = req.body;
+  const { nimi, pin, aktiivne, email } = req.body;
   try {
-    await pool.query('UPDATE workers SET nimi=$1, pin=$2, aktiivne=$3 WHERE id=$4', [nimi, pin, aktiivne, req.params.id]);
+    await pool.query('UPDATE workers SET nimi=$1, pin=$2, aktiivne=$3, email=$4 WHERE id=$5', [nimi, pin, aktiivne, email || null, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -193,6 +195,25 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
     const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
     const body = `${kuupaevTekst} ${algus_kell||''}${lopp_kell?'-'+lopp_kell:''} · ${ettevoteNimi}${objektNimi?' '+objektNimi:''}${kirjeldus?' · '+kirjeldus:''}`;
     await saadaTeavitus(worker_id, '📅 Uus töö lisatud!', body, '/tootaja');
+    // Saada email teavitus
+    const workerInfo = await pool.query('SELECT email, nimi FROM workers WHERE id=$1', [worker_id]);
+    const workerEmail = workerInfo.rows[0]?.email;
+    if (workerEmail) {
+      try {
+        await getResend().emails.send({
+          from: 'Royal Paigaldus <onboarding@resend.dev>',
+          to: workerEmail,
+          subject: '📅 Uus töö lisatud!',
+          html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+            <h2 style="color:#c9a84c">📅 Uus töö lisatud!</h2>
+            <p>Tere ${workerInfo.rows[0].nimi}!</p>
+            <p style="font-size:16px;background:#f5f5f5;padding:16px;border-radius:8px">${body}</p>
+            <p><a href="https://royal-paigaldus-production.up.railway.app/tootaja" style="background:#c9a84c;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Vaata tööpäevikus</a></p>
+            <p style="color:#888;font-size:12px">Royal Paigaldus Tööpäevik</p>
+          </div>`
+        });
+      } catch(emailErr) { console.error('Email ebaõnnestus:', emailErr.message); }
+    }
   } catch(e) { console.error('Teavitus ebaõnnestus:', e.message); }
   res.json({ ok: true });
 });
