@@ -1,8 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const path = require('path');
-const { initDB } = require('./db');
+const { initDB, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -13,13 +14,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
+  store: new pgSession({
+    pool: pool,
+    createTableIfMissing: true
+  }),
   secret: process.env.SESSION_SECRET || 'muuda-see-ara',
   resave: false,
   saveUninitialized: false,
   cookie: {
     maxAge: 8 * 60 * 60 * 1000,
-    secure: 'auto',
-    sameSite: 'lax'
+    secure: true,
+    sameSite: 'none'
   }
 }));
 
