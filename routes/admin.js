@@ -397,3 +397,87 @@ router.get('/audit-log', noudaAdmin, async (req, res) => {
   );
   res.json(r.rows);
 });
+
+// ── FILTER RAPORT ─────────────────────────────────────────────────
+
+async function filterPäring(req) {
+  const { ettevote_id, objekt_id, algus, lopp, workers } = req.query;
+  const workerList = workers ? workers.split(',').filter(Boolean) : [];
+  
+  let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+            t.kilomeetrid, t.km_raha, t.lisakulu_summa, t.lisakulu_selgitus,
+            w.nimi as worker_nimi, e.nimi as ettevote_nimi,
+            COALESCE(o.nimi,'') as objekt_nimi,
+            COALESCE(we.tunnitasu, t.muu_tunnitasu, 0) as tunnitasu
+     FROM tookirjed t
+     JOIN workers w ON t.worker_id=w.id
+     JOIN ettevotted e ON t.ettevote_id=e.id
+     LEFT JOIN objektid o ON t.objekt_id=o.id
+     LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+     WHERE 1=1`;
+  
+  const params = [];
+  if (ettevote_id) { params.push(ettevote_id); q += ` AND t.ettevote_id=$${params.length}`; }
+  if (objekt_id) { params.push(objekt_id); q += ` AND t.objekt_id=$${params.length}`; }
+  if (algus) { params.push(algus); q += ` AND t.kuupaev>=$${params.length}`; }
+  if (lopp) { params.push(lopp); q += ` AND t.kuupaev<=$${params.length}`; }
+  if (workerList.length) { q += ` AND t.worker_id = ANY($${params.length+1}::int[])`; params.push(workerList); }
+  q += ' ORDER BY w.nimi, t.kuupaev, t.algus';
+  
+  const pool2 = require('../db').pool;
+  const r = await pool2.query(q, params);
+  return r.rows;
+}
+
+router.get('/raport-filter', noudaAdmin, async (req, res) => {
+  try {
+    const rows = await filterPäring(req);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
+  try {
+    const rows = await filterPäring(req);
+    const { algus, lopp } = req.query;
+    
+    const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
+    
+    let kokku_tunnid = 0, kokku_summa = 0, kokku_km = 0, kokku_lisakulu = 0;
+    const dataRows = rows.map(k => {
+      const tunnid = parseFloat(k.tunnid);
+      const tunnitasu = parseFloat(k.tunnitasu||0);
+      const summa = tunnid * tunnitasu;
+      const km_raha = parseFloat(k.km_raha||0);
+      const lisakulu = parseFloat(k.lisakulu_summa||0);
+      kokku_tunnid += tunnid; kokku_summa += summa; kokku_km += km_raha; kokku_lisakulu += lisakulu;
+      const kp = new Date(k.kuupaev);
+      return [
+        k.worker_nimi, k.ettevote_nimi, k.objekt_nimi,
+        `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`,
+        k.algus?.slice(0,5)||'', k.lopp?.slice(0,5)||'',
+        String(tunnid).replace('.', ','),
+        String(tunnitasu).replace('.', ','),
+        String(summa.toFixed(2)).replace('.', ','),
+        String(parseFloat(k.kilomeetrid||0)).replace('.', ','),
+        String(km_raha.toFixed(2)).replace('.', ','),
+        String(lisakulu.toFixed(2)).replace('.', ','),
+        k.lisakulu_selgitus||'',
+        k.kommentaar||''
+      ].join(';');
+    });
+
+    // Kokku rida
+    const kogusumma = kokku_summa + kokku_km + kokku_lisakulu;
+    dataRows.push(`KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.', ',')};;${String(kokku_summa.toFixed(2)).replace('.', ',')};;${String(kokku_km.toFixed(2)).replace('.', ',')};;${String(kokku_lisakulu.toFixed(2)).replace('.', ',')};;Kogusumma: ${String(kogusumma.toFixed(2)).replace('.', ',')}`);
+
+    const failiNimi = `raport_${algus||''}${lopp?'_'+lopp:''}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    res.send('\uFEFF' + header + '\r\n' + dataRows.join('\r\n'));
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
