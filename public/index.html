@@ -131,17 +131,18 @@
       p.value = p.value.slice(0, -1);
     }
     async function logi() {
-      const pin = document.getElementById('pin').value;
-      if (!pin) return;
-      const r = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      });
-      const d = await r.json();
-      if (d.ok) {
-        window.location = '/tootaja';
-      } else {
+  const pin = document.getElementById('pin').value;
+  if (!pin) return;
+  const r = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin })
+  });
+  const d = await r.json();
+  if (d.ok) {
+    localStorage.setItem('workerToken', d.token);
+    window.location = '/tootaja';
+  } else {
         document.getElementById('viga').style.display = 'block';
         document.getElementById('viga').textContent = d.veateade;
         document.getElementById('pin').value = '';
