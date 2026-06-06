@@ -205,6 +205,34 @@
   </div>
 </div>
 
+<!-- Töökirje muutmise modal -->
+<div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
+    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda töökirjet</h3>
+    <input type="hidden" id="muuta-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
+        <input type="time" id="muuta-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
+        <input type="time" id="muuta-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    </div>
+    <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+      <input type="date" id="muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px;color-scheme:dark"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu (€)</label>
+        <input type="number" id="muuta-lisakulu" step="0.01" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu selgitus</label>
+        <input type="text" id="muuta-lisakulu-sel" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    </div>
+    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kommentaar</label>
+      <input type="text" id="muuta-komm" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="salvestaMuutaKirje()" style="flex:1;background:#c9a84c;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="document.getElementById('muutaModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
 let kõikEttevotted = [];
@@ -275,10 +303,12 @@ async function laadiKokkuvote() {
           ? `<span style="display:flex;align-items:center;gap:4px">
                <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
                  style="width:65px;padding:3px 6px;font-size:12px;background:#0d0f13;border:0.5px solid ${k.muu_tunnitasu ? '#c9a84c' : '#3a3d45'};border-radius:5px;color:#e2e8f0"
-                 id="muu-tasu-${k.id}" onchange="salvesta MuuTasu(${k.id}, this)">
+                 id="muu-tasu-${k.id}" onchange="salvestaMuuTasu(${k.id}, this)">
                <button onclick="salvestaMuuTasu(${k.id})" style="background:#c9a84c;border:none;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:700;color:#0d0f13;cursor:pointer">✓</button>
              </span>`
           : `<span>${k.tunnitasu}€/h</span>`}
+        <button onclick='avaaMuutaModal(${JSON.stringify(k)})' style="background:#1a3550;border:none;border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;margin-left:4px" title="Muuda">✏️</button>
+        <button onclick="adminKustutaKirje(${k.id})" style="background:#3d0a0a;border:none;border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer" title="Kustuta">🗑</button>
       </div>`).join('')}</div>` : ''}
     </div>`).join('');
 }
@@ -500,6 +530,45 @@ function naitaTeade(id,tyyp,tekst) {
   const el=document.getElementById(id);
   el.className='teade '+tyyp; el.textContent=tekst; el.style.display='block';
   setTimeout(()=>el.style.display='none',4000);
+}
+
+function avaaMuutaModal(kirje) {
+  document.getElementById('muuta-id').value = kirje.id;
+  document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
+  document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
+  document.getElementById('muuta-kuupaev').value = kirje.kuupaev ? kirje.kuupaev.split('T')[0] : '';
+  document.getElementById('muuta-komm').value = kirje.kommentaar || '';
+  document.getElementById('muuta-lisakulu').value = kirje.lisakulu_summa || 0;
+  document.getElementById('muuta-lisakulu-sel').value = kirje.lisakulu_selgitus || '';
+  document.getElementById('muutaModal').style.display = 'flex';
+}
+
+async function salvestaMuutaKirje() {
+  const id = document.getElementById('muuta-id').value;
+  const r = await api(`/api/admin/tookirjed/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      kuupaev: document.getElementById('muuta-kuupaev').value,
+      algus: document.getElementById('muuta-algus').value,
+      lopp: document.getElementById('muuta-lopp').value,
+      kommentaar: document.getElementById('muuta-komm').value,
+      lisakulu_summa: document.getElementById('muuta-lisakulu').value,
+      lisakulu_selgitus: document.getElementById('muuta-lisakulu-sel').value
+    })
+  });
+  if (r.ok) {
+    document.getElementById('muutaModal').style.display = 'none';
+    laadiKokkuvote();
+  } else {
+    alert(r.veateade || 'Viga salvestamisel');
+  }
+}
+
+async function adminKustutaKirje(id) {
+  if (!confirm('Kustutad selle töökirje? See logitakse auditisse!')) return;
+  const r = await api(`/api/admin/tookirjed/${id}`, { method: 'DELETE' });
+  if (r.ok) laadiKokkuvote();
+  else alert(r.veateade || 'Viga kustutamisel');
 }
 
 async function salvestaMuuTasu(kirjeId) {
