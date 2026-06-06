@@ -16,7 +16,7 @@ function noudaAdmin(req, res, next) {
 // â”€â”€ TÃ–Ã–TAJAD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/tootajad', noudaAdmin, async (req, res) => {
-  const r = await pool.query('SELECT id, nimi, pin, aktiivne FROM workers ORDER BY nimi');
+  const r = await pool.query('SELECT id, nimi, pin, aktiivne, email FROM workers ORDER BY nimi');
   res.json(r.rows);
 });
 
