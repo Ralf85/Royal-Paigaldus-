@@ -230,6 +230,53 @@ router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
 
 // ── TÖÖKIRJE TUNNITASU (MUU käsitsi) ─────────────────────────────
 
+// Muuda töökirjet (admin)
+router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
+  const { kuupaev, algus, lopp, kommentaar, lisakulu_summa, lisakulu_selgitus } = req.body;
+  try {
+    const [ah, am] = algus.split(':').map(Number);
+    const [lh, lm] = lopp.split(':').map(Number);
+    let minutid = (lh * 60 + lm) - (ah * 60 + am);
+    if (minutid < 0) minutid += 1440;
+    const tunnid = minutid / 60;
+    if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
+
+    // Audit log
+    const vana = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
+    await pool.query(
+      `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5, lisakulu_summa=$6, lisakulu_selgitus=$7 WHERE id=$8`,
+      [kuupaev, algus, lopp, tunnid, kommentaar||'', parseFloat(lisakulu_summa)||0, lisakulu_selgitus||'', req.params.id]
+    );
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [null, 'ADMIN_MUUTIS_TOOKIRJET', JSON.stringify({
+        kirje_id: req.params.id,
+        vana: { algus: vana.rows[0]?.algus, lopp: vana.rows[0]?.lopp, tunnid: vana.rows[0]?.tunnid },
+        uus: { algus, lopp, tunnid: tunnid.toFixed(2) }
+      }), req.ip]
+    );
+    res.json({ ok: true, tunnid: tunnid.toFixed(2) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Kustuta töökirje (admin)
+router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
+  try {
+    const kirje = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
+    if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    await pool.query('DELETE FROM tookirjed WHERE id=$1', [req.params.id]);
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [null, 'ADMIN_KUSTUTAS_TOOKIRJE', JSON.stringify({ kirje_id: req.params.id, tunnid: kirje.rows[0].tunnid }), req.ip]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
   const { tunnitasu } = req.body;
   try {
@@ -299,6 +346,8 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
             ROUND(t.tunnid * COALESCE(we.tunnitasu,0), 2)::numeric as summa,
             COALESCE(t.kilomeetrid, 0)::numeric as km,
             COALESCE(t.km_raha, 0)::numeric as km_raha,
+            COALESCE(t.lisakulu_summa, 0)::numeric as lisakulu_summa,
+            COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus,
             t.kommentaar
      FROM tookirjed t
      JOIN workers w ON t.worker_id=w.id
@@ -310,14 +359,13 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
     [aasta, kuu]
   );
 
-  // Ehita CSV käsitsi et kontrollida formaati täpselt
   const read = r.rows;
   if (!read.length) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.send('\uFEFF' + 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;kommentaar\r\n');
+    res.send('\uFEFF' + 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar\r\n');
     return;
   }
-  const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;kommentaar';
+  const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
   const rows = read.map(k => [
     k.tootaja, k.ettevote, k.objekt, k.kuupaev, k.algus, k.lopp,
     String(parseFloat(k.tunnid)).replace('.', ','),
@@ -325,6 +373,8 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
     String(parseFloat(k.summa)).replace('.', ','),
     String(parseFloat(k.km)).replace('.', ','),
     String(parseFloat(k.km_raha)).replace('.', ','),
+    String(parseFloat(k.lisakulu_summa)).replace('.', ','),
+    k.lisakulu_selgitus || '',
     k.kommentaar || ''
   ].join(';')).join('\r\n');
 
