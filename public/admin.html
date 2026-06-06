@@ -79,6 +79,7 @@
     <button class="tab" onclick="avatTab(2)">👷 Töötajad</button>
     <button class="tab" onclick="avatTab(3)">🏗️ Objektid</button>
     <button class="tab" onclick="avatTab(4)">📅 Tulevased tööd</button>
+    <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
   </div>
 
   <div class="sektsioon nhtav" id="tab0">
@@ -178,6 +179,16 @@
       <div id="tulevasteToodTabel"></div>
     </div>
   </div>
+
+  <!-- Tab 5: Fotod -->
+  <div class="sektsioon" id="tab5">
+    <div class="kaart">
+      <div class="kaart-hdr">📸 Fotod objektide kaupa</div>
+      <div id="fotodSisu" style="padding:16px">
+        <div style="color:#555;font-size:13px">Laadimine...</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -206,6 +217,7 @@ function avatTab(i) {
   if(i===2) laadiTootajad();
   if(i===3) laadiObjektid();
   if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();}, 500); laadiTulevasteToodTabel(); }
+  if(i===5) laadiFotod();
 }
 
 async function init() {
@@ -478,6 +490,54 @@ async function salvestaMuuTasu(kirjeId) {
   } else {
     input.style.borderColor = '#ef4444';
   }
+}
+
+async function laadiFotod() {
+  const div = document.getElementById('fotodSisu');
+  div.innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
+  const objektid = await api('/api/pildid/admin/objektid');
+  if (!Array.isArray(objektid) || !objektid.length) {
+    div.innerHTML = '<div style="padding:24px;text-align:center;color:#444">Fotosid pole üles laaditud</div>';
+    return;
+  }
+  div.innerHTML = objektid.map(o => `
+    <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:0.5px solid rgba(255,255,255,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <span style="font-size:11px;color:#555">${o.ettevote_nimi}</span>
+          <div style="font-size:15px;font-weight:600;color:#e2e8f0">${o.nimi}</div>
+          <span style="font-size:12px;color:#444">${o.piltide_arv} fotot</span>
+        </div>
+        <a href="/api/pildid/admin/zip/${o.id}?_token=${TOKEN}" 
+           style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none">
+          ⬇ ZIP
+        </a>
+      </div>
+      <div id="pildid-${o.id}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="color:#555;font-size:12px;cursor:pointer" onclick="laadiObjektPildid(${o.id})">Klõpsa nägemiseks...</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function laadiObjektPildid(objektId) {
+  const div = document.getElementById(`pildid-${objektId}`);
+  div.innerHTML = '<div style="color:#555;font-size:12px">Laadimine...</div>';
+  const pildid = await api(`/api/pildid/admin/objekt/${objektId}`);
+  if (!Array.isArray(pildid) || !pildid.length) {
+    div.innerHTML = '<div style="color:#555;font-size:12px">Pilte ei leitud</div>';
+    return;
+  }
+  div.innerHTML = pildid.map(p => {
+    const kp = new Date(p.kuupaev);
+    const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}`;
+    return `<div style="position:relative">
+      <a href="${p.url}" target="_blank">
+        <img src="${p.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid #252830">
+      </a>
+      <div style="font-size:9px;color:#888;margin-top:3px;text-align:center">${kuupaevTekst} · ${p.worker_nimi}</div>
+    </div>`;
+  }).join('');
 }
 
 async function välju() {
