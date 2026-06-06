@@ -12,17 +12,18 @@ router.post('/login', async (req, res) => {
       return res.json({ ok: false, veateade: 'Vale PIN-kood' });
     }
     const worker = result.rows[0];
-    const token = req.saveSession({ workerId: worker.id, workerNimi: worker.nimi, isAdmin: false });
+    const token = await req.saveSession({ workerId: worker.id, workerNimi: worker.nimi });
     res.json({ ok: true, nimi: worker.nimi, token });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
 
-router.post('/admin-login', (req, res) => {
+router.post('/admin-login', async (req, res) => {
   const { pin } = req.body;
   if (pin === process.env.ADMIN_PIN) {
-    const token = req.saveSession({ isAdmin: true, workerId: null });
+    const token = await req.saveSession({ isAdmin: true });
     res.json({ ok: true, token });
   } else {
     res.json({ ok: false, veateade: 'Vale admin PIN' });
@@ -30,7 +31,6 @@ router.post('/admin-login', (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  if (req.sessionToken) delete require('../server').sessions?.[req.sessionToken];
   res.json({ ok: true });
 });
 
