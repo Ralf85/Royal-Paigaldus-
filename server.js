@@ -43,6 +43,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tood', require('./routes/tood'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/pildid', require('./routes/pildid'));
+app.use('/api/push', require('./routes/push').router);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
