@@ -8,6 +8,11 @@ const https = require('https');
 const http = require('http');
 
 function getCloudinary() {
+  console.log('Cloudinary config:', {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'PUUDUB',
+    api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'PUUDUB'
+  });
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
