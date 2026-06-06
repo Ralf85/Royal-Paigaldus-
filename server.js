@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { initDB } = require('./db');
+const { initDB, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -9,19 +9,30 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Lihtne mälu-põhine sessioon
-const sessions = {};
-function makeToken() {
-  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-}
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const token = req.headers['x-session-token'] || req.query._token;
-  req.session = sessions[token] || {};
+  req.session = {};
   req.sessionToken = token;
-  req.saveSession = (data) => {
-    const t = token || makeToken();
-    sessions[t] = { ...sessions[t], ...data };
-    res.setHeader('x-session-token', t);
+  if (token) {
+    try {
+      const r = await pool.query('SELECT * FROM admin_sessions WHERE token=$1', [token]);
+      if (r.rows.length > 0) req.session.isAdmin = true;
+      const w = await pool.query('SELECT * FROM worker_sessions WHERE token=$1', [token]);
+      if (w.rows.length > 0) {
+        req.session.workerId = w.rows[0].worker_id;
+        req.session.workerNimi = w.rows[0].worker_nimi;
+      }
+    } catch(e) {}
+  }
+  req.saveSession = async (data) => {
+    const t = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    if (data.isAdmin) {
+      await pool.query('INSERT INTO admin_sessions (token) VALUES ($1) ON CONFLICT DO NOTHING', [t]);
+    }
+    if (data.workerId) {
+      await pool.query(`INSERT INTO worker_sessions (token, worker_id, worker_nimi) VALUES ($1,$2,$3)
+        ON CONFLICT DO NOTHING`, [t, data.workerId, data.workerNimi]);
+    }
     return t;
   };
   next();
