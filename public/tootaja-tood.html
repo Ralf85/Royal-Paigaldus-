@@ -257,9 +257,30 @@
       }
       grid.innerHTML = ettevotted.map(e => {
         const tyyp = (e.tyyp || 'muu').toLowerCase();
-        const logoTekst = tyyp === 'lidl' ? 'LIDL' : tyyp === 'cramo' ? 'CR' : tyyp === 'merekohvik' ? '☕' : e.nimi.slice(0,2);
+        const logoHTML = tyyp === 'lidl'
+          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="18" cy="18" r="18" fill="#FFF200"/>
+              <text x="18" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#0050AA" font-family="Arial">LIDL</text>
+              <circle cx="18" cy="22" r="6" fill="none" stroke="#0050AA" stroke-width="1.5"/>
+              <circle cx="18" cy="22" r="3.5" fill="#CD2200"/>
+            </svg>`
+          : tyyp === 'cramo'
+          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+              <rect width="36" height="36" rx="8" fill="#CD2200"/>
+              <text x="18" y="23" text-anchor="middle" font-size="13" font-weight="900" fill="white" font-family="Arial">CR</text>
+            </svg>`
+          : tyyp === 'merekohvik'
+          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+              <rect width="36" height="36" rx="8" fill="#0d2d1a"/>
+              <path d="M4 26 Q18 8 32 26" stroke="#4ade80" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+              <path d="M8 26 Q18 12 28 26" stroke="#4ade80" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.4"/>
+            </svg>`
+          : `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+              <rect width="36" height="36" rx="8" fill="#1a3550"/>
+              <text x="18" y="24" text-anchor="middle" font-size="20" font-family="Arial">🔨</text>
+            </svg>`;
         return `<div class="emp-btn ${tyyp}" id="emp-${e.id}" onclick="valiEttevote(${JSON.stringify(e).replace(/"/g,'&quot;')})">
-          <div class="emp-logo ${tyyp}"><span>${logoTekst}</span></div>
+          <div class="emp-logo ${tyyp}" style="background:none;border-radius:0;padding:0">${logoHTML}</div>
           <div class="emp-nimi ${tyyp}">${e.nimi}</div>
           <div class="emp-tunnitasu">${parseFloat(e.tunnitasu||0).toFixed(2)} €/h</div>
         </div>`;
