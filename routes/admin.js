@@ -192,15 +192,37 @@ router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
 
 // â”€â”€ KOKKUVÃ•TE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// ── TÖÖKIRJE TUNNITASU (MUU käsitsi) ─────────────────────────────
+
+router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
+  const { tunnitasu } = req.body;
+  try {
+    // Uuenda worker_ettevotted tunnitasu selle kirje põhjal
+    const kirje = await pool.query('SELECT worker_id, ettevote_id FROM tookirjed WHERE id=$1', [req.params.id]);
+    if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    const { worker_id, ettevote_id } = kirje.rows[0];
+    // Salvesta ühekordseks kasutuseks otse tookirjed tabelisse lisaveeru kaudu
+    await pool.query(
+      'UPDATE tookirjed SET muu_tunnitasu=$1 WHERE id=$2',
+      [tunnitasu, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.get('/kokkuvote', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
   const workers = await pool.query('SELECT * FROM workers WHERE aktiivne=true ORDER BY nimi');
   const andmed = [];
   for (const w of workers.rows) {
     const kirjed = await pool.query(
-      `SELECT t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
-              e.nimi as ettevote_nimi, COALESCE(o.nimi,'') as objekt_nimi,
-              COALESCE(we.tunnitasu,0) as tunnitasu
+      `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+              e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp, COALESCE(o.nimi,'') as objekt_nimi,
+              COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu,
+              COALESCE(we.tunnitasu, 0) as vaikimisi_tunnitasu,
+              t.muu_tunnitasu
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id=e.id
        LEFT JOIN objektid o ON t.objekt_id=o.id
