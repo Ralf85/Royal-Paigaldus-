@@ -155,7 +155,8 @@
       if (e.key === 'Enter') logi();
     });
     // Kontrolli sessiooni
-    fetch('/api/auth/sessioon').then(r=>r.json()).then(d => {
+    const token = localStorage.getItem('workerToken') || localStorage.getItem('adminToken') || '';
+    fetch('/api/auth/sessioon', {headers:{'x-session-token': token}}).then(r=>r.json()).then(d => {
       if (d.sisselogitud && !d.isAdmin) window.location = '/tootaja';
       if (d.sisselogitud && d.isAdmin) window.location = '/admin';
     });
