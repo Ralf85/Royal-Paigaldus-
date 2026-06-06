@@ -7,14 +7,12 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .kast { background: #1e293b; border-radius: 16px; padding: 40px; width: 100%; max-width: 360px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+    .kast { background: #1e293b; border-radius: 16px; padding: 40px; width: 100%; max-width: 360px; }
     h1 { font-size: 22px; margin-bottom: 6px; }
-    .alapealkirjad { color: #94a3b8; font-size: 13px; margin-bottom: 28px; }
+    p { color: #94a3b8; font-size: 13px; margin-bottom: 28px; }
     label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
     input { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; font-size: 18px; color: #f1f5f9; letter-spacing: 4px; text-align: center; outline: none; }
-    input:focus { border-color: #7c3aed; }
     .nupp { width: 100%; background: #7c3aed; color: white; border: none; border-radius: 8px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; }
-    .nupp:hover { background: #6d28d9; }
     .nupp.hall { background: transparent; border: 1px solid #334155; color: #64748b; font-size: 13px; margin-top: 10px; }
     .viga { background: #7f1d1d; color: #fca5a5; border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 10px; display: none; }
   </style>
@@ -22,7 +20,7 @@
 <body>
   <div class="kast">
     <h1>🔐 Admin sisenemine</h1>
-    <p class="alapealkirjad">Ainult ülemusele</p>
+    <p>Ainult ülemusele</p>
     <label>Admin PIN</label>
     <input type="password" id="pin" maxlength="8" placeholder="••••" autofocus>
     <button class="nupp" onclick="logi()">Sisene</button>
@@ -30,7 +28,7 @@
     <div class="viga" id="viga"></div>
   </div>
   <script>
-    document.getElementById('pin').addEventListener('keydown', e => { if (e.key==='Enter') logi(); });
+    document.getElementById('pin').addEventListener('keydown', e => { if(e.key==='Enter') logi(); });
     async function logi() {
       const pin = document.getElementById('pin').value;
       const r = await fetch('/api/auth/admin-login', {
