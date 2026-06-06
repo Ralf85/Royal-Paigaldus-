@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { Parser } = require('json2csv');
+const { saadaTeavitus } = require('./push');
 
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
@@ -182,6 +183,17 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [worker_id, ettevote_id, objekt_id || null, kuupaev, algus_kell, lopp_kell, kirjeldus || '']
   );
+  // Saada push teavitus töötajale
+  try {
+    const ettevoteInfo = await pool.query('SELECT nimi FROM ettevotted WHERE id=$1', [ettevote_id]);
+    const objektInfo = objekt_id ? await pool.query('SELECT nimi FROM objektid WHERE id=$1', [objekt_id]) : null;
+    const ettevoteNimi = ettevoteInfo.rows[0]?.nimi || '';
+    const objektNimi = objektInfo?.rows[0]?.nimi || '';
+    const kp = new Date(kuupaev);
+    const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
+    const body = `${kuupaevTekst} ${algus_kell||''}${lopp_kell?'-'+lopp_kell:''} · ${ettevoteNimi}${objektNimi?' '+objektNimi:''}${kirjeldus?' · '+kirjeldus:''}`;
+    await saadaTeavitus(worker_id, '📅 Uus töö lisatud!', body, '/tootaja');
+  } catch(e) { console.error('Teavitus ebaõnnestus:', e.message); }
   res.json({ ok: true });
 });
 
