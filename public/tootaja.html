@@ -394,39 +394,79 @@
       const vastus = await api(`/api/graafik/kuu?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
       const kaart = document.getElementById('merekohvikGraafikKaart');
       
-      // Kui 403 (pole merekohviku töötaja) — peida kaart
-      if (!Array.isArray(vastus)) { kaart.style.display = 'none'; return; }
+      if (!vastus || vastus.ok === false) { kaart.style.display = 'none'; return; }
       kaart.style.display = 'block';
 
+      const vahetused = vastus.vahetused || [];
+      const paevadInfo = vastus.paevad || [];
+      const paevadMap = {};
+      paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
+
       const div = document.getElementById('graafikSisu');
-      if (!vastus.length) {
+      if (!vahetused.length && !paevadInfo.length) {
         div.innerHTML = '<div class="tyhi-olek">Selle kuu vahetusi pole</div>';
         return;
       }
 
       // Grupeeri päevade kaupa
-      const paevad = {};
-      vastus.forEach(v => {
+      const paevadGrupp = {};
+      vahetused.forEach(v => {
         const kp = v.kuupaev.split('T')[0];
-        if (!paevad[kp]) paevad[kp] = [];
-        paevad[kp].push(v);
+        if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
+        paevadGrupp[kp].push(v);
+      });
+      // Lisa ka päevad ilma vahetusteta aga staatusega
+      paevadInfo.forEach(p => {
+        const kp = p.kuupaev.split('T')[0];
+        if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
       });
 
-      div.innerHTML = Object.entries(paevad).sort().map(([kp, vahetused]) => {
-        const d = new Date(kp);
+      const staatusVarv = { tavaline: null, suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
+      const staatusNimi = { tavaline: '', suuryritus: '🔵 Suurüritus', kohvik: '🟢 Ainult kohvik', suletud: '🔴 Suletud' };
+
+      div.innerHTML = Object.entries(paevadGrupp).sort().map(([kp, vahetusedKuupaev]) => {
+        const d = new Date(kp + 'T12:00:00');
         const nadalaPaev = ['P','E','T','K','N','R','L'][d.getDay()];
         const kuupaevTekst = `${d.getDate()}. ${KUUD_LYHIKE[d.getMonth()]} (${nadalaPaev})`;
-        return `<div style="padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)">
-          <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px">${kuupaevTekst}</div>
-          ${vahetused.map(v => `
+        const info = paevadMap[kp];
+        const lukustatud = info?.lukustatud;
+        const staatus = info?.staatus || 'tavaline';
+        const bg = staatusVarv[staatus] || '';
+        const staatusTekst = staatusNimi[staatus] || '';
+        
+        return `<div style="padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)${bg ? ';background:'+bg : ''}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:${lukustatud ? '#555' : '#4ade80'}">${kuupaevTekst}</span>
+            ${lukustatud ? '<span style="font-size:10px;color:#555;background:#252830;padding:2px 6px;border-radius:4px">🔒 Lukustatud</span>' : ''}
+            ${staatusTekst ? `<span style="font-size:10px;color:#888">${staatusTekst}</span>` : ''}
+            ${info?.märkus ? `<span style="font-size:11px;color:#666;font-style:italic">${info.märkus}</span>` : ''}
+          </div>
+          ${vahetusedKuupaev.map(v => `
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
               <span style="font-size:13px;color:#d0d0d0;min-width:100px">${v.algus}–${v.lopp}</span>
               <span style="font-size:13px;font-weight:600;color:${v.worker_id == aktiivsWorkerId ? '#4ade80' : '#bbb'}">${v.worker_nimi}</span>
               ${v.märkus ? `<span style="font-size:11px;color:#555;font-style:italic">${v.märkus}</span>` : ''}
               ${v.worker_id == aktiivsWorkerId ? `<button onclick="kustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer;font-size:12px;margin-left:auto">✕</button>` : ''}
             </div>`).join('')}
+          ${!vahetusedKuupaev.length ? '<div style="font-size:12px;color:#333">Vahetusi pole</div>' : ''}
         </div>`;
       }).join('');
+
+      // Uuenda kuupäeva input — hallidele päevadele keela
+      const kuupaevInput = document.getElementById('g-kuupaev');
+      if (kuupaevInput) {
+        kuupaevInput.addEventListener('change', function() {
+          const info = paevadMap[this.value];
+          const teade = document.getElementById('g-teade');
+          if (info?.lukustatud) {
+            teade.style.display = 'block';
+            teade.style.color = '#ef4444';
+            teade.textContent = '🔒 See päev on lukustatud';
+          } else {
+            teade.style.display = 'none';
+          }
+        });
+      }
     }
 
     let aktiivsWorkerId = null;
