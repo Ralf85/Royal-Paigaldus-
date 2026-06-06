@@ -80,6 +80,7 @@
     <button class="tab" onclick="avatTab(3)">🏗️ Objektid</button>
     <button class="tab" onclick="avatTab(4)">📅 Tulevased tööd</button>
     <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
+    <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
   </div>
 
   <div class="sektsioon nhtav" id="tab0">
@@ -189,6 +190,16 @@
       </div>
     </div>
   </div>
+
+  <!-- Tab 6: Audit logi -->
+  <div class="sektsioon" id="tab6">
+    <div class="kaart">
+      <div class="kaart-hdr">🔍 Tegevuste logi</div>
+      <div id="auditLogiSisu">
+        <div style="padding:24px;text-align:center;color:#444">Laadimine...</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -218,6 +229,7 @@ function avatTab(i) {
   if(i===3) laadiObjektid();
   if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();}, 500); laadiTulevasteToodTabel(); }
   if(i===5) laadiFotod();
+  if(i===6) laadiAuditLogi();
 }
 
 async function init() {
@@ -490,6 +502,48 @@ async function salvestaMuuTasu(kirjeId) {
   } else {
     input.style.borderColor = '#ef4444';
   }
+}
+
+async function laadiAuditLogi() {
+  const div = document.getElementById('auditLogiSisu');
+  const andmed = await api('/api/admin/audit-log');
+  if (!Array.isArray(andmed) || !andmed.length) {
+    div.innerHTML = '<div style="padding:24px;text-align:center;color:#444">Logi on tühi</div>';
+    return;
+  }
+  const tegevusTekst = {
+    'SISSELOGIMINE': '🔑 Sisselogimine',
+    'LISA_TOOKIRJE': '➕ Lisas töökirje',
+    'KUSTUTA_TOOKIRJE': '🗑 Kustutas töökirje'
+  };
+  const tegevusVarv = {
+    'SISSELOGIMINE': '#4488ff',
+    'LISA_TOOKIRJE': '#4ade80',
+    'KUSTUTA_TOOKIRJE': '#ef4444'
+  };
+  let html = '<table><thead><tr><th>Aeg</th><th>Töötaja</th><th>Tegevus</th><th>Detailid</th></tr></thead><tbody>';
+  andmed.forEach(a => {
+    const d = new Date(a.loodud);
+    const aeg = `${d.getDate()}.${d.getMonth()+1} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const tekst = tegevusTekst[a.tegevus] || a.tegevus;
+    const varv = tegevusVarv[a.tegevus] || '#888';
+    let detailid = '';
+    try {
+      const det = JSON.parse(a.details || '{}');
+      if (a.tegevus === 'LISA_TOOKIRJE') {
+        detailid = `${det.kuupaev} ${det.algus}–${det.lopp} (${det.tunnid}h)`;
+      } else if (a.tegevus === 'KUSTUTA_TOOKIRJE') {
+        detailid = `${det.kuupaev} ${det.algus}–${det.lopp} ${det.ettevote} ${det.objekt||''} (${det.tunnid}h)`;
+      }
+    } catch(e) {}
+    html += `<tr>
+      <td style="color:#666;white-space:nowrap">${aeg}</td>
+      <td style="font-weight:600">${a.worker_nimi || '—'}</td>
+      <td><span style="color:${varv};font-size:12px">${tekst}</span></td>
+      <td style="color:#666;font-size:12px">${detailid}</td>
+    </tr>`;
+  });
+  div.innerHTML = html + '</tbody></table>';
 }
 
 async function laadiFotod() {
