@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Tööaja arvestus</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+    .header { background: #1e293b; border-bottom: 1px solid #334155; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .header h2 { font-size: 18px; }
+    .logout { background: none; border: 1px solid #334155; color: #94a3b8; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .logout:hover { border-color: #ef4444; color: #ef4444; }
+    .konteiner { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Tabid */
+    .tabid { display: flex; gap: 4px; margin-bottom: 24px; background: #1e293b; padding: 6px; border-radius: 10px; width: fit-content; }
+    .tab { padding: 10px 20px; border-radius: 7px; cursor: pointer; font-size: 14px; font-weight: 500; color: #64748b; transition: all 0.2s; border: none; background: none; }
+    .tab.aktiivne { background: #3b82f6; color: white; }
+    .tab:hover:not(.aktiivne) { color: #e2e8f0; }
+
+    /* Sektsioonid */
+    .sektsioon { display: none; }
+    .sektsioon.nhtav { display: block; }
+
+    /* Kuu valik */
+    .kuu-rida { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .kuu-rida label { font-size: 13px; color: #94a3b8; }
+    select, input { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 9px 12px; color: #e2e8f0; font-size: 14px; outline: none; }
+    select:focus, input:focus { border-color: #3b82f6; }
+
+    /* Töötajate kaardid */
+    .tootaja-kaart {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .tootaja-kaart .nimi { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat { background: #0f172a; border-radius: 8px; padding: 12px; }
+    .stat .n { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }
+    .stat .v { font-size: 20px; font-weight: 700; }
+    .v.roheline { color: #34d399; }
+    .v.kollane { color: #fbbf24; }
+    .v.sinine { color: #60a5fa; }
+    .v.lilla { color: #a78bfa; }
+
+    .kirjed-detail { margin-top: 12px; border-top: 1px solid #334155; padding-top: 12px; }
+    .kirje-rida { display: flex; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #1e293b; color: #94a3b8; }
+    .kirje-rida:last-child { border-bottom: none; }
+    .kirje-rida span:first-child { color: #e2e8f0; min-width: 80px; }
+
+    /* Vormid */
+    .vorm-kast { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; margin-bottom: 20px; }
+    .vorm-kast h3 { margin-bottom: 16px; font-size: 15px; }
+    .vorm-rida { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+    .vorm-grupp { display: flex; flex-direction: column; gap: 6px; }
+    .vorm-grupp label { font-size: 12px; color: #94a3b8; }
+    .nupp { background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .nupp:hover { background: #2563eb; }
+    .nupp.roheline { background: #16a34a; }
+    .nupp.roheline:hover { background: #15803d; }
+    .nupp.punane { background: #dc2626; }
+    .nupp.punane:hover { background: #b91c1c; }
+    .nupp.hall { background: #475569; }
+    .nupp.hall:hover { background: #334155; }
+    .teade { border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 10px; display: none; }
+    .teade.ok { background: #14532d; color: #86efac; }
+    .teade.viga { background: #7f1d1d; color: #fca5a5; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; padding: 10px 14px; text-align: left; border-bottom: 1px solid #334155; }
+    td { padding: 10px 14px; font-size: 14px; border-bottom: 1px solid #334155; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .raport-nupp { background: #7c3aed; color: white; border: none; border-radius: 8px; padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+    .raport-nupp:hover { background: #6d28d9; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>⚙️ Admin paneel</h2>
+    <button class="logout" onclick="välju()">Logi välja</button>
+  </div>
+
+  <div class="konteiner">
+
+    <!-- Tabid -->
+    <div class="tabid">
+      <button class="tab aktiivne" onclick="avatTab(0)">📊 Kokkuvõte</button>
+      <button class="tab" onclick="avatTab(1)">💳 Maksed</button>
+      <button class="tab" onclick="avatTab(2)">👷 Töötajad</button>
+      <button class="tab" onclick="avatTab(3)">🏗️ Objektid</button>
+    </div>
+
+    <!-- ─── KOKKUVÕTE ─── -->
+    <div class="sektsioon nhtav" id="tab0">
+      <div class="kuu-rida">
+        <label>Kuu:</label>
+        <select id="kv-kuu"></select>
+        <label>Aasta:</label>
+        <select id="kv-aasta"></select>
+        <button class="nupp" onclick="laadiKokkuvote()">Näita</button>
+        <a id="csv-link" class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ Laadi CSV raport</a>
+      </div>
+      <div id="kokkuvoteKast"></div>
+    </div>
+
+    <!-- ─── MAKSED ─── -->
+    <div class="sektsioon" id="tab1">
+      <div class="vorm-kast">
+        <h3>➕ Lisa makse</h3>
+        <div class="vorm-rida">
+          <div class="vorm-grupp">
+            <label>Töötaja</label>
+            <select id="makse-worker"></select>
+          </div>
+          <div class="vorm-grupp">
+            <label>Summa (€)</label>
+            <input type="number" id="makse-summa" placeholder="500" step="0.01">
+          </div>
+          <div class="vorm-grupp">
+            <label>Kuupäev</label>
+            <input type="date" id="makse-kuupaev">
+          </div>
+        </div>
+        <div class="vorm-grupp" style="margin-bottom:12px">
+          <label>Kommentaar</label>
+          <input type="text" id="makse-kommentaar" placeholder="nt. mai palk">
+        </div>
+        <button class="nupp roheline" onclick="lisaMakse()">💾 Salvesta makse</button>
+        <div class="teade" id="makse-teade"></div>
+      </div>
+
+      <div class="vorm-kast">
+        <h3>📋 Maksete ajalugu</h3>
+        <div class="kuu-rida" style="margin-bottom:12px">
+          <select id="maksed-worker-filter"><option value="">Kõik töötajad</option></select>
+        </div>
+        <div id="maksedTabel"></div>
+      </div>
+    </div>
+
+    <!-- ─── TÖÖTAJAD ─── -->
+    <div class="sektsioon" id="tab2">
+      <div class="vorm-kast">
+        <h3>➕ Lisa töötaja</h3>
+        <div class="vorm-rida">
+          <div class="vorm-grupp">
+            <label>Nimi</label>
+            <input type="text" id="t-nimi" placeholder="Vaiko">
+          </div>
+          <div class="vorm-grupp">
+            <label>PIN-kood</label>
+            <input type="text" id="t-pin" placeholder="1234" maxlength="6">
+          </div>
+          <div class="vorm-grupp">
+            <label>Tunnitasu (€)</label>
+            <input type="number" id="t-tasu" placeholder="8.50" step="0.01">
+          </div>
+        </div>
+        <button class="nupp roheline" onclick="lisaTootaja()">➕ Lisa töötaja</button>
+        <div class="teade" id="tootaja-teade"></div>
+      </div>
+      <div class="vorm-kast">
+        <h3>👥 Töötajate nimekiri</h3>
+        <div id="tootajadTabel"></div>
+      </div>
+    </div>
+
+    <!-- ─── OBJEKTID ─── -->
+    <div class="sektsioon" id="tab3">
+      <div class="vorm-kast">
+        <h3>➕ Lisa objekt</h3>
+        <div style="display:flex; gap:12px; align-items:flex-end">
+          <div class="vorm-grupp" style="flex:1">
+            <label>Objekti nimi</label>
+            <input type="text" id="obj-nimi" placeholder="Cramo ladu">
+          </div>
+          <button class="nupp roheline" onclick="lisaObjekt()">➕ Lisa</button>
+        </div>
+        <div class="teade" id="objekt-teade"></div>
+      </div>
+      <div class="vorm-kast">
+        <h3>🏗️ Objektide nimekiri</h3>
+        <div id="objektidTabel"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const tabid = document.querySelectorAll('.tab');
+    const sektsioonid = document.querySelectorAll('.sektsioon');
+
+    function avatTab(i) {
+      tabid.forEach((t,j) => t.classList.toggle('aktiivne', i===j));
+      sektsioonid.forEach((s,j) => s.classList.toggle('nhtav', i===j));
+      if (i===0) laadiKokkuvote();
+      if (i===1) { laadiMaksed(); laadiWorkerSelect(); }
+      if (i===2) laadiTootajad();
+      if (i===3) laadiObjektid();
+    }
+
+    async function init() {
+      const s = await fetch('/api/auth/sessioon').then(r=>r.json());
+      if (!s.isAdmin) { window.location='/'; return; }
+
+      const t = new Date();
+      // Kuu valik
+      const kuud = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+      const kvKuu = document.getElementById('kv-kuu');
+      kuud.forEach((k,i) => {
+        const o = document.createElement('option');
+        o.value = i+1; o.textContent = k;
+        if (i===t.getMonth()) o.selected=true;
+        kvKuu.appendChild(o);
+      });
+      const kvAasta = document.getElementById('kv-aasta');
+      for (let y = t.getFullYear(); y >= t.getFullYear()-2; y--) {
+        const o = document.createElement('option'); o.value=y; o.textContent=y; kvAasta.appendChild(o);
+      }
+      document.getElementById('makse-kuupaev').value = t.toISOString().split('T')[0];
+      laadiKokkuvote();
+    }
+
+    async function laadiKokkuvote() {
+      const kuu = document.getElementById('kv-kuu').value;
+      const aasta = document.getElementById('kv-aasta').value;
+      const andmed = await fetch(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`).then(r=>r.json());
+
+      if (andmed.length === 0) {
+        document.getElementById('kokkuvoteKast').innerHTML = '<div style="color:#475569;padding:32px;text-align:center">Sellel kuul pole kirjeid</div>';
+        return;
+      }
+
+      let html = '';
+      andmed.forEach(w => {
+        html += `<div class="tootaja-kaart">
+          <div class="nimi">👷 ${w.nimi}</div>
+          <div class="stats">
+            <div class="stat"><div class="n">Tunnid</div><div class="v sinine">${w.tunnid} h</div></div>
+            <div class="stat"><div class="n">Tunnitasu</div><div class="v lilla">${w.tunnitasu} €/h</div></div>
+            <div class="stat"><div class="n">Teenitud</div><div class="v roheline">${w.teenitud} €</div></div>
+            <div class="stat"><div class="n">Saada veel</div><div class="v kollane">${parseFloat(w.saadaVeel)>0?'+':''}${w.saadaVeel} €</div></div>
+          </div>`;
+
+        if (w.kirjed.length > 0) {
+          html += `<div class="kirjed-detail">`;
+          w.kirjed.forEach(k => {
+            html += `<div class="kirje-rida">
+              <span>${formatKuupaev(k.kuupaev)}</span>
+              <span>${k.objekt_nimi}</span>
+              <span>${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
+              <span><strong>${parseFloat(k.tunnid).toFixed(2)} h</strong></span>
+              <span style="color:#475569">${k.kommentaar||''}</span>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div>`;
+      });
+      document.getElementById('kokkuvoteKast').innerHTML = html;
+    }
+
+    function laadiCSV(e) {
+      e.preventDefault();
+      const kuu = document.getElementById('kv-kuu').value;
+      const aasta = document.getElementById('kv-aasta').value;
+      window.location = `/api/admin/raport-csv?aasta=${aasta}&kuu=${kuu}`;
+    }
+
+    async function laadiWorkerSelect() {
+      const workers = await fetch('/api/admin/tootajad').then(r=>r.json());
+      const sel = document.getElementById('makse-worker');
+      const filter = document.getElementById('maksed-worker-filter');
+      sel.innerHTML = '';
+      filter.innerHTML = '<option value="">Kõik töötajad</option>';
+      workers.filter(w=>w.aktiivne).forEach(w => {
+        sel.innerHTML += `<option value="${w.id}">${w.nimi}</option>`;
+        filter.innerHTML += `<option value="${w.id}">${w.nimi}</option>`;
+      });
+    }
+
+    async function laadiMaksed() {
+      await laadiWorkerSelect();
+      const r = await fetch('/api/admin/maksed').then(r=>r.json());
+      let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Summa</th><th>Kommentaar</th><th></th></tr></thead><tbody>';
+      r.forEach(m => {
+        html += `<tr>
+          <td>${formatKuupaev(m.kuupaev)}</td>
+          <td>${m.worker_nimi}</td>
+          <td><strong>${parseFloat(m.summa).toFixed(2)} €</strong></td>
+          <td style="color:#64748b">${m.kommentaar||'—'}</td>
+          <td><button class="nupp punane" style="padding:4px 10px;font-size:12px" onclick="kustutaMakse(${m.id})">🗑</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('maksedTabel').innerHTML = html;
+    }
+
+    async function lisaMakse() {
+      const worker_id = document.getElementById('makse-worker').value;
+      const summa = document.getElementById('makse-summa').value;
+      const kuupaev = document.getElementById('makse-kuupaev').value;
+      const kommentaar = document.getElementById('makse-kommentaar').value;
+      if (!summa || !kuupaev) return naitaTeade('makse-teade','viga','Täida kõik väljad!');
+      const r = await fetch('/api/admin/maksed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id,summa,kuupaev,kommentaar})}).then(r=>r.json());
+      if (r.ok) { naitaTeade('makse-teade','ok','✅ Makse salvestatud!'); document.getElementById('makse-summa').value=''; document.getElementById('makse-kommentaar').value=''; laadiMaksed(); }
+      else naitaTeade('makse-teade','viga',r.veateade);
+    }
+
+    async function kustutaMakse(id) {
+      if (!confirm('Kustutad selle makse?')) return;
+      await fetch(`/api/admin/maksed/${id}`,{method:'DELETE'});
+      laadiMaksed();
+    }
+
+    async function laadiTootajad() {
+      const r = await fetch('/api/admin/tootajad').then(r=>r.json());
+      let html = '<table><thead><tr><th>Nimi</th><th>PIN</th><th>Tunnitasu</th><th>Aktiivne</th><th>Muuda</th></tr></thead><tbody>';
+      r.forEach(w => {
+        html += `<tr>
+          <td><input type="text" value="${w.nimi}" id="wn-${w.id}" style="width:120px"></td>
+          <td><input type="text" value="${w.pin}" id="wp-${w.id}" style="width:70px" maxlength="6"></td>
+          <td><input type="number" value="${w.tunnitasu}" id="wt-${w.id}" style="width:80px" step="0.01"></td>
+          <td><input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"></td>
+          <td><button class="nupp" style="padding:6px 14px;font-size:13px" onclick="uuendaTootaja(${w.id})">Salvesta</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('tootajadTabel').innerHTML = html;
+    }
+
+    async function lisaTootaja() {
+      const nimi = document.getElementById('t-nimi').value;
+      const pin = document.getElementById('t-pin').value;
+      const tunnitasu = document.getElementById('t-tasu').value;
+      if (!nimi||!pin||!tunnitasu) return naitaTeade('tootaja-teade','viga','Täida kõik väljad!');
+      const r = await fetch('/api/admin/tootajad',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nimi,pin,tunnitasu})}).then(r=>r.json());
+      if (r.ok) { naitaTeade('tootaja-teade','ok','✅ Töötaja lisatud!'); document.getElementById('t-nimi').value=''; document.getElementById('t-pin').value=''; document.getElementById('t-tasu').value=''; laadiTootajad(); }
+      else naitaTeade('tootaja-teade','viga',r.veateade);
+    }
+
+    async function uuendaTootaja(id) {
+      const nimi = document.getElementById(`wn-${id}`).value;
+      const pin = document.getElementById(`wp-${id}`).value;
+      const tunnitasu = document.getElementById(`wt-${id}`).value;
+      const aktiivne = document.getElementById(`wa-${id}`).checked;
+      await fetch(`/api/admin/tootajad/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({nimi,pin,tunnitasu,aktiivne})});
+      laadiTootajad();
+    }
+
+    async function laadiObjektid() {
+      const r = await fetch('/api/admin/objektid').then(r=>r.json());
+      let html = '<table><thead><tr><th>Nimi</th><th>Aktiivne</th><th>Muuda</th></tr></thead><tbody>';
+      r.forEach(o => {
+        html += `<tr>
+          <td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td>
+          <td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td>
+          <td><button class="nupp" style="padding:6px 14px;font-size:13px" onclick="uuendaObjekt(${o.id})">Salvesta</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('objektidTabel').innerHTML = html;
+    }
+
+    async function lisaObjekt() {
+      const nimi = document.getElementById('obj-nimi').value;
+      if (!nimi) return naitaTeade('objekt-teade','viga','Sisesta objekti nimi!');
+      const r = await fetch('/api/admin/objektid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nimi})}).then(r=>r.json());
+      if (r.ok) { naitaTeade('objekt-teade','ok','✅ Objekt lisatud!'); document.getElementById('obj-nimi').value=''; laadiObjektid(); }
+    }
+
+    async function uuendaObjekt(id) {
+      const nimi = document.getElementById(`on-${id}`).value;
+      const aktiivne = document.getElementById(`oa-${id}`).checked;
+      await fetch(`/api/admin/objektid/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({nimi,aktiivne})});
+      laadiObjektid();
+    }
+
+    function formatKuupaev(str) {
+      const d = new Date(str);
+      return d.toLocaleDateString('et-EE',{day:'numeric',month:'short',year:'numeric'});
+    }
+
+    function naitaTeade(id, tyyp, tekst) {
+      const el = document.getElementById(id);
+      el.className = 'teade '+tyyp; el.textContent = tekst; el.style.display='block';
+      setTimeout(()=>el.style.display='none', 4000);
+    }
+
+    async function välju() {
+      await fetch('/api/auth/logout',{method:'POST'});
+      window.location='/';
+    }
+
+    init();
+  </script>
+</body>
+</html>

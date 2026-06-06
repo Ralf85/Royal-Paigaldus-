@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tööaja arvestus</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .kast {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; color: #f1f5f9; }
+    .alapealkirjad { color: #94a3b8; font-size: 14px; margin-bottom: 32px; }
+    label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 20px;
+      color: #f1f5f9;
+      letter-spacing: 6px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #3b82f6; }
+    .nupp {
+      width: 100%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
+    }
+    .nupp:hover { background: #2563eb; }
+    .nupp.admin {
+      background: transparent;
+      border: 1px solid #334155;
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .nupp.admin:hover { border-color: #64748b; color: #94a3b8; }
+    .veateade {
+      background: #7f1d1d;
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      margin-top: 12px;
+      display: none;
+    }
+    .numbriklahvistik {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .klahv {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 20px;
+      color: #e2e8f0;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .klahv:hover { background: #1e3a5f; border-color: #3b82f6; }
+    .klahv:active { transform: scale(0.95); }
+    .klahv.kustuta { font-size: 16px; color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="kast">
+    <h1>👷 Tööaja arvestus</h1>
+    <p class="alapealkirjad">Sisesta oma PIN-kood</p>
+
+    <label>PIN-kood</label>
+    <input type="password" id="pin" maxlength="6" placeholder="••••" autocomplete="off" readonly>
+
+    <div class="numbriklahvistik">
+      <div class="klahv" onclick="lisaNumber('1')">1</div>
+      <div class="klahv" onclick="lisaNumber('2')">2</div>
+      <div class="klahv" onclick="lisaNumber('3')">3</div>
+      <div class="klahv" onclick="lisaNumber('4')">4</div>
+      <div class="klahv" onclick="lisaNumber('5')">5</div>
+      <div class="klahv" onclick="lisaNumber('6')">6</div>
+      <div class="klahv" onclick="lisaNumber('7')">7</div>
+      <div class="klahv" onclick="lisaNumber('8')">8</div>
+      <div class="klahv" onclick="lisaNumber('9')">9</div>
+      <div class="klahv kustuta" onclick="kustutaViimane()">⌫</div>
+      <div class="klahv" onclick="lisaNumber('0')">0</div>
+      <div class="klahv" onclick="logi()" style="background:#3b82f6;border-color:#3b82f6;color:white;">✓</div>
+    </div>
+
+    <div class="veateade" id="viga"></div>
+    <button class="nupp admin" onclick="window.location='/admin'">🔐 Admin sisenemine</button>
+  </div>
+
+  <script>
+    function lisaNumber(n) {
+      const p = document.getElementById('pin');
+      if (p.value.length < 6) p.value += n;
+    }
+    function kustutaViimane() {
+      const p = document.getElementById('pin');
+      p.value = p.value.slice(0, -1);
+    }
+    async function logi() {
+      const pin = document.getElementById('pin').value;
+      if (!pin) return;
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        window.location = '/tootaja';
+      } else {
+        document.getElementById('viga').style.display = 'block';
+        document.getElementById('viga').textContent = d.veateade;
+        document.getElementById('pin').value = '';
+      }
+    }
+    // Klaviatuuri tugi
+    document.addEventListener('keydown', e => {
+      if (e.key >= '0' && e.key <= '9') lisaNumber(e.key);
+      if (e.key === 'Backspace') kustutaViimane();
+      if (e.key === 'Enter') logi();
+    });
+    // Kontrolli sessiooni
+    fetch('/api/auth/sessioon').then(r=>r.json()).then(d => {
+      if (d.sisselogitud && !d.isAdmin) window.location = '/tootaja';
+      if (d.sisselogitud && d.isAdmin) window.location = '/admin';
+    });
+  </script>
+</body>
+</html>
