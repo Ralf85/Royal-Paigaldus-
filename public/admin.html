@@ -378,7 +378,7 @@ async function laadiTTWorkers() {
   const ettSel = document.getElementById('tt-ettevote');
   ettSel.innerHTML = '';
   ettevotted.forEach(e => ettSel.innerHTML += `<option value="${e.id}">${e.nimi}</option>`);
-  laadiTTObjektid();
+  setTimeout(laadiTTObjektid, 100);
   // Lisa töötajate valik linnukestega
   const div = document.getElementById('tt-workers-valik');
   if(!workers.length) { div.innerHTML = '<span style="color:#555;font-size:13px">Töötajaid pole</span>'; return; }
