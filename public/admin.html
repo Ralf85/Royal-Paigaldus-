@@ -352,33 +352,79 @@ async function laadiKokkuvote() {
   const andmed = await api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`);
   const div = document.getElementById('kokkuvoteKast');
   if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:#444">Selle kuu kirjeid pole</div>'; return; }
-  div.innerHTML = andmed.map(w => `
-    <div class="worker-kaart">
-      <div style="font-size:16px;font-weight:700;margin-bottom:12px">👷 ${w.nimi}</div>
-      <div class="stats-grid">
-        <div class="stat"><div class="stat-n">Tunnid</div><div class="stat-v v-sinine">${w.tunnid} h</div></div>
-        <div class="stat"><div class="stat-n">Teenitud</div><div class="stat-v v-roheline">${w.teenitud} €</div></div>
-        <div class="stat"><div class="stat-n">Makstud</div><div class="stat-v" style="color:#666">${w.makstud} €</div></div>
-        <div class="stat"><div class="stat-n">Saada veel</div><div class="stat-v v-kollane">${parseFloat(w.saadaVeel)>0?'+':''}${w.saadaVeel} €</div></div>
+
+  // Kokkuvõtte tabel kõigi töötajatega
+  let kokku_tunnid = 0, kokku_teenitud = 0, kokku_makstud = 0;
+  let ylaHtml = `<div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:16px">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:0.5px solid rgba(255,255,255,0.06)">
+        <th style="text-align:left;padding:10px 14px;font-size:11px;color:#555;font-weight:500;text-transform:uppercase;letter-spacing:1px">Töötaja</th>
+        <th style="text-align:right;padding:10px 14px;font-size:11px;color:#555;font-weight:500;text-transform:uppercase;letter-spacing:1px">Tunnid</th>
+        <th style="text-align:right;padding:10px 14px;font-size:11px;color:#555;font-weight:500;text-transform:uppercase;letter-spacing:1px">Teenitud</th>
+        <th style="text-align:right;padding:10px 14px;font-size:11px;color:#555;font-weight:500;text-transform:uppercase;letter-spacing:1px">Makstud</th>
+        <th style="text-align:right;padding:10px 14px;font-size:11px;color:#555;font-weight:500;text-transform:uppercase;letter-spacing:1px">Saada veel</th>
+        <th style="padding:10px 14px"></th>
+      </tr></thead><tbody>`;
+
+  andmed.forEach(w => {
+    const tunnid = parseFloat(w.tunnid);
+    const teenitud = parseFloat(w.teenitud);
+    const makstud = parseFloat(w.makstud);
+    const saada = parseFloat(w.saadaVeel);
+    kokku_tunnid += tunnid; kokku_teenitud += teenitud; kokku_makstud += makstud;
+    const rColor = tunnid === 0 ? 'color:#333' : '';
+    ylaHtml += `<tr style="border-bottom:0.5px solid rgba(255,255,255,0.03);${rColor}" id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
+      <td style="padding:10px 14px;font-size:13px;font-weight:600">${tunnid > 0 ? '👷' : '·'} ${w.nimi}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:#5b9cf6">${tunnid > 0 ? tunnid.toFixed(1)+' h' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:#4ade80">${teenitud > 0 ? teenitud.toFixed(2)+' €' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:#666">${makstud > 0 ? makstud.toFixed(2)+' €' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:${saada > 0 ? '#fbbf24' : saada < 0 ? '#ef4444' : '#666'}">${saada !== 0 ? (saada>0?'+':'')+saada.toFixed(2)+' €' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right">
+        ${tunnid > 0 ? `<button onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" style="background:#1a2840;border:none;border-radius:6px;padding:4px 10px;font-size:11px;color:#5b9cf6;cursor:pointer">▼ kirjed</button>` : ''}
+      </td>
+    </tr>
+    ${w.kirjed.length ? `<tr id="kirjed-${w.nimi.replace(/\s/g,'_')}" style="display:none"><td colspan="6" style="padding:0 0 8px 0">
+      <div style="margin:4px 14px;background:#0d0f13;border-radius:8px;overflow:hidden">
+        ${w.kirjed.map(k=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:0.5px solid rgba(255,255,255,0.03);font-size:12px">
+          <span style="color:#888;min-width:80px">${formatKp(k.kuupaev)}</span>
+          <span style="color:#aaa">${k.ettevote_nimi}</span>
+          <span style="color:#666">${k.objekt_nimi||'—'}</span>
+          <span style="color:#aaa">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
+          <span style="color:#c9a84c;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
+          ${k.ettevote_tyyp === 'muu'
+            ? `<span style="display:flex;align-items:center;gap:4px">
+                <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
+                  style="width:60px;padding:2px 5px;font-size:11px;background:#13161c;border:0.5px solid ${k.muu_tunnitasu ? '#c9a84c' : '#3a3d45'};border-radius:4px;color:#e2e8f0"
+                  id="muu-tasu-${k.id}">
+                <button onclick="salvestaMuuTasu(${k.id})" style="background:#c9a84c;border:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:#0d0f13;cursor:pointer">✓</button>
+              </span>`
+            : `<span style="color:#666">${k.tunnitasu}€/h</span>`}
+          <button onclick='avaaMuutaModal(${JSON.stringify(k)})' style="background:#1a3550;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer" title="Muuda">✏️</button>
+          <button onclick="adminKustutaKirje(${k.id})" style="background:#3d0a0a;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer" title="Kustuta">🗑</button>
+        </div>`).join('')}
       </div>
-      ${w.kirjed.length ? `<div class="kirjed-list">${w.kirjed.map(k=>`<div class="kirje">
-        <span>${formatKp(k.kuupaev)}</span>
-        <span>${k.ettevote_nimi}</span>
-        <span>${k.objekt_nimi||'—'}</span>
-        <span>${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
-        <span>${parseFloat(k.tunnid).toFixed(2)}h</span>
-        ${k.ettevote_tyyp === 'muu'
-          ? `<span style="display:flex;align-items:center;gap:4px">
-               <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
-                 style="width:65px;padding:3px 6px;font-size:12px;background:#0d0f13;border:0.5px solid ${k.muu_tunnitasu ? '#c9a84c' : '#3a3d45'};border-radius:5px;color:#e2e8f0"
-                 id="muu-tasu-${k.id}" onchange="salvestaMuuTasu(${k.id}, this)">
-               <button onclick="salvestaMuuTasu(${k.id})" style="background:#c9a84c;border:none;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:700;color:#0d0f13;cursor:pointer">✓</button>
-             </span>`
-          : `<span>${k.tunnitasu}€/h</span>`}
-        <button onclick='avaaMuutaModal(${JSON.stringify(k)})' style="background:#1a3550;border:none;border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;margin-left:4px" title="Muuda">✏️</button>
-        <button onclick="adminKustutaKirje(${k.id})" style="background:#3d0a0a;border:none;border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer" title="Kustuta">🗑</button>
-      </div>`).join('')}</div>` : ''}
-    </div>`).join('');
+    </td></tr>` : ''}`;
+  });
+
+  ylaHtml += `<tr style="border-top:1px solid rgba(255,255,255,0.1);font-weight:700">
+    <td style="padding:10px 14px;font-size:13px">KOKKU</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#5b9cf6">${kokku_tunnid.toFixed(1)} h</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#4ade80">${kokku_teenitud.toFixed(2)} €</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#666">${kokku_makstud.toFixed(2)} €</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
+    <td></td>
+  </tr></tbody></table></div>`;
+
+  div.innerHTML = ylaHtml;
+}
+
+function toggleKirjed(nimi) {
+  const el = document.getElementById('kirjed-'+nimi);
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'table-row';
+  const btn = document.querySelector(`#worker-rida-${nimi} button`);
+  if (btn) btn.textContent = visible ? '▼ kirjed' : '▲ sulge';
 }
 
 function laadiCSV(e) {
