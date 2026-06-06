@@ -81,6 +81,7 @@
     <button class="tab" onclick="avatTab(4)">📅 Tulevased tööd</button>
     <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
     <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
+    <button class="tab" onclick="avatTab(7)">📄 Raport</button>
   </div>
 
   <div class="sektsioon nhtav" id="tab0">
@@ -205,6 +206,50 @@
   </div>
 </div>
 
+  <!-- Tab 7: Raport -->
+  <div class="sektsioon" id="tab7">
+    <div class="kaart">
+      <div class="kaart-hdr">📄 Projekti raport</div>
+      <div class="kaart-body">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp">
+            <label>Ettevõte</label>
+            <select id="r-ettevote" onchange="laadiRaportObjektid()"></select>
+          </div>
+          <div class="vorm-grupp">
+            <label>Objekt (vabatahtlik)</label>
+            <select id="r-objekt"><option value="">— Kõik objektid —</option></select>
+          </div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp">
+            <label>Kuupäevast</label>
+            <input type="date" id="r-algus" style="color-scheme:dark">
+          </div>
+          <div class="vorm-grupp">
+            <label>Kuupäevani</label>
+            <input type="date" id="r-lopp" style="color-scheme:dark">
+          </div>
+        </div>
+        <div class="vorm-grupp" style="margin-bottom:16px">
+          <label style="margin-bottom:8px;display:block">Töötajad</label>
+          <div id="r-workers" style="background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
+            <span style="color:#555;font-size:13px">Laadimine...</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="nupp kull" onclick="laadiRaportEelvaade()">Näita eelvaadet</button>
+          <button class="raport-nupp" onclick="laadiRaportCSV()">⬇ Laadi CSV</button>
+        </div>
+        <div id="r-teade" style="margin-top:10px;font-size:13px;color:#ef4444;display:none"></div>
+      </div>
+    </div>
+    <div class="kaart" id="r-eelvaade-kaart" style="display:none">
+      <div class="kaart-hdr">📊 Eelvaade</div>
+      <div id="r-eelvaade"></div>
+    </div>
+  </div>
+
 <!-- Töökirje muutmise modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
@@ -261,6 +306,7 @@ function avatTab(i) {
   if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();}, 500); laadiTulevasteToodTabel(); }
   if(i===5) laadiFotod();
   if(i===6) laadiAuditLogi();
+  if(i===7) laadiRaportTab();
 }
 
 async function init() {
@@ -585,6 +631,108 @@ async function salvestaMuuTasu(kirjeId) {
   } else {
     input.style.borderColor = '#ef4444';
   }
+}
+
+async function laadiRaportTab() {
+  // Täida ettevõtted
+  const ettSel = document.getElementById('r-ettevote');
+  ettSel.innerHTML = kõikEttevotted.map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
+  laadiRaportObjektid();
+
+  // Täida töötajad
+  const workers = await api('/api/admin/tootajad');
+  const div = document.getElementById('r-workers');
+  div.innerHTML = `<label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #c9a84c;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#c9a84c">
+    <input type="checkbox" id="r-kõik" style="width:auto;margin:0" onchange="valiKõikTootajad(this)" checked> Kõik
+  </label>` + workers.filter(w=>w.aktiivne).map(w => `
+    <label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0">
+      <input type="checkbox" class="r-worker" value="${w.id}" style="width:auto;margin:0" checked> ${w.nimi}
+    </label>`).join('');
+
+  // Täna
+  const t = new Date();
+  const kuu1 = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
+  const taana = t.toISOString().split('T')[0];
+  document.getElementById('r-algus').value = kuu1;
+  document.getElementById('r-lopp').value = taana;
+}
+
+function valiKõikTootajad(cb) {
+  document.querySelectorAll('.r-worker').forEach(c => c.checked = cb.checked);
+}
+
+async function laadiRaportObjektid() {
+  const ettevoteId = document.getElementById('r-ettevote').value;
+  const sel = document.getElementById('r-objekt');
+  sel.innerHTML = '<option value="">— Kõik objektid —</option>';
+  if (!ettevoteId) return;
+  const objektid = await api(`/api/tood/objektid/${ettevoteId}`);
+  if (Array.isArray(objektid)) objektid.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
+}
+
+function getRaportParams() {
+  const ettevote_id = document.getElementById('r-ettevote').value;
+  const objekt_id = document.getElementById('r-objekt').value;
+  const algus = document.getElementById('r-algus').value;
+  const lopp = document.getElementById('r-lopp').value;
+  const workers = [...document.querySelectorAll('.r-worker:checked')].map(c => c.value);
+  return { ettevote_id, objekt_id, algus, lopp, workers };
+}
+
+async function laadiRaportEelvaade() {
+  const { ettevote_id, objekt_id, algus, lopp, workers } = getRaportParams();
+  const teade = document.getElementById('r-teade');
+  if (!algus || !lopp) { teade.style.display='block'; teade.textContent='Vali kuupäevad!'; return; }
+  if (!workers.length) { teade.style.display='block'; teade.textContent='Vali vähemalt üks töötaja!'; return; }
+  teade.style.display='none';
+
+  const params = new URLSearchParams({ ettevote_id, objekt_id, algus, lopp, workers: workers.join(',') });
+  const andmed = await api(`/api/admin/raport-filter?${params}`);
+
+  const kaart = document.getElementById('r-eelvaade-kaart');
+  const div = document.getElementById('r-eelvaade');
+  kaart.style.display = 'block';
+
+  if (!andmed.length) { div.innerHTML = '<div style="padding:20px;text-align:center;color:#444">Kirjeid ei leitud</div>'; return; }
+
+  let kokku_tunnid = 0, kokku_summa = 0, kokku_km = 0, kokku_lisakulu = 0;
+  let html = '<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Aeg</th><th>Tunnid</th><th>Summa</th><th>KM raha</th><th>Lisakulu</th><th>Kommentaar</th></tr></thead><tbody>';
+  andmed.forEach(k => {
+    const tunnid = parseFloat(k.tunnid);
+    const summa = tunnid * parseFloat(k.tunnitasu||0);
+    const km = parseFloat(k.km_raha||0);
+    const lisakulu = parseFloat(k.lisakulu_summa||0);
+    kokku_tunnid += tunnid; kokku_summa += summa; kokku_km += km; kokku_lisakulu += lisakulu;
+    html += `<tr>
+      <td>${k.worker_nimi}</td>
+      <td>${formatKp(k.kuupaev)}</td>
+      <td>${k.algus?.slice(0,5)||''}–${k.lopp?.slice(0,5)||''}</td>
+      <td>${tunnid.toFixed(1)}h</td>
+      <td>${summa.toFixed(2)}€</td>
+      <td>${km>0?km.toFixed(2)+'€':'—'}</td>
+      <td>${lisakulu>0?lisakulu.toFixed(2)+'€':'—'}</td>
+      <td style="color:#666">${k.kommentaar||'—'}</td>
+    </tr>`;
+  });
+  html += `<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.1)">
+    <td colspan="3">KOKKU</td>
+    <td>${kokku_tunnid.toFixed(1)}h</td>
+    <td>${kokku_summa.toFixed(2)}€</td>
+    <td>${kokku_km.toFixed(2)}€</td>
+    <td>${kokku_lisakulu.toFixed(2)}€</td>
+    <td>Kogusumma: ${(kokku_summa+kokku_km+kokku_lisakulu).toFixed(2)}€</td>
+  </tr>`;
+  div.innerHTML = html + '</tbody></table>';
+}
+
+function laadiRaportCSV() {
+  const { ettevote_id, objekt_id, algus, lopp, workers } = getRaportParams();
+  const teade = document.getElementById('r-teade');
+  if (!algus || !lopp) { teade.style.display='block'; teade.textContent='Vali kuupäevad!'; return; }
+  if (!workers.length) { teade.style.display='block'; teade.textContent='Vali vähemalt üks töötaja!'; return; }
+  teade.style.display='none';
+  const params = new URLSearchParams({ ettevote_id, objekt_id, algus, lopp, workers: workers.join(','), _token: TOKEN });
+  window.location = `/api/admin/raport-filter-csv?${params}`;
 }
 
 async function laadiAuditLogi() {
