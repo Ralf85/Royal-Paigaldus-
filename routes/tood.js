@@ -40,7 +40,7 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 
 // Lisa tÃ¶Ã¶kirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
-  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid } = req.body;
+  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
   try {
     const [ah, am] = algus.split(':').map(Number);
     const [lh, lm] = lopp.split(':').map(Number);
@@ -59,11 +59,13 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
 
     const km = parseFloat(kilomeetrid) || 0;
     const km_raha = km > 0 ? (km / 100 * 12) : 0;
+    const lisakulu = parseFloat(lisakulu_summa) || 0;
+    const lisakulu_sel = lisakulu_selgitus || '';
 
     await pool.query(
-      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha]
+      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel]
     );
     res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
   } catch (err) {
@@ -94,7 +96,11 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     const kirjed = await pool.query(
       `SELECT t.*, e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp,
               COALESCE(o.nimi, '') as objekt_nimi,
-              we.tunnitasu
+              we.tunnitasu,
+              COALESCE(t.kilomeetrid, 0) as kilomeetrid,
+              COALESCE(t.km_raha, 0) as km_raha,
+              COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
+              COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id = e.id
        LEFT JOIN objektid o ON t.objekt_id = o.id
@@ -107,6 +113,8 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     let teenitud = 0;
     kirjed.rows.forEach(k => {
       teenitud += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
+      teenitud += parseFloat(k.km_raha || 0);
+      teenitud += parseFloat(k.lisakulu_summa || 0);
     });
 
     const kogutunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
