@@ -250,6 +250,28 @@
     </div>
   </div>
 
+<!-- Tulevase töö muutmise modal -->
+<div id="muutaTulevaneModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
+    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda tulevast tööd</h3>
+    <input type="hidden" id="mt-id">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+        <input type="date" id="mt-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px;color-scheme:dark"></div>
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
+        <input type="time" id="mt-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
+        <input type="time" id="mt-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    </div>
+    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kirjeldus</label>
+      <input type="text" id="mt-kirjeldus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="salvestaMuutaTulevane()" style="flex:1;background:#c9a84c;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="document.getElementById('muutaTulevaneModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
+    </div>
+  </div>
+</div>
+
 <!-- Töökirje muutmise modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
@@ -556,7 +578,7 @@ async function laadiTulevasteToodTabel() {
     const emailTo = t.worker_email || "";
     const teema = encodeURIComponent(`Tulevane töö: ${t.ettevote_nimi} ${kuupaevTekst}`);
     const keha = encodeURIComponent(`Tere ${t.worker_nimi}!\n\nSul on töö planeeritud:\n\nKuupäev: ${kuupaevTekst}\nKellaaeg: ${kellaaeg}\nEttevõte: ${t.ettevote_nimi}\nObjekt: ${t.objekt_nimi||'—'}${t.kirjeldus?'\nKirjeldus: '+t.kirjeldus:''}\n\nRoyal Paigaldus`);
-    html+=`<tr><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email">✉️</a><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
+    html+=`<tr><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email">✉️</a><button onclick='avaaMuutaTulevane(${JSON.stringify(t)})' style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer" title="Muuda">✏️</button><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
   });
   document.getElementById('tulevasteToodTabel').innerHTML=html+'</tbody></table>';
 }
@@ -576,6 +598,34 @@ function naitaTeade(id,tyyp,tekst) {
   const el=document.getElementById(id);
   el.className='teade '+tyyp; el.textContent=tekst; el.style.display='block';
   setTimeout(()=>el.style.display='none',4000);
+}
+
+function avaaMuutaTulevane(t) {
+  document.getElementById('mt-id').value = t.id;
+  document.getElementById('mt-kuupaev').value = t.kuupaev ? t.kuupaev.split('T')[0] : '';
+  document.getElementById('mt-algus').value = t.algus_kell || '';
+  document.getElementById('mt-lopp').value = t.lopp_kell || '';
+  document.getElementById('mt-kirjeldus').value = t.kirjeldus || '';
+  document.getElementById('muutaTulevaneModal').style.display = 'flex';
+}
+
+async function salvestaMuutaTulevane() {
+  const id = document.getElementById('mt-id').value;
+  const r = await api(`/api/admin/tulevased/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      kuupaev: document.getElementById('mt-kuupaev').value,
+      algus_kell: document.getElementById('mt-algus').value,
+      lopp_kell: document.getElementById('mt-lopp').value,
+      kirjeldus: document.getElementById('mt-kirjeldus').value
+    })
+  });
+  if (r.ok) {
+    document.getElementById('muutaTulevaneModal').style.display = 'none';
+    laadiTulevasteToodTabel();
+  } else {
+    alert(r.veateade || 'Viga salvestamisel');
+  }
 }
 
 function avaaMuutaModal(kirje) {
