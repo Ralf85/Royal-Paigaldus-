@@ -50,8 +50,13 @@ async function initDB() {
         lopp TIME NOT NULL,
         tunnid DECIMAL(4,2) NOT NULL,
         kommentaar TEXT,
+        kilomeetrid DECIMAL(8,1) DEFAULT 0,
+        km_raha DECIMAL(8,2) DEFAULT 0,
         loodud TIMESTAMP DEFAULT NOW()
       );
+
+      ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS kilomeetrid DECIMAL(8,1) DEFAULT 0;
+      ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS km_raha DECIMAL(8,2) DEFAULT 0;
 
       CREATE TABLE IF NOT EXISTS tulevased_tood (
         id SERIAL PRIMARY KEY,
@@ -84,7 +89,7 @@ async function initDB() {
       ON CONFLICT (nimi) DO NOTHING;
     `);
 
-    console.log('✅ Andmebaas valmis');
+    console.log('âœ… Andmebaas valmis');
   } finally {
     client.release();
   }
