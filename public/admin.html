@@ -570,7 +570,7 @@ async function lisaTulevaneToo() {
 
 async function laadiTulevasteToodTabel() {
   const r = await api('/api/admin/tulevased');
-  let html='<table><thead><tr><th>Töötaja</th><th>Ettevõte</th><th>Objekt</th><th>Kuupäev</th><th>Kellaaeg</th><th>Kirjeldus</th><th></th></tr></thead><tbody>';
+  let html='<table><thead><tr><th><input type="checkbox" id="tt-kõik" onchange="valiKõikTulevased(this)" style="cursor:pointer"></th><th>Töötaja</th><th>Ettevõte</th><th>Objekt</th><th>Kuupäev</th><th>Kellaaeg</th><th>Kirjeldus</th><th></th></tr></thead><tbody>';
   if(Array.isArray(r)) r.forEach(t=>{
     const kp = new Date(t.kuupaev);
     const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
@@ -578,9 +578,37 @@ async function laadiTulevasteToodTabel() {
     const emailTo = t.worker_email || "";
     const teema = encodeURIComponent(`Tulevane töö: ${t.ettevote_nimi} ${kuupaevTekst}`);
     const keha = encodeURIComponent(`Tere ${t.worker_nimi}!\n\nSul on töö planeeritud:\n\nKuupäev: ${kuupaevTekst}\nKellaaeg: ${kellaaeg}\nEttevõte: ${t.ettevote_nimi}\nObjekt: ${t.objekt_nimi||'—'}${t.kirjeldus?'\nKirjeldus: '+t.kirjeldus:''}\n\nRoyal Paigaldus`);
-    html+=`<tr><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email">✉️</a><button onclick='avaaMuutaTulevane(${JSON.stringify(t)})' style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer" title="Muuda">✏️</button><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
+    const emailSaadetud = localStorage.getItem('email_saadetud_'+t.id);
+    const emailStyle = emailSaadetud ? 'background:#0d3320;border:1px solid #16a34a' : 'background:#1a3550';
+    const emailEmoji = emailSaadetud ? '✅' : '✉️';
+    html+=`<tr><td><input type="checkbox" class="tt-rida" value="${t.id}" style="cursor:pointer"></td><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" onclick="markEmailSaadetud(${t.id}, this)" style="${emailStyle};border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" title="Saada email" id="email-btn-${t.id}">${emailEmoji}</a><button onclick='avaaMuutaTulevane(${JSON.stringify(t)})' style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer" title="Muuda">✏️</button><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
   });
-  document.getElementById('tulevasteToodTabel').innerHTML=html+'</tbody></table>';
+  const kustuNupp = `<div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+    <button onclick="kustutaValitudTulevased()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">🗑 Kustuta valitud</button>
+    <span style="font-size:12px;color:#555">Vali read linnukestega</span>
+  </div>`;
+  document.getElementById('tulevasteToodTabel').innerHTML=html+'</tbody></table>'+kustuNupp;
+}
+
+function valiKõikTulevased(cb) {
+  document.querySelectorAll('.tt-rida').forEach(c => c.checked = cb.checked);
+}
+
+function markEmailSaadetud(id, el) {
+  localStorage.setItem('email_saadetud_'+id, '1');
+  el.textContent = '✅';
+  el.style.background = '#0d3320';
+  el.style.border = '1px solid #16a34a';
+}
+
+async function kustutaValitudTulevased() {
+  const valitud = [...document.querySelectorAll('.tt-rida:checked')].map(c => c.value);
+  if (!valitud.length) { alert('Vali vähemalt üks rida!'); return; }
+  if (!confirm(`Kustutad ${valitud.length} töökäsku?`)) return;
+  for (const id of valitud) {
+    await api(`/api/admin/tulevased/${id}`, { method: 'DELETE' });
+  }
+  laadiTulevasteToodTabel();
 }
 
 async function kustutaTulevaneToo(id) {
