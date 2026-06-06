@@ -6,8 +6,10 @@
   <title>Royal Paigaldus — Tööpäevik</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
-    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #555; }
+    body.hele { --bg: #f4f5f7; --bg2: #ffffff; --bg3: #e8eaed; --border: rgba(0,0,0,0.08); --text: #1a1a2e; --text2: #444; --text3: #888; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.2s, color 0.2s; }
+    .topbar { background: var(--bg2); border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 10px; }
     .brand-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #c9a84c, #f0d080); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
     .brand-name { font-size: 13px; font-weight: 700; color: #c9a84c; }
@@ -43,7 +45,7 @@
     .emp-label.muu { color: #38bdf8; }
     .emp-tunnid { font-size: 20px; font-weight: 700; color: #fff; }
     .emp-tunnid-sub { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 3px; }
-    .kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+    .kaart { background: var(--bg2); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
     .kaart-hdr { padding: 13px 16px 11px; border-bottom: 0.5px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
     .kaart-hdr-tekst { font-size: 13px; font-weight: 600; color: #d0d0d0; }
     .kaart-hdr-arv { margin-left: auto; font-size: 11px; color: #444; background: #1e2128; border-radius: 20px; padding: 2px 8px; }
@@ -102,6 +104,7 @@
       <div><div class="brand-name">ROYAL PAIGALDUS</div><div class="brand-sub">Tööpäevik</div></div>
     </div>
     <div class="topbar-right">
+      <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:#aaa">☀️</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
       <button class="logout-btn" onclick="välju()">Välja</button>
@@ -326,6 +329,19 @@
       window.location = '/';
     }
 
+    function vahetaTeema() {
+      const hele = document.body.classList.toggle('hele');
+      localStorage.setItem('teema', hele ? 'hele' : 'tume');
+      document.getElementById('teemaNupp').textContent = hele ? '🌙' : '☀️';
+    }
+    // Lae salvestatud teema
+    if (localStorage.getItem('teema') === 'hele') {
+      document.body.classList.add('hele');
+      document.addEventListener('DOMContentLoaded', () => {
+        const n = document.getElementById('teemaNupp');
+        if (n) n.textContent = '🌙';
+      });
+    }
     init();
   </script>
 </body>
