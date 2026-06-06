@@ -16,7 +16,6 @@
     .nupp { width: 100%; background: #7c3aed; color: white; border: none; border-radius: 8px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; }
     .nupp:hover { background: #6d28d9; }
     .nupp.hall { background: transparent; border: 1px solid #334155; color: #64748b; font-size: 13px; margin-top: 10px; }
-    .nupp.hall:hover { color: #94a3b8; }
     .viga { background: #7f1d1d; color: #fca5a5; border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 10px; display: none; }
   </style>
 </head>
@@ -34,11 +33,20 @@
     document.getElementById('pin').addEventListener('keydown', e => { if (e.key==='Enter') logi(); });
     async function logi() {
       const pin = document.getElementById('pin').value;
-      const r = await fetch('/api/auth/admin-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})}).then(r=>r.json());
-      if (r.ok) window.location='/admin';
-      else { document.getElementById('viga').style.display='block'; document.getElementById('viga').textContent=r.veateade; document.getElementById('pin').value=''; }
+      const r = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      }).then(r => r.json());
+      if (r.ok) {
+        localStorage.setItem('adminToken', r.token);
+        window.location = '/admin';
+      } else {
+        document.getElementById('viga').style.display = 'block';
+        document.getElementById('viga').textContent = r.veateade;
+        document.getElementById('pin').value = '';
+      }
     }
-    fetch('/api/auth/sessioon').then(r=>r.json()).then(d=>{ if(d.isAdmin) window.location='/admin'; });
   </script>
 </body>
 </html>
