@@ -395,7 +395,7 @@ async function laadiTTObjektid() {
   const filtered = Array.isArray(objektid) ? objektid.filter(o => o.ettevote_id == ettevoteId && o.aktiivne) : [];
   const sel = document.getElementById('tt-objekt');
   sel.innerHTML = '<option value="">— Pole määratud —</option>';
-  if(Array.isArray(objektid)) objektid.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
+  filtered.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
 }
 
 async function lisaTulevaneToo() {
