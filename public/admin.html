@@ -269,7 +269,7 @@ async function laadiTootajad() {
         const tasu = weMap[e.id] || '';
         return `<div class="ettevote-rida">
           <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this)">
-          <span style="flex:1;font-size:13px">${e.nimi}</span>
+          <span style="flex:1;font-size:13px;min-width:120px">${e.nimi}</span>
           <input type="number" id="et-${w.id}-${e.id}" value="${tasu}" placeholder="€/h" step="0.5" style="width:90px" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">
         </div>`;
       }).join('')}
