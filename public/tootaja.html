@@ -368,7 +368,29 @@
         if (n) n.textContent = '🌙';
       });
     }
+
+    // Push teavitused
+    async function registreeriPush() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        const luba = await Notification.requestPermission();
+        if (luba !== 'granted') return;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: 'BJEpvd77iMyYAyYabKtylPU1eOgTG2px0GeXTqECJnUcCYYeaX36MkyQk7NuqJD3LMNBK88PEvxopNbRYe-a6TA'
+        });
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
+          body: JSON.stringify({ subscription: sub })
+        });
+        console.log('Push teavitused aktiveeritud!');
+      } catch(e) { console.log('Push registreerimine ebaõnnestus:', e); }
+    }
+
     init();
+    setTimeout(registreeriPush, 2000); // küsi luba 2 sek pärast laadimist
   </script>
 </body>
 </html>
