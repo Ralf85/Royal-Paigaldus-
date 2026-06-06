@@ -299,3 +299,15 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────
+
+router.get('/audit-log', noudaAdmin, async (req, res) => {
+  const r = await pool.query(
+    `SELECT a.*, w.nimi as worker_nimi
+     FROM audit_log a
+     LEFT JOIN workers w ON a.worker_id=w.id
+     ORDER BY a.loodud DESC`
+  );
+  res.json(r.rows);
+});
