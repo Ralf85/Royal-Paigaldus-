@@ -47,7 +47,8 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/tootaja-tood', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja-tood.html')));
 
 initDB().then(() => {
-  app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
+  app.listen(PORT, () => console.log(`ðŸš€ Server kÃ¤ib pordil ${PORT}`));
 });
