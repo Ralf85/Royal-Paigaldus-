@@ -4,7 +4,10 @@ const { pool } = require('../db');
 const { Parser } = require('json2csv');
 const { saadaTeavitus } = require('./push');
 const { Resend } = require('resend');
-function getResend() { return new Resend(process.env.RESEND_API_KEY); }
+function getResend() { 
+  console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'OK' : 'PUUDUB');
+  return new Resend(process.env.RESEND_API_KEY); 
+}
 
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
