@@ -135,7 +135,28 @@
           <span>☕</span>
           <span class="kaart-hdr-tekst">Merekohviku graafik</span>
         </div>
-        <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="toggleKalenderVaade()" id="kalenderVaadeNupp" style="background:#1a3550;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#5b9cf6;cursor:pointer">📅 Kalender</button>
+          <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
+        </div>
+      </div>
+
+      <!-- Kalendervaade -->
+      <div id="graafikKalenderVaade" style="display:none;padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <button onclick="kalenderKuuNavig(-1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">‹</button>
+          <span id="graafikKalenderKuuNimi" style="font-size:14px;font-weight:600;color:#e2e8f0"></span>
+          <button onclick="kalenderKuuNavig(1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">›</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+          ${['E','T','K','N','R','L','P'].map(p => `<div style="text-align:center;font-size:10px;color:#555;padding:3px">${p}</div>`).join('')}
+        </div>
+        <div id="graafikKalenderRuudustik" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:#555">🔵 Suurüritus</span>
+          <span style="font-size:11px;color:#555">🟢 Ainult kohvik</span>
+          <span style="font-size:11px;color:#555">🔒 Suletud</span>
+        </div>
       </div>
 
       <!-- Lisa vahetus vorm -->
@@ -299,21 +320,49 @@
 
     async function laadiTulevasedTood() {
       const andmed = await api('/api/tood/tulevased');
+      const taana = new Date(); taana.setHours(0,0,0,0);
+
+      // Laadi ka Merekohviku tulevased vahetused kui töötaja on seotud
+      let graaafikAndmed = [];
+      try {
+        const t = new Date();
+        const g = await api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
+        if (g && g.vahetused) {
+          graaafikAndmed = g.vahetused
+            .filter(v => v.worker_id == aktiivsWorkerId && new Date(v.kuupaev) >= taana)
+            .map(v => ({
+              kuupaev: v.kuupaev,
+              ettevote_nimi: 'MEREKOHVIK',
+              tyyp: 'merekohvik',
+              objekt_nimi: '',
+              algus_kell: v.algus,
+              lopp_kell: v.lopp,
+              kirjeldus: v.märkus || '',
+              onGraafik: true
+            }));
+        }
+      } catch(e) {}
+
+      // Kombineeri ja sorteeri
+      const koik = [...(Array.isArray(andmed) ? andmed : []), ...graaafikAndmed]
+        .sort((a, b) => new Date(a.kuupaev) - new Date(b.kuupaev));
+
       const div = document.getElementById('tulevasteToodSisu');
-      document.getElementById('tulevaste-arv').textContent = Array.isArray(andmed) ? andmed.length : 0;
-      if (!Array.isArray(andmed) || !andmed.length) {
+      document.getElementById('tulevaste-arv').textContent = koik.length;
+
+      if (!koik.length) {
         div.innerHTML = '<div class="tyhi-olek">Tulevasi töid pole kirjas</div>';
         return;
       }
-      const taana = new Date(); taana.setHours(0,0,0,0);
-      div.innerHTML = andmed.map(t => {
+
+      div.innerHTML = koik.map(t => {
         const d = new Date(t.kuupaev);
         const paevJaani = Math.ceil((d - taana) / 86400000);
         const tyyp = (t.tyyp || 'muu').toLowerCase();
         return `<div class="tulevane-rida">
           <div class="tr-kast"><div class="tr-paev">${d.getDate()}</div><div class="tr-kuu">${KUUD_LYHIKE[d.getMonth()]}</div></div>
           <div class="tr-info">
-            <div><span class="tr-badge badge-${tyyp}">${t.ettevote_nimi}</span><span class="tr-objekt">${t.objekt_nimi||''}</span></div>
+            <div><span class="tr-badge badge-${tyyp}">${t.ettevote_nimi}</span><span class="tr-objekt">${t.objekt_nimi||''}</span>${t.onGraafik ? '<span style="font-size:9px;color:#4ade80;margin-left:4px">graafik</span>' : ''}</div>
             <div class="tr-kell">⏰ ${t.algus_kell||'—'}${t.lopp_kell?' – '+t.lopp_kell:''}</div>
             ${t.kirjeldus ? `<div class="tr-kirjeldus">${t.kirjeldus}</div>` : ''}
           </div>
@@ -470,6 +519,74 @@
     }
 
     let aktiivsWorkerId = null;
+
+    let graafikKalenderKuu = new Date();
+    let graafikKalenderAndmed = null;
+
+    function toggleKalenderVaade() {
+      const div = document.getElementById('graafikKalenderVaade');
+      const nupp = document.getElementById('kalenderVaadeNupp');
+      const nhtav = div.style.display !== 'none';
+      div.style.display = nhtav ? 'none' : 'block';
+      nupp.style.background = nhtav ? '#1a3550' : '#0369a1';
+      if (!nhtav) kuvaTootajaKalender();
+    }
+
+    function kalenderKuuNavig(suund) {
+      graafikKalenderKuu = new Date(graafikKalenderKuu.getFullYear(), graafikKalenderKuu.getMonth() + suund, 1);
+      kuvaTootajaKalender();
+    }
+
+    async function kuvaTootajaKalender() {
+      const aasta = graafikKalenderKuu.getFullYear();
+      const kuu = graafikKalenderKuu.getMonth() + 1;
+      document.getElementById('graafikKalenderKuuNimi').textContent = KUUD[kuu-1] + ' ' + aasta;
+
+      const vastus = await api(`/api/graafik/kuu?aasta=${aasta}&kuu=${kuu}`);
+      if (!vastus || vastus.ok === false) return;
+
+      const vahetused = vastus.vahetused || [];
+      const paevadInfo = vastus.paevad || [];
+      const paevadMap = {};
+      paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
+      const vahetusedMap = {};
+      vahetused.forEach(v => {
+        const kp = v.kuupaev.split('T')[0];
+        if (!vahetusedMap[kp]) vahetusedMap[kp] = [];
+        vahetusedMap[kp].push(v);
+      });
+
+      const staatusVarv = { tavaline: '#13161c', suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
+      const esimene = new Date(aasta, kuu-1, 1);
+      const viimane = new Date(aasta, kuu, 0).getDate();
+      let algus = esimene.getDay();
+      algus = algus === 0 ? 6 : algus - 1;
+
+      const div = document.getElementById('graafikKalenderRuudustik');
+      let html = '';
+
+      for (let i = 0; i < algus; i++) html += `<div style="min-height:60px"></div>`;
+
+      for (let p = 1; p <= viimane; p++) {
+        const iso = `${aasta}-${String(kuu).padStart(2,'0')}-${String(p).padStart(2,'0')}`;
+        const info = paevadMap[iso];
+        const vahetused2 = vahetusedMap[iso] || [];
+        const staatus = info?.staatus || 'tavaline';
+        const bg = staatusVarv[staatus] || '#13161c';
+        const lukustatud = info?.lukustatud;
+        const taana = new Date().toISOString().split('T')[0] === iso;
+        const minuVahetused = vahetused2.filter(v => v.worker_id == aktiivsWorkerId);
+        const teisedVahetused = vahetused2.filter(v => v.worker_id != aktiivsWorkerId);
+
+        html += `<div style="min-height:60px;background:${bg};border-radius:6px;padding:4px;border:${taana?'1.5px solid #c9a84c':'1px solid rgba(255,255,255,0.04)'}">
+          <div style="font-size:11px;font-weight:700;color:${lukustatud?'#444':taana?'#c9a84c':'#aaa'}">${p}${lukustatud?' 🔒':''}</div>
+          ${minuVahetused.map(v => `<div style="font-size:9px;background:rgba(74,222,128,0.2);border-radius:3px;padding:1px 3px;margin-top:2px;color:#4ade80">${v.algus}–${v.lopp}</div>`).join('')}
+          ${teisedVahetused.map(v => `<div style="font-size:9px;background:rgba(255,255,255,0.06);border-radius:3px;padding:1px 3px;margin-top:2px;color:#666">${v.worker_nimi.split(' ')[0]}</div>`).join('')}
+        </div>`;
+      }
+
+      div.innerHTML = html;
+    }
 
     function toggleLisaVahetus() {
       const vorm = document.getElementById('lisaVahetusVorm');
