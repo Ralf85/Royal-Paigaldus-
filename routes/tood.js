@@ -7,7 +7,7 @@ function noudaSisslogimist(req, res, next) {
   next();
 }
 
-// TÃ¶Ã¶taja ettevÃµtted (ainult talle mÃ¤Ã¤ratud)
+// Töötaja ettevõtted (ainult talle määratud)
 router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
@@ -25,7 +25,7 @@ router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Objektid ettevÃµtte jÃ¤rgi
+// Objektid ettevõtte järgi
 router.get('/objektid/:ettevoteId', async (req, res) => {
   try {
     const r = await pool.query(
@@ -38,19 +38,19 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
   }
 });
 
-// Lisa tÃ¶Ã¶kirje
+// Lisa töökirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
   try {
     const [ah, am] = algus.split(':').map(Number);
     const [lh, lm] = lopp.split(':').map(Number);
     let minutid = (lh * 60 + lm) - (ah * 60 + am);
-    if (minutid < 0) minutid += 1440; // Ã¶Ã¶vahetus
+    if (minutid < 0) minutid += 1440; // öövahetus
     let tunnid = minutid / 60;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
-    if (tunnid > 16) return res.json({ ok: false, veateade: 'Ãœle 16 tunni? Kontrolli kellaaegu' });
+    if (tunnid > 16) return res.json({ ok: false, veateade: 'Üle 16 tunni? Kontrolli kellaaegu' });
 
-    // CRAMO: lahuta 0.5h lÃµuna kui 6+ tundi
+    // CRAMO: lahuta 0.5h lõuna kui 6+ tundi
     const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
     if (tyyp === 'cramo' && tunnid >= 6) {
@@ -74,11 +74,11 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Kustuta tÃ¶Ã¶kirje (ainult tÃ¤nased)
+// Kustuta töökirje
 router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
-      `DELETE FROM tookirjed WHERE id=$1 AND worker_id=$2 AND kuupaev=CURRENT_DATE RETURNING id`,
+      `DELETE FROM tookirjed WHERE id=$1 AND worker_id=$2 RETURNING id`,
       [req.params.id, req.session.workerId]
     );
     if (r.rowCount === 0) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
@@ -88,7 +88,7 @@ router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Kuu kokkuvÃµte
+// Kuu kokkuvõte
 router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
   const wid = req.session.workerId;
@@ -140,7 +140,7 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Tulevased tÃ¶Ã¶d
+// Tulevased tööd
 router.get('/tulevased', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
