@@ -89,7 +89,18 @@ async function initDB() {
       ON CONFLICT (nimi) DO NOTHING;
     `);
 
-    console.log('âœ… Andmebaas valmis');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tookirje_pildid (
+        id SERIAL PRIMARY KEY,
+        tookirje_id INTEGER REFERENCES tookirjed(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        public_id TEXT NOT NULL,
+        nimi TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
   }
