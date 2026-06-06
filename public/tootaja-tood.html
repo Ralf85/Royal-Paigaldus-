@@ -239,6 +239,22 @@
       ➕ Lisa töökirje
     </button>
 
+    <!-- Pildi upload (LIDL puhul pärast salvestamist) -->
+    <div id="piltdeUploadSekts" style="display:none;margin-top:12px">
+      <div style="background:#0c1520;border:0.5px solid #1a3050;border-radius:12px;padding:16px">
+        <div style="font-size:12px;color:#4488ff;font-weight:600;margin-bottom:12px">📸 Lisa töö fotod (kuni 12)</div>
+        <label id="piltdeLabel" style="display:block;background:#13161c;border:1.5px dashed #1a3050;border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:#555;font-size:13px">
+          Klõpsa et valida fotod
+          <input type="file" id="piltdeInput" multiple accept="image/*" style="display:none" onchange="eelvaatePildid(this)">
+        </label>
+        <div id="piltdeEelvaade" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px"></div>
+        <button id="piltdeUploadNupp" onclick="laadiFotodUles()" style="display:none;margin-top:10px;width:100%;background:#4488ff;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer">
+          ⬆ Laadi fotod üles
+        </button>
+        <div id="piltdeTeade" style="margin-top:8px;font-size:12px;color:#4ade80;display:none"></div>
+      </div>
+    </div>
+
     <!-- Tänased kirjed -->
     <div class="kirjed-nimekiri">
       <div class="sekts-pealkiri" style="margin-top:8px">Tänased kirjed</div>
@@ -528,6 +544,17 @@
         document.getElementById('lisakulu_summa').value = '';
         document.getElementById('lisakulu_selgitus').value = '';
         arvutaKm();
+
+        // LIDL puhul näita foto upload sektsiooni
+        if (valitudEttevote && (valitudEttevote.tyyp || '').toLowerCase() === 'lidl' && vastus.kirjeId) {
+          viimaneKirjeId = vastus.kirjeId;
+          document.getElementById('piltdeUploadSekts').style.display = 'block';
+          document.getElementById('piltdeTeade').style.display = 'none';
+          document.getElementById('piltdeEelvaade').innerHTML = '';
+          document.getElementById('piltdeUploadNupp').style.display = 'none';
+          document.getElementById('piltdeLabel').textContent = 'Klõpsa et valida fotod';
+        }
+
         tookirjeKuupäevad.clear();
         await laadiTookirjeKuupäevad();
         await laadiTanaKirjed();
@@ -575,6 +602,64 @@
         await laadiTanaKirjed();
       } else {
         naita('viga', v.veateade || 'Kustutamine ebaõnnestus');
+      }
+    }
+
+    let viimaneKirjeId = null;
+
+    function eelvaatePildid(input) {
+      const files = Array.from(input.files).slice(0, 12);
+      const div = document.getElementById('piltdeEelvaade');
+      div.innerHTML = files.map((f, i) => {
+        const url = URL.createObjectURL(f);
+        return `<div style="position:relative">
+          <img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid #1a3050">
+          <div style="position:absolute;bottom:2px;right:4px;font-size:9px;color:#aaa;background:rgba(0,0,0,0.6);padding:1px 4px;border-radius:3px">${i+1}</div>
+        </div>`;
+      }).join('');
+      document.getElementById('piltdeUploadNupp').style.display = files.length ? 'block' : 'none';
+      document.getElementById('piltdeLabel').textContent = files.length ? `${files.length} foto valitud` : 'Klõpsa et valida fotod';
+    }
+
+    async function laadiFotodUles() {
+      if (!viimaneKirjeId) return;
+      const input = document.getElementById('piltdeInput');
+      const files = Array.from(input.files).slice(0, 12);
+      if (!files.length) return;
+
+      const nupp = document.getElementById('piltdeUploadNupp');
+      nupp.textContent = 'Laadin üles...';
+      nupp.disabled = true;
+
+      const formData = new FormData();
+      files.forEach(f => formData.append('pildid', f));
+
+      try {
+        const vastus = await fetch(`/api/pildid/upload/${viimaneKirjeId}`, {
+          method: 'POST',
+          headers: { 'x-session-token': TOKEN },
+          body: formData
+        }).then(r => r.json());
+
+        if (vastus.ok) {
+          document.getElementById('piltdeTeade').style.display = 'block';
+          document.getElementById('piltdeTeade').textContent = `✅ ${vastus.arv} fotot üles laaditud!`;
+          document.getElementById('piltdeEelvaade').innerHTML = '';
+          document.getElementById('piltdeUploadNupp').style.display = 'none';
+          input.value = '';
+          document.getElementById('piltdeLabel').textContent = 'Klõpsa et valida fotod';
+          setTimeout(() => {
+            document.getElementById('piltdeUploadSekts').style.display = 'none';
+            document.getElementById('piltdeTeade').style.display = 'none';
+          }, 3000);
+        } else {
+          nupp.textContent = '⬆ Laadi fotod üles';
+          nupp.disabled = false;
+          alert(vastus.veateade || 'Upload ebaõnnestus');
+        }
+      } catch (e) {
+        nupp.textContent = '⬆ Laadi fotod üles';
+        nupp.disabled = false;
       }
     }
 
