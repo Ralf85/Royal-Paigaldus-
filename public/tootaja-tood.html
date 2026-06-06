@@ -407,28 +407,22 @@
       const t = new Date();
       const vastus = await api(`/api/tood/kokkuvote?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
       const div = document.getElementById('kirjedSisu');
+      const KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
 
       if (!vastus.ok || !vastus.kirjed || !vastus.kirjed.length) {
-        div.innerHTML = '<div class="tyhi">Täna pole kirjeid lisatud</div>';
+        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
         return;
       }
 
-      // Filtreeri tänased
-      const taana = t.toISOString().split('T')[0];
-      const tanaKirjed = vastus.kirjed.filter(k => k.kuupaev && k.kuupaev.startsWith(taana));
-
-      if (!tanaKirjed.length) {
-        div.innerHTML = '<div class="tyhi">Täna pole kirjeid lisatud</div>';
-        return;
-      }
-
-      div.innerHTML = tanaKirjed.map(k => {
+      div.innerHTML = vastus.kirjed.map(k => {
+        const d = new Date(k.kuupaev);
         const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
         const kmInfo = k.kilomeetrid > 0 ? ` · 🚗 ${k.kilomeetrid}km (${parseFloat(k.km_raha||0).toFixed(2)}€)` : '';
-        const lisakuluInfo = k.lisakulu_summa > 0 ? ` · 💸 ${parseFloat(k.lisakulu_summa).toFixed(2)}€${k.lisakulu_selgitus ? ' ('+k.lisakulu_selgitus+')' : ''}` : '';
+        const lisakuluInfo = parseFloat(k.lisakulu_summa||0) > 0 ? ` · 💸 ${parseFloat(k.lisakulu_summa).toFixed(2)}€${k.lisakulu_selgitus ? ' ('+k.lisakulu_selgitus+')' : ''}` : '';
+        const kuupaevTekst = `${d.getDate()}. ${KUUD_LYHIKE[d.getMonth()]}`;
         return `<div class="kirje-rida">
           <div class="kirje-vasak">
-            <div><span class="kirje-firma ${tyyp}">${k.ettevote_nimi}</span>${k.objekt_nimi ? `<span style="font-size:12px;color:#888">${k.objekt_nimi}</span>` : ''}</div>
+            <div><span class="kirje-firma ${tyyp}">${k.ettevote_nimi}</span> <span style="font-size:11px;color:#666">${kuupaevTekst}</span>${k.objekt_nimi ? `<span style="font-size:12px;color:#888"> · ${k.objekt_nimi}</span>` : ''}</div>
             <div class="kirje-aeg">${k.algus} – ${k.lopp}${kmInfo}${lisakuluInfo}</div>
             ${k.kommentaar ? `<div class="kirje-komm">${k.kommentaar}</div>` : ''}
           </div>
@@ -441,7 +435,7 @@
     }
 
     async function kustutaKirje(id) {
-      if (!confirm('Kustuta see kirje?')) return;
+      if (!confirm('Kustutad selle töökirje? Seda ei saa tagasi võtta.')) return;
       const v = await api(`/api/tood/kustuta/${id}`, { method: 'DELETE' });
       if (v.ok) {
         naita('ok', 'Kirje kustutatud');
