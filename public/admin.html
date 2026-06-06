@@ -121,6 +121,9 @@
           <div class="vorm-grupp"><label>Nimi</label><input type="text" id="t-nimi" placeholder="Vaiko"></div>
           <div class="vorm-grupp"><label>PIN-kood</label><input type="text" id="t-pin" placeholder="1234" maxlength="6"></div>
         </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Email (teavituste jaoks)</label><input type="email" id="t-email" placeholder="vaiko@gmail.com"></div>
+        </div>
         <button class="nupp roheline" onclick="lisaTootaja()">➕ Lisa töötaja</button>
         <div class="teade" id="tootaja-teade"></div>
       </div>
@@ -301,6 +304,7 @@ async function laadiTootajad() {
           <input type="text" value="${w.nimi}" id="wn-${w.id}" style="width:130px;font-weight:600">
           <span style="color:#555;font-size:12px">PIN:</span>
           <input type="text" value="${w.pin}" id="wp-${w.id}" style="width:70px">
+          <input type="email" value="${w.email||''}" id="we-${w.id}" placeholder="email" style="width:160px">
           <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:5px">
             <input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"> Aktiivne
           </label>
@@ -328,8 +332,9 @@ async function laadiTootajad() {
 async function lisaTootaja() {
   const nimi = document.getElementById('t-nimi').value;
   const pin = document.getElementById('t-pin').value;
+  const email = document.getElementById('t-email').value;
   if(!nimi||!pin) return naitaTeade('tootaja-teade','viga','Täida kõik väljad!');
-  const r = await api('/api/admin/tootajad', {method:'POST', body: JSON.stringify({nimi,pin})});
+  const r = await api('/api/admin/tootajad', {method:'POST', body: JSON.stringify({nimi,pin,email})});
   if(r.ok) { naitaTeade('tootaja-teade','ok','✅ Lisatud!'); document.getElementById('t-nimi').value=''; document.getElementById('t-pin').value=''; laadiTootajad(); }
   else naitaTeade('tootaja-teade','viga', r.veateade);
 }
@@ -338,7 +343,8 @@ async function uuendaTootaja(id) {
   const nimi = document.getElementById(`wn-${id}`).value;
   const pin = document.getElementById(`wp-${id}`).value;
   const aktiivne = document.getElementById(`wa-${id}`).checked;
-  await api(`/api/admin/tootajad/${id}`, {method:'PUT', body: JSON.stringify({nimi,pin,aktiivne})});
+  const email = document.getElementById(`we-${id}`)?.value || '';
+  await api(`/api/admin/tootajad/${id}`, {method:'PUT', body: JSON.stringify({nimi,pin,aktiivne,email})});
   laadiTootajad();
 }
 
