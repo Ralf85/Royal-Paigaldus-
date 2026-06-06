@@ -105,6 +105,13 @@
 
     /* Kuupäev */
     input[type=date] { color-scheme: dark; }
+    /* Kalender */
+    .kal-paev { text-align:center; font-size:14px; padding:7px 4px; border-radius:8px; cursor:pointer; color:#e2e8f0; transition:all 0.1s; }
+    .kal-paev:hover { background:#1e2128; }
+    .kal-paev.taana { border:1.5px solid #c9a84c; color:#c9a84c; font-weight:700; }
+    .kal-paev.valitud { background:#c9a84c !important; color:#0d0f13 !important; font-weight:700; }
+    .kal-paev.tookirjega { background:#2d1f0a; color:#f0a040; font-weight:600; }
+    .kal-paev.teine-kuu { color:#333; cursor:default; }
   </style>
 </head>
 <body>
@@ -139,7 +146,30 @@
     <!-- 3. Kuupäev -->
     <div class="valik-grupp">
       <label class="valik-label">Kuupäev</label>
-      <input type="date" id="kuupaev">
+      <div id="kalenderWrapper">
+        <div id="kalenderNupp" onclick="toggleKalender()" style="background:#13161c;border:0.5px solid #252830;border-radius:10px;padding:12px 14px;font-size:14px;color:#e2e8f0;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+          <span id="kalenderTekst">Laadimine...</span>
+          <span style="color:#555">📅</span>
+        </div>
+        <div id="kalenderPanel" style="display:none;background:#13161c;border:0.5px solid #252830;border-radius:12px;padding:16px;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <button onclick="kalenderKuu(-1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:4px 10px">‹</button>
+            <span id="kalenderKuuNimi" style="font-size:14px;font-weight:600;color:#e2e8f0"></span>
+            <button onclick="kalenderKuu(1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:4px 10px">›</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">E</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">T</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">K</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">N</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">R</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">L</div>
+            <div style="text-align:center;font-size:10px;color:#555;padding:4px">P</div>
+          </div>
+          <div id="kalenderPaevad" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+        </div>
+      </div>
+      <input type="hidden" id="kuupaev">
     </div>
 
     <!-- 4. Kellaaeg -->
@@ -213,9 +243,98 @@
 
   <script>
     const TOKEN = localStorage.getItem('workerToken') || '';
-    const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+    const KUUD_NIMED = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
     let valitudEttevote = null;
     let ettevotted = [];
+    let kalenderKuupäev = new Date(); // aktiivne kuu kalendris
+    let valitudKuupäev = new Date(); // valitud kuupäev
+    let tookirjeKuupäevad = new Set(); // kuupäevad kus on kirjeid
+
+    function kuupaevISO(d) {
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+
+    function toggleKalender() {
+      const p = document.getElementById('kalenderPanel');
+      p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function kalenderKuu(suund) {
+      kalenderKuupäev = new Date(kalenderKuupäev.getFullYear(), kalenderKuupäev.getMonth() + suund, 1);
+      joonistаKalender();
+    }
+
+    async function laadiTookirjeKuupäevad() {
+      const t = new Date();
+      // Laadi praeguse ja eelmise kuu kirjed
+      for (let i = 0; i <= 1; i++) {
+        const kuu = t.getMonth() + 1 - i;
+        const aasta = kuu <= 0 ? t.getFullYear() - 1 : t.getFullYear();
+        const kuu2 = kuu <= 0 ? kuu + 12 : kuu;
+        try {
+          const v = await api(`/api/tood/kokkuvote?aasta=${aasta}&kuu=${kuu2}`);
+          if (v.ok && v.kirjed) {
+            v.kirjed.forEach(k => tookirjeKuupäevad.add(k.kuupaev.split('T')[0]));
+          }
+        } catch(e) {}
+      }
+      joonistаKalender();
+    }
+
+    function joonistаKalender() {
+      const aasta = kalenderKuupäev.getFullYear();
+      const kuu = kalenderKuupäev.getMonth();
+      document.getElementById('kalenderKuuNimi').textContent = KUUD_NIMED[kuu] + ' ' + aasta;
+
+      const taana = new Date();
+      const tanaISO = kuupaevISO(taana);
+      const valitudISO = kuupaevISO(valitudKuupäev);
+
+      // Kuu esimene päev ja selle nädalapäev (0=E, 6=P)
+      const esimene = new Date(aasta, kuu, 1);
+      let algusNädalapäev = esimene.getDay(); // 0=P, 1=E...
+      algusNädalapäev = algusNädalapäev === 0 ? 6 : algusNädalapäev - 1; // teisenda E=0
+
+      const viimane = new Date(aasta, kuu + 1, 0).getDate();
+      const div = document.getElementById('kalenderPaevad');
+      let html = '';
+
+      // Eelmise kuu päevad
+      for (let i = algusNädalapäev - 1; i >= 0; i--) {
+        const ep = new Date(aasta, kuu, -i);
+        html += `<div class="kal-paev teine-kuu">${ep.getDate()}</div>`;
+      }
+
+      // Selle kuu päevad
+      for (let p = 1; p <= viimane; p++) {
+        const d = new Date(aasta, kuu, p);
+        const iso = kuupaevISO(d);
+        let klass = 'kal-paev';
+        if (iso === tanaISO) klass += ' taana';
+        if (iso === valitudISO) klass += ' valitud';
+        if (tookirjeKuupäevad.has(iso)) klass += ' tookirjega';
+        html += `<div class="${klass}" onclick="valiKuupaev('${iso}')">${p}</div>`;
+      }
+
+      // Järgmise kuu päevad
+      const lõppNädalapäev = new Date(aasta, kuu, viimane).getDay();
+      const puudu = lõppNädalapäev === 0 ? 0 : 7 - lõppNädalapäev;
+      for (let i = 1; i <= puudu; i++) {
+        html += `<div class="kal-paev teine-kuu">${i}</div>`;
+      }
+
+      div.innerHTML = html;
+    }
+
+    function valiKuupaev(iso) {
+      valitudKuupäev = new Date(iso + 'T12:00:00');
+      document.getElementById('kuupaev').value = iso;
+      const d = valitudKuupäev;
+      document.getElementById('kalenderTekst').textContent =
+        `${d.getDate()}. ${KUUD_NIMED[d.getMonth()]} ${d.getFullYear()}`;
+      document.getElementById('kalenderPanel').style.display = 'none';
+      joonistаKalender();
+    }
 
     async function api(url, opts={}) {
       opts.headers = opts.headers || {};
@@ -229,9 +348,16 @@
       const s = await api('/api/auth/sessioon');
       if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
 
-      // Täna kuupäev
+      // Initsialiseeri kalender tänase kuupäevaga
       const t = new Date();
-      document.getElementById('kuupaev').value = t.toISOString().split('T')[0];
+      valitudKuupäev = new Date(t);
+      kalenderKuupäev = new Date(t);
+      const tanaISO = kuupaevISO(t);
+      document.getElementById('kuupaev').value = tanaISO;
+      document.getElementById('kalenderTekst').textContent =
+        `${t.getDate()}. ${KUUD_NIMED[t.getMonth()]} ${t.getFullYear()}`;
+      joonistаKalender();
+      laadiTookirjeKuupäevad(); // laadi oranžid päevad taustal
 
       // Laadi ettevõtted
       ettevotted = await api('/api/tood/minu-ettevotted');
@@ -397,6 +523,8 @@
         document.getElementById('lisakulu_summa').value = '';
         document.getElementById('lisakulu_selgitus').value = '';
         arvutaKm();
+        tookirjeKuupäevad.clear();
+        await laadiTookirjeKuupäevad();
         await laadiTanaKirjed();
       } else {
         naita('viga', vastus.veateade || 'Viga salvestamisel');
