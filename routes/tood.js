@@ -62,12 +62,12 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     const lisakulu = parseFloat(lisakulu_summa) || 0;
     const lisakulu_sel = lisakulu_selgitus || '';
 
-    await pool.query(
+    const result = await pool.query(
       `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
       [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel]
     );
-    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
+    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), kirjeId: result.rows[0].id, lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
