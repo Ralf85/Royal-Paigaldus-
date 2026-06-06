@@ -80,8 +80,7 @@ router.get('/ettevotted', noudaAdmin, async (req, res) => {
 });
 
 // ── OBJEKTID ──────────────────────────────────────────────
-
-router.post('/objektid', async (req, res) => {
+router.get('/objektid', noudaAdmin, async (req, res) => {
   const r = await pool.query(
     `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o
      JOIN ettevotted e ON o.ettevote_id = e.id ORDER BY e.id, o.nimi`
