@@ -128,7 +128,46 @@
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
     </div>
 
-    <!-- Tööpäevik -->
+    <!-- Merekohviku graafik (nähtav ainult Merekohviku töötajatele) -->
+    <div class="kaart" id="merekohvikGraafikKaart" style="display:none">
+      <div class="kaart-hdr" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span>☕</span>
+          <span class="kaart-hdr-tekst">Merekohviku graafik</span>
+        </div>
+        <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
+      </div>
+
+      <!-- Lisa vahetus vorm -->
+      <div id="lisaVahetusVorm" style="display:none;padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+            <input type="date" id="g-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
+            <input type="time" id="g-algus" value="10:00" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+          </div>
+          <div>
+            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
+            <input type="time" id="g-lopp" value="18:00" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus (vabatahtlik)</label>
+          <input type="text" id="g-markus" placeholder="nt. ainult bar, terrassil..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="lisaVahetus()" style="background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
+          <button onclick="toggleLisaVahetus()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">Tühista</button>
+        </div>
+        <div id="g-teade" style="margin-top:8px;font-size:12px;display:none"></div>
+      </div>
+
+      <!-- Kalender -->
+      <div id="graafikSisu"><div class="tyhi-olek">Laadimine...</div></div>
+    </div>
     <div class="kaart">
       <div class="kaart-hdr">
         <span>📋</span>
@@ -182,6 +221,7 @@
       const initsiaalid = s.nimi.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
       document.getElementById('avatarInitsiaalid').textContent = initsiaalid;
       document.getElementById('workerNimiTop').textContent = s.nimi;
+      aktiivsWorkerId = s.workerId;
 
       const t = new Date();
       aktiivsKuu = t.getMonth() + 1;
@@ -216,7 +256,7 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiGraafik()]);
     }
 
     async function laadiEttevotted() {
@@ -348,6 +388,86 @@
           <div class="tp-tunnid">${parseFloat(k.tunnid).toFixed(1)}h</div>
         </div>`;
       }).join('');
+    }
+
+    async function laadiGraafik() {
+      const vastus = await api(`/api/graafik/kuu?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
+      const kaart = document.getElementById('merekohvikGraafikKaart');
+      
+      // Kui 403 (pole merekohviku töötaja) — peida kaart
+      if (!Array.isArray(vastus)) { kaart.style.display = 'none'; return; }
+      kaart.style.display = 'block';
+
+      const div = document.getElementById('graafikSisu');
+      if (!vastus.length) {
+        div.innerHTML = '<div class="tyhi-olek">Selle kuu vahetusi pole</div>';
+        return;
+      }
+
+      // Grupeeri päevade kaupa
+      const paevad = {};
+      vastus.forEach(v => {
+        const kp = v.kuupaev.split('T')[0];
+        if (!paevad[kp]) paevad[kp] = [];
+        paevad[kp].push(v);
+      });
+
+      div.innerHTML = Object.entries(paevad).sort().map(([kp, vahetused]) => {
+        const d = new Date(kp);
+        const nadalaPaev = ['P','E','T','K','N','R','L'][d.getDay()];
+        const kuupaevTekst = `${d.getDate()}. ${KUUD_LYHIKE[d.getMonth()]} (${nadalaPaev})`;
+        return `<div style="padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)">
+          <div style="font-size:12px;font-weight:600;color:#4ade80;margin-bottom:6px">${kuupaevTekst}</div>
+          ${vahetused.map(v => `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+              <span style="font-size:13px;color:#d0d0d0;min-width:100px">${v.algus}–${v.lopp}</span>
+              <span style="font-size:13px;font-weight:600;color:${v.worker_id == aktiivsWorkerId ? '#4ade80' : '#bbb'}">${v.worker_nimi}</span>
+              ${v.märkus ? `<span style="font-size:11px;color:#555;font-style:italic">${v.märkus}</span>` : ''}
+              ${v.worker_id == aktiivsWorkerId ? `<button onclick="kustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer;font-size:12px;margin-left:auto">✕</button>` : ''}
+            </div>`).join('')}
+        </div>`;
+      }).join('');
+    }
+
+    let aktiivsWorkerId = null;
+
+    function toggleLisaVahetus() {
+      const vorm = document.getElementById('lisaVahetusVorm');
+      vorm.style.display = vorm.style.display === 'none' ? 'block' : 'none';
+      if (vorm.style.display === 'block') {
+        const t = new Date();
+        document.getElementById('g-kuupaev').value = t.toISOString().split('T')[0];
+      }
+    }
+
+    async function lisaVahetus() {
+      const kuupaev = document.getElementById('g-kuupaev').value;
+      const algus = document.getElementById('g-algus').value;
+      const lopp = document.getElementById('g-lopp').value;
+      const märkus = document.getElementById('g-markus').value;
+      const teade = document.getElementById('g-teade');
+
+      const r = await api('/api/graafik/lisa', {
+        method: 'POST',
+        body: JSON.stringify({ kuupaev, algus, lopp, märkus })
+      });
+
+      if (r.ok) {
+        teade.style.display = 'none';
+        document.getElementById('lisaVahetusVorm').style.display = 'none';
+        document.getElementById('g-markus').value = '';
+        await laadiGraafik();
+      } else {
+        teade.style.display = 'block';
+        teade.style.color = '#ef4444';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
+    }
+
+    async function kustutaVahetus(id) {
+      if (!confirm('Kustutad selle vahetuse?')) return;
+      const r = await api(`/api/graafik/${id}`, { method: 'DELETE' });
+      if (r.ok) await laadiGraafik();
     }
 
     async function välju() {
