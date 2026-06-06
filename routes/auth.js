@@ -13,6 +13,11 @@ router.post('/login', async (req, res) => {
     }
     const worker = result.rows[0];
     const token = await req.saveSession({ workerId: worker.id, workerNimi: worker.nimi });
+    // Audit log
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [worker.id, 'SISSELOGIMINE', JSON.stringify({ nimi: worker.nimi }), req.ip]
+    );
     res.json({ ok: true, nimi: worker.nimi, token });
   } catch (err) {
     console.error(err);
