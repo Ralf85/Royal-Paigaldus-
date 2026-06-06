@@ -128,20 +128,6 @@
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
     </div>
 
-    <div class="kaart">
-      <div class="kaart-hdr">
-        <span>💰</span>
-        <span class="kaart-hdr-tekst">Laekumised</span>
-        <span class="kaart-hdr-arv" id="laekumiste-kuu">—</span>
-      </div>
-      <div class="laek-kokkuvote">
-        <div class="laek-kv-item"><div class="laek-kv-label">Teenitud</div><div class="laek-kv-val v-roheline" id="kv-teenitud">—</div></div>
-        <div class="laek-kv-item"><div class="laek-kv-label">Makstud</div><div class="laek-kv-val v-hall" id="kv-makstud">—</div></div>
-        <div class="laek-kv-item"><div class="laek-kv-label">Ootel</div><div class="laek-kv-val v-kollane" id="kv-ootel">—</div></div>
-      </div>
-      <div id="laekumisteSisu"><div class="tyhi-olek">Laekumisi pole</div></div>
-    </div>
-
     <!-- Tööpäevik -->
     <div class="kaart">
       <div class="kaart-hdr">
@@ -150,6 +136,28 @@
         <span class="kaart-hdr-arv" id="toopaeviku-kuu">—</span>
       </div>
       <div id="toopaevikuSisu"><div class="tyhi-olek">Selle kuu kirjeid pole</div></div>
+    </div>
+
+    <div class="kaart">
+      <div class="kaart-hdr" onclick="toggleLaekumised()" style="cursor:pointer">
+        <span>💰</span>
+        <span class="kaart-hdr-tekst">Laekumised</span>
+        <span class="kaart-hdr-arv" id="laekumiste-kuu">—</span>
+        <span id="laekumiste-silm" style="margin-left:8px;font-size:14px;color:#555">👁</span>
+      </div>
+      <div id="laekumistePeidus">
+        <div style="padding:16px;text-align:center;color:#555;font-size:13px">
+          Vajuta pealkirjale numbrite nägemiseks
+        </div>
+      </div>
+      <div id="laekumisteSisu" style="display:none">
+        <div class="laek-kokkuvote">
+          <div class="laek-kv-item"><div class="laek-kv-label">Teenitud</div><div class="laek-kv-val v-roheline" id="kv-teenitud">—</div></div>
+          <div class="laek-kv-item"><div class="laek-kv-label">Makstud</div><div class="laek-kv-val v-hall" id="kv-makstud">—</div></div>
+          <div class="laek-kv-item"><div class="laek-kv-label">Ootel</div><div class="laek-kv-val v-kollane" id="kv-ootel">—</div></div>
+        </div>
+        <div id="laekumisteSisuList"><div class="tyhi-olek">Laekumisi pole</div></div>
+      </div>
     </div>
   </div>
 
@@ -274,9 +282,27 @@
       }).join('');
     }
 
+    let laekumisedNahtav = false;
+
+    function toggleLaekumised() {
+      laekumisedNahtav = !laekumisedNahtav;
+      document.getElementById('laekumisteSisu').style.display = laekumisedNahtav ? 'block' : 'none';
+      document.getElementById('laekumistePeidus').style.display = laekumisedNahtav ? 'none' : 'block';
+      document.getElementById('laekumiste-silm').textContent = laekumisedNahtav ? '🙈' : '👁';
+    }
+
     async function laadiLaekumised() {
       const andmed = await api(`/api/admin/maksed?worker_id=self&aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
-      const div = document.getElementById('laekumisteSisu');
+
+      // Uuenda summad (alati)
+      if (Array.isArray(andmed) && andmed.length) {
+        const kokku = andmed.reduce((s, m) => s + parseFloat(m.summa), 0);
+        document.getElementById('kv-makstud').textContent = kokku.toFixed(0) + ' €';
+      } else {
+        document.getElementById('kv-makstud').textContent = '0 €';
+      }
+
+      const div = document.getElementById('laekumisteSisuList');
       if (!Array.isArray(andmed) || !andmed.length) {
         div.innerHTML = '<div class="tyhi-olek">Selle kuu laekumisi pole</div>';
         return;
