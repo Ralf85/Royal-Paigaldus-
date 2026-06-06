@@ -170,7 +170,7 @@ router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
 
 router.get('/tulevased', noudaAdmin, async (req, res) => {
   const r = await pool.query(
-    `SELECT t.*, w.nimi as worker_nimi, e.nimi as ettevote_nimi,
+    `SELECT t.*, w.nimi as worker_nimi, w.email as worker_email, e.nimi as ettevote_nimi,
             COALESCE(o.nimi,'') as objekt_nimi
      FROM tulevased_tood t
      JOIN workers w ON t.worker_id=w.id
