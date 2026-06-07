@@ -450,6 +450,7 @@
     async function laadiGraafik() {
       // Laadi alati jooksev kuu + järgmine 2 kuud
       const t = new Date();
+      alert('laadiGraafik käivitus, aktiivsWorkerId=' + aktiivsWorkerId);
       const kuud = [];
       for (let i = 0; i < 3; i++) {
         const d = new Date(t.getFullYear(), t.getMonth() + i, 1);
