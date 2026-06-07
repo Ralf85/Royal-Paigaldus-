@@ -334,7 +334,7 @@
         const tulemused = await Promise.all(kuud.map(k => api(`/api/graafik/kuu?aasta=${k.aasta}&kuu=${k.kuu}`)));
         const kõikVahetused = tulemused.flatMap(v => v?.vahetused || []);
         graaafikAndmed = kõikVahetused
-          .filter(v => v.worker_id == aktiivsWorkerId && new Date(v.kuupaev + 'T12:00:00') >= taana)
+          .filter(v => parseInt(v.worker_id) === parseInt(aktiivsWorkerId) && new Date(v.kuupaev + 'T12:00:00') >= taana)
           .map(v => ({
             kuupaev: v.kuupaev,
             ettevote_nimi: 'MEREKOHVIK',
@@ -456,8 +456,6 @@
         kuud.push({ aasta: d.getFullYear(), kuu: d.getMonth() + 1 });
       }
       const tulemused = await Promise.all(kuud.map(k => api(`/api/graafik/kuu?aasta=${k.aasta}&kuu=${k.kuu}`)));
-      console.log('Graafik vastused:', JSON.stringify(tulemused));
-      console.log('aktiivsWorkerId:', aktiivsWorkerId);
       const kaart = document.getElementById('merekohvikGraafikKaart');
 
       const kehtiv = tulemused.filter(v => v && v.ok !== false);
@@ -468,13 +466,12 @@
         vahetused: kehtiv.flatMap(v => v.vahetused || []),
         paevad: kehtiv.flatMap(v => v.paevad || [])
       };
-      console.log('Vahetused:', combined.vahetused.length);
       kõikGraafikAndmed = combined;
       kuvaKompaktGraafik(combined, false);
     }
 
     function kuvaKompaktGraafik(vastus, kõik) {
-      const vahetused = (vastus.vahetused || []).filter(v => v.worker_id == aktiivsWorkerId);
+      const vahetused = (vastus.vahetused || []).filter(v => parseInt(v.worker_id) === parseInt(aktiivsWorkerId));
       const paevadInfo = vastus.paevad || [];
       const paevadMap = {};
       paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
@@ -571,8 +568,8 @@
         const bg = staatusVarv[staatus] || '#13161c';
         const lukustatud = info?.lukustatud;
         const taana = new Date().toISOString().split('T')[0] === iso;
-        const minuVahetused = vahetused2.filter(v => v.worker_id == aktiivsWorkerId);
-        const teisedVahetused = vahetused2.filter(v => v.worker_id != aktiivsWorkerId);
+        const minuVahetused = vahetused2.filter(v => parseInt(v.worker_id) === parseInt(aktiivsWorkerId));
+        const teisedVahetused = vahetused2.filter(v => parseInt(v.worker_id) !== parseInt(aktiivsWorkerId));
 
         html += `<div style="min-height:60px;background:${bg};border-radius:6px;padding:4px;border:${taana?'1.5px solid #c9a84c':'1px solid rgba(255,255,255,0.04)'}">
           <div style="font-size:11px;font-weight:700;color:${lukustatud?'#444':taana?'#c9a84c':'#aaa'}">${p}${lukustatud?' 🔒':''}</div>
