@@ -347,6 +347,8 @@
       const koik = [...(Array.isArray(andmed) ? andmed : []), ...graaafikAndmed]
         .sort((a, b) => new Date(a.kuupaev) - new Date(b.kuupaev));
 
+      // Näita ainult 4 järgmist
+      const naita = koik.slice(0, 4);
       const div = document.getElementById('tulevasteToodSisu');
       document.getElementById('tulevaste-arv').textContent = koik.length;
 
@@ -355,7 +357,7 @@
         return;
       }
 
-      div.innerHTML = koik.map(t => {
+      div.innerHTML = naita.map(t => {
         const d = new Date(t.kuupaev);
         const paevJaani = Math.ceil((d - taana) / 86400000);
         const tyyp = (t.tyyp || 'muu').toLowerCase();
@@ -368,7 +370,7 @@
           </div>
           <div class="tr-paevad"><div class="tr-paevad-arv">${paevJaani > 0 ? paevJaani+'p' : 'täna'}</div></div>
         </div>`;
-      }).join('');
+      }).join('') + (koik.length > 4 ? `<div style="padding:10px 16px;text-align:center;color:#555;font-size:12px">+ ${koik.length - 4} veel...</div>` : '');
     }
 
     let laekumisedNahtav = false;
