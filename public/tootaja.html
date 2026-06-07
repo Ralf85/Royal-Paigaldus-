@@ -442,10 +442,10 @@
     }
 
     let kõikGraafikAndmed = null;
+    let aktiivsWorkerId = null;
 
     async function laadiGraafik() {
-      const t = new Date();
-      const vastus = await api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
+      const vastus = await api(`/api/graafik/kuu?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
       const kaart = document.getElementById('merekohvikGraafikKaart');
       
       if (!vastus || vastus.ok === false) { kaart.style.display = 'none'; return; }
@@ -497,8 +497,6 @@
       (!kõik && tulevased.length > 4 ? `<div onclick="kuvaKompaktGraafik(kõikGraafikAndmed, true)" style="padding:12px 16px;text-align:center;color:#5b9cf6;font-size:13px;cursor:pointer">Näita rohkem (${tulevased.length - 4} veel) →</div>` : '') +
       (kõik && tulevased.length > 4 ? `<div onclick="kuvaKompaktGraafik(kõikGraafikAndmed, false)" style="padding:12px 16px;text-align:center;color:#555;font-size:13px;cursor:pointer">Näita vähem ↑</div>` : '');
     }
-
-    let aktiivsWorkerId = null;
 
     let graafikKalenderKuu = new Date();
     let graafikKalenderAndmed = null;
