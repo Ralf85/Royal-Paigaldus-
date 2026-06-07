@@ -322,18 +322,17 @@
       const andmed = await api('/api/tood/tulevased');
       const taana = new Date(); taana.setHours(0,0,0,0);
 
-      // Laadi Merekohviku tulevased vahetused
+      // Laadi Merekohviku tulevased vahetused (3 kuud)
       let graaafikAndmed = [];
       try {
         const t = new Date();
-        const [g1, g2] = await Promise.all([
-          api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`),
-          api(`/api/graafik/kuu?aasta=${t.getMonth()+2>12?t.getFullYear()+1:t.getFullYear()}&kuu=${t.getMonth()+2>12?1:t.getMonth()+2}`)
-        ]);
-        const kõikVahetused = [
-          ...(g1?.vahetused || []),
-          ...(g2?.vahetused || [])
-        ];
+        const kuud = [];
+        for (let i = 0; i < 3; i++) {
+          const d = new Date(t.getFullYear(), t.getMonth() + i, 1);
+          kuud.push({ aasta: d.getFullYear(), kuu: d.getMonth() + 1 });
+        }
+        const tulemused = await Promise.all(kuud.map(k => api(`/api/graafik/kuu?aasta=${k.aasta}&kuu=${k.kuu}`)));
+        const kõikVahetused = tulemused.flatMap(v => v?.vahetused || []);
         graaafikAndmed = kõikVahetused
           .filter(v => v.worker_id == aktiivsWorkerId && new Date(v.kuupaev + 'T12:00:00') >= taana)
           .map(v => ({
@@ -450,23 +449,23 @@
     let aktiivsWorkerId = null;
 
     async function laadiGraafik() {
-      // Laadi alati jooksev ja järgmine kuu
+      // Laadi alati jooksev kuu + järgmine 2 kuud
       const t = new Date();
-      const [v1, v2] = await Promise.all([
-        api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`),
-        api(`/api/graafik/kuu?aasta=${t.getMonth()+2>12?t.getFullYear()+1:t.getFullYear()}&kuu=${t.getMonth()+2>12?1:t.getMonth()+2}`)
-      ]);
+      const kuud = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(t.getFullYear(), t.getMonth() + i, 1);
+        kuud.push({ aasta: d.getFullYear(), kuu: d.getMonth() + 1 });
+      }
+      const tulemused = await Promise.all(kuud.map(k => api(`/api/graafik/kuu?aasta=${k.aasta}&kuu=${k.kuu}`)));
       const kaart = document.getElementById('merekohvikGraafikKaart');
-      
-      const v1ok = v1 && v1.ok !== false;
-      const v2ok = v2 && v2.ok !== false;
-      if (!v1ok && !v2ok) { kaart.style.display = 'none'; return; }
+
+      const kehtiv = tulemused.filter(v => v && v.ok !== false);
+      if (!kehtiv.length) { kaart.style.display = 'none'; return; }
       kaart.style.display = 'block';
 
-      // Kombineeri mõlema kuu andmed
       const combined = {
-        vahetused: [...(v1ok ? v1.vahetused : []), ...(v2ok ? v2.vahetused : [])],
-        paevad: [...(v1ok ? v1.paevad : []), ...(v2ok ? v2.paevad : [])]
+        vahetused: kehtiv.flatMap(v => v.vahetused || []),
+        paevad: kehtiv.flatMap(v => v.paevad || [])
       };
       kõikGraafikAndmed = combined;
       kuvaKompaktGraafik(combined, false);
