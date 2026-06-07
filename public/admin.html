@@ -500,6 +500,8 @@ async function laadiKokkuvote() {
       <td style="padding:10px 14px;font-size:13px;font-weight:600">${tunnid > 0 ? '👷' : '·'} ${w.nimi}</td>
       <td style="padding:10px 14px;text-align:right;font-size:13px;color:#5b9cf6">${tunnid > 0 ? tunnid.toFixed(1)+' h' : '—'}</td>
       <td style="padding:10px 14px;text-align:right;font-size:13px;color:#4ade80">${teenitud > 0 ? teenitud.toFixed(2)+' €' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:${(lisakulu+km) > 0 ? '#f0a040' : '#333'}">${(lisakulu+km) > 0 ? (lisakulu+km).toFixed(2)+' €' : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:13px;color:#e2e8f0;font-weight:600">${kogusumma > 0 ? kogusumma.toFixed(2)+' €' : '—'}</td>
       <td style="padding:10px 14px;text-align:right;font-size:13px;color:#666">${makstud > 0 ? makstud.toFixed(2)+' €' : '—'}</td>
       <td style="padding:10px 14px;text-align:right;font-size:13px;color:${saada > 0 ? '#fbbf24' : saada < 0 ? '#ef4444' : '#666'}">${saada !== 0 ? (saada>0?'+':'')+saada.toFixed(2)+' €' : '—'}</td>
       <td style="padding:10px 14px;text-align:right">
@@ -529,12 +531,15 @@ async function laadiKokkuvote() {
     </td></tr>` : ''}`;
   });
 
+  const kokku_kogusumma = kokku_teenitud + kokku_lisakulu;
   ylaHtml += `<tr style="border-top:1px solid rgba(255,255,255,0.1);font-weight:700">
     <td style="padding:10px 14px;font-size:13px">KOKKU</td>
     <td style="padding:10px 14px;text-align:right;font-size:13px;color:#5b9cf6">${kokku_tunnid.toFixed(1)} h</td>
     <td style="padding:10px 14px;text-align:right;font-size:13px;color:#4ade80">${kokku_teenitud.toFixed(2)} €</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#f0a040">${kokku_lisakulu.toFixed(2)} €</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#e2e8f0">${kokku_kogusumma.toFixed(2)} €</td>
     <td style="padding:10px 14px;text-align:right;font-size:13px;color:#666">${kokku_makstud.toFixed(2)} €</td>
-    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
+    <td style="padding:10px 14px;text-align:right;font-size:13px;color:#fbbf24">${(kokku_kogusumma-kokku_makstud).toFixed(2)} €</td>
     <td></td>
   </tr></tbody></table></div>`;
 
