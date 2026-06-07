@@ -322,25 +322,30 @@
       const andmed = await api('/api/tood/tulevased');
       const taana = new Date(); taana.setHours(0,0,0,0);
 
-      // Laadi ka Merekohviku tulevased vahetused kui töötaja on seotud
+      // Laadi Merekohviku tulevased vahetused
       let graaafikAndmed = [];
       try {
         const t = new Date();
-        const g = await api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
-        if (g && g.vahetused) {
-          graaafikAndmed = g.vahetused
-            .filter(v => v.worker_id == aktiivsWorkerId && new Date(v.kuupaev) >= taana)
-            .map(v => ({
-              kuupaev: v.kuupaev,
-              ettevote_nimi: 'MEREKOHVIK',
-              tyyp: 'merekohvik',
-              objekt_nimi: '',
-              algus_kell: v.algus,
-              lopp_kell: v.lopp,
-              kirjeldus: v.märkus || '',
-              onGraafik: true
-            }));
-        }
+        const [g1, g2] = await Promise.all([
+          api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`),
+          api(`/api/graafik/kuu?aasta=${t.getMonth()+2>12?t.getFullYear()+1:t.getFullYear()}&kuu=${t.getMonth()+2>12?1:t.getMonth()+2}`)
+        ]);
+        const kõikVahetused = [
+          ...(g1?.vahetused || []),
+          ...(g2?.vahetused || [])
+        ];
+        graaafikAndmed = kõikVahetused
+          .filter(v => v.worker_id == aktiivsWorkerId && new Date(v.kuupaev + 'T12:00:00') >= taana)
+          .map(v => ({
+            kuupaev: v.kuupaev,
+            ettevote_nimi: 'MEREKOHVIK',
+            tyyp: 'merekohvik',
+            objekt_nimi: '',
+            algus_kell: v.algus,
+            lopp_kell: v.lopp,
+            kirjeldus: v.märkus || '',
+            onGraafik: true
+          }));
       } catch(e) {}
 
       // Kombineeri ja sorteeri
@@ -445,14 +450,26 @@
     let aktiivsWorkerId = null;
 
     async function laadiGraafik() {
-      const vastus = await api(`/api/graafik/kuu?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
+      // Laadi alati jooksev ja järgmine kuu
+      const t = new Date();
+      const [v1, v2] = await Promise.all([
+        api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`),
+        api(`/api/graafik/kuu?aasta=${t.getMonth()+2>12?t.getFullYear()+1:t.getFullYear()}&kuu=${t.getMonth()+2>12?1:t.getMonth()+2}`)
+      ]);
       const kaart = document.getElementById('merekohvikGraafikKaart');
       
-      if (!vastus || vastus.ok === false) { kaart.style.display = 'none'; return; }
+      const v1ok = v1 && v1.ok !== false;
+      const v2ok = v2 && v2.ok !== false;
+      if (!v1ok && !v2ok) { kaart.style.display = 'none'; return; }
       kaart.style.display = 'block';
-      kõikGraafikAndmed = vastus;
 
-      kuvaKompaktGraafik(vastus, false);
+      // Kombineeri mõlema kuu andmed
+      const combined = {
+        vahetused: [...(v1ok ? v1.vahetused : []), ...(v2ok ? v2.vahetused : [])],
+        paevad: [...(v1ok ? v1.paevad : []), ...(v2ok ? v2.paevad : [])]
+      };
+      kõikGraafikAndmed = combined;
+      kuvaKompaktGraafik(combined, false);
     }
 
     function kuvaKompaktGraafik(vastus, kõik) {
