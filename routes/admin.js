@@ -318,7 +318,10 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
               e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp, COALESCE(o.nimi,'') as objekt_nimi,
               COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu,
               COALESCE(we.tunnitasu, 0) as vaikimisi_tunnitasu,
-              t.muu_tunnitasu
+              t.muu_tunnitasu,
+              COALESCE(t.km_raha, 0) as km_raha,
+              COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
+              COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id=e.id
        LEFT JOIN objektid o ON t.objekt_id=o.id
@@ -329,6 +332,9 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     );
     const tunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
     const teenitud = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
+    const km_raha_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
+    const lisakulu_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku;
     const maksed = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
@@ -337,8 +343,12 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     const makstud = parseFloat(maksed.rows[0].kokku);
     andmed.push({
       nimi: w.nimi, tunnid: tunnid.toFixed(2),
-      teenitud: teenitud.toFixed(2), makstud: makstud.toFixed(2),
-      saadaVeel: (teenitud - makstud).toFixed(2),
+      teenitud: teenitud.toFixed(2),
+      km_raha: km_raha_kokku.toFixed(2),
+      lisakulu: lisakulu_kokku.toFixed(2),
+      kogusumma: kogusumma.toFixed(2),
+      makstud: makstud.toFixed(2),
+      saadaVeel: (kogusumma - makstud).toFixed(2),
       kirjed: kirjed.rows
     });
   }
