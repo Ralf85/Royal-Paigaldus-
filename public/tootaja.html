@@ -224,7 +224,7 @@
   <script>
     const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
     const KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
-    let aktiivsKuu, aktiivsAasta;
+    let aktiivsKuu, aktiivsAasta, aktiivsWorkerId = null;
     const TOKEN = localStorage.getItem('workerToken') || '';
 
     async function api(url, opts={}) {
@@ -446,7 +446,6 @@
     }
 
     let kõikGraafikAndmed = null;
-    let aktiivsWorkerId = null;
 
     async function laadiGraafik() {
       // Laadi alati jooksev kuu + järgmine 2 kuud
