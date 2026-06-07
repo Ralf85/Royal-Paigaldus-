@@ -457,6 +457,8 @@
         kuud.push({ aasta: d.getFullYear(), kuu: d.getMonth() + 1 });
       }
       const tulemused = await Promise.all(kuud.map(k => api(`/api/graafik/kuu?aasta=${k.aasta}&kuu=${k.kuu}`)));
+      console.log('Graafik vastused:', JSON.stringify(tulemused));
+      console.log('aktiivsWorkerId:', aktiivsWorkerId);
       const kaart = document.getElementById('merekohvikGraafikKaart');
 
       const kehtiv = tulemused.filter(v => v && v.ok !== false);
@@ -467,6 +469,7 @@
         vahetused: kehtiv.flatMap(v => v.vahetused || []),
         paevad: kehtiv.flatMap(v => v.paevad || [])
       };
+      console.log('Vahetused:', combined.vahetused.length);
       kõikGraafikAndmed = combined;
       kuvaKompaktGraafik(combined, false);
     }
