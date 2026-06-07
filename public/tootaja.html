@@ -135,27 +135,27 @@
           <span>☕</span>
           <span class="kaart-hdr-tekst">Merekohviku graafik</span>
         </div>
-        <div style="display:flex;gap:6px">
-          <button onclick="toggleKalenderVaade()" id="kalenderVaadeNupp" style="background:#1a3550;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#5b9cf6;cursor:pointer">📅 Kalender</button>
-          <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
-        </div>
+        <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
       </div>
 
-      <!-- Kalendervaade -->
-      <div id="graafikKalenderVaade" style="display:none;padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <!-- Täiskalender (peidetud vaikimisi) -->
+      <div id="graafikKalenderVaade" style="display:none;border-bottom:0.5px solid rgba(255,255,255,0.05)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px">
           <button onclick="kalenderKuuNavig(-1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">‹</button>
           <span id="graafikKalenderKuuNimi" style="font-size:14px;font-weight:600;color:#e2e8f0"></span>
           <button onclick="kalenderKuuNavig(1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer">›</button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
-          ${['E','T','K','N','R','L','P'].map(p => `<div style="text-align:center;font-size:10px;color:#555;padding:3px">${p}</div>`).join('')}
-        </div>
-        <div id="graafikKalenderRuudustik" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
-        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
-          <span style="font-size:11px;color:#555">🔵 Suurüritus</span>
-          <span style="font-size:11px;color:#555">🟢 Ainult kohvik</span>
-          <span style="font-size:11px;color:#555">🔒 Suletud</span>
+        <div style="padding:0 12px 12px">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+            ${['E','T','K','N','R','L','P'].map(p => `<div style="text-align:center;font-size:10px;color:#555;padding:3px">${p}</div>`).join('')}
+          </div>
+          <div id="graafikKalenderRuudustik" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+          <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <span style="font-size:11px;color:#555">🟢 Sinu vahetus</span>
+            <span style="font-size:11px;color:#555;opacity:0.5">· Teised</span>
+            <span style="font-size:11px;color:#1e6f9f">🔵 Suurüritus</span>
+            <span style="font-size:11px;color:#065f46">🟢 Kohvik</span>
+          </div>
         </div>
       </div>
 
@@ -439,83 +439,61 @@
       }).join('');
     }
 
+    let kõikGraafikAndmed = null;
+
     async function laadiGraafik() {
-      const vastus = await api(`/api/graafik/kuu?aasta=${aktiivsAasta}&kuu=${aktiivsKuu}`);
+      const t = new Date();
+      const vastus = await api(`/api/graafik/kuu?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
       const kaart = document.getElementById('merekohvikGraafikKaart');
       
       if (!vastus || vastus.ok === false) { kaart.style.display = 'none'; return; }
       kaart.style.display = 'block';
+      kõikGraafikAndmed = vastus;
 
-      const vahetused = vastus.vahetused || [];
+      kuvaKompaktGraafik(vastus, false);
+    }
+
+    function kuvaKompaktGraafik(vastus, kõik) {
+      const vahetused = (vastus.vahetused || []).filter(v => v.worker_id == aktiivsWorkerId);
       const paevadInfo = vastus.paevad || [];
       const paevadMap = {};
       paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
 
+      const taana = new Date(); taana.setHours(0,0,0,0);
+      const tulevased = vahetused
+        .filter(v => new Date(v.kuupaev + 'T12:00:00') >= taana)
+        .sort((a,b) => a.kuupaev.localeCompare(b.kuupaev));
+
+      const naita = kõik ? tulevased : tulevased.slice(0, 4);
       const div = document.getElementById('graafikSisu');
-      if (!vahetused.length && !paevadInfo.length) {
-        div.innerHTML = '<div class="tyhi-olek">Selle kuu vahetusi pole</div>';
+
+      if (!tulevased.length) {
+        div.innerHTML = '<div class="tyhi-olek">Sinu vahetusi pole</div>';
         return;
       }
 
-      // Grupeeri päevade kaupa
-      const paevadGrupp = {};
-      vahetused.forEach(v => {
-        const kp = v.kuupaev.split('T')[0];
-        if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
-        paevadGrupp[kp].push(v);
-      });
-      // Lisa ka päevad ilma vahetusteta aga staatusega
-      paevadInfo.forEach(p => {
-        const kp = p.kuupaev.split('T')[0];
-        if (!paevadGrupp[kp]) paevadGrupp[kp] = [];
-      });
+      const staatusNimi = { suuryritus: '🔵', kohvik: '🟢', suletud: '🔴' };
 
-      const staatusVarv = { tavaline: null, suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
-      const staatusNimi = { tavaline: '', suuryritus: '🔵 Suurüritus', kohvik: '🟢 Ainult kohvik', suletud: '🔴 Suletud' };
-
-      div.innerHTML = Object.entries(paevadGrupp).sort().map(([kp, vahetusedKuupaev]) => {
-        const d = new Date(kp + 'T12:00:00');
+      div.innerHTML = naita.map(v => {
+        const d = new Date(v.kuupaev + 'T12:00:00');
         const nadalaPaev = ['P','E','T','K','N','R','L'][d.getDay()];
-        const kuupaevTekst = `${d.getDate()}. ${KUUD_LYHIKE[d.getMonth()]} (${nadalaPaev})`;
-        const info = paevadMap[kp];
-        const lukustatud = info?.lukustatud;
-        const staatus = info?.staatus || 'tavaline';
-        const bg = staatusVarv[staatus] || '';
-        const staatusTekst = staatusNimi[staatus] || '';
-        
-        return `<div style="padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)${bg ? ';background:'+bg : ''}">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="font-size:12px;font-weight:600;color:${lukustatud ? '#555' : '#4ade80'}">${kuupaevTekst}</span>
-            ${lukustatud ? '<span style="font-size:10px;color:#555;background:#252830;padding:2px 6px;border-radius:4px">🔒 Lukustatud</span>' : ''}
-            ${staatusTekst ? `<span style="font-size:10px;color:#888">${staatusTekst}</span>` : ''}
-            ${info?.märkus ? `<span style="font-size:11px;color:#666;font-style:italic">${info.märkus}</span>` : ''}
+        const info = paevadMap[v.kuupaev.split('T')[0]];
+        const staatus = info?.staatus;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)">
+          <div style="min-width:42px;background:#1e2128;border-radius:9px;padding:6px 4px;text-align:center">
+            <div style="font-size:17px;font-weight:700;color:#fff;line-height:1">${d.getDate()}</div>
+            <div style="font-size:9px;text-transform:uppercase;color:#555;margin-top:2px">${KUUD_LYHIKE[d.getMonth()]}</div>
           </div>
-          ${vahetusedKuupaev.map(v => `
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-              <span style="font-size:13px;color:#d0d0d0;min-width:100px">${v.algus}–${v.lopp}</span>
-              <span style="font-size:13px;font-weight:600;color:${v.worker_id == aktiivsWorkerId ? '#4ade80' : '#bbb'}">${v.worker_nimi}</span>
-              ${v.märkus ? `<span style="font-size:11px;color:#555;font-style:italic">${v.märkus}</span>` : ''}
-              ${v.worker_id == aktiivsWorkerId ? `<button onclick="kustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer;font-size:12px;margin-left:auto">✕</button>` : ''}
-            </div>`).join('')}
-          ${!vahetusedKuupaev.length ? '<div style="font-size:12px;color:#333">Vahetusi pole</div>' : ''}
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:#e2e8f0">${nadalaPaev} ${staatus && staatusNimi[staatus] ? staatusNimi[staatus] : ''}</div>
+            <div style="font-size:12px;color:#505560">⏰ ${v.algus} – ${v.lopp}</div>
+            ${v.märkus ? `<div style="font-size:11px;color:#505560;font-style:italic">${v.märkus}</div>` : ''}
+          </div>
+          <button onclick="kustutaVahetus(${v.id})" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px">✕</button>
         </div>`;
-      }).join('');
-
-      // Uuenda kuupäeva input — hallidele päevadele keela
-      const kuupaevInput = document.getElementById('g-kuupaev');
-      if (kuupaevInput) {
-        kuupaevInput.addEventListener('change', function() {
-          const info = paevadMap[this.value];
-          const teade = document.getElementById('g-teade');
-          if (info?.lukustatud) {
-            teade.style.display = 'block';
-            teade.style.color = '#ef4444';
-            teade.textContent = '🔒 See päev on lukustatud';
-          } else {
-            teade.style.display = 'none';
-          }
-        });
-      }
+      }).join('') +
+      (!kõik && tulevased.length > 4 ? `<div onclick="kuvaKompaktGraafik(kõikGraafikAndmed, true)" style="padding:12px 16px;text-align:center;color:#5b9cf6;font-size:13px;cursor:pointer">Näita rohkem (${tulevased.length - 4} veel) →</div>` : '') +
+      (kõik && tulevased.length > 4 ? `<div onclick="kuvaKompaktGraafik(kõikGraafikAndmed, false)" style="padding:12px 16px;text-align:center;color:#555;font-size:13px;cursor:pointer">Näita vähem ↑</div>` : '');
     }
 
     let aktiivsWorkerId = null;
