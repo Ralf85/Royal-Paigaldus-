@@ -471,7 +471,10 @@
     }
 
     function kuvaKompaktGraafik(vastus, kõik) {
-      const vahetused = (vastus.vahetused || []).filter(v => parseInt(v.worker_id) === parseInt(aktiivsWorkerId));
+      const vahetused = (vastus.vahetused || []);
+      // DEBUG: logi kõik vahetused
+      console.log('kõik vahetused:', vahetused.length, 'aktiivsWorkerId:', aktiivsWorkerId, 'tüüp:', typeof aktiivsWorkerId);
+      vahetused.forEach(v => console.log('vahetus worker_id:', v.worker_id, 'tüüp:', typeof v.worker_id));
       const paevadInfo = vastus.paevad || [];
       const paevadMap = {};
       paevadInfo.forEach(p => paevadMap[p.kuupaev.split('T')[0]] = p);
