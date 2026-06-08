@@ -65,7 +65,6 @@
     .badge-muu { background: #0369a1; color: #fff; }
     .badge-merekohvik { background: #065f46; color: #4ade80; }
     .tr-objekt { font-size: 13px; font-weight: 500; color: #e0e0e0; }
-    .tr-kell { font-size: 11px; color: #505560; margin-top: 2px; }
     .tr-kirjeldus { font-size: 11px; color: #505560; margin-top: 3px; font-style: italic; }
     .tr-paevad { text-align: right; }
     .tr-paevad-arv { font-size: 11px; color: #3a3d45; }
@@ -96,6 +95,28 @@
     .tp-aeg { font-size: 11px; color: #505560; margin-top: 2px; }
     .tp-komm { font-size: 11px; color: #505560; margin-top: 2px; font-style: italic; }
     .tp-tunnid { font-size: 15px; font-weight: 700; color: #c9a84c; white-space: nowrap; }
+    /* Kalender modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; overflow-y: auto; }
+    .modal-overlay.avatud { display: flex; align-items: flex-start; justify-content: center; padding: 20px 16px; }
+    .modal-sisu { background: #13161c; border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; margin-top: 20px; }
+    .modal-hdr { padding: 16px 20px; border-bottom: 0.5px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
+    .modal-hdr-tekst { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+    .modal-sulge { background: none; border: none; color: #555; font-size: 20px; cursor: pointer; padding: 0 4px; }
+    .modal-sulge:hover { color: #aaa; }
+    .kal-nav { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+    .kal-nav-nupp { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 18px; cursor: pointer; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+    .kal-nav-nupp:hover { border-color: #555; }
+    .kal-kuu-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+    .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0 12px 12px; }
+    .kal-paev-hdr { text-align: center; font-size: 10px; color: #555; padding: 4px 0; }
+    .kal-paev { min-height: 64px; border-radius: 8px; padding: 5px; border: 1px solid rgba(255,255,255,0.04); }
+    .kal-paev-nr { font-size: 11px; font-weight: 700; color: #aaa; margin-bottom: 3px; }
+    .kal-paev-nr.taana { color: #c9a84c; }
+    .kal-vahetus { font-size: 9px; border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kal-vahetus.minu { background: rgba(74,222,128,0.2); color: #4ade80; }
+    .kal-vahetus.teise { background: rgba(255,255,255,0.06); color: #888; }
+    .kal-legend { display: flex; gap: 12px; padding: 8px 16px 16px; flex-wrap: wrap; }
+    .kal-legend-item { font-size: 11px; color: #555; display: flex; align-items: center; gap: 4px; }
   </style>
 </head>
 <body>
@@ -112,12 +133,44 @@
     </div>
   </div>
 
+  <!-- Merekohviku kalender modal -->
+  <div class="modal-overlay" id="kalenderModal">
+    <div class="modal-sisu">
+      <div class="modal-hdr">
+        <span class="modal-hdr-tekst">&#9749; Merekohviku kalender</span>
+        <button class="modal-sulge" onclick="sulgeKalender()">&#10005;</button>
+      </div>
+      <div class="kal-nav">
+        <button class="kal-nav-nupp" onclick="kalenderNavig(-1)">&#8249;</button>
+        <span class="kal-kuu-nimi" id="kalenderKuuNimi"></span>
+        <button class="kal-nav-nupp" onclick="kalenderNavig(1)">&#8250;</button>
+      </div>
+      <div class="kal-grid" id="kalenderGrid"></div>
+      <div class="kal-legend">
+        <div class="kal-legend-item"><div style="width:10px;height:10px;border-radius:2px;background:rgba(74,222,128,0.2);margin-right:2px"></div> Sinu vahetus</div>
+        <div class="kal-legend-item"><div style="width:10px;height:10px;border-radius:2px;background:rgba(255,255,255,0.06);margin-right:2px"></div> Teiste vahetused</div>
+      </div>
+    </div>
+  </div>
+
   <div class="leht">
     <div class="kuu-filter" id="kuuFilter"></div>
     <div class="sekts-pealkiri" id="kuuPealkiri">Juuni tööd</div>
 
     <div class="employer-grid" id="ettevotteKaardid">
       <div style="color:#555;font-size:13px;padding:20px">Laadimine...</div>
+    </div>
+
+    <!-- Merekohviku kalender nupp (ainult merekohviku töötajatele) -->
+    <div id="kalenderNuppDiv" style="display:none;margin-bottom:16px">
+      <button onclick="avaKalender()" style="width:100%;background:#051a10;border:1px solid #0a3520;border-radius:14px;padding:14px 20px;color:#4ade80;font-size:14px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">&#9749;</span>
+        <div>
+          <div>Merekohviku kalender</div>
+          <div style="font-size:11px;color:#065f46;font-weight:400;margin-top:2px">Vaata kes millal tööl on</div>
+        </div>
+        <span style="margin-left:auto;color:#065f46;font-size:18px">&#8594;</span>
+      </button>
     </div>
 
     <div class="kaart">
@@ -127,44 +180,6 @@
         <span class="kaart-hdr-arv" id="tulevaste-arv">0</span>
       </div>
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
-    </div>
-
-    <div class="kaart" id="merekohvikGraafikKaart" style="display:none">
-      <div class="kaart-hdr" style="justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span>&#9749;</span>
-          <span class="kaart-hdr-tekst">Merekohviku graafik</span>
-        </div>
-        <button onclick="toggleLisaVahetus()" style="background:#065f46;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#4ade80;cursor:pointer">+ Lisa vahetus</button>
-      </div>
-
-      <div id="lisaVahetusVorm" style="display:none;padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-          <div>
-            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
-            <input type="date" id="g-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark">
-          </div>
-          <div>
-            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
-            <input type="time" id="g-algus" value="10:00" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
-          </div>
-          <div>
-            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
-            <input type="time" id="g-lopp" value="18:00" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
-          </div>
-        </div>
-        <div style="margin-bottom:8px">
-          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus (vabatahtlik)</label>
-          <input type="text" id="g-markus" placeholder="nt. ainult bar, terrassil..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="lisaVahetus()" style="background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
-          <button onclick="toggleLisaVahetus()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">Tühista</button>
-        </div>
-        <div id="g-teade" style="margin-top:8px;font-size:12px;display:none"></div>
-      </div>
-
-      <div id="graafikSisu"><div class="tyhi-olek">Laadimine...</div></div>
     </div>
 
     <div class="kaart">
@@ -203,8 +218,9 @@
     var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
     var KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     var aktiivsKuu, aktiivsAasta, aktiivsWorkerId = null;
+    var onMerekohvik = false;
     var TOKEN = localStorage.getItem('workerToken') || '';
-    var koikGraafikAndmed = null;
+    var kalenderKuu = new Date();
 
     function api(url, opts) {
       opts = opts || {};
@@ -257,7 +273,18 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiGraafik()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), kontrolliMerekohvik()]);
+    }
+
+    async function kontrolliMerekohvik() {
+      try {
+        var t = new Date();
+        var v = await api('/api/graafik/minu?aasta=' + t.getFullYear() + '&kuu=' + (t.getMonth()+1));
+        if (v && v.ok !== false) {
+          onMerekohvik = true;
+          document.getElementById('kalenderNuppDiv').style.display = 'block';
+        }
+      } catch(e) {}
     }
 
     async function laadiEttevotted() {
@@ -329,7 +356,7 @@
 
       var koik = (Array.isArray(andmed) ? andmed : []).concat(graafikAndmed)
         .sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
-      var naita = koik.slice(0, 4);
+      var naita = koik.slice(0, 5);
       var div = document.getElementById('tulevasteToodSisu');
       document.getElementById('tulevaste-arv').textContent = koik.length;
       if (!koik.length) {
@@ -340,17 +367,17 @@
         var d = new Date(t.kuupaev);
         var paevJaani = Math.ceil((d - taana) / 86400000);
         var tyyp = (t.tyyp || 'muu').toLowerCase();
+        var algus = t.algus_kell || t.algus || '';
+        var lopp = t.lopp_kell || t.lopp || '';
         return '<div class="tulevane-rida">'
           + '<div class="tr-kast"><div class="tr-paev">' + d.getDate() + '</div><div class="tr-kuu">' + KUUD_LYHIKE[d.getMonth()] + '</div></div>'
           + '<div class="tr-info">'
-          + '<div><span class="tr-badge badge-' + tyyp + '">' + t.ettevote_nimi + '</span><span class="tr-objekt">' + (t.objekt_nimi || '') + '</span>' + (t.onGraafik ? '<span style="font-size:9px;color:#4ade80;margin-left:4px">graafik</span>' : '') + '</div>'
-          + '<div style="font-size:12px;color:#505560">&#9200; ' + v.algus + ' – ' + v.lopp + '</div>'
-          
+          + '<div><span class="tr-badge badge-' + tyyp + '">' + t.ettevote_nimi + '</span><span class="tr-objekt">' + (t.objekt_nimi || '') + '</span></div>'
           + (t.kirjeldus ? '<div class="tr-kirjeldus">' + t.kirjeldus + '</div>' : '')
           + '</div>'
           + '<div class="tr-paevad"><div class="tr-paevad-arv">' + (paevJaani > 0 ? paevJaani + 'p' : 'täna') + '</div></div>'
           + '</div>';
-      }).join('') + (koik.length > 4 ? '<div style="padding:10px 16px;text-align:center;color:#555;font-size:12px">+ ' + (koik.length - 4) + ' veel...</div>' : '');
+      }).join('') + (koik.length > 5 ? '<div style="padding:10px 16px;text-align:center;color:#555;font-size:12px">+ ' + (koik.length - 5) + ' veel...</div>' : '');
     }
 
     var laekumisedNahtav = false;
@@ -412,107 +439,87 @@
       }).join('');
     }
 
-    async function laadiGraafik() {
-      var t = new Date();
-      var kuud = [];
-      for (var i = 0; i < 3; i++) {
-        var d = new Date(t.getFullYear(), t.getMonth() + i, 1);
-        kuud.push({ aasta: d.getFullYear(), kuu: d.getMonth() + 1 });
-      }
-      var tulemused = await Promise.all(kuud.map(function(k) {
-        return api('/api/graafik/minu?aasta=' + k.aasta + '&kuu=' + k.kuu);
-      }));
-      var kaart = document.getElementById('merekohvikGraafikKaart');
-      var kehtiv = tulemused.filter(function(v) { return v && v.ok !== false; });
-      if (!kehtiv.length) { kaart.style.display = 'none'; return; }
-      kaart.style.display = 'block';
-      var vahetused = [];
-      var paevad = [];
-      kehtiv.forEach(function(v) {
-        if (v.vahetused) vahetused = vahetused.concat(v.vahetused);
-        if (v.paevad) paevad = paevad.concat(v.paevad);
-      });
-      koikGraafikAndmed = { vahetused: vahetused, paevad: paevad };
-      kuvaKompaktGraafik(koikGraafikAndmed, false);
+    // ── KALENDER MODAL ──────────────────────────────────────────
+
+    function avaKalender() {
+      kalenderKuu = new Date();
+      document.getElementById('kalenderModal').classList.add('avatud');
+      laadiKalender();
     }
 
-    function kuvaKompaktGraafik(vastus, koik) {
-      var vahetused = vastus.vahetused || [];
-      var paevadInfo = vastus.paevad || [];
+    function sulgeKalender() {
+      document.getElementById('kalenderModal').classList.remove('avatud');
+    }
+
+    function kalenderNavig(suund) {
+      kalenderKuu = new Date(kalenderKuu.getFullYear(), kalenderKuu.getMonth() + suund, 1);
+      laadiKalender();
+    }
+
+    async function laadiKalender() {
+      var aasta = kalenderKuu.getFullYear();
+      var kuu = kalenderKuu.getMonth() + 1;
+      document.getElementById('kalenderKuuNimi').textContent = KUUD[kuu-1] + ' ' + aasta;
+      document.getElementById('kalenderGrid').innerHTML = '<div style="grid-column:1/-1;padding:20px;text-align:center;color:#555;font-size:13px">Laadimine...</div>';
+
+      var vastus = await api('/api/graafik/kuu?aasta=' + aasta + '&kuu=' + kuu);
+      var vahetused = (vastus && vastus.vahetused) ? vastus.vahetused : [];
+      var paevadInfo = (vastus && vastus.paevad) ? vastus.paevad : [];
+
       var paevadMap = {};
       paevadInfo.forEach(function(p) { paevadMap[p.kuupaev.substring(0,10)] = p; });
-      var taana = new Date(); taana.setHours(0,0,0,0);
-      var tulevased = vahetused
-        .filter(function(v) { return new Date(v.kuupaev.substring(0,10) + 'T12:00:00') >= taana; })
-        .sort(function(a,b) { return a.kuupaev.localeCompare(b.kuupaev); });
-      var naita = koik ? tulevased : tulevased.slice(0, 4);
-      var div = document.getElementById('graafikSisu');
-      if (!tulevased.length) {
-        div.innerHTML = '<div class="tyhi-olek">Sinu vahetusi pole</div>';
-        return;
-      }
-      var staatusNimi = { suuryritus: '&#128309;', kohvik: '&#128994;', suletud: '&#128308;' };
-      div.innerHTML = naita.map(function(v) {
+
+      var vahetusedMap = {};
+      vahetused.forEach(function(v) {
         var kp = v.kuupaev.substring(0,10);
-        var d = new Date(kp + 'T12:00:00');
-        var nadalaPaev = ['P','E','T','K','N','R','L'][d.getDay()];
-        var info = paevadMap[kp];
-        var staatus = info && info.staatus;
-        var markus = v['m\u00e4rkus'] || '';
-        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:0.5px solid rgba(255,255,255,0.04)">'
-          + '<div style="min-width:42px;background:#1e2128;border-radius:9px;padding:6px 4px;text-align:center">'
-          + '<div style="font-size:17px;font-weight:700;color:#fff;line-height:1">' + d.getDate() + '</div>'
-          + '<div style="font-size:9px;text-transform:uppercase;color:#555;margin-top:2px">' + KUUD_LYHIKE[d.getMonth()] + '</div>'
-          + '</div>'
-          + '<div style="flex:1">'
-          + '<div style="font-size:13px;font-weight:600;color:#e2e8f0">' + nadalaPaev + ' ' + (staatus && staatusNimi[staatus] ? staatusNimi[staatus] : '') + '</div>'
-          + '<div style="font-size:12px;color:#505560">&#9200; ' + v.algus + ' – ' + v.lopp + '</div>'
-          + (markus ? '<div style="font-size:11px;color:#505560;font-style:italic">' + markus + '</div>' : '')
-          + '</div>'
-          + '<button onclick="kustutaVahetus(' + v.id + ')" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px">&#10005;</button>'
+        if (!vahetusedMap[kp]) vahetusedMap[kp] = [];
+        vahetusedMap[kp].push(v);
+      });
+
+      var staatusVarv = { tavaline: '#13161c', suuryritus: '#1e3a5f', kohvik: '#0f2d1a', suletud: '#1a1a1a' };
+      var esimene = new Date(aasta, kuu-1, 1);
+      var viimane = new Date(aasta, kuu, 0).getDate();
+      var algus = esimene.getDay();
+      algus = algus === 0 ? 6 : algus - 1;
+
+      var taanaIso = new Date().toISOString().substring(0,10);
+      var html = '';
+
+      // Päeva päised
+      ['E','T','K','N','R','L','P'].forEach(function(p) {
+        html += '<div class="kal-paev-hdr">' + p + '</div>';
+      });
+
+      // Tühjad alguslahtrid
+      for (var i = 0; i < algus; i++) html += '<div></div>';
+
+      // Päevad
+      for (var p = 1; p <= viimane; p++) {
+        var iso = aasta + '-' + String(kuu).padStart(2,'0') + '-' + String(p).padStart(2,'0');
+        var info = paevadMap[iso];
+        var staatus = (info && info.staatus) || 'tavaline';
+        var bg = staatusVarv[staatus] || '#13161c';
+        var lukustatud = info && info.lukustatud;
+        var onTaana = iso === taanaIso;
+        var paevVahetused = vahetusedMap[iso] || [];
+
+        html += '<div class="kal-paev" style="background:' + bg + ';border-color:' + (onTaana ? '#c9a84c' : 'rgba(255,255,255,0.04)') + ';border-width:' + (onTaana ? '1.5px' : '1px') + '">'
+          + '<div class="kal-paev-nr' + (onTaana ? ' taana' : '') + '">' + p + (lukustatud ? ' &#128274;' : '') + '</div>'
+          + paevVahetused.map(function(v) {
+            var onMinu = parseInt(v.worker_id) === parseInt(aktiivsWorkerId);
+            var nimi = v.worker_nimi ? v.worker_nimi.split(' ')[0] : '';
+            return '<div class="kal-vahetus ' + (onMinu ? 'minu' : 'teise') + '">' + nimi + '</div>';
+          }).join('')
           + '</div>';
-      }).join('')
-        + (!koik && tulevased.length > 4 ? '<div onclick="kuvaKompaktGraafik(koikGraafikAndmed,true)" style="padding:12px 16px;text-align:center;color:#5b9cf6;font-size:13px;cursor:pointer">Näita rohkem (' + (tulevased.length - 4) + ' veel) &#8594;</div>' : '')
-        + (koik && tulevased.length > 4 ? '<div onclick="kuvaKompaktGraafik(koikGraafikAndmed,false)" style="padding:12px 16px;text-align:center;color:#555;font-size:13px;cursor:pointer">Näita vähem &#8593;</div>' : '');
-    }
-
-    function toggleLisaVahetus() {
-      var vorm = document.getElementById('lisaVahetusVorm');
-      vorm.style.display = vorm.style.display === 'none' ? 'block' : 'none';
-      if (vorm.style.display === 'block') {
-        document.getElementById('g-kuupaev').value = new Date().toISOString().split('T')[0];
       }
+
+      document.getElementById('kalenderGrid').innerHTML = html;
     }
 
-    async function lisaVahetus() {
-      var kuupaev = document.getElementById('g-kuupaev').value;
-      var algus = document.getElementById('g-algus').value;
-      var lopp = document.getElementById('g-lopp').value;
-      var markus = document.getElementById('g-markus').value;
-      var teade = document.getElementById('g-teade');
-      var keha = {};
-      keha.kuupaev = kuupaev;
-      keha.algus = algus;
-      keha.lopp = lopp;
-      keha['m\u00e4rkus'] = markus;
-      var r = await api('/api/graafik/lisa', { method: 'POST', body: JSON.stringify(keha) });
-      if (r.ok) {
-        teade.style.display = 'none';
-        document.getElementById('lisaVahetusVorm').style.display = 'none';
-        document.getElementById('g-markus').value = '';
-        await laadiGraafik();
-      } else {
-        teade.style.display = 'block';
-        teade.style.color = '#ef4444';
-        teade.textContent = r.veateade || 'Viga salvestamisel';
-      }
-    }
-
-    async function kustutaVahetus(id) {
-      if (!confirm('Kustutad selle vahetuse?')) return;
-      var r = await api('/api/graafik/' + id, { method: 'DELETE' });
-      if (r.ok) await laadiGraafik();
-    }
+    // Sulge modal kui klikid väljaspool
+    document.getElementById('kalenderModal').addEventListener('click', function(e) {
+      if (e.target === this) sulgeKalender();
+    });
 
     function välju() {
       localStorage.removeItem('workerToken');
