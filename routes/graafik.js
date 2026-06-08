@@ -12,6 +12,11 @@ function noudaAdmin(req, res, next) {
   next();
 }
 
+function noudaGraafikAdmin(req, res, next) {
+  if (!req.session.isAdmin && !req.session.isGraafikAdmin) return res.status(401).json({ ok: false });
+  next();
+}
+
 async function onMerekohvik(workerId) {
   const r = await pool.query(
     `SELECT we.id FROM worker_ettevotted we
@@ -43,7 +48,7 @@ router.get('/kuu', noudaSisslogimist, async (req, res) => {
   res.json({ vahetused: vahetused.rows, paevad: paevad.rows });
 });
 
-// Minu vahetused (töötajale — ainult oma vahetused)
+// Minu vahetused (töötajale)
 router.get('/minu', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
   if (!await onMerekohvik(req.session.workerId)) 
@@ -68,11 +73,24 @@ router.get('/minu', noudaSisslogimist, async (req, res) => {
   res.json({ vahetused: vahetused.rows, paevad: paevad.rows });
 });
 
-// Lisa vahetus
+// Merekohviku töötajate nimekiri (graafiku adminile)
+router.get('/merekohvik-tootajad', noudaGraafikAdmin, async (req, res) => {
+  const r = await pool.query(
+    `SELECT w.id, w.nimi FROM workers w
+     JOIN worker_ettevotted we ON we.worker_id=w.id
+     JOIN ettevotted e ON we.ettevote_id=e.id
+     WHERE e.nimi='MEREKOHVIK' AND w.aktiivne=true
+     ORDER BY w.nimi`
+  );
+  res.json({ tootajad: r.rows });
+});
+
+// Lisa vahetus (töötajale ise)
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
   if (!await onMerekohvik(req.session.workerId)) return res.status(403).json({ ok: false });
   
-  const { kuupaev, algus, lopp, märkus } = req.body;
+  const { kuupaev, algus, lopp } = req.body;
+  const markus = req.body['märkus'] || req.body.markus || '';
   if (!kuupaev || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
   
   const lukk = await pool.query('SELECT lukustatud FROM merekohvik_paevad WHERE kuupaev=$1', [kuupaev]);
@@ -82,9 +100,9 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
   
   try {
     await pool.query(
-      `INSERT INTO merekohvik_graafik (worker_id, kuupaev, algus, lopp, märkus)
+      `INSERT INTO merekohvik_graafik (worker_id, kuupaev, algus, lopp, "märkus")
        VALUES ($1, $2, $3, $4, $5)`,
-      [req.session.workerId, kuupaev, algus, lopp, märkus || '']
+      [req.session.workerId, kuupaev, algus, lopp, markus]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -92,7 +110,7 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Kustuta oma vahetus
+// Kustuta oma vahetus (töötajale)
 router.delete('/:id', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
@@ -106,11 +124,12 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// ── ADMIN ──────────────────────────────────────────────────────────
+// ── ADMIN (täisadmin + graafikuadmin) ────────────────────────────
 
 // Admin: lisa vahetus
-router.post('/admin/lisa', noudaAdmin, async (req, res) => {
-  const { worker_id, kuupaev, algus, lopp, märkus } = req.body;
+router.post('/admin/lisa', noudaGraafikAdmin, async (req, res) => {
+  const { worker_id, kuupaev, algus, lopp } = req.body;
+  const markus = req.body['märkus'] || req.body.markus || '';
   if (!worker_id || !kuupaev || !algus || !lopp) {
     return res.json({ ok: false, veateade: 'Täida kõik väljad' });
   }
@@ -120,9 +139,9 @@ router.post('/admin/lisa', noudaAdmin, async (req, res) => {
   }
   try {
     await pool.query(
-      `INSERT INTO merekohvik_graafik (worker_id, kuupaev, algus, lopp, märkus)
+      `INSERT INTO merekohvik_graafik (worker_id, kuupaev, algus, lopp, "märkus")
        VALUES ($1, $2, $3, $4, $5)`,
-      [worker_id, kuupaev, algus, lopp, märkus || '']
+      [worker_id, kuupaev, algus, lopp, markus]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -131,7 +150,7 @@ router.post('/admin/lisa', noudaAdmin, async (req, res) => {
 });
 
 // Admin: kuu graafik
-router.get('/admin/kuu', noudaAdmin, async (req, res) => {
+router.get('/admin/kuu', noudaGraafikAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
   const vahetused = await pool.query(
     `SELECT g.*, w.nimi as worker_nimi
@@ -151,13 +170,14 @@ router.get('/admin/kuu', noudaAdmin, async (req, res) => {
 
 // Admin: uuenda päeva staatust
 router.post('/admin/paev', noudaAdmin, async (req, res) => {
-  const { kuupaev, staatus, märkus, lukustatud } = req.body;
+  const { kuupaev, staatus, lukustatud } = req.body;
+  const markus = req.body['märkus'] || req.body.markus || '';
   try {
     await pool.query(
-      `INSERT INTO merekohvik_paevad (kuupaev, staatus, märkus, lukustatud)
+      `INSERT INTO merekohvik_paevad (kuupaev, staatus, "märkus", lukustatud)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (kuupaev) DO UPDATE SET staatus=$2, märkus=$3, lukustatud=$4`,
-      [kuupaev, staatus || 'tavaline', märkus || '', lukustatud || false]
+       ON CONFLICT (kuupaev) DO UPDATE SET staatus=$2, "märkus"=$3, lukustatud=$4`,
+      [kuupaev, staatus || 'tavaline', markus, lukustatud || false]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -166,18 +186,19 @@ router.post('/admin/paev', noudaAdmin, async (req, res) => {
 });
 
 // Admin: kustuta vahetus
-router.delete('/admin/:id', noudaAdmin, async (req, res) => {
+router.delete('/admin/:id', noudaGraafikAdmin, async (req, res) => {
   await pool.query('DELETE FROM merekohvik_graafik WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 
 // Admin: muuda vahetust
 router.put('/admin/:id', noudaAdmin, async (req, res) => {
-  const { worker_id, algus, lopp, märkus } = req.body;
+  const { worker_id, algus, lopp } = req.body;
+  const markus = req.body['märkus'] || req.body.markus || '';
   try {
     await pool.query(
-      'UPDATE merekohvik_graafik SET worker_id=$1, algus=$2, lopp=$3, märkus=$4 WHERE id=$5',
-      [worker_id, algus, lopp, märkus||'', req.params.id]
+      `UPDATE merekohvik_graafik SET worker_id=$1, algus=$2, lopp=$3, "märkus"=$4 WHERE id=$5`,
+      [worker_id, algus, lopp, markus, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
