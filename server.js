@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { initDB, pool } = require('./db');
-
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -17,13 +16,21 @@ app.use(async (req, res, next) => {
     try {
       const r = await pool.query('SELECT * FROM admin_sessions WHERE token=$1', [token]);
       if (r.rows.length > 0) req.session.isAdmin = true;
+
       const w = await pool.query('SELECT * FROM worker_sessions WHERE token=$1', [token]);
       if (w.rows.length > 0) {
         req.session.workerId = w.rows[0].worker_id;
         req.session.workerNimi = w.rows[0].worker_nimi;
       }
+
+      const ga = await pool.query('SELECT * FROM graafik_admin_sessions WHERE token=$1', [token]);
+      if (ga.rows.length > 0) {
+        req.session.isGraafikAdmin = true;
+        req.session.graafikAdminNimi = ga.rows[0].nimi;
+      }
     } catch(e) {}
   }
+
   req.saveSession = async (data) => {
     const t = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     if (data.isAdmin) {
@@ -32,6 +39,10 @@ app.use(async (req, res, next) => {
     if (data.workerId) {
       await pool.query(`INSERT INTO worker_sessions (token, worker_id, worker_nimi) VALUES ($1,$2,$3)
         ON CONFLICT DO NOTHING`, [t, data.workerId, data.workerNimi]);
+    }
+    if (data.isGraafikAdmin) {
+      await pool.query(`INSERT INTO graafik_admin_sessions (token, nimi) VALUES ($1,$2)
+        ON CONFLICT DO NOTHING`, [t, data.graafikAdminNimi]);
     }
     return t;
   };
@@ -51,6 +62,8 @@ app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 't
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/tootaja-tood', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja-tood.html')));
+app.get('/graafik-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin.html')));
+app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin-login.html')));
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
