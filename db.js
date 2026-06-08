@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -15,7 +14,6 @@ async function initDB() {
         tyyp VARCHAR(20) NOT NULL DEFAULT 'muu',
         aktiivne BOOLEAN DEFAULT true
       );
-
       CREATE TABLE IF NOT EXISTS workers (
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(100) NOT NULL,
@@ -23,7 +21,6 @@ async function initDB() {
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS objektid (
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(200) NOT NULL,
@@ -31,7 +28,6 @@ async function initDB() {
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS worker_ettevotted (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
@@ -39,7 +35,6 @@ async function initDB() {
         tunnitasu DECIMAL(10,2) NOT NULL DEFAULT 0,
         UNIQUE(worker_id, ettevote_id)
       );
-
       CREATE TABLE IF NOT EXISTS tookirjed (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id),
@@ -54,10 +49,8 @@ async function initDB() {
         km_raha DECIMAL(8,2) DEFAULT 0,
         loodud TIMESTAMP DEFAULT NOW()
       );
-
       ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS kilomeetrid DECIMAL(8,1) DEFAULT 0;
       ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS km_raha DECIMAL(8,2) DEFAULT 0;
-
       CREATE TABLE IF NOT EXISTS tulevased_tood (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id),
@@ -69,7 +62,6 @@ async function initDB() {
         kirjeldus TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS maksed (
         id SERIAL PRIMARY KEY,
         worker_id INTEGER REFERENCES workers(id),
@@ -79,7 +71,6 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
-
     await client.query(`
       INSERT INTO ettevotted (nimi, tyyp) VALUES
         ('LIDL', 'lidl'),
@@ -88,7 +79,6 @@ async function initDB() {
         ('MEREKOHVIK', 'muu')
       ON CONFLICT (nimi) DO NOTHING;
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS tookirje_pildid (
         id SERIAL PRIMARY KEY,
@@ -99,7 +89,6 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id SERIAL PRIMARY KEY,
@@ -108,7 +97,39 @@ async function initDB() {
         uuendatud TIMESTAMP DEFAULT NOW()
       );
     `);
-
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS graafik_adminid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(100) NOT NULL,
+        pin VARCHAR(10) NOT NULL UNIQUE,
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS graafik_admin_sessions (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(100) NOT NULL UNIQUE,
+        nimi VARCHAR(100) NOT NULL,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS merekohvik_graafik (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id),
+        kuupaev DATE NOT NULL,
+        algus VARCHAR(5) NOT NULL,
+        lopp VARCHAR(5) NOT NULL,
+        "märkus" TEXT DEFAULT '',
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS merekohvik_paevad (
+        id SERIAL PRIMARY KEY,
+        kuupaev DATE NOT NULL UNIQUE,
+        staatus VARCHAR(20) DEFAULT 'tavaline',
+        "märkus" TEXT DEFAULT '',
+        lukustatud BOOLEAN DEFAULT false
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
