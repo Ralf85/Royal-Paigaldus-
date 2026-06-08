@@ -344,7 +344,8 @@
           + '<div class="tr-kast"><div class="tr-paev">' + d.getDate() + '</div><div class="tr-kuu">' + KUUD_LYHIKE[d.getMonth()] + '</div></div>'
           + '<div class="tr-info">'
           + '<div><span class="tr-badge badge-' + tyyp + '">' + t.ettevote_nimi + '</span><span class="tr-objekt">' + (t.objekt_nimi || '') + '</span>' + (t.onGraafik ? '<span style="font-size:9px;color:#4ade80;margin-left:4px">graafik</span>' : '') + '</div>'
-          + '<div class="tr-kell">&#9200; ' + (t.algus_kell || '—') + (t.lopp_kell ? ' – ' + t.lopp_kell : '') + '</div>'
+          + '<div style="font-size:12px;color:#505560">&#9200; ' + v.algus + ' – ' + v.lopp + '</div>'
+          
           + (t.kirjeldus ? '<div class="tr-kirjeldus">' + t.kirjeldus + '</div>' : '')
           + '</div>'
           + '<div class="tr-paevad"><div class="tr-paevad-arv">' + (paevJaani > 0 ? paevJaani + 'p' : 'täna') + '</div></div>'
