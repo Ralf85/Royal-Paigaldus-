@@ -44,7 +44,7 @@ router.get('/kuu', noudaSisslogimist, async (req, res) => {
 
   res.json({ vahetused: vahetused.rows, paevad: paevad.rows });
 });
-
+app.use('/api/graafik', require('./routes/graafik'));
 // Minu vahetused (töötajale — ainult oma vahetused)
 router.get('/minu', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
