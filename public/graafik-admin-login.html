@@ -3,51 +3,317 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Graafiku haldus — Sisselogimine</title>
+  <title>Merekohviku graafik</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .kast { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 340px; }
-    .logo { width: 48px; height: 48px; background: linear-gradient(135deg, #065f46, #4ade80); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 20px; }
-    .pealkiri { font-size: 18px; font-weight: 700; color: #e2e8f0; text-align: center; margin-bottom: 4px; }
-    .alapealki { font-size: 13px; color: #555; text-align: center; margin-bottom: 24px; }
-    .silt { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-    .sisend { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 10px; padding: 12px 14px; color: #e2e8f0; font-size: 15px; letter-spacing: 4px; text-align: center; margin-bottom: 16px; }
-    .sisend:focus { outline: none; border-color: #4ade80; }
-    .nupp { width: 100%; background: #065f46; border: none; border-radius: 10px; padding: 13px; color: #4ade80; font-size: 14px; font-weight: 700; cursor: pointer; }
-    .nupp:hover { background: #047857; }
-    .veateade { color: #ef4444; font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #065f46, #4ade80); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .brand-name { font-size: 13px; font-weight: 700; color: #4ade80; }
+    .brand-sub { font-size: 10px; color: #555; }
+    .logout-btn { font-size: 11px; color: #444; background: none; border: 0.5px solid #2a2a2a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+    .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
+    .leht { max-width: 680px; margin: 0 auto; padding: 20px 16px 40px; }
+    .kuu-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .kuu-nav-nupp { background: #1e2128; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 18px; cursor: pointer; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+    .kuu-nav-nupp:hover { border-color: #4ade80; color: #4ade80; }
+    .kuu-nimi { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+    .lisa-nupp { background: #065f46; border: none; border-radius: 8px; padding: 8px 16px; color: #4ade80; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .lisa-nupp:hover { background: #047857; }
+    /* Lisa vahetus modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.avatud { display: flex; }
+    .modal-sisu { background: #13161c; border-radius: 16px; width: 100%; max-width: 420px; padding: 24px; }
+    .modal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-pealkiri { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+    .modal-sulge { background: none; border: none; color: #555; font-size: 20px; cursor: pointer; }
+    .vorm-rida { margin-bottom: 14px; }
+    .vorm-silt { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .vorm-sisend { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 12px; color: #e2e8f0; font-size: 13px; }
+    .vorm-sisend:focus { outline: none; border-color: #4ade80; }
+    .vorm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .salvesta-nupp { width: 100%; background: #4ade80; color: #0d0f13; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+    .salvesta-nupp:hover { background: #22c55e; }
+    .teade { font-size: 12px; margin-top: 8px; display: none; }
+    /* Kalender */
+    .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .kal-paev-hdr { text-align: center; font-size: 11px; color: #555; padding: 6px 0; font-weight: 600; }
+    .kal-paev { min-height: 80px; border-radius: 8px; padding: 6px; border: 1px solid rgba(255,255,255,0.05); background: #13161c; cursor: pointer; transition: border-color 0.15s; }
+    .kal-paev:hover { border-color: #4ade80; }
+    .kal-paev.taana { border-color: #c9a84c; }
+    .kal-paev.lukus { background: #0a0a0a; cursor: default; }
+    .kal-paev.lukus:hover { border-color: rgba(255,255,255,0.05); }
+    .kal-paev-nr { font-size: 12px; font-weight: 700; color: #aaa; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .kal-paev-nr.taana { color: #c9a84c; }
+    .kal-vahetus { font-size: 9px; border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .kal-vahetus:hover { opacity: 0.8; }
+    .worker-varv-0 { background: rgba(74,222,128,0.2); color: #4ade80; }
+    .worker-varv-1 { background: rgba(96,165,250,0.2); color: #60a5fa; }
+    .worker-varv-2 { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .worker-varv-3 { background: rgba(248,113,113,0.2); color: #f87171; }
+    .worker-varv-4 { background: rgba(196,181,253,0.2); color: #c4b5fd; }
+    .worker-varv-5 { background: rgba(251,146,60,0.2); color: #fb923c; }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+    .tooajad-sektsioon { margin-top: 24px; }
+    .sektsioon-pealkiri { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #3a3d45; margin-bottom: 12px; }
+    .vahetus-rida { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #13161c; border-radius: 10px; margin-bottom: 6px; }
+    .vahetus-kuupaev { font-size: 13px; font-weight: 600; color: #e2e8f0; min-width: 80px; }
+    .vahetus-nimi { font-size: 13px; color: #aaa; flex: 1; }
+    .vahetus-aeg { font-size: 12px; color: #505560; }
+    .vahetus-kustuta { background: none; border: none; color: #333; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+    .vahetus-kustuta:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+    .tooajad-tyyhi { padding: 16px; text-align: center; color: #3a3d45; font-size: 13px; }
   </style>
 </head>
 <body>
-  <div class="kast">
-    <div class="logo">&#9749;</div>
-    <div class="pealkiri">Merekohviku graafik</div>
-    <div class="alapealki">Graafiku haldus</div>
-    <div class="silt">PIN-kood</div>
-    <input type="password" class="sisend" id="pin" placeholder="••••" maxlength="10" onkeydown="if(event.key==='Enter') logi()">
-    <button class="nupp" onclick="logi()">Sisene</button>
-    <div class="veateade" id="viga"></div>
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-logo">&#9749;</div>
+      <div><div class="brand-name">MEREKOHVIK</div><div class="brand-sub">Graafiku haldus</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:13px;color:#555" id="adminNimi"></span>
+      <button class="logout-btn" onclick="välju()">Välja</button>
+    </div>
   </div>
+
+  <!-- Lisa vahetus modal -->
+  <div class="modal-overlay" id="lisaModal">
+    <div class="modal-sisu">
+      <div class="modal-hdr">
+        <span class="modal-pealkiri">Lisa vahetus</span>
+        <button class="modal-sulge" onclick="sulgeModal()">&#10005;</button>
+      </div>
+      <div class="vorm-rida">
+        <div class="vorm-silt">Töötaja</div>
+        <select id="m-worker" class="vorm-sisend">
+          <option value="">Vali töötaja...</option>
+        </select>
+      </div>
+      <div class="vorm-rida">
+        <div class="vorm-silt">Kuupäev</div>
+        <input type="date" id="m-kuupaev" class="vorm-sisend">
+      </div>
+      <div class="vorm-grid">
+        <div class="vorm-rida">
+          <div class="vorm-silt">Algus</div>
+          <input type="time" id="m-algus" value="10:00" class="vorm-sisend">
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-silt">Lõpp</div>
+          <input type="time" id="m-lopp" value="18:00" class="vorm-sisend">
+        </div>
+      </div>
+      <div class="vorm-rida">
+        <div class="vorm-silt">Märkus (vabatahtlik)</div>
+        <input type="text" id="m-markus" class="vorm-sisend" placeholder="nt. ainult bar...">
+      </div>
+      <button class="salvesta-nupp" onclick="salvestaVahetus()">Salvesta</button>
+      <div class="teade" id="m-teade"></div>
+    </div>
+  </div>
+
+  <div class="leht">
+    <div class="kuu-nav">
+      <button class="kuu-nav-nupp" onclick="kuuNavig(-1)">&#8249;</button>
+      <span class="kuu-nimi" id="kuuNimi"></span>
+      <button class="kuu-nav-nupp" onclick="kuuNavig(1)">&#8250;</button>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <button class="lisa-nupp" onclick="avaModal()" style="margin-bottom:16px">+ Lisa vahetus</button>
+
+    <div class="kal-grid" id="kalGrid"></div>
+
+    <div class="tooajad-sektsioon">
+      <div class="sektsioon-pealkiri">Kõik vahetused selles kuus</div>
+      <div id="vahetusteNimekiri"><div class="tooajad-tyyhi">Laadimine...</div></div>
+    </div>
+  </div>
+
   <script>
-    async function logi() {
-      var pin = document.getElementById('pin').value;
-      var viga = document.getElementById('viga');
-      if (!pin) return;
-      var r = await fetch('/api/auth/graafik-admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pin })
-      }).then(function(r) { return r.json(); });
-      if (r.ok) {
-        localStorage.setItem('graafikAdminToken', r.token);
-        window.location = '/graafik-admin';
+    var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+    var KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    var TOKEN = localStorage.getItem('graafikAdminToken') || '';
+    var aktiivsKuu = new Date();
+    var workerid = [];
+    var workerVarv = {};
+
+    function api(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['x-session-token'] = TOKEN;
+      opts.headers['Content-Type'] = 'application/json';
+      return fetch(url, opts).then(function(r) { return r.json(); });
+    }
+
+    async function init() {
+      if (!TOKEN) { window.location = '/graafik-admin-login'; return; }
+      var s = await api('/api/auth/sessioon');
+      if (!s.sisselogitud || !s.isGraafikAdmin) { window.location = '/graafik-admin-login'; return; }
+      document.getElementById('adminNimi').textContent = s.nimi;
+
+      // Lae Merekohviku töötajad
+      var r = await api('/api/graafik/merekohvik-tootajad');
+      if (r && r.tootajad) {
+        workerid = r.tootajad;
+        var sel = document.getElementById('m-worker');
+        workerid.forEach(function(w, i) {
+          workerVarv[w.id] = i % 6;
+          var opt = document.createElement('option');
+          opt.value = w.id;
+          opt.textContent = w.nimi;
+          sel.appendChild(opt);
+        });
+        // Legendi ehitamine
+        var leg = document.getElementById('legend');
+        workerid.forEach(function(w, i) {
+          var varv = i % 6;
+          leg.innerHTML += '<div class="legend-item"><div class="legend-dot worker-varv-' + varv + '"></div>' + w.nimi + '</div>';
+        });
+      }
+      laadiKuu();
+    }
+
+    function kuuNavig(suund) {
+      aktiivsKuu = new Date(aktiivsKuu.getFullYear(), aktiivsKuu.getMonth() + suund, 1);
+      laadiKuu();
+    }
+
+    async function laadiKuu() {
+      var aasta = aktiivsKuu.getFullYear();
+      var kuu = aktiivsKuu.getMonth() + 1;
+      document.getElementById('kuuNimi').textContent = KUUD[kuu-1] + ' ' + aasta;
+
+      var vastus = await api('/api/graafik/admin/kuu?aasta=' + aasta + '&kuu=' + kuu);
+      var vahetused = (vastus && vastus.vahetused) ? vastus.vahetused : [];
+      var paevadInfo = (vastus && vastus.paevad) ? vastus.paevad : [];
+
+      var paevadMap = {};
+      paevadInfo.forEach(function(p) { paevadMap[p.kuupaev.substring(0,10)] = p; });
+      var vahetusedMap = {};
+      vahetused.forEach(function(v) {
+        var kp = v.kuupaev.substring(0,10);
+        if (!vahetusedMap[kp]) vahetusedMap[kp] = [];
+        vahetusedMap[kp].push(v);
+      });
+
+      var esimene = new Date(aasta, kuu-1, 1);
+      var viimane = new Date(aasta, kuu, 0).getDate();
+      var algus = esimene.getDay();
+      algus = algus === 0 ? 6 : algus - 1;
+      var taanaIso = new Date().toISOString().substring(0,10);
+
+      var html = '';
+      ['E','T','K','N','R','L','P'].forEach(function(p) {
+        html += '<div class="kal-paev-hdr">' + p + '</div>';
+      });
+      for (var i = 0; i < algus; i++) html += '<div></div>';
+
+      for (var p = 1; p <= viimane; p++) {
+        var iso = aasta + '-' + String(kuu).padStart(2,'0') + '-' + String(p).padStart(2,'0');
+        var info = paevadMap[iso];
+        var lukus = info && info.lukustatud;
+        var onTaana = iso === taanaIso;
+        var paevV = vahetusedMap[iso] || [];
+        html += '<div class="kal-paev' + (onTaana ? ' taana' : '') + (lukus ? ' lukus' : '') + '" onclick="paevKlick(\'' + iso + '\')">'
+          + '<div class="kal-paev-nr' + (onTaana ? ' taana' : '') + '">' + p + (lukus ? ' &#128274;' : '') + '</div>'
+          + paevV.map(function(v) {
+            var varv = workerVarv[v.worker_id] !== undefined ? workerVarv[v.worker_id] : 0;
+            var nimi = v.worker_nimi ? v.worker_nimi.split(' ')[0] : '';
+            return '<div class="kal-vahetus worker-varv-' + varv + '" onclick="event.stopPropagation();kustutaVahetus(' + v.id + ',\'' + nimi + '\')" title="Kustuta">' + nimi + ' &#10005;</div>';
+          }).join('')
+          + '</div>';
+      }
+      document.getElementById('kalGrid').innerHTML = html;
+
+      // Nimekiri
+      if (!vahetused.length) {
+        document.getElementById('vahetusteNimekiri').innerHTML = '<div class="tooajad-tyyhi">Selle kuu vahetusi pole</div>';
       } else {
-        viga.style.display = 'block';
-        viga.textContent = r.veateade || 'Vale PIN';
-        document.getElementById('pin').value = '';
+        var sorted = vahetused.slice().sort(function(a,b) { return a.kuupaev.localeCompare(b.kuupaev); });
+        document.getElementById('vahetusteNimekiri').innerHTML = sorted.map(function(v) {
+          var d = new Date(v.kuupaev.substring(0,10) + 'T12:00:00');
+          var varv = workerVarv[v.worker_id] !== undefined ? workerVarv[v.worker_id] : 0;
+          return '<div class="vahetus-rida">'
+            + '<div class="vahetus-kuupaev">' + d.getDate() + '. ' + KUUD_LYHIKE[d.getMonth()] + '</div>'
+            + '<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0" class="legend-dot worker-varv-' + varv + '"></div>'
+            + '<div class="vahetus-nimi">' + v.worker_nimi + '</div>'
+            + '<div class="vahetus-aeg">' + v.algus + ' – ' + v.lopp + '</div>'
+            + '<button class="vahetus-kustuta" onclick="kustutaVahetus(' + v.id + ',\'' + v.worker_nimi.split(' ')[0] + '\')">&#10005;</button>'
+            + '</div>';
+        }).join('');
       }
     }
+
+    function paevKlick(iso) {
+      document.getElementById('m-kuupaev').value = iso;
+      avaModal();
+    }
+
+    function avaModal() {
+      document.getElementById('m-teade').style.display = 'none';
+      if (!document.getElementById('m-kuupaev').value) {
+        document.getElementById('m-kuupaev').value = new Date().toISOString().split('T')[0];
+      }
+      document.getElementById('lisaModal').classList.add('avatud');
+    }
+
+    function sulgeModal() {
+      document.getElementById('lisaModal').classList.remove('avatud');
+    }
+
+    async function salvestaVahetus() {
+      var worker_id = document.getElementById('m-worker').value;
+      var kuupaev = document.getElementById('m-kuupaev').value;
+      var algus = document.getElementById('m-algus').value;
+      var lopp = document.getElementById('m-lopp').value;
+      var teade = document.getElementById('m-teade');
+
+      if (!worker_id || !kuupaev || !algus || !lopp) {
+        teade.style.display = 'block';
+        teade.style.color = '#ef4444';
+        teade.textContent = 'Täida kõik väljad';
+        return;
+      }
+
+      var keha = { worker_id: worker_id, kuupaev: kuupaev, algus: algus, lopp: lopp };
+      var markus = document.getElementById('m-markus').value;
+      if (markus) keha['m\u00e4rkus'] = markus;
+
+      var r = await api('/api/graafik/admin/lisa', { method: 'POST', body: JSON.stringify(keha) });
+      if (r.ok) {
+        sulgeModal();
+        document.getElementById('m-markus').value = '';
+        document.getElementById('m-worker').value = '';
+        laadiKuu();
+      } else {
+        teade.style.display = 'block';
+        teade.style.color = '#ef4444';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
+    }
+
+    async function kustutaVahetus(id, nimi) {
+      if (!confirm(nimi + ' vahetuse kustutad?')) return;
+      var r = await api('/api/graafik/admin/' + id, { method: 'DELETE' });
+      if (r.ok) laadiKuu();
+    }
+
+    document.getElementById('lisaModal').addEventListener('click', function(e) {
+      if (e.target === this) sulgeModal();
+    });
+
+    function välju() {
+      localStorage.removeItem('graafikAdminToken');
+      window.location = '/graafik-admin-login';
+    }
+
+    init();
   </script>
 </body>
 </html>
