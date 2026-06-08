@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graafiku haldus — Sisselogimine</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .kast { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 340px; }
+    .logo { width: 48px; height: 48px; background: linear-gradient(135deg, #065f46, #4ade80); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 20px; }
+    .pealkiri { font-size: 18px; font-weight: 700; color: #e2e8f0; text-align: center; margin-bottom: 4px; }
+    .alapealki { font-size: 13px; color: #555; text-align: center; margin-bottom: 24px; }
+    .silt { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .sisend { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 10px; padding: 12px 14px; color: #e2e8f0; font-size: 15px; letter-spacing: 4px; text-align: center; margin-bottom: 16px; }
+    .sisend:focus { outline: none; border-color: #4ade80; }
+    .nupp { width: 100%; background: #065f46; border: none; border-radius: 10px; padding: 13px; color: #4ade80; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .nupp:hover { background: #047857; }
+    .veateade { color: #ef4444; font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="kast">
+    <div class="logo">&#9749;</div>
+    <div class="pealkiri">Merekohviku graafik</div>
+    <div class="alapealki">Graafiku haldus</div>
+    <div class="silt">PIN-kood</div>
+    <input type="password" class="sisend" id="pin" placeholder="••••" maxlength="10" onkeydown="if(event.key==='Enter') logi()">
+    <button class="nupp" onclick="logi()">Sisene</button>
+    <div class="veateade" id="viga"></div>
+  </div>
+  <script>
+    async function logi() {
+      var pin = document.getElementById('pin').value;
+      var viga = document.getElementById('viga');
+      if (!pin) return;
+      var r = await fetch('/api/auth/graafik-admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      }).then(function(r) { return r.json(); });
+      if (r.ok) {
+        localStorage.setItem('graafikAdminToken', r.token);
+        window.location = '/graafik-admin';
+      } else {
+        viga.style.display = 'block';
+        viga.textContent = r.veateade || 'Vale PIN';
+        document.getElementById('pin').value = '';
+      }
+    }
+  </script>
+</body>
+</html>
