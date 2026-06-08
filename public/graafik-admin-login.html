@@ -6,30 +6,70 @@
   <title>Graafiku haldus — Sisselogimine</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .kast { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 340px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; transition: background 0.3s, color 0.3s; }
+    body.tume { background: #0d0f13; color: #e2e8f0; }
+    body.hele { background: #f4f5f7; color: #1a1a2e; }
+    body.roosa { background: #fdf2f8; color: #831843; }
+    body.sinine { background: #eff6ff; color: #1e3a8a; }
+    .kast { border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 340px; transition: background 0.3s, border-color 0.3s; }
+    body.tume .kast { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); }
+    body.hele .kast { background: #ffffff; border: 0.5px solid rgba(0,0,0,0.1); box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    body.roosa .kast { background: #fff0f7; border: 0.5px solid rgba(236,72,153,0.2); box-shadow: 0 4px 20px rgba(236,72,153,0.08); }
+    body.sinine .kast { background: #f0f7ff; border: 0.5px solid rgba(59,130,246,0.2); box-shadow: 0 4px 20px rgba(59,130,246,0.08); }
     .logo { width: 48px; height: 48px; background: linear-gradient(135deg, #065f46, #4ade80); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 20px; }
-    .pealkiri { font-size: 18px; font-weight: 700; color: #e2e8f0; text-align: center; margin-bottom: 4px; }
-    .alapealki { font-size: 13px; color: #555; text-align: center; margin-bottom: 24px; }
-    .silt { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-    .sisend { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 10px; padding: 12px 14px; color: #e2e8f0; font-size: 15px; letter-spacing: 4px; text-align: center; margin-bottom: 16px; }
+    .pealkiri { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+    .alapealki { font-size: 13px; text-align: center; margin-bottom: 24px; opacity: 0.5; }
+    .silt { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; opacity: 0.5; }
+    .sisend { width: 100%; border-radius: 10px; padding: 12px 14px; font-size: 15px; letter-spacing: 4px; text-align: center; margin-bottom: 16px; transition: background 0.3s, border-color 0.3s, color 0.3s; }
+    body.tume .sisend { background: #0d0f13; border: 0.5px solid #252830; color: #e2e8f0; }
+    body.hele .sisend { background: #f4f5f7; border: 0.5px solid #ddd; color: #1a1a2e; }
+    body.roosa .sisend { background: #fce7f3; border: 0.5px solid rgba(236,72,153,0.3); color: #831843; }
+    body.sinine .sisend { background: #dbeafe; border: 0.5px solid rgba(59,130,246,0.3); color: #1e3a8a; }
     .sisend:focus { outline: none; border-color: #4ade80; }
     .nupp { width: 100%; background: #065f46; border: none; border-radius: 10px; padding: 13px; color: #4ade80; font-size: 14px; font-weight: 700; cursor: pointer; }
     .nupp:hover { background: #047857; }
     .veateade { color: #ef4444; font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+    /* Teema valik */
+    .teema-valik { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+    .teema-nupp { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+    .teema-nupp:hover { transform: scale(1.15); }
+    .teema-nupp.ak { border-color: #4ade80; transform: scale(1.1); }
+    .teema-nupp.t-tume { background: #0d0f13; border-color: #252830; }
+    .teema-nupp.t-hele { background: #f4f5f7; border-color: #ddd; }
+    .teema-nupp.t-roosa { background: #fce7f3; border-color: #f9a8d4; }
+    .teema-nupp.t-sinine { background: #dbeafe; border-color: #93c5fd; }
   </style>
 </head>
-<body>
+<body class="tume">
   <div class="kast">
     <div class="logo">&#9749;</div>
     <div class="pealkiri">Merekohviku graafik</div>
     <div class="alapealki">Graafiku haldus</div>
+
+    <div class="teema-valik">
+      <button class="teema-nupp t-tume ak" onclick="vahetaTeema('tume')" title="Tume"></button>
+      <button class="teema-nupp t-hele" onclick="vahetaTeema('hele')" title="Hele"></button>
+      <button class="teema-nupp t-roosa" onclick="vahetaTeema('roosa')" title="Roosa"></button>
+      <button class="teema-nupp t-sinine" onclick="vahetaTeema('sinine')" title="Sinine"></button>
+    </div>
+
     <div class="silt">PIN-kood</div>
     <input type="password" class="sisend" id="pin" placeholder="••••" maxlength="10" onkeydown="if(event.key==='Enter') logi()">
     <button class="nupp" onclick="logi()">Sisene</button>
     <div class="veateade" id="viga"></div>
   </div>
   <script>
+    var salvestatud = localStorage.getItem('graafikTeema') || 'tume';
+    vahetaTeema(salvestatud);
+
+    function vahetaTeema(teema) {
+      document.body.className = teema;
+      localStorage.setItem('graafikTeema', teema);
+      document.querySelectorAll('.teema-nupp').forEach(function(b) { b.classList.remove('ak'); });
+      var nupp = document.querySelector('.t-' + teema);
+      if (nupp) nupp.classList.add('ak');
+    }
+
     async function logi() {
       var pin = document.getElementById('pin').value;
       var viga = document.getElementById('viga');
