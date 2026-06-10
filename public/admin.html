@@ -90,7 +90,6 @@
   </div>
   <button class="logout" onclick="välju()">Logi välja</button>
 </div>
-
 <div class="konteiner">
   <div class="tabid">
     <button class="tab ak" onclick="avatTab(0)">📊 Kokkuvõte</button>
@@ -104,8 +103,6 @@
     <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
     <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
   </div>
-
-  <!-- TAB 0: Kokkuvõte -->
   <div class="sektsioon nhtav" id="tab0">
     <div class="kuu-rida">
       <select id="kv-kuu"></select>
@@ -115,8 +112,6 @@
     </div>
     <div id="kokkuvoteKast"></div>
   </div>
-
-  <!-- TAB 1: Maksed -->
   <div class="sektsioon" id="tab1">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa makse</div>
@@ -136,8 +131,6 @@
       <div style="padding:0"><div id="maksedTabel"></div></div>
     </div>
   </div>
-
-  <!-- TAB 2: Töötajad -->
   <div class="sektsioon" id="tab2">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa töötaja</div>
@@ -158,8 +151,6 @@
       <div id="tootajadSisu"></div>
     </div>
   </div>
-
-  <!-- TAB 3: Objektid -->
   <div class="sektsioon" id="tab3">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa objekt</div>
@@ -177,8 +168,6 @@
       <div id="objektidTabel"></div>
     </div>
   </div>
-
-  <!-- TAB 4: Tulevased tööd -->
   <div class="sektsioon" id="tab4">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa tulevane töö</div>
@@ -210,24 +199,18 @@
       <div id="tulevasteToodTabel"></div>
     </div>
   </div>
-
-  <!-- TAB 5: Fotod -->
   <div class="sektsioon" id="tab5">
     <div class="kaart">
       <div class="kaart-hdr">📸 Fotod objektide kaupa</div>
       <div id="fotodSisu" style="padding:16px"><div style="color:#555;font-size:13px">Laadimine...</div></div>
     </div>
   </div>
-
-  <!-- TAB 6: Logi -->
   <div class="sektsioon" id="tab6">
     <div class="kaart">
       <div class="kaart-hdr">🔍 Tegevuste logi</div>
       <div id="auditLogiSisu"><div style="padding:24px;text-align:center;color:#444">Laadimine...</div></div>
     </div>
   </div>
-
-  <!-- TAB 7: Raport -->
   <div class="sektsioon" id="tab7">
     <div class="kaart">
       <div class="kaart-hdr">📄 Projekti raport</div>
@@ -258,8 +241,6 @@
       <div id="r-eelvaade"></div>
     </div>
   </div>
-
-  <!-- TAB 8: Graafik -->
   <div class="sektsioon" id="tab8">
     <div class="kaart">
       <div class="kaart-hdr">☕ Merekohviku graafik</div>
@@ -324,8 +305,6 @@
       <div id="adminGraafikKalender" style="display:none;padding:16px"></div>
     </div>
   </div>
-
-  <!-- TAB 9: EDGF 2026 -->
   <div class="sektsioon" id="tab9">
     <div class="kaart">
       <div class="kaart-hdr">👷 EDGF 2026 — Töötajate ligipääs</div>
@@ -350,9 +329,7 @@
       <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:#444">Vali kuu ja vajuta Näita</div></div>
     </div>
   </div>
-
-</div><!-- /konteiner -->
-
+</div>
 <!-- Töötaja detailmodal -->
 <div class="tootaja-modal-overlay" id="tootajaModal">
   <div class="tootaja-modal-sisu">
@@ -370,11 +347,11 @@
       <div class="tm-stat"><div class="tm-stat-n">Makstud</div><div class="tm-stat-v" style="color:#888" id="tm-makstud">—</div></div>
       <div class="tm-stat"><div class="tm-stat-n">Saada veel</div><div class="tm-stat-v" id="tm-saada">—</div></div>
     </div>
-    <div class="tm-sektsioon" id="tm-ettevotted-sektsioon">
+    <div class="tm-sektsioon">
       <div class="tm-sektsioon-pealkiri">Ettevõttepõhine jaotus</div>
       <div id="tm-ettevotted">Laadimine...</div>
     </div>
-    <div class="tm-sektsioon" id="tm-maksed-sektsioon">
+    <div class="tm-sektsioon">
       <div class="tm-sektsioon-pealkiri">Maksete ajalugu</div>
       <div id="tm-maksed">Laadimine...</div>
     </div>
@@ -384,7 +361,6 @@
     </div>
   </div>
 </div>
-
 <!-- Muuda tulevane modal -->
 <div id="muutaTulevaneModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
@@ -402,7 +378,6 @@
     </div>
   </div>
 </div>
-
 <!-- Muuda vahetus modal -->
 <div id="muutaVahetusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
@@ -420,7 +395,6 @@
     </div>
   </div>
 </div>
-
 <!-- Muuda töökirje modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
@@ -442,7 +416,6 @@
     </div>
   </div>
 </div>
-
 <script>
 const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
 let kõikEttevotted = [];
@@ -672,10 +645,14 @@ async function laadiTootajad() {
         ${kõikEttevotted.map(e => {
           const onMaara = weMap[e.id] !== undefined;
           const tasu = weMap[e.id] || '';
+          const isEdgf = e.tyyp === 'edgf';
           return `<div class="ettevote-rida">
-            <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this)">
+            <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this, ${isEdgf})">
             <span style="font-size:13px">${e.nimi}</span>
-            <input type="number" id="et-${w.id}-${e.id}" value="${tasu}" placeholder="€/h" step="0.5" style="width:90px" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">
+            ${isEdgf
+              ? `<span style="font-size:11px;color:#555;font-style:italic">kulupõhine</span>`
+              : `<input type="number" id="et-${w.id}-${e.id}" value="${tasu}" placeholder="€/h" step="0.5" style="width:90px" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">`
+            }
           </div>`;
         }).join('')}
       </div>
@@ -714,10 +691,19 @@ async function kustutaTootaja(id,nimi) {
   else naitaTeade('tootaja-teade','viga',r.veateade||'Kustutamine ebaõnnestus');
 }
 
-async function toggleEttevote(workerId,ettevoteId,checkbox) {
-  const tasuInput=document.getElementById(`et-${workerId}-${ettevoteId}`);
-  if(checkbox.checked){tasuInput.disabled=false;tasuInput.focus();}
-  else{tasuInput.disabled=true;tasuInput.value='';await api(`/api/admin/tootaja-ettevotted/${workerId}/${ettevoteId}`,{method:'DELETE'});}
+async function toggleEttevote(workerId, ettevoteId, checkbox, isEdgf) {
+  const tasuInput = document.getElementById(`et-${workerId}-${ettevoteId}`);
+  if (checkbox.checked) {
+    if (isEdgf) {
+      // EDGF: lisa otse tunnitasuta (0)
+      await api('/api/admin/tootaja-ettevotted', {method:'POST', body:JSON.stringify({worker_id:workerId, ettevote_id:ettevoteId, tunnitasu:0})});
+    } else {
+      if (tasuInput) { tasuInput.disabled = false; tasuInput.focus(); }
+    }
+  } else {
+    if (tasuInput) { tasuInput.disabled = true; tasuInput.value = ''; }
+    await api(`/api/admin/tootaja-ettevotted/${workerId}/${ettevoteId}`, {method:'DELETE'});
+  }
 }
 
 async function uuendaEttevoteTasu(workerId,ettevoteId) {
@@ -1138,7 +1124,7 @@ async function laadiEdgfLubatud() {
   div.innerHTML = r.map(w => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.04)">
       <span style="font-size:13px;color:${w.lubatud?'#e2e8f0':'#555'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#555">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
         <span style="color:${w.lubatud?'#4ade80':'#555'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
         <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleEdgfLuba(${w.id}, this.checked)" style="width:auto;accent-color:#818cf8">
       </label>
