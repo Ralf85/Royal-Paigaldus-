@@ -73,6 +73,7 @@ async function initDB() {
     `);
     await client.query(`
       INSERT INTO ettevotted (nimi, tyyp) VALUES
+        ('EDGF 2026', 'edgf'),
         ('LIDL', 'lidl'),
         ('CRAMO', 'cramo'),
         ('MUU', 'muu'),
