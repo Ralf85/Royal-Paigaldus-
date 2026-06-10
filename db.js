@@ -130,6 +130,16 @@ async function initDB() {
         lukustatud BOOLEAN DEFAULT false
       );
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lisakulud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
