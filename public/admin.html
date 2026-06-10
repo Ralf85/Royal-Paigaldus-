@@ -102,6 +102,7 @@
     <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
     <button class="tab" onclick="avatTab(7)">📄 Raport</button>
     <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
+    <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
   </div>
 
   <div class="sektsioon nhtav" id="tab0">
@@ -402,6 +403,31 @@
       <button onclick="document.getElementById('muutaModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
     </div>
   </div>
+  <div class="sektsioon" id="tab9">
+    <div class="kaart">
+      <div class="kaart-hdr">🏆 EDGF 2026 — Töötajate ligipääs</div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:#555;margin-bottom:12px">Vali kellel on EDGF 2026 kulude kaart nähtav</div>
+        <div id="edgfLubatudSisu"><div style="color:#555;font-size:13px">Laadimine...</div></div>
+      </div>
+    </div>
+    <div class="kaart">
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📋 EDGF 2026 kulud</span>
+        <a href="#" onclick="laadiEdgfCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
+      </div>
+      <div class="kaart-body" style="padding-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="edgf-filter-kuu" style="width:auto"></select>
+          <select id="edgf-filter-aasta" style="width:auto"></select>
+          <button class="nupp kull" onclick="laadiEdgfKulud()" style="padding:7px 16px">Näita</button>
+          <button onclick="laadiEdgfKoik()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
+        </div>
+      </div>
+      <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:#444">Vali kuu ja vajuta Näita</div></div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -443,6 +469,7 @@ function avatTab(i) {
     const el = document.getElementById('g-lisa-kuupaev');
     if (el) el.value = t.toISOString().split('T')[0];
   }
+  if(i===9) laadiEdgfTab();
 }
 
 async function init() {
@@ -1114,9 +1141,75 @@ async function laadiObjektPildid(objektId){
   div.innerHTML=pildid.map(p=>{const kp=new Date(p.kuupaev);return `<div><a href="${p.url}" target="_blank"><img src="${p.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></a><div style="font-size:9px;color:#888;margin-top:3px;text-align:center">${kp.getDate()}.${kp.getMonth()+1} · ${p.worker_nimi}</div></div>`;}).join('');
 }
 
+// ── EDGF 2026 ──────────────────────────────────────────────────
+
+async function laadiEdgfTab() {
+  const t = new Date();
+  const kuu = document.getElementById('edgf-filter-kuu');
+  const aasta = document.getElementById('edgf-filter-aasta');
+  if (kuu && !kuu.options.length) {
+    KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuu.appendChild(o); });
+  }
+  if (aasta && !aasta.options.length) {
+    for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
+  }
+  await laadiEdgfLubatud();
+}
+
+async function laadiEdgfLubatud() {
+  const r = await api('/api/edgf/admin/lubatud');
+  const div = document.getElementById('edgfLubatudSisu');
+  if (!Array.isArray(r)) { div.innerHTML = '<div style="color:#555">Viga laadimisel</div>'; return; }
+  div.innerHTML = r.map(w => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.04)">
+      <span style="font-size:13px;color:${w.lubatud?'#e2e8f0':'#555'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#555">
+        <span>${w.lubatud ? 'Lubatud' : 'Keelatud'}</span>
+        <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleEdgfLuba(${w.id}, this.checked)" style="width:auto;accent-color:#818cf8">
+      </label>
+    </div>`).join('');
+}
+
+async function toggleEdgfLuba(workerId, lubatud) {
+  await api(`/api/edgf/admin/lubatud/${workerId}`, {method:'POST', body: JSON.stringify({lubatud})});
+  await laadiEdgfLubatud();
+}
+
+async function laadiEdgfKulud() {
+  const kuu = document.getElementById('edgf-filter-kuu')?.value;
+  const aasta = document.getElementById('edgf-filter-aasta')?.value;
+  const r = await api(`/api/edgf/admin/kulud?aasta=${aasta}&kuu=${kuu}`);
+  kuvаEdgfTabel(r);
+}
+
+async function laadiEdgfKoik() {
+  const r = await api('/api/edgf/admin/kulud');
+  kuvаEdgfTabel(r);
+}
+
+function kuvаEdgfTabel(andmed) {
+  const div = document.getElementById('edgfKuludSisu');
+  if (!Array.isArray(andmed) || !andmed.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:#444">Kulusid pole</div>'; return; }
+  let kokku = 0;
+  let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Selgitus</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
+  andmed.forEach(k => {
+    const summa = parseFloat(k.summa); kokku += summa;
+    html += `<tr><td style="color:#666">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:#aaa">${k.selgitus}</td><td style="text-align:right;color:#818cf8;font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:#818cf8;font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
+  });
+  html += `<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.1)"><td colspan="3">KOKKU</td><td style="text-align:right;color:#818cf8">${kokku.toFixed(2)} €</td><td></td></tr></tbody></table>`;
+  div.innerHTML = html;
+}
+
+function laadiEdgfCSV(e) {
+  e.preventDefault();
+  const kuu = document.getElementById('edgf-filter-kuu')?.value || '';
+  const aasta = document.getElementById('edgf-filter-aasta')?.value || '';
+  window.location = `/api/edgf/admin/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
+}
+
 async function välju(){localStorage.removeItem('adminToken');window.location='/admin-login';}
 
 init();
 </script>
 </body>
-</html> 
+</html>
