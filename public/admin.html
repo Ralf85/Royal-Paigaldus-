@@ -56,7 +56,6 @@
     .tootaja-rida:hover { background: rgba(255,255,255,0.02); }
     .tootaja-avatar { width: 34px; height: 34px; background: #1e2128; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #c9a84c; flex-shrink: 0; }
     .tootaja-detail { display: none; padding: 12px 18px 16px; background: rgba(0,0,0,0.2); border-top: 0.5px solid rgba(255,255,255,0.04); }
-    /* Töötaja detailmodal */
     .tootaja-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px; }
     .tootaja-modal-overlay.avatud { display: flex; }
     .tootaja-modal-sisu { background: #13161c; border: 0.5px solid rgba(255,255,255,0.08); border-radius: 16px; width: 100%; max-width: 680px; margin: auto; overflow: hidden; }
@@ -77,6 +76,7 @@
     .badge-cramo { background: #CD2200; color: #fff; }
     .badge-muu { background: #0369a1; color: #fff; }
     .badge-merekohvik { background: #065f46; color: #4ade80; }
+    .badge-edgf { background: #4c1d95; color: #a78bfa; }
     .tm-kirje-rida { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 0.5px solid rgba(255,255,255,0.03); font-size: 12px; }
     .tm-kirje-rida:last-child { border-bottom: none; }
     .tm-makse-rida { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0d0f13; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
@@ -105,6 +105,7 @@
     <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
   </div>
 
+  <!-- TAB 0: Kokkuvõte -->
   <div class="sektsioon nhtav" id="tab0">
     <div class="kuu-rida">
       <select id="kv-kuu"></select>
@@ -115,6 +116,7 @@
     <div id="kokkuvoteKast"></div>
   </div>
 
+  <!-- TAB 1: Maksed -->
   <div class="sektsioon" id="tab1">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa makse</div>
@@ -135,6 +137,7 @@
     </div>
   </div>
 
+  <!-- TAB 2: Töötajad -->
   <div class="sektsioon" id="tab2">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa töötaja</div>
@@ -156,6 +159,7 @@
     </div>
   </div>
 
+  <!-- TAB 3: Objektid -->
   <div class="sektsioon" id="tab3">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa objekt</div>
@@ -174,6 +178,7 @@
     </div>
   </div>
 
+  <!-- TAB 4: Tulevased tööd -->
   <div class="sektsioon" id="tab4">
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa tulevane töö</div>
@@ -206,6 +211,7 @@
     </div>
   </div>
 
+  <!-- TAB 5: Fotod -->
   <div class="sektsioon" id="tab5">
     <div class="kaart">
       <div class="kaart-hdr">📸 Fotod objektide kaupa</div>
@@ -213,6 +219,7 @@
     </div>
   </div>
 
+  <!-- TAB 6: Logi -->
   <div class="sektsioon" id="tab6">
     <div class="kaart">
       <div class="kaart-hdr">🔍 Tegevuste logi</div>
@@ -220,6 +227,7 @@
     </div>
   </div>
 
+  <!-- TAB 7: Raport -->
   <div class="sektsioon" id="tab7">
     <div class="kaart">
       <div class="kaart-hdr">📄 Projekti raport</div>
@@ -251,6 +259,7 @@
     </div>
   </div>
 
+  <!-- TAB 8: Graafik -->
   <div class="sektsioon" id="tab8">
     <div class="kaart">
       <div class="kaart-hdr">☕ Merekohviku graafik</div>
@@ -315,7 +324,34 @@
       <div id="adminGraafikKalender" style="display:none;padding:16px"></div>
     </div>
   </div>
-</div>
+
+  <!-- TAB 9: EDGF 2026 -->
+  <div class="sektsioon" id="tab9">
+    <div class="kaart">
+      <div class="kaart-hdr">👷 EDGF 2026 — Töötajate ligipääs</div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:#555;margin-bottom:12px">Luba töötajatele EDGF 2026 kaart — neil tekib tööpäevikusse võimalus kulusid sisestada.</div>
+        <div id="edgfLubatudSisu"><div style="color:#555;font-size:13px">Laadimine...</div></div>
+      </div>
+    </div>
+    <div class="kaart">
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📋 EDGF 2026 kulud</span>
+        <a href="#" onclick="laadiEdgfCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
+      </div>
+      <div class="kaart-body" style="padding-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="edgf-filter-kuu" style="width:auto"></select>
+          <select id="edgf-filter-aasta" style="width:auto"></select>
+          <button class="nupp kull" onclick="laadiEdgfKulud()" style="padding:7px 16px">Näita</button>
+          <button onclick="laadiEdgfKoik()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
+        </div>
+      </div>
+      <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:#444">Vali kuu ja vajuta Näita</div></div>
+    </div>
+  </div>
+
+</div><!-- /konteiner -->
 
 <!-- Töötaja detailmodal -->
 <div class="tootaja-modal-overlay" id="tootajaModal">
@@ -349,7 +385,7 @@
   </div>
 </div>
 
-<!-- Muuda modaalid -->
+<!-- Muuda tulevane modal -->
 <div id="muutaTulevaneModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
     <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda tulevast tööd</h3>
@@ -367,6 +403,7 @@
   </div>
 </div>
 
+<!-- Muuda vahetus modal -->
 <div id="muutaVahetusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
     <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda vahetust</h3>
@@ -384,6 +421,7 @@
   </div>
 </div>
 
+<!-- Muuda töökirje modal -->
 <div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
     <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda töökirjet</h3>
@@ -403,25 +441,6 @@
       <button onclick="document.getElementById('muutaModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
     </div>
   </div>
-  <div class="sektsioon" id="tab9">
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
-        <span>📋 EDGF 2026 kulud</span>
-        <a href="#" onclick="laadiEdgfCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
-      </div>
-      <div class="kaart-body" style="padding-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="edgf-filter-kuu" style="width:auto"></select>
-          <select id="edgf-filter-aasta" style="width:auto"></select>
-          <button class="nupp kull" onclick="laadiEdgfKulud()" style="padding:7px 16px">Näita</button>
-          <button onclick="laadiEdgfKoik()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
-        </div>
-        <div style="margin-top:10px;font-size:12px;color:#555">💡 EDGF 2026 kaardi lisamiseks töötajale mine <strong style="color:#aaa">Töötajad</strong> tab → vali töötaja → lisa EDGF 2026 ettevõtete all</div>
-      </div>
-      <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:#444">Vali kuu ja vajuta Näita</div></div>
-    </div>
-  </div>
-
 </div>
 
 <script>
@@ -541,8 +560,6 @@ async function laadiKokkuvote() {
   div.innerHTML = html;
 }
 
-// ── TÖÖTAJA DETAILMODAL ─────────────────────────────────────────
-
 async function avaTootajaModal(workerId, workerNimi) {
   const kuu = document.getElementById('kv-kuu').value;
   const aasta = document.getElementById('kv-aasta').value;
@@ -557,13 +574,10 @@ async function avaTootajaModal(workerId, workerNimi) {
   document.getElementById('tm-maksed').innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
   document.getElementById('tm-kirjed').innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
   document.getElementById('tootajaModal').classList.add('avatud');
-
-  // Lae andmed
   const [kokkuvote, maksed] = await Promise.all([
     api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`),
     api(`/api/admin/maksed?worker_id=${workerId}&aasta=${aasta}&kuu=${kuu}`)
   ]);
-
   const workerData = Array.isArray(kokkuvote) ? kokkuvote.find(w => w.nimi === workerNimi) : null;
   if (!workerData) {
     document.getElementById('tm-tunnid').textContent = '0 h';
@@ -573,19 +587,14 @@ async function avaTootajaModal(workerId, workerNimi) {
     document.getElementById('tm-ettevotted').innerHTML = '<div style="color:#555;font-size:13px">Andmed puuduvad</div>';
     document.getElementById('tm-kirjed').innerHTML = '<div style="color:#555;font-size:13px">Kirjeid pole</div>';
   } else {
-    const tunnid = parseFloat(workerData.tunnid);
-    const teenitud = parseFloat(workerData.teenitud);
-    const makstud = parseFloat(workerData.makstud);
-    const saada = parseFloat(workerData.saadaVeel);
-
+    const tunnid = parseFloat(workerData.tunnid), teenitud = parseFloat(workerData.teenitud);
+    const makstud = parseFloat(workerData.makstud), saada = parseFloat(workerData.saadaVeel);
     document.getElementById('tm-tunnid').textContent = tunnid.toFixed(1) + ' h';
     document.getElementById('tm-teenitud').textContent = teenitud.toFixed(2) + ' €';
     document.getElementById('tm-makstud').textContent = makstud.toFixed(2) + ' €';
     const saadaEl = document.getElementById('tm-saada');
     saadaEl.textContent = (saada > 0 ? '+' : '') + saada.toFixed(2) + ' €';
     saadaEl.style.color = saada > 0 ? '#fbbf24' : saada < 0 ? '#ef4444' : '#666';
-
-    // Ettevõttepõhine jaotus
     const ettevotteGrupp = {};
     workerData.kirjed.forEach(k => {
       const e = k.ettevote_nimi;
@@ -593,54 +602,25 @@ async function avaTootajaModal(workerId, workerNimi) {
       ettevotteGrupp[e].tunnid += parseFloat(k.tunnid);
       ettevotteGrupp[e].summa += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
     });
-
     const ettevotteHtml = Object.entries(ettevotteGrupp).map(([nimi, data]) => {
       const tyyp = (data.tyyp || 'muu').toLowerCase();
-      return `<div class="tm-ettevote-rida">
-        <span class="tm-ettevote-badge badge-${tyyp}">${nimi}</span>
-        <span style="color:#aaa;font-size:13px">${data.tunnid.toFixed(1)} h</span>
-        <span style="color:#4ade80;font-size:13px;margin-left:auto">${data.summa.toFixed(2)} €</span>
-      </div>`;
+      return `<div class="tm-ettevote-rida"><span class="tm-ettevote-badge badge-${tyyp}">${nimi}</span><span style="color:#aaa;font-size:13px">${data.tunnid.toFixed(1)} h</span><span style="color:#4ade80;font-size:13px;margin-left:auto">${data.summa.toFixed(2)} €</span></div>`;
     }).join('');
     document.getElementById('tm-ettevotted').innerHTML = ettevotteHtml || '<div style="color:#555;font-size:13px">Töökirjeid pole</div>';
-
-    // Töökirjed detailselt
     const kirjedHtml = workerData.kirjed.length ? workerData.kirjed.map(k => {
       const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
       const summa = parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
-      return `<div class="tm-kirje-rida">
-        <span style="color:#666;min-width:75px">${formatKp(k.kuupaev)}</span>
-        <span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span>
-        <span style="color:#888">${k.objekt_nimi || '—'}</span>
-        <span style="color:#aaa">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
-        <span style="color:#c9a84c;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
-        <span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span>
-      </div>`;
+      return `<div class="tm-kirje-rida"><span style="color:#666;min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span><span style="color:#888">${k.objekt_nimi || '—'}</span><span style="color:#aaa">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#c9a84c;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span><span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
     }).join('') : '<div style="color:#555;font-size:13px">Kirjeid pole</div>';
     document.getElementById('tm-kirjed').innerHTML = kirjedHtml;
   }
-
-  // Maksed
   const maksedHtml = Array.isArray(maksed) && maksed.length ? maksed.map(m => `
-    <div class="tm-makse-rida">
-      <div>
-        <div style="color:#e2e8f0">${formatKp(m.kuupaev)}</div>
-        ${m.kommentaar ? `<div style="font-size:11px;color:#555">${m.kommentaar}</div>` : ''}
-      </div>
-      <div style="color:#4ade80;font-weight:700">+${parseFloat(m.summa).toFixed(2)} €</div>
-    </div>`).join('') : '<div style="color:#555;font-size:13px">Selle kuu makseid pole</div>';
+    <div class="tm-makse-rida"><div><div style="color:#e2e8f0">${formatKp(m.kuupaev)}</div>${m.kommentaar ? `<div style="font-size:11px;color:#555">${m.kommentaar}</div>` : ''}</div><div style="color:#4ade80;font-weight:700">+${parseFloat(m.summa).toFixed(2)} €</div></div>`).join('') : '<div style="color:#555;font-size:13px">Selle kuu makseid pole</div>';
   document.getElementById('tm-maksed').innerHTML = maksedHtml;
 }
 
-function sulgeTootajaModal() {
-  document.getElementById('tootajaModal').classList.remove('avatud');
-}
-
-document.getElementById('tootajaModal').addEventListener('click', function(e) {
-  if (e.target === this) sulgeTootajaModal();
-});
-
-// ── KOKKUVÕTE ───────────────────────────────────────────────────
+function sulgeTootajaModal() { document.getElementById('tootajaModal').classList.remove('avatud'); }
+document.getElementById('tootajaModal').addEventListener('click', function(e) { if (e.target === this) sulgeTootajaModal(); });
 
 function toggleKirjed(nimi) {
   const el = document.getElementById('kirjed-'+nimi);
@@ -1148,6 +1128,7 @@ async function laadiEdgfTab() {
     for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
   }
   await laadiEdgfLubatud();
+  await laadiEdgfKulud();
 }
 
 async function laadiEdgfLubatud() {
@@ -1158,7 +1139,7 @@ async function laadiEdgfLubatud() {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.04)">
       <span style="font-size:13px;color:${w.lubatud?'#e2e8f0':'#555'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#555">
-        <span>${w.lubatud ? 'Lubatud' : 'Keelatud'}</span>
+        <span style="color:${w.lubatud?'#4ade80':'#555'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
         <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleEdgfLuba(${w.id}, this.checked)" style="width:auto;accent-color:#818cf8">
       </label>
     </div>`).join('');
@@ -1185,7 +1166,7 @@ function kuvаEdgfTabel(andmed) {
   const div = document.getElementById('edgfKuludSisu');
   if (!Array.isArray(andmed) || !andmed.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:#444">Kulusid pole</div>'; return; }
   let kokku = 0;
-  let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Selgitus</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Tehtud tööd</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
   andmed.forEach(k => {
     const summa = parseFloat(k.summa); kokku += summa;
     html += `<tr><td style="color:#666">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:#aaa">${k.selgitus}</td><td style="text-align:right;color:#818cf8;font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:#818cf8;font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
