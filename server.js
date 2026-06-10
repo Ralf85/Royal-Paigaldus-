@@ -4,10 +4,8 @@ const path = require('path');
 const { initDB, pool } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 8080;
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 app.use(async (req, res, next) => {
   const token = req.headers['x-session-token'] || req.query._token;
   req.session = {};
@@ -16,13 +14,11 @@ app.use(async (req, res, next) => {
     try {
       const r = await pool.query('SELECT * FROM admin_sessions WHERE token=$1', [token]);
       if (r.rows.length > 0) req.session.isAdmin = true;
-
       const w = await pool.query('SELECT * FROM worker_sessions WHERE token=$1', [token]);
       if (w.rows.length > 0) {
         req.session.workerId = w.rows[0].worker_id;
         req.session.workerNimi = w.rows[0].worker_nimi;
       }
-
       const ga = await pool.query('SELECT * FROM graafik_admin_sessions WHERE token=$1', [token]);
       if (ga.rows.length > 0) {
         req.session.isGraafikAdmin = true;
@@ -30,7 +26,6 @@ app.use(async (req, res, next) => {
       }
     } catch(e) {}
   }
-
   req.saveSession = async (data) => {
     const t = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     if (data.isAdmin) {
@@ -48,7 +43,6 @@ app.use(async (req, res, next) => {
   };
   next();
 });
-
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tood', require('./routes/tood'));
@@ -56,7 +50,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/pildid', require('./routes/pildid'));
 app.use('/api/push', require('./routes/push').router);
 app.use('/api/graafik', require('./routes/graafik'));
-
+app.use('/api/edgf', require('./routes/edgf'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -64,7 +58,6 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 app.get('/tootaja-tood', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja-tood.html')));
 app.get('/graafik-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin.html')));
 app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin-login.html')));
-
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
