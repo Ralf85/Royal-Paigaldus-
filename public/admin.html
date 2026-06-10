@@ -1,1215 +1,507 @@
-<!DOCTYPE html>
-<html lang="et">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Royal Paigaldus</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; }
-    .header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-logo { width: 30px; height: 30px; background: linear-gradient(135deg, #c9a84c, #f0d080); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
-    .brand-name { font-size: 13px; font-weight: 700; color: #c9a84c; }
-    .brand-sub { font-size: 10px; color: #555; }
-    .logout { font-size: 11px; color: #555; background: none; border: 0.5px solid #2a2a2a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-    .logout:hover { border-color: #ef4444; color: #ef4444; }
-    .konteiner { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
-    .tabid { display: flex; gap: 4px; margin-bottom: 20px; background: #13161c; padding: 5px; border-radius: 10px; width: fit-content; border: 0.5px solid rgba(255,255,255,0.06); flex-wrap: wrap; }
-    .tab { padding: 9px 16px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 500; color: #555; transition: all 0.2s; border: none; background: none; }
-    .tab.ak { background: #c9a84c; color: #0d0f13; font-weight: 700; }
-    .tab:hover:not(.ak) { color: #aaa; }
-    .sektsioon { display: none; }
-    .sektsioon.nhtav { display: block; }
-    .kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
-    .kaart-hdr { padding: 14px 18px; border-bottom: 0.5px solid rgba(255,255,255,0.05); font-size: 14px; font-weight: 600; color: #d0d0d0; }
-    .kaart-body { padding: 16px 18px; }
-    .vorm-rida { display: grid; gap: 10px; margin-bottom: 12px; }
-    .vorm-rida.col2 { grid-template-columns: 1fr 1fr; }
-    .vorm-rida.col3 { grid-template-columns: 1fr 1fr 1fr; }
-    .vorm-rida.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
-    .vorm-grupp { display: flex; flex-direction: column; gap: 5px; }
-    .vorm-grupp label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.8px; }
-    input, select, textarea { background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 12px; color: #e2e8f0; font-size: 14px; width: 100%; outline: none; font-family: inherit; }
-    input:focus, select:focus { border-color: #c9a84c; }
-    .nupp { border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .nupp.kull { background: #c9a84c; color: #0d0f13; }
-    .nupp.roheline { background: #16a34a; color: #fff; }
-    .nupp.punane { background: #dc2626; color: #fff; font-size: 12px; padding: 5px 10px; }
-    .nupp.hall { background: #252830; color: #aaa; }
-    .nupp.kustuta-tootaja { background: #3d0a0a; border: 0.5px solid #6b1010; color: #ef4444; font-size: 12px; padding: 6px 12px; }
-    .nupp.kustuta-tootaja:hover { background: #5a1010; }
-    .teade { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 10px; display: none; }
-    .teade.ok { background: #14532d; color: #86efac; }
-    .teade.viga { background: #7f1d1d; color: #fca5a5; }
-    table { width: 100%; border-collapse: collapse; }
-    th { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #444; padding: 10px 12px; text-align: left; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
-    td { padding: 10px 12px; font-size: 13px; border-bottom: 0.5px solid rgba(255,255,255,0.03); vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    .kuu-rida { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-    .kuu-rida select { width: auto; }
-    .raport-nupp { background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
-    .ettevote-rida { display: grid; grid-template-columns: 24px 1fr 100px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
-    .ettevote-rida:last-child { border-bottom: none; }
-    .tootaja-kompakt { border-bottom: 0.5px solid rgba(255,255,255,0.05); }
-    .tootaja-rida { display: flex; align-items: center; gap: 10px; padding: 10px 18px; cursor: pointer; transition: background 0.15s; }
-    .tootaja-rida:hover { background: rgba(255,255,255,0.02); }
-    .tootaja-avatar { width: 34px; height: 34px; background: #1e2128; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #c9a84c; flex-shrink: 0; }
-    .tootaja-detail { display: none; padding: 12px 18px 16px; background: rgba(0,0,0,0.2); border-top: 0.5px solid rgba(255,255,255,0.04); }
-    /* Töötaja detailmodal */
-    .tootaja-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px; }
-    .tootaja-modal-overlay.avatud { display: flex; }
-    .tootaja-modal-sisu { background: #13161c; border: 0.5px solid rgba(255,255,255,0.08); border-radius: 16px; width: 100%; max-width: 680px; margin: auto; overflow: hidden; }
-    .tm-hdr { padding: 20px 24px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 14px; }
-    .tm-avatar { width: 44px; height: 44px; background: #252830; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #c9a84c; flex-shrink: 0; }
-    .tm-sulge { margin-left: auto; background: none; border: none; color: #555; font-size: 20px; cursor: pointer; padding: 4px; }
-    .tm-sulge:hover { color: #aaa; }
-    .tm-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255,255,255,0.05); border-bottom: 0.5px solid rgba(255,255,255,0.06); }
-    .tm-stat { padding: 14px 16px; background: #13161c; text-align: center; }
-    .tm-stat-n { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin-bottom: 6px; }
-    .tm-stat-v { font-size: 20px; font-weight: 700; }
-    .tm-sektsioon { padding: 16px 24px; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
-    .tm-sektsioon:last-child { border-bottom: none; }
-    .tm-sektsioon-pealkiri { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin-bottom: 12px; }
-    .tm-ettevote-rida { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: #0d0f13; border-radius: 8px; margin-bottom: 6px; }
-    .tm-ettevote-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
-    .badge-lidl { background: #FFF200; color: #002060; }
-    .badge-cramo { background: #CD2200; color: #fff; }
-    .badge-muu { background: #0369a1; color: #fff; }
-    .badge-merekohvik { background: #065f46; color: #4ade80; }
-    .tm-kirje-rida { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 0.5px solid rgba(255,255,255,0.03); font-size: 12px; }
-    .tm-kirje-rida:last-child { border-bottom: none; }
-    .tm-makse-rida { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0d0f13; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
-  </style>
-</head>
-<body>
-<div class="header">
-  <div class="brand">
-    <div class="brand-logo">👑</div>
-    <div><div class="brand-name">ROYAL PAIGALDUS</div><div class="brand-sub">Admin paneel</div></div>
-  </div>
-  <button class="logout" onclick="välju()">Logi välja</button>
-</div>
-
-<div class="konteiner">
-  <div class="tabid">
-    <button class="tab ak" onclick="avatTab(0)">📊 Kokkuvõte</button>
-    <button class="tab" onclick="avatTab(1)">💳 Maksed</button>
-    <button class="tab" onclick="avatTab(2)">👷 Töötajad</button>
-    <button class="tab" onclick="avatTab(3)">🏗️ Objektid</button>
-    <button class="tab" onclick="avatTab(4)">📅 Tulevased tööd</button>
-    <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
-    <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
-    <button class="tab" onclick="avatTab(7)">📄 Raport</button>
-    <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
-    <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
-  </div>
-
-  <div class="sektsioon nhtav" id="tab0">
-    <div class="kuu-rida">
-      <select id="kv-kuu"></select>
-      <select id="kv-aasta"></select>
-      <button class="nupp kull" onclick="laadiKokkuvote()">Näita</button>
-      <a class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ CSV raport</a>
-    </div>
-    <div id="kokkuvoteKast"></div>
-  </div>
-
-  <div class="sektsioon" id="tab1">
-    <div class="kaart">
-      <div class="kaart-hdr">➕ Lisa makse</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp"><label>Töötaja</label><select id="makse-worker"></select></div>
-          <div class="vorm-grupp"><label>Summa (€)</label><input type="number" id="makse-summa" placeholder="500" step="0.01"></div>
-          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="makse-kuupaev"></div>
-          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="makse-komm" placeholder="Mai ettemaks"></div>
-        </div>
-        <button class="nupp roheline" onclick="lisaMakse()">💾 Salvesta makse</button>
-        <div class="teade" id="makse-teade"></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr">📋 Maksete ajalugu</div>
-      <div style="padding:0"><div id="maksedTabel"></div></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab2">
-    <div class="kaart">
-      <div class="kaart-hdr">➕ Lisa töötaja</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Nimi</label><input type="text" id="t-nimi" placeholder="Vaiko"></div>
-          <div class="vorm-grupp"><label>PIN-kood</label><input type="text" id="t-pin" placeholder="1234" maxlength="6"></div>
-        </div>
-        <div class="vorm-rida">
-          <div class="vorm-grupp"><label>Email</label><input type="email" id="t-email" placeholder="vaiko@gmail.com"></div>
-        </div>
-        <button class="nupp roheline" onclick="lisaTootaja()">➕ Lisa töötaja</button>
-        <div class="teade" id="tootaja-teade"></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr">👥 Töötajad ja ettevõtted</div>
-      <div id="tootajadSisu"></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab3">
-    <div class="kaart">
-      <div class="kaart-hdr">➕ Lisa objekt</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="obj-ettevote"></select></div>
-          <div class="vorm-grupp"><label>Objekti nimi</label><input type="text" id="obj-nimi" placeholder="LIDL Tartu Annelinn"></div>
-        </div>
-        <button class="nupp roheline" onclick="lisaObjekt()">➕ Lisa objekt</button>
-        <div class="teade" id="objekt-teade"></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr">📋 Objektide nimekiri</div>
-      <div id="objektidTabel"></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab4">
-    <div class="kaart">
-      <div class="kaart-hdr">➕ Lisa tulevane töö</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="tt-ettevote" onchange="laadiTTObjektid()"></select></div>
-          <div class="vorm-grupp"><label>Objekt (vabatahtlik)</label><select id="tt-objekt"><option value="">— Pole määratud —</option></select></div>
-        </div>
-        <div class="vorm-rida col3">
-          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="tt-kuupaev"></div>
-          <div class="vorm-grupp"><label>Algus</label><input type="time" id="tt-algus" value="08:00"></div>
-          <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="tt-lopp" value="17:00"></div>
-        </div>
-        <div class="vorm-rida">
-          <div class="vorm-grupp"><label>Kirjeldus</label><input type="text" id="tt-kirjeldus" placeholder="nt. Riiulite paigaldus..."></div>
-        </div>
-        <div class="vorm-grupp" style="margin-bottom:12px">
-          <label style="margin-bottom:8px;display:block">Töötajad</label>
-          <div id="tt-workers-valik" style="background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
-            <span style="color:#555;font-size:13px">Laadimine...</span>
-          </div>
-        </div>
-        <button class="nupp kull" onclick="lisaTulevaneToo()">📅 Lisa töö valitud töötajatele</button>
-        <div class="teade" id="tt-teade"></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr">📋 Tulevased tööd</div>
-      <div id="tulevasteToodTabel"></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab5">
-    <div class="kaart">
-      <div class="kaart-hdr">📸 Fotod objektide kaupa</div>
-      <div id="fotodSisu" style="padding:16px"><div style="color:#555;font-size:13px">Laadimine...</div></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab6">
-    <div class="kaart">
-      <div class="kaart-hdr">🔍 Tegevuste logi</div>
-      <div id="auditLogiSisu"><div style="padding:24px;text-align:center;color:#444">Laadimine...</div></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab7">
-    <div class="kaart">
-      <div class="kaart-hdr">📄 Projekti raport</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="r-ettevote" onchange="laadiRaportObjektid()"></select></div>
-          <div class="vorm-grupp"><label>Objekt (vabatahtlik)</label><select id="r-objekt"><option value="">— Kõik objektid —</option></select></div>
-        </div>
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Kuupäevast</label><input type="date" id="r-algus" style="color-scheme:dark"></div>
-          <div class="vorm-grupp"><label>Kuupäevani</label><input type="date" id="r-lopp" style="color-scheme:dark"></div>
-        </div>
-        <div class="vorm-grupp" style="margin-bottom:16px">
-          <label style="margin-bottom:8px;display:block">Töötajad</label>
-          <div id="r-workers" style="background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
-            <span style="color:#555;font-size:13px">Laadimine...</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:10px">
-          <button class="nupp kull" onclick="laadiRaportEelvaade()">Näita eelvaadet</button>
-          <button class="raport-nupp" onclick="laadiRaportCSV()">⬇ Laadi CSV</button>
-        </div>
-        <div id="r-teade" style="margin-top:10px;font-size:13px;color:#ef4444;display:none"></div>
-      </div>
-    </div>
-    <div class="kaart" id="r-eelvaade-kaart" style="display:none">
-      <div class="kaart-hdr">📊 Eelvaade</div>
-      <div id="r-eelvaade"></div>
-    </div>
-  </div>
-
-  <div class="sektsioon" id="tab8">
-    <div class="kaart">
-      <div class="kaart-hdr">☕ Merekohviku graafik</div>
-      <div class="kaart-body">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-          <select id="g-admin-kuu" style="width:auto"></select>
-          <select id="g-admin-aasta" style="width:auto"></select>
-          <button class="nupp kull" onclick="laadiAdminGraafik()">Näita</button>
-        </div>
-        <div style="background:#0d0f13;border:0.5px solid #252830;border-radius:10px;padding:14px;margin-bottom:12px">
-          <div style="font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Lisa vahetus</div>
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-            <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Töötaja</label>
-              <select id="g-lisa-worker" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:auto"><option value="">Laadimine...</option></select></div>
-            <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
-              <input type="date" id="g-lisa-kuupaev" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-            <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label>
-              <input type="time" id="g-lisa-algus" value="10:00" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px"></div>
-            <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label>
-              <input type="time" id="g-lisa-lopp" value="18:00" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px"></div>
-            <div style="flex:1;min-width:120px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus</label>
-              <input type="text" id="g-lisa-markus" placeholder="vabatahtlik" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:100%"></div>
-            <button onclick="adminLisaVahetus()" style="background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">+ Lisa</button>
-          </div>
-          <div id="g-lisa-teade" style="margin-top:8px;font-size:12px;display:none"></div>
-        </div>
-        <div style="background:#0d0f13;border:0.5px solid #252830;border-radius:10px;padding:14px;margin-bottom:16px">
-          <div style="font-size:12px;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Päeva haldus</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="date" id="g-admin-paev" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;color-scheme:dark">
-            <select id="g-admin-staatus" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;width:auto">
-              <option value="tavaline">Tavaline</option>
-              <option value="suuryritus">🔵 Suurüritus</option>
-              <option value="kohvik">🟢 Ainult kohvik</option>
-              <option value="suletud">🔴 Suletud</option>
-            </select>
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#aaa;cursor:pointer">
-              <input type="checkbox" id="g-admin-lukk"> 🔒 Lukusta
-            </label>
-            <input type="text" id="g-admin-markus" placeholder="Märkus (vabatahtlik)" style="background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 10px;color:#e2e8f0;font-size:13px;flex:1;min-width:150px">
-            <button class="nupp kull" onclick="salvestaPaev()" style="padding:7px 16px">Salvesta</button>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <span style="font-size:11px;color:#555">Kiirvalik:</span>
-            <button onclick="setStaatus('suuryritus',false)" style="background:#1e3a5f;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#5b9cf6;cursor:pointer">🔵 Suurüritus</button>
-            <button onclick="setStaatus('kohvik',false)" style="background:#0f2d1a;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#4ade80;cursor:pointer">🟢 Kohvik</button>
-            <button onclick="setStaatus('suletud',true)" style="background:#2d0a0a;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#ef4444;cursor:pointer">🔒 Lukusta</button>
-            <button onclick="setStaatus('tavaline',false)" style="background:#252830;border:none;border-radius:4px;padding:3px 8px;font-size:11px;color:#aaa;cursor:pointer">Tühista</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
-        <span>📅 Kuu graafik</span>
-        <div style="display:flex;gap:6px">
-          <button onclick="setGraafikVaade('nimekiri')" id="vaade-nimekiri" style="background:#c9a84c;color:#0d0f13;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">☰ Nimekiri</button>
-          <button onclick="setGraafikVaade('kalender')" id="vaade-kalender" style="background:#252830;color:#aaa;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">📅 Kalender</button>
-        </div>
-      </div>
-      <div id="adminGraafikSisu" style="padding:16px">Laadimine...</div>
-      <div id="adminGraafikKalender" style="display:none;padding:16px"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Töötaja detailmodal -->
-<div class="tootaja-modal-overlay" id="tootajaModal">
-  <div class="tootaja-modal-sisu">
-    <div class="tm-hdr">
-      <div class="tm-avatar" id="tm-avatar">?</div>
-      <div>
-        <div style="font-size:16px;font-weight:700;color:#e2e8f0" id="tm-nimi">—</div>
-        <div style="font-size:12px;color:#555;margin-top:2px" id="tm-kuu">—</div>
-      </div>
-      <button class="tm-sulge" onclick="sulgeTootajaModal()">✕</button>
-    </div>
-    <div class="tm-stats">
-      <div class="tm-stat"><div class="tm-stat-n">Tunnid</div><div class="tm-stat-v" style="color:#5b9cf6" id="tm-tunnid">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Teenitud</div><div class="tm-stat-v" style="color:#4ade80" id="tm-teenitud">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Makstud</div><div class="tm-stat-v" style="color:#888" id="tm-makstud">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Saada veel</div><div class="tm-stat-v" id="tm-saada">—</div></div>
-    </div>
-    <div class="tm-sektsioon" id="tm-ettevotted-sektsioon">
-      <div class="tm-sektsioon-pealkiri">Ettevõttepõhine jaotus</div>
-      <div id="tm-ettevotted">Laadimine...</div>
-    </div>
-    <div class="tm-sektsioon" id="tm-maksed-sektsioon">
-      <div class="tm-sektsioon-pealkiri">Maksete ajalugu</div>
-      <div id="tm-maksed">Laadimine...</div>
-    </div>
-    <div class="tm-sektsioon">
-      <div class="tm-sektsioon-pealkiri">Töökirjed detailselt</div>
-      <div id="tm-kirjed">Laadimine...</div>
-    </div>
-  </div>
-</div>
-
-<!-- Muuda modaalid -->
-<div id="muutaTulevaneModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
-    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda tulevast tööd</h3>
-    <input type="hidden" id="mt-id">
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="mt-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px;color-scheme:dark"></div>
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label><input type="time" id="mt-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label><input type="time" id="mt-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    </div>
-    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kirjeldus</label><input type="text" id="mt-kirjeldus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaTulevane()" style="flex:1;background:#c9a84c;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
-      <button onclick="document.getElementById('muutaTulevaneModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
-    </div>
-  </div>
-</div>
-
-<div id="muutaVahetusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
-    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda vahetust</h3>
-    <input type="hidden" id="mv-id">
-    <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Töötaja</label><select id="mv-worker" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></select></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label><input type="time" id="mv-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label><input type="time" id="mv-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    </div>
-    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Märkus</label><input type="text" id="mv-markus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaVahetus()" style="flex:1;background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
-      <button onclick="document.getElementById('muutaVahetusModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
-    </div>
-  </div>
-</div>
-
-<div id="muutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
-    <h3 style="margin-bottom:20px;color:#e2e8f0">✏️ Muuda töökirjet</h3>
-    <input type="hidden" id="muuta-id">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label><input type="time" id="muuta-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label><input type="time" id="muuta-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    </div>
-    <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px;color-scheme:dark"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu (€)</label><input type="number" id="muuta-lisakulu" step="0.01" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-      <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu selgitus</label><input type="text" id="muuta-lisakulu-sel" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    </div>
-    <div style="margin-bottom:20px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kommentaar</label><input type="text" id="muuta-komm" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:14px"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaKirje()" style="flex:1;background:#c9a84c;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
-      <button onclick="document.getElementById('muutaModal').style.display='none'" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
-    </div>
-  </div>
-  <div class="sektsioon" id="tab9">
-    <div class="kaart">
-      <div class="kaart-hdr">🏆 EDGF 2026 — Töötajate ligipääs</div>
-      <div class="kaart-body">
-        <div style="font-size:12px;color:#555;margin-bottom:12px">Vali kellel on EDGF 2026 kulude kaart nähtav</div>
-        <div id="edgfLubatudSisu"><div style="color:#555;font-size:13px">Laadimine...</div></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
-        <span>📋 EDGF 2026 kulud</span>
-        <a href="#" onclick="laadiEdgfCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
-      </div>
-      <div class="kaart-body" style="padding-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="edgf-filter-kuu" style="width:auto"></select>
-          <select id="edgf-filter-aasta" style="width:auto"></select>
-          <button class="nupp kull" onclick="laadiEdgfKulud()" style="padding:7px 16px">Näita</button>
-          <button onclick="laadiEdgfKoik()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
-        </div>
-      </div>
-      <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:#444">Vali kuu ja vajuta Näita</div></div>
-    </div>
-  </div>
-
-</div>
-
-<script>
-const KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
-let kõikEttevotted = [];
-let TOKEN = localStorage.getItem('adminToken') || '';
-setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
-
-async function api(url, opts = {}) {
-  opts.headers = opts.headers || {};
-  opts.headers['x-session-token'] = TOKEN;
-  opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
-  const r = await fetch(url, opts);
-  const token = r.headers.get('x-session-token');
-  if (token) { TOKEN = token; localStorage.setItem('adminToken', token); }
-  return r.json();
+const express = require('express');
+const router = express.Router();
+const { pool } = require('../db');
+const { Parser } = require('json2csv');
+const { saadaTeavitus } = require('./push');
+const { Resend } = require('resend');
+function getResend() { 
+  console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'OK' : 'PUUDUB');
+  return new Resend(process.env.RESEND_API_KEY); 
 }
 
-const tabid = document.querySelectorAll('.tab');
-const sektsioonid = document.querySelectorAll('.sektsioon');
-function avatTab(i) {
-  tabid.forEach((t,j) => t.classList.toggle('ak', i===j));
-  sektsioonid.forEach((s,j) => s.classList.toggle('nhtav', i===j));
-  if(i===0) laadiKokkuvote();
-  if(i===1) { laadiWorkerSelect(); laadiMaksed(); }
-  if(i===2) laadiTootajad();
-  if(i===3) laadiObjektid();
-  if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();},500); laadiTulevasteToodTabel(); }
-  if(i===5) laadiFotod();
-  if(i===6) laadiAuditLogi();
-  if(i===7) laadiRaportTab();
-  if(i===8) {
-    laadiAdminGraafik();
-    api('/api/admin/tootajad').then(workers => {
-      const sel = document.getElementById('g-lisa-worker');
-      if (sel) sel.innerHTML = workers.filter(w=>w.aktiivne).map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
-    });
-    const t = new Date();
-    const el = document.getElementById('g-lisa-kuupaev');
-    if (el) el.value = t.toISOString().split('T')[0];
+function noudaAdmin(req, res, next) {
+  if (!req.session || !req.session.isAdmin) {
+    return res.status(401).json({ ok: false, veateade: 'Admin Ãµigused puuduvad' });
   }
-  if(i===9) laadiEdgfTab();
+  next();
 }
 
-async function init() {
-  kõikEttevotted = await api('/api/admin/ettevotted');
-  if (!Array.isArray(kõikEttevotted)) { window.location='/admin-login'; return; }
-  const t = new Date();
-  const kvKuu = document.getElementById('kv-kuu');
-  KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kvKuu.appendChild(o); });
-  const kvAasta = document.getElementById('kv-aasta');
-  for(let y=t.getFullYear(); y>=t.getFullYear()-2; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; kvAasta.appendChild(o); }
-  document.getElementById('makse-kuupaev').value = t.toISOString().split('T')[0];
-  document.getElementById('tt-kuupaev').value = t.toISOString().split('T')[0];
-  document.getElementById('g-admin-paev').value = t.toISOString().split('T')[0];
-  const gKuu = document.getElementById('g-admin-kuu');
-  const gAasta = document.getElementById('g-admin-aasta');
-  if (gKuu) { KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; gKuu.appendChild(o); }); }
-  if (gAasta) { for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; gAasta.appendChild(o); } }
-  const objEttevote = document.getElementById('obj-ettevote');
-  kõikEttevotted.forEach(e => { objEttevote.innerHTML += `<option value="${e.id}">${e.nimi}</option>`; });
-  laadiKokkuvote();
-}
+// â”€â”€ TÃ–Ã–TAJAD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-async function laadiKokkuvote() {
-  const kuu = document.getElementById('kv-kuu').value;
-  const aasta = document.getElementById('kv-aasta').value;
-  const andmed = await api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`);
-  const div = document.getElementById('kokkuvoteKast');
-  if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:#444">Selle kuu kirjeid pole</div>'; return; }
-  let kokku_tunnid=0, kokku_teenitud=0, kokku_makstud=0;
-  let html = `<div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:16px">
-    <table><thead><tr style="border-bottom:0.5px solid rgba(255,255,255,0.06)">
-      <th>Töötaja</th><th style="text-align:right">Tunnid</th><th style="text-align:right">Teenitud</th>
-      <th style="text-align:right">Makstud</th><th style="text-align:right">Saada veel</th><th></th>
-    </tr></thead><tbody>`;
-  andmed.forEach(w => {
-    const tunnid=parseFloat(w.tunnid), teenitud=parseFloat(w.teenitud), makstud=parseFloat(w.makstud), saada=parseFloat(w.saadaVeel);
-    kokku_tunnid+=tunnid; kokku_teenitud+=teenitud; kokku_makstud+=makstud;
-    html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
-      <td style="font-weight:600;cursor:pointer;color:${tunnid>0?'#c9a84c':'#555'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
-        ${tunnid>0?'👷':'·'} ${w.nimi}
-      </td>
-      <td style="text-align:right;color:#5b9cf6">${tunnid>0?tunnid.toFixed(1)+' h':'—'}</td>
-      <td style="text-align:right;color:#4ade80">${teenitud>0?teenitud.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right;color:#666">${makstud>0?makstud.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right;color:${saada>0?'#fbbf24':saada<0?'#ef4444':'#666'}">${saada!==0?(saada>0?'+':'')+saada.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right">${tunnid>0?`<button onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" style="background:#1a2840;border:none;border-radius:6px;padding:4px 10px;font-size:11px;color:#5b9cf6;cursor:pointer">▼ kirjed</button>`:''}
-      </td></tr>
-    ${w.kirjed.length?`<tr id="kirjed-${w.nimi.replace(/\s/g,'_')}" style="display:none"><td colspan="6" style="padding:0 0 8px 0">
-      <div style="margin:4px 14px;background:#0d0f13;border-radius:8px;overflow:hidden">
-        ${w.kirjed.map(k=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:0.5px solid rgba(255,255,255,0.03);font-size:12px">
-          <span style="color:#888;min-width:80px">${formatKp(k.kuupaev)}</span>
-          <span style="color:#aaa">${k.ettevote_nimi}</span>
-          <span style="color:#666">${k.objekt_nimi||'—'}</span>
-          <span style="color:#aaa">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
-          <span style="color:#c9a84c;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
-          ${k.ettevote_tyyp==='muu'?`<span style="display:flex;align-items:center;gap:4px">
-            <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
-              style="width:60px;padding:2px 5px;font-size:11px;background:#13161c;border:0.5px solid ${k.muu_tunnitasu?'#c9a84c':'#3a3d45'};border-radius:4px;color:#e2e8f0"
-              id="muu-tasu-${k.id}">
-            <button onclick="salvestaMuuTasu(${k.id})" style="background:#c9a84c;border:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:#0d0f13;cursor:pointer">✓</button>
-          </span>`:`<span style="color:#666">${k.tunnitasu}€/h</span>`}
-          <button onclick='avaaMuutaModal(${JSON.stringify(k)})' style="background:#1a3550;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer">✏️</button>
-          <button onclick="adminKustutaKirje(${k.id})" style="background:#3d0a0a;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer">🗑</button>
-        </div>`).join('')}
-      </div></td></tr>`:''}`;
-  });
-  html += `<tr style="border-top:1px solid rgba(255,255,255,0.1);font-weight:700">
-    <td>KOKKU</td>
-    <td style="text-align:right;color:#5b9cf6">${kokku_tunnid.toFixed(1)} h</td>
-    <td style="text-align:right;color:#4ade80">${kokku_teenitud.toFixed(2)} €</td>
-    <td style="text-align:right;color:#666">${kokku_makstud.toFixed(2)} €</td>
-    <td style="text-align:right;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
-    <td></td>
-  </tr></tbody></table></div>`;
-  div.innerHTML = html;
-}
-
-// ── TÖÖTAJA DETAILMODAL ─────────────────────────────────────────
-
-async function avaTootajaModal(workerId, workerNimi) {
-  const kuu = document.getElementById('kv-kuu').value;
-  const aasta = document.getElementById('kv-aasta').value;
-  document.getElementById('tm-avatar').textContent = workerNimi[0];
-  document.getElementById('tm-nimi').textContent = workerNimi;
-  document.getElementById('tm-kuu').textContent = KUUD[kuu-1] + ' ' + aasta;
-  document.getElementById('tm-tunnid').textContent = '...';
-  document.getElementById('tm-teenitud').textContent = '...';
-  document.getElementById('tm-makstud').textContent = '...';
-  document.getElementById('tm-saada').textContent = '...';
-  document.getElementById('tm-ettevotted').innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
-  document.getElementById('tm-maksed').innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
-  document.getElementById('tm-kirjed').innerHTML = '<div style="color:#555;font-size:13px">Laadimine...</div>';
-  document.getElementById('tootajaModal').classList.add('avatud');
-
-  // Lae andmed
-  const [kokkuvote, maksed] = await Promise.all([
-    api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`),
-    api(`/api/admin/maksed?worker_id=${workerId}&aasta=${aasta}&kuu=${kuu}`)
-  ]);
-
-  const workerData = Array.isArray(kokkuvote) ? kokkuvote.find(w => w.nimi === workerNimi) : null;
-  if (!workerData) {
-    document.getElementById('tm-tunnid').textContent = '0 h';
-    document.getElementById('tm-teenitud').textContent = '0 €';
-    document.getElementById('tm-makstud').textContent = '0 €';
-    document.getElementById('tm-saada').textContent = '0 €';
-    document.getElementById('tm-ettevotted').innerHTML = '<div style="color:#555;font-size:13px">Andmed puuduvad</div>';
-    document.getElementById('tm-kirjed').innerHTML = '<div style="color:#555;font-size:13px">Kirjeid pole</div>';
-  } else {
-    const tunnid = parseFloat(workerData.tunnid);
-    const teenitud = parseFloat(workerData.teenitud);
-    const makstud = parseFloat(workerData.makstud);
-    const saada = parseFloat(workerData.saadaVeel);
-
-    document.getElementById('tm-tunnid').textContent = tunnid.toFixed(1) + ' h';
-    document.getElementById('tm-teenitud').textContent = teenitud.toFixed(2) + ' €';
-    document.getElementById('tm-makstud').textContent = makstud.toFixed(2) + ' €';
-    const saadaEl = document.getElementById('tm-saada');
-    saadaEl.textContent = (saada > 0 ? '+' : '') + saada.toFixed(2) + ' €';
-    saadaEl.style.color = saada > 0 ? '#fbbf24' : saada < 0 ? '#ef4444' : '#666';
-
-    // Ettevõttepõhine jaotus
-    const ettevotteGrupp = {};
-    workerData.kirjed.forEach(k => {
-      const e = k.ettevote_nimi;
-      if (!ettevotteGrupp[e]) ettevotteGrupp[e] = { tunnid: 0, summa: 0, tyyp: k.ettevote_tyyp };
-      ettevotteGrupp[e].tunnid += parseFloat(k.tunnid);
-      ettevotteGrupp[e].summa += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
-    });
-
-    const ettevotteHtml = Object.entries(ettevotteGrupp).map(([nimi, data]) => {
-      const tyyp = (data.tyyp || 'muu').toLowerCase();
-      return `<div class="tm-ettevote-rida">
-        <span class="tm-ettevote-badge badge-${tyyp}">${nimi}</span>
-        <span style="color:#aaa;font-size:13px">${data.tunnid.toFixed(1)} h</span>
-        <span style="color:#4ade80;font-size:13px;margin-left:auto">${data.summa.toFixed(2)} €</span>
-      </div>`;
-    }).join('');
-    document.getElementById('tm-ettevotted').innerHTML = ettevotteHtml || '<div style="color:#555;font-size:13px">Töökirjeid pole</div>';
-
-    // Töökirjed detailselt
-    const kirjedHtml = workerData.kirjed.length ? workerData.kirjed.map(k => {
-      const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
-      const summa = parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
-      return `<div class="tm-kirje-rida">
-        <span style="color:#666;min-width:75px">${formatKp(k.kuupaev)}</span>
-        <span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span>
-        <span style="color:#888">${k.objekt_nimi || '—'}</span>
-        <span style="color:#aaa">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
-        <span style="color:#c9a84c;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
-        <span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span>
-      </div>`;
-    }).join('') : '<div style="color:#555;font-size:13px">Kirjeid pole</div>';
-    document.getElementById('tm-kirjed').innerHTML = kirjedHtml;
-  }
-
-  // Maksed
-  const maksedHtml = Array.isArray(maksed) && maksed.length ? maksed.map(m => `
-    <div class="tm-makse-rida">
-      <div>
-        <div style="color:#e2e8f0">${formatKp(m.kuupaev)}</div>
-        ${m.kommentaar ? `<div style="font-size:11px;color:#555">${m.kommentaar}</div>` : ''}
-      </div>
-      <div style="color:#4ade80;font-weight:700">+${parseFloat(m.summa).toFixed(2)} €</div>
-    </div>`).join('') : '<div style="color:#555;font-size:13px">Selle kuu makseid pole</div>';
-  document.getElementById('tm-maksed').innerHTML = maksedHtml;
-}
-
-function sulgeTootajaModal() {
-  document.getElementById('tootajaModal').classList.remove('avatud');
-}
-
-document.getElementById('tootajaModal').addEventListener('click', function(e) {
-  if (e.target === this) sulgeTootajaModal();
+router.get('/tootajad', noudaAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, nimi, pin, aktiivne, email FROM workers ORDER BY nimi');
+  res.json(r.rows);
 });
 
-// ── KOKKUVÕTE ───────────────────────────────────────────────────
-
-function toggleKirjed(nimi) {
-  const el = document.getElementById('kirjed-'+nimi);
-  if (!el) return;
-  const visible = el.style.display !== 'none';
-  el.style.display = visible ? 'none' : 'table-row';
-  const btn = document.querySelector(`#worker-rida-${nimi} button`);
-  if (btn) btn.textContent = visible ? '▼ kirjed' : '▲ sulge';
-}
-
-function laadiCSV(e) {
-  e.preventDefault();
-  const kuu = document.getElementById('kv-kuu').value;
-  const aasta = document.getElementById('kv-aasta').value;
-  window.location=`/api/admin/raport-csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
-}
-
-async function laadiTootajad() {
-  const workers = await api('/api/admin/tootajad');
-  const div = document.getElementById('tootajadSisu');
-  let html = '';
-  for(const w of workers) {
-    const we = await api(`/api/admin/tootaja-ettevotted/${w.id}`);
-    const weMap = {};
-    we.forEach(x => weMap[x.ettevote_id] = x.tunnitasu);
-    const ettevotteNimed = kõikEttevotted.filter(e => weMap[e.id] !== undefined).map(e => e.nimi).join(', ');
-    html += `<div class="tootaja-kompakt">
-      <div class="tootaja-rida" onclick="toggleTootajaDetail(${w.id})">
-        <div class="tootaja-avatar">${w.nimi[0]}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'#e2e8f0':'#444'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:#555">(mitteaktiivne)</span>':''}</div>
-          <div style="font-size:11px;color:#555;margin-top:2px">PIN: ${w.pin}${ettevotteNimed?' · '+ettevotteNimed:''}</div>
-        </div>
-        <span id="tootaja-nool-${w.id}" style="color:#444;font-size:12px">▼</span>
-      </div>
-      <div class="tootaja-detail" id="tootaja-detail-${w.id}">
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid rgba(255,255,255,0.05)">
-          <input type="text" value="${w.nimi}" id="wn-${w.id}" style="width:130px;font-weight:600">
-          <span style="color:#555;font-size:12px">PIN:</span>
-          <input type="text" value="${w.pin}" id="wp-${w.id}" style="width:70px">
-          <input type="email" value="${w.email||''}" id="we-${w.id}" placeholder="email" style="width:160px">
-          <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:5px">
-            <input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"> Aktiivne
-          </label>
-          <button class="nupp hall" style="font-size:12px;padding:6px 14px" onclick="uuendaTootaja(${w.id})">Salvesta</button>
-          <button class="nupp kustuta-tootaja" onclick="kustutaTootaja(${w.id}, '${w.nimi}')">🗑 Kustuta</button>
-        </div>
-        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Ettevõtted ja tunnitasud</div>
-        ${kõikEttevotted.map(e => {
-          const onMaara = weMap[e.id] !== undefined;
-          const tasu = weMap[e.id] || '';
-          return `<div class="ettevote-rida">
-            <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this)">
-            <span style="font-size:13px">${e.nimi}</span>
-            <input type="number" id="et-${w.id}-${e.id}" value="${tasu}" placeholder="€/h" step="0.5" style="width:90px" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
+router.post('/tootajad', noudaAdmin, async (req, res) => {
+  const { nimi, pin, email } = req.body;
+  try {
+    await pool.query('INSERT INTO workers (nimi, pin, email) VALUES ($1, $2, $3)', [nimi, pin, email || null]);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23505') return res.json({ ok: false, veateade: 'See PIN on juba kasutusel' });
+    res.status(500).json({ ok: false, veateade: err.message });
   }
-  div.innerHTML = html || '<div style="padding:24px;text-align:center;color:#444">Töötajaid pole</div>';
-}
+});
 
-function toggleTootajaDetail(id) {
-  const detail = document.getElementById('tootaja-detail-' + id);
-  const nool = document.getElementById('tootaja-nool-' + id);
-  const nhtav = detail.style.display !== 'none';
-  detail.style.display = nhtav ? 'none' : 'block';
-  nool.textContent = nhtav ? '▼' : '▲';
-}
-
-async function lisaTootaja() {
-  const nimi=document.getElementById('t-nimi').value, pin=document.getElementById('t-pin').value, email=document.getElementById('t-email').value;
-  if(!nimi||!pin) return naitaTeade('tootaja-teade','viga','Täida kõik väljad!');
-  const r=await api('/api/admin/tootajad',{method:'POST',body:JSON.stringify({nimi,pin,email})});
-  if(r.ok){naitaTeade('tootaja-teade','ok','✅ Lisatud!');document.getElementById('t-nimi').value='';document.getElementById('t-pin').value='';laadiTootajad();}
-  else naitaTeade('tootaja-teade','viga',r.veateade);
-}
-
-async function uuendaTootaja(id) {
-  const nimi=document.getElementById(`wn-${id}`).value, pin=document.getElementById(`wp-${id}`).value;
-  const aktiivne=document.getElementById(`wa-${id}`).checked, email=document.getElementById(`we-${id}`)?.value||'';
-  await api(`/api/admin/tootajad/${id}`,{method:'PUT',body:JSON.stringify({nimi,pin,aktiivne,email})});
-  laadiTootajad();
-}
-
-async function kustutaTootaja(id,nimi) {
-  if(!confirm(`Kustutad töötaja "${nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed!\n\nSee on pöördumatu!`)) return;
-  const r=await api(`/api/admin/tootajad/${id}`,{method:'DELETE'});
-  if(r.ok){naitaTeade('tootaja-teade','ok',`✅ ${nimi} kustutatud`);laadiTootajad();}
-  else naitaTeade('tootaja-teade','viga',r.veateade||'Kustutamine ebaõnnestus');
-}
-
-async function toggleEttevote(workerId,ettevoteId,checkbox) {
-  const tasuInput=document.getElementById(`et-${workerId}-${ettevoteId}`);
-  if(checkbox.checked){tasuInput.disabled=false;tasuInput.focus();}
-  else{tasuInput.disabled=true;tasuInput.value='';await api(`/api/admin/tootaja-ettevotted/${workerId}/${ettevoteId}`,{method:'DELETE'});}
-}
-
-async function uuendaEttevoteTasu(workerId,ettevoteId) {
-  const checkbox=document.getElementById(`ec-${workerId}-${ettevoteId}`);
-  const tasu=document.getElementById(`et-${workerId}-${ettevoteId}`).value;
-  if(!checkbox.checked||!tasu) return;
-  await api('/api/admin/tootaja-ettevotted',{method:'POST',body:JSON.stringify({worker_id:workerId,ettevote_id:ettevoteId,tunnitasu:tasu})});
-}
-
-async function laadiObjektid() {
-  const r=await api('/api/admin/objektid');
-  let html='<table><thead><tr><th>Ettevõte</th><th>Nimi</th><th>Aktiivne</th><th>Salvesta</th></tr></thead><tbody>';
-  if(Array.isArray(r)) r.forEach(o=>{html+=`<tr><td style="color:#666">${o.ettevote_nimi}</td><td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td><button class="nupp hall" style="font-size:12px;padding:5px 12px" onclick="uuendaObjekt(${o.id})">Salvesta</button></td></tr>`;});
-  document.getElementById('objektidTabel').innerHTML=html+'</tbody></table>';
-}
-
-async function lisaObjekt() {
-  const nimi=document.getElementById('obj-nimi').value, ettevote_id=document.getElementById('obj-ettevote').value;
-  if(!nimi) return naitaTeade('objekt-teade','viga','Sisesta objekti nimi!');
-  const r=await api('/api/admin/objektid',{method:'POST',body:JSON.stringify({nimi,ettevote_id})});
-  if(r.ok){naitaTeade('objekt-teade','ok','✅ Lisatud!');document.getElementById('obj-nimi').value='';laadiObjektid();}
-  else naitaTeade('objekt-teade','viga',r.veateade||'Viga');
-}
-
-async function uuendaObjekt(id) {
-  await api(`/api/admin/objektid/${id}`,{method:'PUT',body:JSON.stringify({nimi:document.getElementById(`on-${id}`).value,aktiivne:document.getElementById(`oa-${id}`).checked})});
-  laadiObjektid();
-}
-
-async function laadiWorkerSelect() {
-  const workers=await api('/api/admin/tootajad');
-  const sel=document.getElementById('makse-worker');
-  sel.innerHTML='';
-  workers.filter(w=>w.aktiivne).forEach(w=>sel.innerHTML+=`<option value="${w.id}">${w.nimi}</option>`);
-}
-
-async function laadiMaksed() {
-  const r=await api('/api/admin/maksed');
-  let html='<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Summa</th><th>Kommentaar</th><th></th></tr></thead><tbody>';
-  if(Array.isArray(r)) r.forEach(m=>{html+=`<tr><td>${formatKp(m.kuupaev)}</td><td>${m.worker_nimi}</td><td><strong>${parseFloat(m.summa).toFixed(2)} €</strong></td><td style="color:#666">${m.kommentaar||'—'}</td><td><button class="nupp punane" onclick="kustutaMakse(${m.id})">🗑</button></td></tr>`;});
-  document.getElementById('maksedTabel').innerHTML=html+'</tbody></table>';
-}
-
-async function lisaMakse() {
-  const worker_id=document.getElementById('makse-worker').value, summa=document.getElementById('makse-summa').value;
-  const kuupaev=document.getElementById('makse-kuupaev').value, kommentaar=document.getElementById('makse-komm').value;
-  if(!summa||!kuupaev) return naitaTeade('makse-teade','viga','Täida väljad!');
-  const r=await api('/api/admin/maksed',{method:'POST',body:JSON.stringify({worker_id,summa,kuupaev,kommentaar})});
-  if(r.ok){naitaTeade('makse-teade','ok','✅ Salvestatud!');document.getElementById('makse-summa').value='';laadiMaksed();}
-  else naitaTeade('makse-teade','viga',r.veateade);
-}
-
-async function kustutaMakse(id) {
-  if(!confirm('Kustutad makse?')) return;
-  await api(`/api/admin/maksed/${id}`,{method:'DELETE'});
-  laadiMaksed();
-}
-
-async function laadiTTWorkers() {
-  const workers=await api('/api/admin/tootajad');
-  const ettSel=document.getElementById('tt-ettevote');
-  ettSel.innerHTML='';
-  kõikEttevotted.forEach(e=>ettSel.innerHTML+=`<option value="${e.id}">${e.nimi}</option>`);
-  laadiTTObjektid();
-  const div=document.getElementById('tt-workers-valik');
-  if(!workers||!Array.isArray(workers)||!workers.length){div.innerHTML='<span style="color:#555;font-size:13px">Töötajaid pole</span>';return;}
-  div.innerHTML=workers.filter(w=>w.aktiivne).map(w=>`
-    <label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0">
-      <input type="checkbox" value="${w.id}" style="width:auto;margin:0"> ${w.nimi}
-    </label>`).join('');
-}
-
-async function laadiTTObjektid() {
-  const ettevoteId=document.getElementById('tt-ettevote').value;
-  if(!ettevoteId) return;
-  const objektid=await api(`/api/tood/objektid/${ettevoteId}`);
-  const sel=document.getElementById('tt-objekt');
-  sel.innerHTML='<option value="">— Pole määratud —</option>';
-  if(Array.isArray(objektid)) objektid.forEach(o=>sel.innerHTML+=`<option value="${o.id}">${o.nimi}</option>`);
-}
-
-async function lisaTulevaneToo() {
-  const ettevote_id=document.getElementById('tt-ettevote').value, objekt_id=document.getElementById('tt-objekt').value||null;
-  const kuupaev=document.getElementById('tt-kuupaev').value, algus_kell=document.getElementById('tt-algus').value;
-  const lopp_kell=document.getElementById('tt-lopp').value, kirjeldus=document.getElementById('tt-kirjeldus').value;
-  if(!kuupaev) return naitaTeade('tt-teade','viga','Vali kuupäev!');
-  const valitudWorkers=[...document.querySelectorAll('#tt-workers-valik input:checked')].map(cb=>cb.value);
-  if(!valitudWorkers.length) return naitaTeade('tt-teade','viga','Vali vähemalt üks töötaja!');
-  let ok=0;
-  for(const worker_id of valitudWorkers){
-    const r=await api('/api/admin/tulevased',{method:'POST',body:JSON.stringify({worker_id,ettevote_id,objekt_id,kuupaev,algus_kell,lopp_kell,kirjeldus})});
-    if(r.ok) ok++;
+router.put('/tootajad/:id', noudaAdmin, async (req, res) => {
+  const { nimi, pin, aktiivne, email } = req.body;
+  try {
+    await pool.query('UPDATE workers SET nimi=$1, pin=$2, aktiivne=$3, email=$4 WHERE id=$5', [nimi, pin, aktiivne, email || null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
-  if(ok>0){naitaTeade('tt-teade','ok',`✅ Lisatud ${ok} töötajale!`);document.getElementById('tt-kirjeldus').value='';laadiTulevasteToodTabel();}
-  else naitaTeade('tt-teade','viga','Viga lisamisel');
-}
+});
 
-async function laadiTulevasteToodTabel() {
-  const r=await api('/api/admin/tulevased');
-  let html='<table><thead><tr><th><input type="checkbox" id="tt-kõik" onchange="valiKõikTulevased(this)" style="cursor:pointer"></th><th>Töötaja</th><th>Ettevõte</th><th>Objekt</th><th>Kuupäev</th><th>Kellaaeg</th><th>Kirjeldus</th><th></th></tr></thead><tbody>';
-  if(Array.isArray(r)) r.forEach(t=>{
-    const kp=new Date(t.kuupaev), kuupaevTekst=`${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
-    const kellaaeg=`${t.algus_kell||''}${t.lopp_kell?'-'+t.lopp_kell:''}`;
-    const emailTo=t.worker_email||'', teema=encodeURIComponent(`Tulevane töö: ${t.ettevote_nimi} ${kuupaevTekst}`);
-    const keha=encodeURIComponent(`Tere ${t.worker_nimi}!\n\nSul on töö planeeritud:\n\nKuupäev: ${kuupaevTekst}\nKellaaeg: ${kellaaeg}\nEttevõte: ${t.ettevote_nimi}\nObjekt: ${t.objekt_nimi||'—'}${t.kirjeldus?'\nKirjeldus: '+t.kirjeldus:''}\n\nRoyal Paigaldus`);
-    const emailSaadetud=localStorage.getItem('email_saadetud_'+t.id);
-    html+=`<tr><td><input type="checkbox" class="tt-rida" value="${t.id}" style="cursor:pointer"></td><td>${t.worker_nimi}</td><td>${t.ettevote_nimi}</td><td style="color:#666">${t.objekt_nimi||'—'}</td><td>${formatKp(t.kuupaev)}</td><td>${t.algus_kell||''}${t.lopp_kell?'–'+t.lopp_kell:''}</td><td style="color:#666">${t.kirjeldus||'—'}</td><td style="display:flex;gap:6px"><a href="mailto:${emailTo}?subject=${teema}&body=${keha}" onclick="markEmailSaadetud(${t.id},this)" style="${emailSaadetud?'background:#0d3320;border:1px solid #16a34a':'background:#1a3550'};border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer;text-decoration:none" id="email-btn-${t.id}">${emailSaadetud?'✅':'✉️'}</a><button onclick='avaaMuutaTulevane(${JSON.stringify(t)})' style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:14px;cursor:pointer">✏️</button><button class="nupp punane" onclick="kustutaTulevaneToo(${t.id})">🗑</button></td></tr>`;
-  });
-  const kustuNupp=`<div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button onclick="kustutaValitudTulevased()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">🗑 Kustuta valitud</button><span style="font-size:12px;color:#555">Vali read linnukestega</span></div>`;
-  document.getElementById('tulevasteToodTabel').innerHTML=html+'</tbody></table>'+kustuNupp;
-}
-
-function valiKõikTulevased(cb){document.querySelectorAll('.tt-rida').forEach(c=>c.checked=cb.checked);}
-function markEmailSaadetud(id,el){localStorage.setItem('email_saadetud_'+id,'1');el.textContent='✅';el.style.background='#0d3320';el.style.border='1px solid #16a34a';}
-
-async function kustutaValitudTulevased() {
-  const valitud=[...document.querySelectorAll('.tt-rida:checked')].map(c=>c.value);
-  if(!valitud.length){alert('Vali vähemalt üks rida!');return;}
-  if(!confirm(`Kustutad ${valitud.length} töökäsku?`)) return;
-  for(const id of valitud) await api(`/api/admin/tulevased/${id}`,{method:'DELETE'});
-  laadiTulevasteToodTabel();
-}
-
-async function kustutaTulevaneToo(id){if(!confirm('Kustutad?'))return;await api(`/api/admin/tulevased/${id}`,{method:'DELETE'});laadiTulevasteToodTabel();}
-
-function formatKp(str){const d=new Date(str);return d.toLocaleDateString('et-EE',{day:'numeric',month:'short',year:'numeric'});}
-
-function naitaTeade(id,tyyp,tekst){
-  const el=document.getElementById(id);
-  el.className='teade '+tyyp;el.textContent=tekst;el.style.display='block';
-  setTimeout(()=>el.style.display='none',4000);
-}
-
-function avaaMuutaTulevane(t){
-  document.getElementById('mt-id').value=t.id;
-  document.getElementById('mt-kuupaev').value=t.kuupaev?t.kuupaev.split('T')[0]:'';
-  document.getElementById('mt-algus').value=t.algus_kell||'';
-  document.getElementById('mt-lopp').value=t.lopp_kell||'';
-  document.getElementById('mt-kirjeldus').value=t.kirjeldus||'';
-  document.getElementById('muutaTulevaneModal').style.display='flex';
-}
-
-async function salvestaMuutaTulevane(){
-  const id=document.getElementById('mt-id').value;
-  const r=await api(`/api/admin/tulevased/${id}`,{method:'PUT',body:JSON.stringify({kuupaev:document.getElementById('mt-kuupaev').value,algus_kell:document.getElementById('mt-algus').value,lopp_kell:document.getElementById('mt-lopp').value,kirjeldus:document.getElementById('mt-kirjeldus').value})});
-  if(r.ok){document.getElementById('muutaTulevaneModal').style.display='none';laadiTulevasteToodTabel();}
-  else alert(r.veateade||'Viga salvestamisel');
-}
-
-function avaaMuutaModal(kirje){
-  document.getElementById('muuta-id').value=kirje.id;
-  document.getElementById('muuta-algus').value=kirje.algus?kirje.algus.slice(0,5):'';
-  document.getElementById('muuta-lopp').value=kirje.lopp?kirje.lopp.slice(0,5):'';
-  document.getElementById('muuta-kuupaev').value=kirje.kuupaev?kirje.kuupaev.split('T')[0]:'';
-  document.getElementById('muuta-komm').value=kirje.kommentaar||'';
-  document.getElementById('muuta-lisakulu').value=kirje.lisakulu_summa||0;
-  document.getElementById('muuta-lisakulu-sel').value=kirje.lisakulu_selgitus||'';
-  document.getElementById('muutaModal').style.display='flex';
-}
-
-async function salvestaMuutaKirje(){
-  const id=document.getElementById('muuta-id').value;
-  const r=await api(`/api/admin/tookirjed/${id}`,{method:'PUT',body:JSON.stringify({kuupaev:document.getElementById('muuta-kuupaev').value,algus:document.getElementById('muuta-algus').value,lopp:document.getElementById('muuta-lopp').value,kommentaar:document.getElementById('muuta-komm').value,lisakulu_summa:document.getElementById('muuta-lisakulu').value,lisakulu_selgitus:document.getElementById('muuta-lisakulu-sel').value})});
-  if(r.ok){document.getElementById('muutaModal').style.display='none';laadiKokkuvote();}
-  else alert(r.veateade||'Viga salvestamisel');
-}
-
-async function adminKustutaKirje(id){
-  if(!confirm('Kustutad selle töökirje? See logitakse auditisse!')) return;
-  const r=await api(`/api/admin/tookirjed/${id}`,{method:'DELETE'});
-  if(r.ok) laadiKokkuvote();
-  else alert(r.veateade||'Viga kustutamisel');
-}
-
-async function salvestaMuuTasu(kirjeId){
-  const input=document.getElementById(`muu-tasu-${kirjeId}`);
-  if(!input.value) return;
-  const r=await api(`/api/admin/tookirjed/${kirjeId}/tunnitasu`,{method:'PUT',body:JSON.stringify({tunnitasu:input.value})});
-  if(r.ok){input.style.borderColor='#4ade80';setTimeout(()=>laadiKokkuvote(),800);}
-  else input.style.borderColor='#ef4444';
-}
-
-async function adminLisaVahetus(){
-  const worker_id=document.getElementById('g-lisa-worker').value, kuupaev=document.getElementById('g-lisa-kuupaev').value;
-  const algus=document.getElementById('g-lisa-algus').value, lopp=document.getElementById('g-lisa-lopp').value;
-  const markus=document.getElementById('g-lisa-markus').value, teade=document.getElementById('g-lisa-teade');
-  if(!worker_id||!kuupaev||!algus||!lopp){teade.style.display='block';teade.style.color='#ef4444';teade.textContent='Täida kõik väljad!';return;}
-  const r=await api('/api/graafik/admin/lisa',{method:'POST',body:JSON.stringify({worker_id,kuupaev,algus,lopp,'märkus':markus})});
-  if(r.ok){teade.style.display='none';document.getElementById('g-lisa-markus').value='';laadiAdminGraafik();}
-  else{teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga lisamisel';}
-}
-
-async function laadiAdminGraafik(){
-  const kuu=document.getElementById('g-admin-kuu')?.value||(new Date().getMonth()+1);
-  const aasta=document.getElementById('g-admin-aasta')?.value||new Date().getFullYear();
-  const vastus=await api(`/api/graafik/admin/kuu?aasta=${aasta}&kuu=${kuu}`);
-  const div=document.getElementById('adminGraafikSisu');
-  if(!vastus||!vastus.vahetused){div.innerHTML='<div style="color:#444;text-align:center;padding:20px">Viga laadimisel</div>';return;}
-  graafikAndmed=vastus;
-  if(aktiivsGraafikVaade==='kalender'){kuvаKalender(vastus);return;}
-  const vahetused=vastus.vahetused, paevadInfo=vastus.paevad||[], paevadMap={};
-  paevadInfo.forEach(p=>paevadMap[p.kuupaev.split('T')[0]]=p);
-  const paevadGrupp={};
-  vahetused.forEach(v=>{const kp=v.kuupaev.split('T')[0];if(!paevadGrupp[kp])paevadGrupp[kp]=[];paevadGrupp[kp].push(v);});
-  paevadInfo.forEach(p=>{const kp=p.kuupaev.split('T')[0];if(!paevadGrupp[kp])paevadGrupp[kp]=[];});
-  const staatusVarv={tavaline:'',suuryritus:'#1e3a5f',kohvik:'#0f2d1a',suletud:'#1a1a1a'};
-  const staatusNimi={tavaline:'',suuryritus:'🔵 Suurüritus',kohvik:'🟢 Ainult kohvik',suletud:'🔴 Suletud'};
-  if(!Object.keys(paevadGrupp).length){div.innerHTML='<div style="color:#444;text-align:center;padding:20px">Selle kuu kirjeid pole</div>';return;}
-  div.innerHTML=Object.entries(paevadGrupp).sort().map(([kp,vahetusedKuupaev])=>{
-    const d=new Date(kp+'T12:00:00'), nadalaPaev=['P','E','T','K','N','R','L'][d.getDay()];
-    const info=paevadMap[kp], staatus=info?.staatus||'tavaline', bg=staatusVarv[staatus];
-    return `<div style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.05)${bg?';background:'+bg+';padding:10px;border-radius:8px;margin-bottom:4px':''}">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:700;color:${info?.lukustatud?'#555':'#e2e8f0'};cursor:pointer" onclick="dokliPaev('${kp}')">${d.getDate()}. ${KUUD[d.getMonth()].slice(0,3)} (${nadalaPaev})</span>
-        ${info?.lukustatud?'<span style="font-size:10px;color:#ef4444">🔒</span>':''}
-        ${staatusNimi[staatus]?`<span style="font-size:11px;color:#888">${staatusNimi[staatus]}</span>`:''}
-        ${info?.märkus?`<span style="font-size:11px;color:#666;font-style:italic">${info.märkus}</span>`:''}
-      </div>
-      ${vahetusedKuupaev.length?vahetusedKuupaev.map(v=>`
-        <div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px">
-          <span style="color:#888;min-width:90px">${v.algus}–${v.lopp}</span>
-          <span style="color:#d0d0d0;font-weight:600">${v.worker_nimi}</span>
-          ${v.märkus?`<span style="color:#555;font-style:italic">${v.märkus}</span>`:''}
-          <button onclick='avaaMuutaVahetus(${JSON.stringify(v)})' style="background:none;border:none;color:#5b9cf6;cursor:pointer">✏️</button>
-          <button onclick="adminKustutaVahetus(${v.id})" style="background:none;border:none;color:#555;cursor:pointer">🗑</button>
-        </div>`).join(''):'<div style="font-size:12px;color:#333">Vahetusi pole</div>'}
-    </div>`;
-  }).join('');
-}
-
-function dokliPaev(kp){document.getElementById('g-admin-paev').value=kp;}
-function setStaatus(staatus,lukustatud){document.getElementById('g-admin-staatus').value=staatus;document.getElementById('g-admin-lukk').checked=lukustatud;}
-
-async function salvestaPaev(){
-  const kuupaev=document.getElementById('g-admin-paev').value, staatus=document.getElementById('g-admin-staatus').value;
-  const lukustatud=document.getElementById('g-admin-lukk').checked, markus=document.getElementById('g-admin-markus').value;
-  if(!kuupaev){alert('Vali kuupäev!');return;}
-  const r=await api('/api/graafik/admin/paev',{method:'POST',body:JSON.stringify({kuupaev,staatus,'märkus':markus,lukustatud})});
-  if(r.ok){laadiAdminGraafik();document.getElementById('g-admin-markus').value='';}
-  else alert(r.veateade||'Viga');
-}
-
-let graafikAndmed=null,aktiivsGraafikVaade='nimekiri';
-
-function setGraafikVaade(vaade){
-  aktiivsGraafikVaade=vaade;
-  document.getElementById('vaade-nimekiri').style.background=vaade==='nimekiri'?'#c9a84c':'#252830';
-  document.getElementById('vaade-nimekiri').style.color=vaade==='nimekiri'?'#0d0f13':'#aaa';
-  document.getElementById('vaade-kalender').style.background=vaade==='kalender'?'#c9a84c':'#252830';
-  document.getElementById('vaade-kalender').style.color=vaade==='kalender'?'#0d0f13':'#aaa';
-  document.getElementById('adminGraafikSisu').style.display=vaade==='nimekiri'?'block':'none';
-  document.getElementById('adminGraafikKalender').style.display=vaade==='kalender'?'block':'none';
-  if(vaade==='kalender'&&graafikAndmed) kuvаKalender(graafikAndmed);
-}
-
-function kuvаKalender(andmed){
-  const kuu=parseInt(document.getElementById('g-admin-kuu').value)-1, aasta=parseInt(document.getElementById('g-admin-aasta').value);
-  const div=document.getElementById('adminGraafikKalender'), paevadMap={}, vahetusedMap={};
-  andmed.paevad.forEach(p=>paevadMap[p.kuupaev.split('T')[0]]=p);
-  andmed.vahetused.forEach(v=>{const kp=v.kuupaev.split('T')[0];if(!vahetusedMap[kp])vahetusedMap[kp]=[];vahetusedMap[kp].push(v);});
-  const staatusVarv={tavaline:'#13161c',suuryritus:'#1e3a5f',kohvik:'#0f2d1a',suletud:'#1a1a1a'};
-  const esimene=new Date(aasta,kuu,1), viimane=new Date(aasta,kuu+1,0).getDate();
-  let algusNädalapäev=esimene.getDay(); algusNädalapäev=algusNädalapäev===0?6:algusNädalapäev-1;
-  let html=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">${['E','T','K','N','R','L','P'].map(p=>`<div style="text-align:center;font-size:11px;color:#555;padding:4px">${p}</div>`).join('')}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">`;
-  for(let i=0;i<algusNädalapäev;i++) html+=`<div style="min-height:80px;background:#0d0f13;border-radius:6px"></div>`;
-  for(let p=1;p<=viimane;p++){
-    const iso=`${aasta}-${String(kuu+1).padStart(2,'0')}-${String(p).padStart(2,'0')}`;
-    const info=paevadMap[iso], vahetused=vahetusedMap[iso]||[];
-    const bg=staatusVarv[info?.staatus||'tavaline']||'#13161c', taana=new Date().toISOString().split('T')[0]===iso;
-    html+=`<div onclick="dokliPaev('${iso}')" style="min-height:80px;background:${bg};border-radius:6px;padding:5px;cursor:pointer;border:${taana?'1.5px solid #c9a84c':'1px solid rgba(255,255,255,0.04)'}">
-      <div style="font-size:12px;font-weight:700;color:${info?.lukustatud?'#555':taana?'#c9a84c':'#e2e8f0'};margin-bottom:3px">${p}${info?.lukustatud?' 🔒':''}</div>
-      ${vahetused.map(v=>`<div style="font-size:10px;background:rgba(74,222,128,0.15);border-radius:3px;padding:2px 4px;margin-bottom:2px;color:#4ade80;white-space:nowrap;overflow:hidden">${v.algus}–${v.lopp} ${v.worker_nimi.split(' ')[0]}</div>`).join('')}
-    </div>`;
+router.delete('/tootajad/:id', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tookirjed WHERE worker_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM tulevased_tood WHERE worker_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM maksed WHERE worker_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM worker_ettevotted WHERE worker_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM workers WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
-  div.innerHTML=html+'</div>';
-}
+});
 
-async function avaaMuutaVahetus(v){
-  document.getElementById('mv-id').value=v.id;
-  document.getElementById('mv-algus').value=v.algus;
-  document.getElementById('mv-lopp').value=v.lopp;
-  document.getElementById('mv-markus').value=v.märkus||'';
-  const workers=await api('/api/admin/tootajad');
-  document.getElementById('mv-worker').innerHTML=workers.filter(w=>w.aktiivne).map(w=>`<option value="${w.id}" ${w.id==v.worker_id?'selected':''}>${w.nimi}</option>`).join('');
-  document.getElementById('muutaVahetusModal').style.display='flex';
-}
+// â”€â”€ TÃ–Ã–TAJA ETTEVÃ•TTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-async function salvestaMuutaVahetus(){
-  const id=document.getElementById('mv-id').value;
-  const r=await api(`/api/graafik/admin/${id}`,{method:'PUT',body:JSON.stringify({worker_id:document.getElementById('mv-worker').value,algus:document.getElementById('mv-algus').value,lopp:document.getElementById('mv-lopp').value,'märkus':document.getElementById('mv-markus').value})});
-  if(r.ok){document.getElementById('muutaVahetusModal').style.display='none';laadiAdminGraafik();}
-  else alert(r.veateade||'Viga');
-}
+router.get('/tootaja-ettevotted/:workerId', noudaAdmin, async (req, res) => {
+  const r = await pool.query(
+    `SELECT we.*, e.nimi as ettevote_nimi, e.tyyp
+     FROM worker_ettevotted we
+     JOIN ettevotted e ON we.ettevote_id = e.id
+     WHERE we.worker_id = $1`,
+    [req.params.workerId]
+  );
+  res.json(r.rows);
+});
 
-async function adminKustutaVahetus(id){
-  if(!confirm('Kustutad selle vahetuse?')) return;
-  await api(`/api/graafik/admin/${id}`,{method:'DELETE'});
-  laadiAdminGraafik();
-}
-
-async function laadiRaportTab(){
-  document.getElementById('r-ettevote').innerHTML=kõikEttevotted.map(e=>`<option value="${e.id}">${e.nimi}</option>`).join('');
-  laadiRaportObjektid();
-  const workers=await api('/api/admin/tootajad');
-  document.getElementById('r-workers').innerHTML=`<label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #c9a84c;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#c9a84c"><input type="checkbox" id="r-kõik" style="width:auto;margin:0" onchange="valiKõikTootajad(this)" checked> Kõik</label>`+workers.filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#d0d0d0"><input type="checkbox" class="r-worker" value="${w.id}" style="width:auto;margin:0" checked> ${w.nimi}</label>`).join('');
-  const t=new Date();
-  document.getElementById('r-algus').value=new Date(t.getFullYear(),t.getMonth(),1).toISOString().split('T')[0];
-  document.getElementById('r-lopp').value=t.toISOString().split('T')[0];
-}
-
-function valiKõikTootajad(cb){document.querySelectorAll('.r-worker').forEach(c=>c.checked=cb.checked);}
-
-async function laadiRaportObjektid(){
-  const ettevoteId=document.getElementById('r-ettevote').value;
-  const sel=document.getElementById('r-objekt');
-  sel.innerHTML='<option value="">— Kõik objektid —</option>';
-  if(!ettevoteId) return;
-  const objektid=await api(`/api/tood/objektid/${ettevoteId}`);
-  if(Array.isArray(objektid)) objektid.forEach(o=>sel.innerHTML+=`<option value="${o.id}">${o.nimi}</option>`);
-}
-
-function getRaportParams(){
-  return {ettevote_id:document.getElementById('r-ettevote').value,objekt_id:document.getElementById('r-objekt').value,algus:document.getElementById('r-algus').value,lopp:document.getElementById('r-lopp').value,workers:[...document.querySelectorAll('.r-worker:checked')].map(c=>c.value)};
-}
-
-async function laadiRaportEelvaade(){
-  const {ettevote_id,objekt_id,algus,lopp,workers}=getRaportParams(), teade=document.getElementById('r-teade');
-  if(!algus||!lopp){teade.style.display='block';teade.textContent='Vali kuupäevad!';return;}
-  if(!workers.length){teade.style.display='block';teade.textContent='Vali vähemalt üks töötaja!';return;}
-  teade.style.display='none';
-  const params=new URLSearchParams({ettevote_id,objekt_id,algus,lopp,workers:workers.join(',')});
-  const andmed=await api(`/api/admin/raport-filter?${params}`);
-  const kaart=document.getElementById('r-eelvaade-kaart'), div=document.getElementById('r-eelvaade');
-  kaart.style.display='block';
-  if(!andmed.length){div.innerHTML='<div style="padding:20px;text-align:center;color:#444">Kirjeid ei leitud</div>';return;}
-  let kokku_tunnid=0,kokku_summa=0,kokku_km=0,kokku_lisakulu=0;
-  let html='<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Aeg</th><th>Tunnid</th><th>Summa</th><th>KM raha</th><th>Lisakulu</th><th>Kommentaar</th></tr></thead><tbody>';
-  andmed.forEach(k=>{
-    const tunnid=parseFloat(k.tunnid),summa=tunnid*parseFloat(k.tunnitasu||0),km=parseFloat(k.km_raha||0),lisakulu=parseFloat(k.lisakulu_summa||0);
-    kokku_tunnid+=tunnid;kokku_summa+=summa;kokku_km+=km;kokku_lisakulu+=lisakulu;
-    html+=`<tr><td>${k.worker_nimi}</td><td>${formatKp(k.kuupaev)}</td><td>${k.algus?.slice(0,5)||''}–${k.lopp?.slice(0,5)||''}</td><td>${tunnid.toFixed(1)}h</td><td>${summa.toFixed(2)}€</td><td>${km>0?km.toFixed(2)+'€':'—'}</td><td>${lisakulu>0?lisakulu.toFixed(2)+'€':'—'}</td><td style="color:#666">${k.kommentaar||'—'}</td></tr>`;
-  });
-  html+=`<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.1)"><td colspan="3">KOKKU</td><td>${kokku_tunnid.toFixed(1)}h</td><td>${kokku_summa.toFixed(2)}€</td><td>${kokku_km.toFixed(2)}€</td><td>${kokku_lisakulu.toFixed(2)}€</td><td>Kogusumma: ${(kokku_summa+kokku_km+kokku_lisakulu).toFixed(2)}€</td></tr>`;
-  div.innerHTML=html+'</tbody></table>';
-}
-
-function laadiRaportCSV(){
-  const {ettevote_id,objekt_id,algus,lopp,workers}=getRaportParams(), teade=document.getElementById('r-teade');
-  if(!algus||!lopp){teade.style.display='block';teade.textContent='Vali kuupäevad!';return;}
-  if(!workers.length){teade.style.display='block';teade.textContent='Vali vähemalt üks töötaja!';return;}
-  teade.style.display='none';
-  window.location=`/api/admin/raport-filter-csv?${new URLSearchParams({ettevote_id,objekt_id,algus,lopp,workers:workers.join(','),_token:TOKEN})}`;
-}
-
-async function laadiAuditLogi(){
-  const div=document.getElementById('auditLogiSisu'), andmed=await api('/api/admin/audit-log');
-  if(!Array.isArray(andmed)||!andmed.length){div.innerHTML='<div style="padding:24px;text-align:center;color:#444">Logi on tühi</div>';return;}
-  const tegevusTekst={'SISSELOGIMINE':'🔑 Sisselogimine','LISA_TOOKIRJE':'➕ Lisas töökirje','KUSTUTA_TOOKIRJE':'🗑 Kustutas töökirje'};
-  const tegevusVarv={'SISSELOGIMINE':'#4488ff','LISA_TOOKIRJE':'#4ade80','KUSTUTA_TOOKIRJE':'#ef4444'};
-  let html='<table><thead><tr><th>Aeg</th><th>Töötaja</th><th>Tegevus</th><th>Detailid</th></tr></thead><tbody>';
-  andmed.forEach(a=>{
-    const d=new Date(a.loodud), aeg=`${d.getDate()}.${d.getMonth()+1} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-    let detailid='';
-    try{const det=JSON.parse(a.details||'{}');
-      if(a.tegevus==='LISA_TOOKIRJE') detailid=`${det.kuupaev} ${det.algus}–${det.lopp} (${det.tunnid}h)`;
-      else if(a.tegevus==='KUSTUTA_TOOKIRJE') detailid=`${det.kuupaev} ${det.algus}–${det.lopp} ${det.ettevote} ${det.objekt||''} (${det.tunnid}h)`;
-    }catch(e){}
-    html+=`<tr><td style="color:#666;white-space:nowrap">${aeg}</td><td style="font-weight:600">${a.worker_nimi||'—'}</td><td><span style="color:${tegevusVarv[a.tegevus]||'#888'};font-size:12px">${tegevusTekst[a.tegevus]||a.tegevus}</span></td><td style="color:#666;font-size:12px">${detailid}</td></tr>`;
-  });
-  div.innerHTML=html+'</tbody></table>';
-}
-
-async function laadiFotod(){
-  const div=document.getElementById('fotodSisu');
-  div.innerHTML='<div style="color:#555;font-size:13px">Laadimine...</div>';
-  const objektid=await api('/api/pildid/admin/objektid');
-  if(!Array.isArray(objektid)||!objektid.length){div.innerHTML='<div style="padding:24px;text-align:center;color:#444">Fotosid pole üles laaditud</div>';return;}
-  div.innerHTML=objektid.map(o=>`
-    <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:0.5px solid rgba(255,255,255,0.06)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div><span style="font-size:11px;color:#555">${o.ettevote_nimi}</span><div style="font-size:15px;font-weight:600;color:#e2e8f0">${o.nimi}</div><span style="font-size:12px;color:#444">${o.piltide_arv} fotot</span></div>
-        <a href="/api/pildid/admin/zip/${o.id}?_token=${TOKEN}" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none">⬇ ZIP</a>
-      </div>
-      <div id="pildid-${o.id}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        <div style="color:#555;font-size:12px;cursor:pointer" onclick="laadiObjektPildid(${o.id})">Klõpsa nägemiseks...</div>
-      </div>
-    </div>`).join('');
-}
-
-async function laadiObjektPildid(objektId){
-  const div=document.getElementById(`pildid-${objektId}`);
-  div.innerHTML='<div style="color:#555;font-size:12px">Laadimine...</div>';
-  const pildid=await api(`/api/pildid/admin/objekt/${objektId}`);
-  if(!Array.isArray(pildid)||!pildid.length){div.innerHTML='<div style="color:#555;font-size:12px">Pilte ei leitud</div>';return;}
-  div.innerHTML=pildid.map(p=>{const kp=new Date(p.kuupaev);return `<div><a href="${p.url}" target="_blank"><img src="${p.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></a><div style="font-size:9px;color:#888;margin-top:3px;text-align:center">${kp.getDate()}.${kp.getMonth()+1} · ${p.worker_nimi}</div></div>`;}).join('');
-}
-
-// ── EDGF 2026 ──────────────────────────────────────────────────
-
-async function laadiEdgfTab() {
-  const t = new Date();
-  const kuu = document.getElementById('edgf-filter-kuu');
-  const aasta = document.getElementById('edgf-filter-aasta');
-  if (kuu && !kuu.options.length) {
-    KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuu.appendChild(o); });
+router.post('/tootaja-ettevotted', noudaAdmin, async (req, res) => {
+  const { worker_id, ettevote_id, tunnitasu } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO worker_ettevotted (worker_id, ettevote_id, tunnitasu)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (worker_id, ettevote_id) DO UPDATE SET tunnitasu = $3`,
+      [worker_id, ettevote_id, tunnitasu]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
-  if (aasta && !aasta.options.length) {
-    for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
+});
+
+router.delete('/tootaja-ettevotted/:workerId/:ettevoteId', noudaAdmin, async (req, res) => {
+  await pool.query(
+    'DELETE FROM worker_ettevotted WHERE worker_id=$1 AND ettevote_id=$2',
+    [req.params.workerId, req.params.ettevoteId]
+  );
+  res.json({ ok: true });
+});
+
+// â”€â”€ ETTEVÃ•TTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+router.get('/ettevotted', noudaAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM ettevotted ORDER BY id');
+  res.json(r.rows);
+});
+
+// â”€â”€ OBJEKTID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+router.get('/objektid', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o
+       JOIN ettevotted e ON o.ettevote_id = e.id ORDER BY e.id, o.nimi`
+    );
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
-  await laadiEdgfLubatud();
+});
+
+router.post('/objektid', noudaAdmin, async (req, res) => {
+  const { nimi, ettevote_id } = req.body;
+  try {
+    await pool.query('INSERT INTO objektid (nimi, ettevote_id) VALUES ($1, $2)', [nimi, ettevote_id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/objektid/:id', noudaAdmin, async (req, res) => {
+  const { nimi, aktiivne } = req.body;
+  await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2 WHERE id=$3', [nimi, aktiivne, req.params.id]);
+  res.json({ ok: true });
+});
+
+// â”€â”€ MAKSED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+router.get('/maksed', async (req, res) => {
+  const isAdmin = req.session && req.session.isAdmin;
+  let { worker_id, aasta, kuu } = req.query;
+  if (worker_id === 'self') {
+    if (!req.session || !req.session.workerId) return res.status(401).json([]);
+    worker_id = req.session.workerId;
+  } else if (!isAdmin) {
+    return res.status(401).json([]);
+  }
+  let q = `SELECT m.*, w.nimi as worker_nimi FROM maksed m JOIN workers w ON m.worker_id=w.id WHERE 1=1`;
+  const params = [];
+  if (worker_id) { params.push(worker_id); q += ` AND m.worker_id=$${params.length}`; }
+  if (aasta) { params.push(aasta); q += ` AND EXTRACT(YEAR FROM m.kuupaev)=$${params.length}`; }
+  if (kuu) { params.push(kuu); q += ` AND EXTRACT(MONTH FROM m.kuupaev)=$${params.length}`; }
+  q += ' ORDER BY m.kuupaev DESC';
+  const r = await pool.query(q, params);
+  res.json(r.rows);
+});
+
+router.post('/maksed', noudaAdmin, async (req, res) => {
+  const { worker_id, summa, kuupaev, kommentaar } = req.body;
+  await pool.query(
+    'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar) VALUES ($1,$2,$3,$4)',
+    [worker_id, summa, kuupaev, kommentaar || '']
+  );
+  res.json({ ok: true });
+});
+
+router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM maksed WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// â”€â”€ TULEVASED TÃ–Ã–D â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+router.get('/tulevased', noudaAdmin, async (req, res) => {
+  const r = await pool.query(
+    `SELECT t.*, w.nimi as worker_nimi, w.email as worker_email, e.nimi as ettevote_nimi,
+            COALESCE(o.nimi,'') as objekt_nimi
+     FROM tulevased_tood t
+     JOIN workers w ON t.worker_id=w.id
+     JOIN ettevotted e ON t.ettevote_id=e.id
+     LEFT JOIN objektid o ON t.objekt_id=o.id
+     WHERE t.kuupaev >= CURRENT_DATE ORDER BY t.kuupaev, t.algus_kell`
+  );
+  res.json(r.rows);
+});
+
+router.post('/tulevased', noudaAdmin, async (req, res) => {
+  const { worker_id, ettevote_id, objekt_id, kuupaev, algus_kell, lopp_kell, kirjeldus } = req.body;
+  await pool.query(
+    `INSERT INTO tulevased_tood (worker_id, ettevote_id, objekt_id, kuupaev, algus_kell, lopp_kell, kirjeldus)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [worker_id, ettevote_id, objekt_id || null, kuupaev, algus_kell, lopp_kell, kirjeldus || '']
+  );
+  // Saada push teavitus töötajale
+  try {
+    const ettevoteInfo = await pool.query('SELECT nimi FROM ettevotted WHERE id=$1', [ettevote_id]);
+    const objektInfo = objekt_id ? await pool.query('SELECT nimi FROM objektid WHERE id=$1', [objekt_id]) : null;
+    const ettevoteNimi = ettevoteInfo.rows[0]?.nimi || '';
+    const objektNimi = objektInfo?.rows[0]?.nimi || '';
+    const kp = new Date(kuupaev);
+    const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
+    const body = `${kuupaevTekst} ${algus_kell||''}${lopp_kell?'-'+lopp_kell:''} · ${ettevoteNimi}${objektNimi?' '+objektNimi:''}${kirjeldus?' · '+kirjeldus:''}`;
+    await saadaTeavitus(worker_id, '📅 Uus töö lisatud!', body, '/tootaja');
+    // Saada email teavitus
+    const workerInfo = await pool.query('SELECT email, nimi FROM workers WHERE id=$1', [worker_id]);
+    const workerEmail = workerInfo.rows[0]?.email;
+    if (workerEmail) {
+      try {
+        await getResend().emails.send({
+          from: 'Royal Paigaldus <onboarding@resend.dev>',
+          to: workerEmail,
+          subject: '📅 Uus töö lisatud!',
+          html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+            <h2 style="color:#c9a84c">📅 Uus töö lisatud!</h2>
+            <p>Tere ${workerInfo.rows[0].nimi}!</p>
+            <p style="font-size:16px;background:#f5f5f5;padding:16px;border-radius:8px">${body}</p>
+            <p><a href="https://royal-paigaldus-production.up.railway.app/tootaja" style="background:#c9a84c;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Vaata tööpäevikus</a></p>
+            <p style="color:#888;font-size:12px">Royal Paigaldus Tööpäevik</p>
+          </div>`
+        });
+      } catch(emailErr) { console.error('Email ebaõnnestus:', emailErr.message); }
+    }
+  } catch(e) { console.error('Teavitus ebaõnnestus:', e.message); }
+  res.json({ ok: true });
+});
+
+router.put('/tulevased/:id', noudaAdmin, async (req, res) => {
+  const { kuupaev, algus_kell, lopp_kell, kirjeldus } = req.body;
+  try {
+    await pool.query(
+      'UPDATE tulevased_tood SET kuupaev=$1, algus_kell=$2, lopp_kell=$3, kirjeldus=$4 WHERE id=$5',
+      [kuupaev, algus_kell, lopp_kell, kirjeldus||'', req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM tulevased_tood WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// â”€â”€ KOKKUVÃ•TE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// ── TÖÖKIRJE TUNNITASU (MUU käsitsi) ─────────────────────────────
+
+// Muuda töökirjet (admin)
+router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
+  const { kuupaev, algus, lopp, kommentaar, lisakulu_summa, lisakulu_selgitus } = req.body;
+  try {
+    const [ah, am] = algus.split(':').map(Number);
+    const [lh, lm] = lopp.split(':').map(Number);
+    let minutid = (lh * 60 + lm) - (ah * 60 + am);
+    if (minutid < 0) minutid += 1440;
+    const tunnid = minutid / 60;
+    if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
+
+    // Audit log
+    const vana = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
+    await pool.query(
+      `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5, lisakulu_summa=$6, lisakulu_selgitus=$7 WHERE id=$8`,
+      [kuupaev, algus, lopp, tunnid, kommentaar||'', parseFloat(lisakulu_summa)||0, lisakulu_selgitus||'', req.params.id]
+    );
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [null, 'ADMIN_MUUTIS_TOOKIRJET', JSON.stringify({
+        kirje_id: req.params.id,
+        vana: { algus: vana.rows[0]?.algus, lopp: vana.rows[0]?.lopp, tunnid: vana.rows[0]?.tunnid },
+        uus: { algus, lopp, tunnid: tunnid.toFixed(2) }
+      }), req.ip]
+    );
+    res.json({ ok: true, tunnid: tunnid.toFixed(2) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Kustuta töökirje (admin)
+router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
+  try {
+    const kirje = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
+    if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    await pool.query('DELETE FROM tookirjed WHERE id=$1', [req.params.id]);
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [null, 'ADMIN_KUSTUTAS_TOOKIRJE', JSON.stringify({ kirje_id: req.params.id, tunnid: kirje.rows[0].tunnid }), req.ip]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
+  const { tunnitasu } = req.body;
+  try {
+    // Uuenda worker_ettevotted tunnitasu selle kirje põhjal
+    const kirje = await pool.query('SELECT worker_id, ettevote_id FROM tookirjed WHERE id=$1', [req.params.id]);
+    if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    const { worker_id, ettevote_id } = kirje.rows[0];
+    // Salvesta ühekordseks kasutuseks otse tookirjed tabelisse lisaveeru kaudu
+    await pool.query(
+      'UPDATE tookirjed SET muu_tunnitasu=$1 WHERE id=$2',
+      [tunnitasu, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.get('/kokkuvote', noudaAdmin, async (req, res) => {
+  const { aasta, kuu } = req.query;
+  const workers = await pool.query('SELECT * FROM workers WHERE aktiivne=true ORDER BY nimi');
+  const andmed = [];
+  for (const w of workers.rows) {
+    const kirjed = await pool.query(
+      `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+              e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp, COALESCE(o.nimi,'') as objekt_nimi,
+              COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu,
+              COALESCE(we.tunnitasu, 0) as vaikimisi_tunnitasu,
+              t.muu_tunnitasu,
+              COALESCE(t.km_raha, 0) as km_raha,
+              COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
+              COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus
+       FROM tookirjed t
+       JOIN ettevotted e ON t.ettevote_id=e.id
+       LEFT JOIN objektid o ON t.objekt_id=o.id
+       LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+       WHERE t.worker_id=$1 AND EXTRACT(YEAR FROM t.kuupaev)=$2 AND EXTRACT(MONTH FROM t.kuupaev)=$3
+       ORDER BY t.kuupaev`,
+      [w.id, aasta, kuu]
+    );
+    const tunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
+    const teenitud = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
+    const km_raha_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
+    const lisakulu_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku;
+    const maksed = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
+       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
+      [w.id, aasta, kuu]
+    );
+    const makstud = parseFloat(maksed.rows[0].kokku);
+    andmed.push({
+      nimi: w.nimi, tunnid: tunnid.toFixed(2),
+      teenitud: teenitud.toFixed(2),
+      km_raha: km_raha_kokku.toFixed(2),
+      lisakulu: lisakulu_kokku.toFixed(2),
+      kogusumma: kogusumma.toFixed(2),
+      makstud: makstud.toFixed(2),
+      saadaVeel: (kogusumma - makstud).toFixed(2),
+      kirjed: kirjed.rows
+    });
+  }
+  res.json(andmed);
+});
+
+// â”€â”€ CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+router.get('/raport-csv', noudaAdmin, async (req, res) => {
+  const { aasta, kuu } = req.query;
+  const r = await pool.query(
+    `SELECT w.nimi as tootaja, e.nimi as ettevote, COALESCE(o.nimi,'') as objekt,
+            TO_CHAR(t.kuupaev, 'DD.MM.YYYY') as kuupaev,
+            TO_CHAR(t.algus, 'HH24:MI') as algus,
+            TO_CHAR(t.lopp, 'HH24:MI') as lopp,
+            t.tunnid::numeric as tunnid,
+            COALESCE(we.tunnitasu,0)::numeric as tunnitasu,
+            ROUND(t.tunnid * COALESCE(we.tunnitasu,0), 2)::numeric as summa,
+            COALESCE(t.kilomeetrid, 0)::numeric as km,
+            COALESCE(t.km_raha, 0)::numeric as km_raha,
+            COALESCE(t.lisakulu_summa, 0)::numeric as lisakulu_summa,
+            COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus,
+            t.kommentaar
+     FROM tookirjed t
+     JOIN workers w ON t.worker_id=w.id
+     JOIN ettevotted e ON t.ettevote_id=e.id
+     LEFT JOIN objektid o ON t.objekt_id=o.id
+     LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+     WHERE EXTRACT(YEAR FROM t.kuupaev)=$1 AND EXTRACT(MONTH FROM t.kuupaev)=$2
+     ORDER BY w.nimi, t.kuupaev`,
+    [aasta, kuu]
+  );
+
+  const read = r.rows;
+  if (!read.length) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send('\uFEFF' + 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar\r\n');
+    return;
+  }
+  const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
+  const rows = read.map(k => [
+    k.tootaja, k.ettevote, k.objekt, k.kuupaev, k.algus, k.lopp,
+    String(parseFloat(k.tunnid)).replace('.', ','),
+    String(parseFloat(k.tunnitasu)).replace('.', ','),
+    String(parseFloat(k.summa)).replace('.', ','),
+    String(parseFloat(k.km)).replace('.', ','),
+    String(parseFloat(k.km_raha)).replace('.', ','),
+    String(parseFloat(k.lisakulu_summa)).replace('.', ','),
+    k.lisakulu_selgitus || '',
+    k.kommentaar || ''
+  ].join(';')).join('\r\n');
+
+  const kuu2 = `${aasta}-${String(kuu).padStart(2,'0')}`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="raport-${kuu2}.csv"`);
+  res.send('\uFEFF' + header + '\r\n' + rows);
+});
+
+module.exports = router;
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────
+
+router.get('/audit-log', noudaAdmin, async (req, res) => {
+  const r = await pool.query(
+    `SELECT a.*, w.nimi as worker_nimi
+     FROM audit_log a
+     LEFT JOIN workers w ON a.worker_id=w.id
+     ORDER BY a.loodud DESC`
+  );
+  res.json(r.rows);
+});
+
+// ── FILTER RAPORT ─────────────────────────────────────────────────
+
+async function filterPäring(req) {
+  const { ettevote_id, objekt_id, algus, lopp, workers } = req.query;
+  const workerList = workers ? workers.split(',').filter(Boolean) : [];
+  
+  let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+            t.kilomeetrid, t.km_raha, t.lisakulu_summa, t.lisakulu_selgitus,
+            w.nimi as worker_nimi, e.nimi as ettevote_nimi,
+            COALESCE(o.nimi,'') as objekt_nimi,
+            COALESCE(we.tunnitasu, t.muu_tunnitasu, 0) as tunnitasu
+     FROM tookirjed t
+     JOIN workers w ON t.worker_id=w.id
+     JOIN ettevotted e ON t.ettevote_id=e.id
+     LEFT JOIN objektid o ON t.objekt_id=o.id
+     LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+     WHERE 1=1`;
+  
+  const params = [];
+  if (ettevote_id) { params.push(ettevote_id); q += ` AND t.ettevote_id=$${params.length}`; }
+  if (objekt_id) { params.push(objekt_id); q += ` AND t.objekt_id=$${params.length}`; }
+  if (algus) { params.push(algus); q += ` AND t.kuupaev>=$${params.length}`; }
+  if (lopp) { params.push(lopp); q += ` AND t.kuupaev<=$${params.length}`; }
+  if (workerList.length) { q += ` AND t.worker_id = ANY($${params.length+1}::int[])`; params.push(workerList); }
+  q += ' ORDER BY w.nimi, t.kuupaev, t.algus';
+  
+  const pool2 = require('../db').pool;
+  const r = await pool2.query(q, params);
+  return r.rows;
 }
 
-async function laadiEdgfLubatud() {
-  const r = await api('/api/edgf/admin/lubatud');
-  const div = document.getElementById('edgfLubatudSisu');
-  if (!Array.isArray(r)) { div.innerHTML = '<div style="color:#555">Viga laadimisel</div>'; return; }
-  div.innerHTML = r.map(w => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.04)">
-      <span style="font-size:13px;color:${w.lubatud?'#e2e8f0':'#555'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:#555">
-        <span>${w.lubatud ? 'Lubatud' : 'Keelatud'}</span>
-        <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleEdgfLuba(${w.id}, this.checked)" style="width:auto;accent-color:#818cf8">
-      </label>
-    </div>`).join('');
-}
+router.get('/raport-filter', noudaAdmin, async (req, res) => {
+  try {
+    const rows = await filterPäring(req);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
 
-async function toggleEdgfLuba(workerId, lubatud) {
-  await api(`/api/edgf/admin/lubatud/${workerId}`, {method:'POST', body: JSON.stringify({lubatud})});
-  await laadiEdgfLubatud();
-}
+router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
+  try {
+    const rows = await filterPäring(req);
+    const { algus, lopp } = req.query;
+    
+    const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
+    
+    let kokku_tunnid = 0, kokku_summa = 0, kokku_km = 0, kokku_lisakulu = 0;
+    const dataRows = rows.map(k => {
+      const tunnid = parseFloat(k.tunnid);
+      const tunnitasu = parseFloat(k.tunnitasu||0);
+      const summa = tunnid * tunnitasu;
+      const km_raha = parseFloat(k.km_raha||0);
+      const lisakulu = parseFloat(k.lisakulu_summa||0);
+      kokku_tunnid += tunnid; kokku_summa += summa; kokku_km += km_raha; kokku_lisakulu += lisakulu;
+      const kp = new Date(k.kuupaev);
+      return [
+        k.worker_nimi, k.ettevote_nimi, k.objekt_nimi,
+        `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`,
+        k.algus?.slice(0,5)||'', k.lopp?.slice(0,5)||'',
+        String(tunnid).replace('.', ','),
+        String(tunnitasu).replace('.', ','),
+        String(summa.toFixed(2)).replace('.', ','),
+        String(parseFloat(k.kilomeetrid||0)).replace('.', ','),
+        String(km_raha.toFixed(2)).replace('.', ','),
+        String(lisakulu.toFixed(2)).replace('.', ','),
+        k.lisakulu_selgitus||'',
+        k.kommentaar||''
+      ].join(';');
+    });
 
-async function laadiEdgfKulud() {
-  const kuu = document.getElementById('edgf-filter-kuu')?.value;
-  const aasta = document.getElementById('edgf-filter-aasta')?.value;
-  const r = await api(`/api/edgf/admin/kulud?aasta=${aasta}&kuu=${kuu}`);
-  kuvаEdgfTabel(r);
-}
+    // Kokku rida
+    const kogusumma = kokku_summa + kokku_km + kokku_lisakulu;
+    dataRows.push(`KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.', ',')};;${String(kokku_summa.toFixed(2)).replace('.', ',')};;${String(kokku_km.toFixed(2)).replace('.', ',')};;${String(kokku_lisakulu.toFixed(2)).replace('.', ',')};;Kogusumma: ${String(kogusumma.toFixed(2)).replace('.', ',')}`);
 
-async function laadiEdgfKoik() {
-  const r = await api('/api/edgf/admin/kulud');
-  kuvаEdgfTabel(r);
-}
-
-function kuvаEdgfTabel(andmed) {
-  const div = document.getElementById('edgfKuludSisu');
-  if (!Array.isArray(andmed) || !andmed.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:#444">Kulusid pole</div>'; return; }
-  let kokku = 0;
-  let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Selgitus</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
-  andmed.forEach(k => {
-    const summa = parseFloat(k.summa); kokku += summa;
-    html += `<tr><td style="color:#666">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:#aaa">${k.selgitus}</td><td style="text-align:right;color:#818cf8;font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:#818cf8;font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
-  });
-  html += `<tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.1)"><td colspan="3">KOKKU</td><td style="text-align:right;color:#818cf8">${kokku.toFixed(2)} €</td><td></td></tr></tbody></table>`;
-  div.innerHTML = html;
-}
-
-function laadiEdgfCSV(e) {
-  e.preventDefault();
-  const kuu = document.getElementById('edgf-filter-kuu')?.value || '';
-  const aasta = document.getElementById('edgf-filter-aasta')?.value || '';
-  window.location = `/api/edgf/admin/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
-}
-
-async function välju(){localStorage.removeItem('adminToken');window.location='/admin-login';}
-
-init();
-</script>
-</body>
-</html>
+    const failiNimi = `raport_${algus||''}${lopp?'_'+lopp:''}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    res.send('\uFEFF' + header + '\r\n' + dataRows.join('\r\n'));
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+    
