@@ -32,11 +32,13 @@
     .emp-card.cramo { background: #180604; border-color: #3a0d07; }
     .emp-card.muu { background: #0e1824; border-color: #1a2d40; }
     .emp-card.merekohvik { background: #051a10; border-color: #0a3520; }
+    .emp-card.lisakulu { background: #1a0e00; border-color: #3a2000; cursor:pointer; }
     .emp-logo { width: 40px; height: 40px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
     .emp-logo.lidl { background: #FFF200; border-radius: 50%; }
     .emp-logo.cramo { background: #CD2200; border-radius: 9px; }
     .emp-logo.muu { background: #1a3550; border-radius: 9px; }
     .emp-logo.merekohvik { background: #065f46; border-radius: 9px; }
+    .emp-logo.lisakulu { background: #7c3000; border-radius: 9px; }
     .emp-logo span { font-size: 10px; font-weight: 800; }
     .emp-logo.lidl span { color: #0050AA; }
     .emp-logo.cramo span { color: #fff; }
@@ -47,6 +49,7 @@
     .emp-label.cramo { color: #ff6b50; }
     .emp-label.muu { color: #38bdf8; }
     .emp-label.merekohvik { color: #4ade80; }
+    .emp-label.lisakulu { color: #fb923c; }
     .emp-tunnid { font-size: 20px; font-weight: 700; color: #fff; }
     .emp-tunnid-sub { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 3px; }
     .kaart { background: var(--bg2); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
@@ -142,6 +145,36 @@
     </div>
   </div>
 
+  <!-- Lisakulu modal -->
+  <div id="lisakuluModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto">
+    <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px">
+      <div style="padding:16px 20px;border-bottom:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:15px;font-weight:700;color:#e2e8f0">&#128184; Lisakulud</span>
+        <button onclick="toggleLisakuluModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">&#10005;</button>
+      </div>
+      <!-- Lisa vorm -->
+      <div style="padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+            <input type="date" id="lk-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark">
+          </div>
+          <div>
+            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Summa (€)</label>
+            <input type="number" id="lk-summa" placeholder="0.00" step="0.01" min="0" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Selgitus</label>
+          <input type="text" id="lk-selgitus" placeholder="nt. sõidukulud, tööriistad..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+        </div>
+        <button onclick="lisaKulu()" style="background:#fb923c;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
+        <div id="lk-teade" style="margin-top:8px;font-size:12px;display:none"></div>
+      </div>
+      <div id="lisakuluSisu"><div style="padding:24px;text-align:center;color:#3a3d45;font-size:13px">Selle kuu lisakulusid pole</div></div>
+    </div>
+  </div>
+
   <!-- Merekohviku kalender modal -->
   <div class="modal-overlay" id="kalenderModal">
     <div class="modal-sisu">
@@ -198,43 +231,6 @@
         <span class="kaart-hdr-arv" id="toopaeviku-kuu">—</span>
       </div>
       <div id="toopaevikuSisu"><div class="tyhi-olek">Selle kuu kirjeid pole</div></div>
-    </div>
-
-    <!-- LISAKULU KAART -->
-    <div class="kaart">
-      <div class="kaart-hdr" style="justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span>&#128184;</span>
-          <span class="kaart-hdr-tekst">Lisakulud</span>
-          <span class="kaart-hdr-arv" id="lisakulu-kuu">—</span>
-        </div>
-        <button onclick="toggleLisaKulu()" id="lisaKuluNupp" style="background:#1a1a0a;border:0.5px solid #3a3000;border-radius:6px;padding:4px 10px;font-size:12px;color:#fb923c;cursor:pointer">+ Lisa</button>
-      </div>
-
-      <!-- Lisa vorm -->
-      <div id="lisaKuluVorm" style="display:none;padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div>
-            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
-            <input type="date" id="lk-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark">
-          </div>
-          <div>
-            <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Summa (€)</label>
-            <input type="number" id="lk-summa" placeholder="0.00" step="0.01" min="0" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
-          </div>
-        </div>
-        <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Selgitus</label>
-          <input type="text" id="lk-selgitus" placeholder="nt. sõidukulud, tööriistad..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="lisaKulu()" style="background:#fb923c;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
-          <button onclick="toggleLisaKulu()" style="background:#252830;color:#aaa;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">Tühista</button>
-        </div>
-        <div id="lk-teade" style="margin-top:8px;font-size:12px;display:none"></div>
-      </div>
-
-      <div id="lisakuluSisu"><div class="tyhi-olek">Selle kuu lisakulusid pole</div></div>
     </div>
 
     <div class="kaart">
@@ -365,7 +361,7 @@
           + '<div class="emp-tunnid">' + (tunnid > 0 ? tunnid.toFixed(1) + 'h' : '0 h') + '</div>'
           + '<div class="emp-tunnid-sub">sellel kuul</div>'
           + '</a>';
-      }).join('');
+      }).join('') + kuvaLisakuluKaart();
     }
 
     async function laadiTulevasedTood() {
@@ -430,7 +426,22 @@
 
     // ── LISAKULUD ───────────────────────────────────────────────
 
-    function toggleLisaKulu() {
+    function kuvaLisakuluKaart() {
+      return '<div class="emp-card lisakulu" onclick="toggleLisakuluModal()">'
+        + '<div class="emp-logo lisakulu"><span style="font-size:18px">&#128184;</span></div>'
+        + '<div class="emp-label lisakulu">LISAKULU</div>'
+        + '<div class="emp-tunnid" id="lk-grid-summa">0 €</div>'
+        + '<div class="emp-tunnid-sub">sellel kuul</div>'
+        + '</div>';
+    }
+
+    var lisakuluModalNahtav = false;
+
+    function toggleLisakuluModal() {
+      lisakuluModalNahtav = !lisakuluModalNahtav;
+      var modal = document.getElementById('lisakuluModal');
+      if (modal) modal.style.display = lisakuluModalNahtav ? 'flex' : 'none';
+    }
       var vorm = document.getElementById('lisaKuluVorm');
       vorm.style.display = vorm.style.display === 'none' ? 'block' : 'none';
       if (vorm.style.display === 'block') {
@@ -457,11 +468,11 @@
 
       if (r.ok) {
         teade.style.display = 'none';
-        document.getElementById('lisaKuluVorm').style.display = 'none';
         document.getElementById('lk-summa').value = '';
         document.getElementById('lk-selgitus').value = '';
+        document.getElementById('lk-kuupaev').value = new Date().toISOString().split('T')[0];
         await laadiLisakulud();
-        await laadiEttevotted(); // uuenda laekumiste summad
+        await laadiEttevotted();
       } else {
         teade.style.display = 'block'; teade.style.color = '#ef4444';
         teade.textContent = r.veateade || 'Viga salvestamisel';
@@ -471,11 +482,14 @@
     async function laadiLisakulud() {
       var vastus = await api('/api/tood/lisakulu/kuu?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
       var div = document.getElementById('lisakuluSisu');
+      var gridSumma = document.getElementById('lk-grid-summa');
       if (!vastus.ok || !vastus.kulud || !vastus.kulud.length) {
-        div.innerHTML = '<div class="tyhi-olek">Selle kuu lisakulusid pole</div>';
+        div.innerHTML = '<div style="padding:24px;text-align:center;color:#3a3d45;font-size:13px">Selle kuu lisakulusid pole</div>';
+        if (gridSumma) gridSumma.textContent = '0 €';
         return;
       }
       var kokku = vastus.kulud.reduce(function(s, k) { return s + parseFloat(k.summa); }, 0);
+      if (gridSumma) gridSumma.textContent = kokku.toFixed(0) + ' €';
       div.innerHTML = vastus.kulud.map(function(k) {
         var d = new Date(k.kuupaev);
         return '<div class="lk-rida">'
