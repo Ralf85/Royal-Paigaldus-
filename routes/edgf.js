@@ -80,6 +80,32 @@ router.get('/minu', noudaSisslogimist, async (req, res) => {
   }
 });
 
+// Muuda kulu (ilma fotota)
+router.put('/:id', noudaSisslogimist, async (req, res) => {
+  const { kuupaev, summa, selgitus } = req.body;
+  if (!kuupaev || !summa || !selgitus) {
+    return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  }
+  const s = parseFloat(summa);
+  if (isNaN(s) || s <= 0) {
+    return res.json({ ok: false, veateade: 'Summa peab olema positiivne arv' });
+  }
+  try {
+    const r = await pool.query(
+      'SELECT * FROM edgf_kulud WHERE id=$1 AND worker_id=$2',
+      [req.params.id, req.session.workerId]
+    );
+    if (!r.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    await pool.query(
+      'UPDATE edgf_kulud SET kuupaev=$1, summa=$2, selgitus=$3 WHERE id=$4',
+      [kuupaev, s, selgitus, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // Kustuta kulu
 router.delete('/:id', noudaSisslogimist, async (req, res) => {
   try {
@@ -100,7 +126,6 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
 
 // ── ADMIN ────────────────────────────────────────────────────────
 
-// Kõik kulud (kuu järgi)
 router.get('/admin/kulud', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
   try {
@@ -120,7 +145,6 @@ router.get('/admin/kulud', noudaAdmin, async (req, res) => {
   }
 });
 
-// CSV allalaadimine
 router.get('/admin/csv', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
   try {
@@ -134,11 +158,9 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
     }
     query += ` ORDER BY e.kuupaev, w.nimi`;
     const r = await pool.query(query, params);
-
     const kuuNimi = aasta && kuu ? `${aasta}_${String(kuu).padStart(2,'0')}` : 'koik';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="edgf2026_kulud_${kuuNimi}.csv"`);
-
     let csv = '\uFEFF';
     csv += 'Kuupäev,Töötaja,Summa,Selgitus,Foto\n';
     r.rows.forEach(row => {
@@ -152,7 +174,6 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
   }
 });
 
-// Töötajate nimekiri kellel EDGF on lubatud
 router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
@@ -166,7 +187,6 @@ router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   }
 });
 
-// Luba/keela töötajale EDGF
 router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   const { lubatud } = req.body;
   try {
@@ -184,7 +204,6 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   }
 });
 
-// Kontrolli kas töötajal on EDGF lubatud
 router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
