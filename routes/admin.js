@@ -11,12 +11,12 @@ function getResend() {
 
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) {
-    return res.status(401).json({ ok: false, veateade: 'Admin Ãµigused puuduvad' });
+    return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
   }
   next();
 }
 
-// â”€â”€ TÃ–Ã–TAJAD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TÖÖTAJAD ──────────────────────────────────────────────────────
 
 router.get('/tootajad', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT id, nimi, pin, aktiivne, email FROM workers ORDER BY nimi');
@@ -58,7 +58,7 @@ router.delete('/tootajad/:id', noudaAdmin, async (req, res) => {
   }
 });
 
-// â”€â”€ TÃ–Ã–TAJA ETTEVÃ•TTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TÖÖTAJA ETTEVÕTTED ────────────────────────────────────────────
 
 router.get('/tootaja-ettevotted/:workerId', noudaAdmin, async (req, res) => {
   const r = await pool.query(
@@ -94,14 +94,14 @@ router.delete('/tootaja-ettevotted/:workerId/:ettevoteId', noudaAdmin, async (re
   res.json({ ok: true });
 });
 
-// â”€â”€ ETTEVÃ•TTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ETTEVÕTTED ────────────────────────────────────────────────────
 
 router.get('/ettevotted', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT * FROM ettevotted ORDER BY id');
   res.json(r.rows);
 });
 
-// â”€â”€ OBJEKTID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OBJEKTID ──────────────────────────────────────────────────────
 
 router.get('/objektid', async (req, res) => {
   try {
@@ -131,7 +131,7 @@ router.put('/objektid/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// â”€â”€ MAKSED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── MAKSED ────────────────────────────────────────────────────────
 
 router.get('/maksed', async (req, res) => {
   const isAdmin = req.session && req.session.isAdmin;
@@ -166,7 +166,7 @@ router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// â”€â”€ TULEVASED TÃ–Ã–D â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TULEVASED TÖÖD ────────────────────────────────────────────────
 
 router.get('/tulevased', noudaAdmin, async (req, res) => {
   const r = await pool.query(
@@ -188,7 +188,6 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [worker_id, ettevote_id, objekt_id || null, kuupaev, algus_kell, lopp_kell, kirjeldus || '']
   );
-  // Saada push teavitus töötajale
   try {
     const ettevoteInfo = await pool.query('SELECT nimi FROM ettevotted WHERE id=$1', [ettevote_id]);
     const objektInfo = objekt_id ? await pool.query('SELECT nimi FROM objektid WHERE id=$1', [objekt_id]) : null;
@@ -198,7 +197,6 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
     const kuupaevTekst = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
     const body = `${kuupaevTekst} ${algus_kell||''}${lopp_kell?'-'+lopp_kell:''} · ${ettevoteNimi}${objektNimi?' '+objektNimi:''}${kirjeldus?' · '+kirjeldus:''}`;
     await saadaTeavitus(worker_id, '📅 Uus töö lisatud!', body, '/tootaja');
-    // Saada email teavitus
     const workerInfo = await pool.query('SELECT email, nimi FROM workers WHERE id=$1', [worker_id]);
     const workerEmail = workerInfo.rows[0]?.email;
     if (workerEmail) {
@@ -239,11 +237,8 @@ router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// â”€â”€ KOKKUVÃ•TE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TÖÖKIRJED (admin muuda/kustuta) ──────────────────────────────
 
-// ── TÖÖKIRJE TUNNITASU (MUU käsitsi) ─────────────────────────────
-
-// Muuda töökirjet (admin)
 router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
   const { kuupaev, algus, lopp, kommentaar, lisakulu_summa, lisakulu_selgitus } = req.body;
   try {
@@ -253,8 +248,6 @@ router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
     if (minutid < 0) minutid += 1440;
     const tunnid = minutid / 60;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
-
-    // Audit log
     const vana = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
     await pool.query(
       `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5, lisakulu_summa=$6, lisakulu_selgitus=$7 WHERE id=$8`,
@@ -274,7 +267,6 @@ router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
   }
 });
 
-// Kustuta töökirje (admin)
 router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
   try {
     const kirje = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
@@ -293,20 +285,16 @@ router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
 router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
   const { tunnitasu } = req.body;
   try {
-    // Uuenda worker_ettevotted tunnitasu selle kirje põhjal
     const kirje = await pool.query('SELECT worker_id, ettevote_id FROM tookirjed WHERE id=$1', [req.params.id]);
     if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
-    const { worker_id, ettevote_id } = kirje.rows[0];
-    // Salvesta ühekordseks kasutuseks otse tookirjed tabelisse lisaveeru kaudu
-    await pool.query(
-      'UPDATE tookirjed SET muu_tunnitasu=$1 WHERE id=$2',
-      [tunnitasu, req.params.id]
-    );
+    await pool.query('UPDATE tookirjed SET muu_tunnitasu=$1 WHERE id=$2', [tunnitasu, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+
+// ── KOKKUVÕTE ─────────────────────────────────────────────────────
 
 router.get('/kokkuvote', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
@@ -355,10 +343,12 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
   res.json(andmed);
 });
 
-// â”€â”€ CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CSV RAPORT ────────────────────────────────────────────────────
 
 router.get('/raport-csv', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
+
+  // Tookirjed
   const r = await pool.query(
     `SELECT w.nimi as tootaja, e.nimi as ettevote, COALESCE(o.nimi,'') as objekt,
             TO_CHAR(t.kuupaev, 'DD.MM.YYYY') as kuupaev,
@@ -382,14 +372,20 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
     [aasta, kuu]
   );
 
-  const read = r.rows;
-  if (!read.length) {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.send('\uFEFF' + 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar\r\n');
-    return;
-  }
+  // EDGF kulud
+  const edgf = await pool.query(
+    `SELECT w.nimi as tootaja, TO_CHAR(e.kuupaev, 'DD.MM.YYYY') as kuupaev,
+            e.summa, e.selgitus
+     FROM edgf_kulud e
+     JOIN workers w ON e.worker_id = w.id
+     WHERE EXTRACT(YEAR FROM e.kuupaev)=$1 AND EXTRACT(MONTH FROM e.kuupaev)=$2
+     ORDER BY w.nimi, e.kuupaev`,
+    [aasta, kuu]
+  );
+
   const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
-  const rows = read.map(k => [
+
+  const tookirjeRead = r.rows.map(k => [
     k.tootaja, k.ettevote, k.objekt, k.kuupaev, k.algus, k.lopp,
     String(parseFloat(k.tunnid)).replace('.', ','),
     String(parseFloat(k.tunnitasu)).replace('.', ','),
@@ -399,12 +395,29 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
     String(parseFloat(k.lisakulu_summa)).replace('.', ','),
     k.lisakulu_selgitus || '',
     k.kommentaar || ''
-  ].join(';')).join('\r\n');
+  ].join(';'));
+
+  // EDGF read — summa läheb "lisakulu" veergu
+  const edgfRead = edgf.rows.map(e => [
+    e.tootaja, 'EDGF 2026', '', e.kuupaev, '', '',
+    '0', '0', '0', '0', '0',
+    String(parseFloat(e.summa)).replace('.', ','),
+    e.selgitus || '',
+    ''
+  ].join(';'));
+
+  const koikRead = [...tookirjeRead, ...edgfRead];
+
+  if (!koikRead.length) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send('\uFEFF' + header + '\r\n');
+    return;
+  }
 
   const kuu2 = `${aasta}-${String(kuu).padStart(2,'0')}`;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="raport-${kuu2}.csv"`);
-  res.send('\uFEFF' + header + '\r\n' + rows);
+  res.send('\uFEFF' + header + '\r\n' + koikRead.join('\r\n'));
 });
 
 module.exports = router;
@@ -492,7 +505,6 @@ router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
       ].join(';');
     });
 
-    // Kokku rida
     const kogusumma = kokku_summa + kokku_km + kokku_lisakulu;
     dataRows.push(`KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.', ',')};;${String(kokku_summa.toFixed(2)).replace('.', ',')};;${String(kokku_km.toFixed(2)).replace('.', ',')};;${String(kokku_lisakulu.toFixed(2)).replace('.', ',')};;Kogusumma: ${String(kogusumma.toFixed(2)).replace('.', ',')}`);
 
