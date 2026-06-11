@@ -80,6 +80,48 @@ router.get('/minu', noudaSisslogimist, async (req, res) => {
   }
 });
 
+// Muuda kulu koos fotoga
+router.post('/:id/uuenda', noudaSisslogimist, upload.single('foto'), async (req, res) => {
+  const { kuupaev, summa, selgitus } = req.body;
+  if (!kuupaev || !summa || !selgitus) {
+    return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  }
+  const s = parseFloat(summa);
+  if (isNaN(s) || s <= 0) {
+    return res.json({ ok: false, veateade: 'Summa peab olema positiivne arv' });
+  }
+  try {
+    const vana = await pool.query(
+      'SELECT * FROM edgf_kulud WHERE id=$1 AND worker_id=$2',
+      [req.params.id, req.session.workerId]
+    );
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    let foto_url = vana.rows[0].foto_url;
+    let foto_public_id = vana.rows[0].foto_public_id;
+    if (req.file) {
+      if (foto_public_id) {
+        try { await getCloudinary().uploader.destroy(foto_public_id); } catch(e) {}
+      }
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          { folder: 'royal-paigaldus/edgf2026', resource_type: 'image', quality: 'auto' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      foto_url = result.secure_url;
+      foto_public_id = result.public_id;
+    }
+    await pool.query(
+      'UPDATE edgf_kulud SET kuupaev=$1, summa=$2, selgitus=$3, foto_url=$4, foto_public_id=$5 WHERE id=$6',
+      [kuupaev, s, selgitus, foto_url, foto_public_id, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // Muuda kulu (ilma fotota)
 router.put('/:id', noudaSisslogimist, async (req, res) => {
   const { kuupaev, summa, selgitus } = req.body;
