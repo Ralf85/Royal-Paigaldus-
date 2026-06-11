@@ -280,6 +280,22 @@
         <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Tehtud tööd</label>
         <input type="text" id="edgf-muuta-selgitus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
       </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Pilt (vabatahtlik)</label>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">
+            📷 Kaamera
+            <input type="file" id="edgf-muuta-foto" accept="image/*" capture="environment" style="display:none">
+          </label>
+          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">
+            🖼️ Album
+            <input type="file" id="edgf-muuta-foto-album" accept="image/*" style="display:none">
+          </label>
+        </div>
+        <div id="edgf-muuta-foto-eelvaade" style="margin-top:6px;display:none">
+          <img id="edgf-muuta-foto-img" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;border:0.5px solid #252830">
+        </div>
+      </div>
       <button onclick="salvestaEdgfMuutus()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
       <div id="edgf-muuta-teade" style="margin-top:8px;font-size:12px;display:none"></div>
     </div>
@@ -820,8 +836,29 @@
       document.getElementById('edgf-muuta-summa-display').style.borderColor = '#7c3aed';
       document.getElementById('edgf-muuta-selgitus').value = selgitus;
       document.getElementById('edgf-muuta-teade').style.display = 'none';
+      document.getElementById('edgf-muuta-foto').value = '';
+      document.getElementById('edgf-muuta-foto-album').value = '';
+      document.getElementById('edgf-muuta-foto-eelvaade').style.display = 'none';
       document.getElementById('edgfMuutaModal').style.display = 'flex';
       numpadMuutaAktiivne = false;
+      window._edgfMuutaFotoInput = null;
+
+      function setupMuutaFoto(inputId) {
+        document.getElementById(inputId).onchange = function() {
+          var file = this.files[0];
+          if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+              document.getElementById('edgf-muuta-foto-img').src = e.target.result;
+              document.getElementById('edgf-muuta-foto-eelvaade').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            window._edgfMuutaFotoInput = inputId;
+          }
+        };
+      }
+      setupMuutaFoto('edgf-muuta-foto');
+      setupMuutaFoto('edgf-muuta-foto-album');
     }
 
     function sulgeEdgfMuuta() {
@@ -846,10 +883,25 @@
         teade.style.display = 'block'; teade.style.color = '#ef4444';
         teade.textContent = 'Täida kõik väljad'; return;
       }
-      var r = await api('/api/edgf/' + id, {
-        method: 'PUT',
-        body: JSON.stringify({ kuupaev: kuupaev, summa: summa, selgitus: selgitus })
-      });
+      var foto = window._edgfMuutaFotoInput ? document.getElementById(window._edgfMuutaFotoInput).files[0] : null;
+      var r;
+      if (foto) {
+        var formData = new FormData();
+        formData.append('kuupaev', kuupaev);
+        formData.append('summa', summa);
+        formData.append('selgitus', selgitus);
+        formData.append('foto', foto);
+        r = await fetch('/api/edgf/' + id + '/uuenda', {
+          method: 'POST',
+          headers: { 'x-session-token': TOKEN },
+          body: formData
+        }).then(function(res) { return res.json(); });
+      } else {
+        r = await api('/api/edgf/' + id, {
+          method: 'PUT',
+          body: JSON.stringify({ kuupaev: kuupaev, summa: summa, selgitus: selgitus })
+        });
+      }
       if (r.ok) {
         sulgeEdgfMuuta();
         await laadiEdgfKulud();
