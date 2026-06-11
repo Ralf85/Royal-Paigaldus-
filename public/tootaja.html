@@ -193,7 +193,10 @@
           </div>
           <div>
             <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kulu (€)</label>
-            <input type="number" id="edgf-summa" placeholder="0.00" step="0.01" min="0" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+            <div id="edgf-summa-display" onclick="avaNumpad()" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;cursor:pointer;min-height:36px">
+              <span id="edgf-summa-tekst" style="color:#555">Vajuta summa sisestamiseks</span>
+            </div>
+            <input type="hidden" id="edgf-summa">
           </div>
         </div>
         <div style="margin-bottom:8px">
@@ -221,6 +224,34 @@
       </div>
       <!-- Kirjete nimekiri -->
       <div id="edgfSisu"><div style="padding:24px;text-align:center;color:#3a3d45;font-size:13px">Selle kuu kulusid pole</div></div>
+    </div>
+  </div>
+
+  <!-- Numpad modal -->
+  <div id="numpadModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:300;align-items:flex-end;justify-content:center">
+    <div style="background:#13161c;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 16px 32px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:#555;margin-bottom:6px">KULU (€)</div>
+        <div id="numpad-display" style="font-size:36px;font-weight:700;color:#e2e8f0;min-height:48px">0</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <button onclick="numpadNupp('1')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">1</button>
+        <button onclick="numpadNupp('2')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">2</button>
+        <button onclick="numpadNupp('3')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">3</button>
+        <button onclick="numpadNupp('4')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">4</button>
+        <button onclick="numpadNupp('5')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">5</button>
+        <button onclick="numpadNupp('6')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">6</button>
+        <button onclick="numpadNupp('7')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">7</button>
+        <button onclick="numpadNupp('8')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">8</button>
+        <button onclick="numpadNupp('9')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">9</button>
+        <button onclick="numpadNupp('.')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#aaa;cursor:pointer">.</button>
+        <button onclick="numpadNupp('0')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">0</button>
+        <button onclick="numpadKustuta()" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;color:#ef4444;cursor:pointer">⌫</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="sulgeNumpad()" style="background:#252830;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:600;color:#aaa;cursor:pointer">Tühista</button>
+        <button onclick="kinnitaNumpad()" style="background:#7c3aed;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:700;color:#fff;cursor:pointer">OK ✓</button>
+      </div>
     </div>
   </div>
 
@@ -305,8 +336,37 @@
     </div>
   </div>
 
+  <!-- Numpad modal -->
+  <div id="numpadModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:300;align-items:flex-end;justify-content:center">
+    <div style="background:#13161c;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 16px 32px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:#555;margin-bottom:6px">KULU (€)</div>
+        <div id="numpad-display" style="font-size:36px;font-weight:700;color:#e2e8f0;letter-spacing:2px;min-height:48px">0</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+        <button onclick="numpadNupp('1')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">1</button>
+        <button onclick="numpadNupp('2')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">2</button>
+        <button onclick="numpadNupp('3')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">3</button>
+        <button onclick="numpadNupp('4')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">4</button>
+        <button onclick="numpadNupp('5')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">5</button>
+        <button onclick="numpadNupp('6')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">6</button>
+        <button onclick="numpadNupp('7')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">7</button>
+        <button onclick="numpadNupp('8')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">8</button>
+        <button onclick="numpadNupp('9')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">9</button>
+        <button onclick="numpadNupp('.')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#aaa;cursor:pointer">.</button>
+        <button onclick="numpadNupp('0')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">0</button>
+        <button onclick="numpadKustuta()" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;color:#ef4444;cursor:pointer">⌫</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="sulgeNumpad()" style="background:#252830;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:600;color:#aaa;cursor:pointer">Tühista</button>
+        <button onclick="kinnитаNumpad()" style="background:#7c3aed;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:700;color:#fff;cursor:pointer">OK ✓</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+    var numpadVaartus = '0';
+
     var KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     var aktiivsKuu, aktiivsAasta, aktiivsWorkerId = null;
     var onMerekohvik = false;
@@ -816,6 +876,45 @@
     });
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
+
+    // ── NUMPAD ──────────────────────────────────────────────────
+    var numpadVaartus = '0';
+
+    function avaNumpad() {
+      numpadVaartus = document.getElementById('edgf-summa').value || '0';
+      document.getElementById('numpad-display').textContent = numpadVaartus;
+      document.getElementById('numpadModal').style.display = 'flex';
+    }
+
+    function sulgeNumpad() {
+      document.getElementById('numpadModal').style.display = 'none';
+    }
+
+    function numpadNupp(v) {
+      if (v === '.' && numpadVaartus.includes('.')) return;
+      if (numpadVaartus === '0' && v !== '.') numpadVaartus = v;
+      else numpadVaartus += v;
+      var parts = numpadVaartus.split('.');
+      if (parts[1] && parts[1].length > 2) return;
+      document.getElementById('numpad-display').textContent = numpadVaartus;
+    }
+
+    function numpadKustuta() {
+      if (numpadVaartus.length <= 1) numpadVaartus = '0';
+      else numpadVaartus = numpadVaartus.slice(0, -1);
+      document.getElementById('numpad-display').textContent = numpadVaartus;
+    }
+
+    function kinnitaNumpad() {
+      var v = parseFloat(numpadVaartus);
+      if (!isNaN(v) && v > 0) {
+        document.getElementById('edgf-summa').value = v;
+        document.getElementById('edgf-summa-tekst').textContent = v.toFixed(2) + ' €';
+        document.getElementById('edgf-summa-tekst').style.color = '#e2e8f0';
+        document.getElementById('edgf-summa-display').style.borderColor = '#7c3aed';
+      }
+      sulgeNumpad();
+    }
 
     function vahetaTeema() {
       var hele = document.body.classList.toggle('hele');
