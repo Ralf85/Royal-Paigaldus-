@@ -322,7 +322,14 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     const teenitud = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
     const km_raha_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
     const lisakulu_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
-    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku;
+    // Lisa EDGF kulud
+    const edgfKulud = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM edgf_kulud
+       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
+      [w.id, aasta, kuu]
+    );
+    const edgf_kokku = parseFloat(edgfKulud.rows[0].kokku);
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku;
     const maksed = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
@@ -334,6 +341,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
       teenitud: teenitud.toFixed(2),
       km_raha: km_raha_kokku.toFixed(2),
       lisakulu: lisakulu_kokku.toFixed(2),
+      edgf: edgf_kokku.toFixed(2),
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
       saadaVeel: (kogusumma - makstud).toFixed(2),
