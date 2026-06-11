@@ -202,7 +202,16 @@
         </div>
         <div style="margin-bottom:10px">
           <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Pilt (tšekk, vabatahtlik)</label>
-          <input type="file" id="edgf-foto" accept="image/*" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px">
+          <div style="display:flex;gap:8px">
+            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">
+              📷 Kaamera
+              <input type="file" id="edgf-foto" accept="image/*" capture="environment" style="display:none">
+            </label>
+            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">
+              🖼️ Album
+              <input type="file" id="edgf-foto-album" accept="image/*" style="display:none">
+            </label>
+          </div>
           <div id="edgf-foto-eelvaade" style="margin-top:6px;display:none">
             <img id="edgf-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:0.5px solid #252830">
           </div>
@@ -331,19 +340,26 @@
       ehitaKuuFilter(t);
 
       // Seadista foto eelvaade
-      document.getElementById('edgf-foto').addEventListener('change', function() {
-        var file = this.files[0];
-        if (file) {
-          var reader = new FileReader();
-          reader.onload = function(e) {
-            document.getElementById('edgf-foto-img').src = e.target.result;
-            document.getElementById('edgf-foto-eelvaade').style.display = 'block';
-          };
-          reader.readAsDataURL(file);
-        } else {
-          document.getElementById('edgf-foto-eelvaade').style.display = 'none';
-        }
-      });
+      function setupFotoEelvaade(inputId) {
+        document.getElementById(inputId).addEventListener('change', function() {
+          var file = this.files[0];
+          if (file) {
+            // Sünkroniseeri teise inputiga et lisaEdgfKulu saaks faili
+            var reader = new FileReader();
+            reader.onload = function(e) {
+              document.getElementById('edgf-foto-img').src = e.target.result;
+              document.getElementById('edgf-foto-eelvaade').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            // Märgi aktiivne input
+            window._edgfAktiivseFotoInput = inputId;
+          } else {
+            document.getElementById('edgf-foto-eelvaade').style.display = 'none';
+          }
+        });
+      }
+      setupFotoEelvaade('edgf-foto');
+      setupFotoEelvaade('edgf-foto-album');
 
       await laadiKoik();
     }
@@ -616,7 +632,8 @@
       var kuupaev = document.getElementById('edgf-kuupaev').value;
       var summa = document.getElementById('edgf-summa').value;
       var selgitus = document.getElementById('edgf-selgitus').value;
-      var foto = document.getElementById('edgf-foto').files[0];
+      var fotoInputId = window._edgfAktiivseFotoInput || 'edgf-foto';
+      var foto = document.getElementById(fotoInputId).files[0];
       var teade = document.getElementById('edgf-teade');
       var nupp = document.getElementById('edgf-salvesta-nupp');
 
@@ -648,6 +665,8 @@
         document.getElementById('edgf-summa').value = '';
         document.getElementById('edgf-selgitus').value = '';
         document.getElementById('edgf-foto').value = '';
+        document.getElementById('edgf-foto-album').value = '';
+        window._edgfAktiivseFotoInput = null;
         document.getElementById('edgf-foto-eelvaade').style.display = 'none';
         document.getElementById('edgf-kuupaev').value = new Date().toISOString().split('T')[0];
         await laadiEdgfKulud();
