@@ -488,22 +488,24 @@ async function laadiKokkuvote() {
   let html = `<div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:16px">
     <table><thead><tr style="border-bottom:0.5px solid rgba(255,255,255,0.06)">
       <th>Töötaja</th><th style="text-align:right">Tunnid</th><th style="text-align:right">Teenitud</th>
-      <th style="text-align:right">Makstud</th><th style="text-align:right">Saada veel</th><th></th>
+      <th style="text-align:right">Kulud</th><th style="text-align:right">Makstud</th><th style="text-align:right">Saada veel</th><th></th>
     </tr></thead><tbody>`;
   andmed.forEach(w => {
     const tunnid=parseFloat(w.tunnid), teenitud=parseFloat(w.teenitud), makstud=parseFloat(w.makstud), saada=parseFloat(w.saadaVeel);
-    kokku_tunnid+=tunnid; kokku_teenitud+=teenitud; kokku_makstud+=makstud;
+    const edgf=parseFloat(w.edgf||0), lisakulu=parseFloat(w.lisakulu||0), kulud=edgf+lisakulu, kogusumma=parseFloat(w.kogusumma||w.teenitud);
+    kokku_tunnid+=tunnid; kokku_teenitud+=kogusumma; kokku_makstud+=makstud;
     html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
-      <td style="font-weight:600;cursor:pointer;color:${tunnid>0?'#c9a84c':'#555'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
-        ${tunnid>0?'👷':'·'} ${w.nimi}
+      <td style="font-weight:600;cursor:pointer;color:${tunnid>0||edgf>0?'#c9a84c':'#555'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
+        ${tunnid>0||edgf>0?'👷':'·'} ${w.nimi}
       </td>
       <td style="text-align:right;color:#5b9cf6">${tunnid>0?tunnid.toFixed(1)+' h':'—'}</td>
       <td style="text-align:right;color:#4ade80">${teenitud>0?teenitud.toFixed(2)+' €':'—'}</td>
+      <td style="text-align:right;color:#a78bfa">${kulud>0?'+'+kulud.toFixed(2)+' €':'—'}</td>
       <td style="text-align:right;color:#666">${makstud>0?makstud.toFixed(2)+' €':'—'}</td>
       <td style="text-align:right;color:${saada>0?'#fbbf24':saada<0?'#ef4444':'#666'}">${saada!==0?(saada>0?'+':'')+saada.toFixed(2)+' €':'—'}</td>
       <td style="text-align:right">${tunnid>0?`<button onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" style="background:#1a2840;border:none;border-radius:6px;padding:4px 10px;font-size:11px;color:#5b9cf6;cursor:pointer">▼ kirjed</button>`:''}
       </td></tr>
-    ${w.kirjed.length?`<tr id="kirjed-${w.nimi.replace(/\s/g,'_')}" style="display:none"><td colspan="6" style="padding:0 0 8px 0">
+    ${w.kirjed.length?`<tr id="kirjed-${w.nimi.replace(/\s/g,'_')}" style="display:none"><td colspan="7" style="padding:0 0 8px 0">
       <div style="margin:4px 14px;background:#0d0f13;border-radius:8px;overflow:hidden">
         ${w.kirjed.map(k=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:0.5px solid rgba(255,255,255,0.03);font-size:12px">
           <span style="color:#888;min-width:80px">${formatKp(k.kuupaev)}</span>
@@ -526,6 +528,7 @@ async function laadiKokkuvote() {
     <td>KOKKU</td>
     <td style="text-align:right;color:#5b9cf6">${kokku_tunnid.toFixed(1)} h</td>
     <td style="text-align:right;color:#4ade80">${kokku_teenitud.toFixed(2)} €</td>
+    <td style="text-align:right;color:#a78bfa">—</td>
     <td style="text-align:right;color:#666">${kokku_makstud.toFixed(2)} €</td>
     <td style="text-align:right;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
     <td></td>
