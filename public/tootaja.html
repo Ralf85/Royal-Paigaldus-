@@ -421,16 +421,14 @@
       // EDGF kulu selle kuu
       var edgfSumma = 0;
       try {
-        if (onEdgf) {
-          var edgfResp = await api('/api/edgf/minu');
-          if (edgfResp.ok && edgfResp.kulud) {
-            edgfResp.kulud.forEach(function(k) {
-              var d = new Date(k.kuupaev);
-              if (d.getMonth()+1 === aktiivsKuu && d.getFullYear() === aktiivsAasta) {
-                edgfSumma += parseFloat(k.summa);
-              }
-            });
-          }
+        var edgfResp = await api('/api/edgf/minu');
+        if (edgfResp.ok && edgfResp.kulud) {
+          edgfResp.kulud.forEach(function(k) {
+            var d = new Date(k.kuupaev);
+            if (d.getMonth()+1 === aktiivsKuu && d.getFullYear() === aktiivsAasta) {
+              edgfSumma += parseFloat(k.summa);
+            }
+          });
         }
       } catch(e) {}
 
