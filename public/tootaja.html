@@ -255,6 +255,36 @@
     </div>
   </div>
 
+  <!-- EDGF muutmise modal -->
+  <div id="edgfMuutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:250;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto">
+    <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px;padding:16px 20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-size:15px;font-weight:700;color:#a78bfa">✏️ Muuda kirjet</span>
+        <button onclick="sulgeEdgfMuuta()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <input type="hidden" id="edgf-muuta-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label>
+          <input type="date" id="edgf-muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kulu (€)</label>
+          <div id="edgf-muuta-summa-display" onclick="avaNumpadMuuta()" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;cursor:pointer;min-height:36px">
+            <span id="edgf-muuta-summa-tekst">0.00 €</span>
+          </div>
+          <input type="hidden" id="edgf-muuta-summa">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Tehtud tööd</label>
+        <input type="text" id="edgf-muuta-selgitus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px">
+      </div>
+      <button onclick="salvestaEdgfMuutus()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
+      <div id="edgf-muuta-teade" style="margin-top:8px;font-size:12px;display:none"></div>
+    </div>
+  </div>
+
   <!-- Merekohviku kalender modal -->
   <div class="modal-overlay" id="kalenderModal">
     <div class="modal-sisu">
@@ -764,6 +794,7 @@
           + (k.foto_url ? '<div style="margin-top:4px"><a href="' + k.foto_url + '" target="_blank" style="font-size:11px;color:#818cf8">&#128247; vaata tšekki</a></div>' : '')
           + '</div>'
           + '<div class="lk-summa" style="color:#a78bfa">+' + parseFloat(k.summa).toFixed(2) + ' €</div>'
+          + '<button class="lk-kustuta" onclick="avaEdgfMuuta(' + k.id + ',\'' + k.kuupaev.substring(0,10) + '\',' + parseFloat(k.summa) + ',\'' + k.selgitus.replace(/'/g,"\\'") + '\')" style="color:#818cf8;font-size:12px;padding:4px 6px">✏️</button>'
           + '<button class="lk-kustuta" onclick="kustutaEdgfKulu(' + k.id + ')">&#10005;</button>'
           + '</div>';
       }).join('')
@@ -777,6 +808,56 @@
       if (!confirm('Kustutad selle kulu?')) return;
       var r = await api('/api/edgf/' + id, { method: 'DELETE' });
       if (r.ok) { await laadiEdgfKulud(); await laadiEttevotted(); }
+    }
+
+    var numpadMuutaAktiivne = false;
+
+    function avaEdgfMuuta(id, kuupaev, summa, selgitus) {
+      document.getElementById('edgf-muuta-id').value = id;
+      document.getElementById('edgf-muuta-kuupaev').value = kuupaev;
+      document.getElementById('edgf-muuta-summa').value = summa;
+      document.getElementById('edgf-muuta-summa-tekst').textContent = parseFloat(summa).toFixed(2) + ' €';
+      document.getElementById('edgf-muuta-summa-display').style.borderColor = '#7c3aed';
+      document.getElementById('edgf-muuta-selgitus').value = selgitus;
+      document.getElementById('edgf-muuta-teade').style.display = 'none';
+      document.getElementById('edgfMuutaModal').style.display = 'flex';
+      numpadMuutaAktiivne = false;
+    }
+
+    function sulgeEdgfMuuta() {
+      document.getElementById('edgfMuutaModal').style.display = 'none';
+      numpadMuutaAktiivne = false;
+    }
+
+    function avaNumpadMuuta() {
+      numpadMuutaAktiivne = true;
+      numpadVaartus = document.getElementById('edgf-muuta-summa').value || '0';
+      document.getElementById('numpad-display').textContent = numpadVaartus;
+      document.getElementById('numpadModal').style.display = 'flex';
+    }
+
+    async function salvestaEdgfMuutus() {
+      var id = document.getElementById('edgf-muuta-id').value;
+      var kuupaev = document.getElementById('edgf-muuta-kuupaev').value;
+      var summa = document.getElementById('edgf-muuta-summa').value;
+      var selgitus = document.getElementById('edgf-muuta-selgitus').value;
+      var teade = document.getElementById('edgf-muuta-teade');
+      if (!kuupaev || !summa || !selgitus) {
+        teade.style.display = 'block'; teade.style.color = '#ef4444';
+        teade.textContent = 'Täida kõik väljad'; return;
+      }
+      var r = await api('/api/edgf/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({ kuupaev: kuupaev, summa: summa, selgitus: selgitus })
+      });
+      if (r.ok) {
+        sulgeEdgfMuuta();
+        await laadiEdgfKulud();
+        await laadiEttevotted();
+      } else {
+        teade.style.display = 'block'; teade.style.color = '#ef4444';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
     }
 
     // ── LAEKUMISED ──────────────────────────────────────────────
@@ -909,11 +990,18 @@
     function kinnitaNumpad() {
       var v = parseFloat(numpadVaartus);
       if (!isNaN(v) && v > 0) {
-        document.getElementById('edgf-summa').value = v;
-        document.getElementById('edgf-summa-tekst').textContent = v.toFixed(2) + ' €';
-        document.getElementById('edgf-summa-tekst').style.color = '#e2e8f0';
-        document.getElementById('edgf-summa-display').style.borderColor = '#7c3aed';
+        if (numpadMuutaAktiivne) {
+          document.getElementById('edgf-muuta-summa').value = v;
+          document.getElementById('edgf-muuta-summa-tekst').textContent = v.toFixed(2) + ' €';
+          document.getElementById('edgf-muuta-summa-display').style.borderColor = '#7c3aed';
+        } else {
+          document.getElementById('edgf-summa').value = v;
+          document.getElementById('edgf-summa-tekst').textContent = v.toFixed(2) + ' €';
+          document.getElementById('edgf-summa-tekst').style.color = '#e2e8f0';
+          document.getElementById('edgf-summa-display').style.borderColor = '#7c3aed';
+        }
       }
+      numpadMuutaAktiivne = false;
       sulgeNumpad();
     }
 
