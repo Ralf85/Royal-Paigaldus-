@@ -298,9 +298,13 @@ router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
 
 router.get('/kokkuvote', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
+  const kuupaevPiir = `${aasta}-${String(kuu).padStart(2, '0')}-01`;
+
   const workers = await pool.query('SELECT * FROM workers WHERE aktiivne=true ORDER BY nimi');
   const andmed = [];
+
   for (const w of workers.rows) {
+    // Jooksva kuu kirjed (kuvamiseks)
     const kirjed = await pool.query(
       `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
               e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp, COALESCE(o.nimi,'') as objekt_nimi,
@@ -318,33 +322,74 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
        ORDER BY t.kuupaev`,
       [w.id, aasta, kuu]
     );
+
     const tunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
     const teenitud = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
     const km_raha_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
     const lisakulu_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
-    // Lisa EDGF kulud
+
+    // Jooksva kuu EDGF kulud
     const edgfKulud = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM edgf_kulud
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
       [w.id, aasta, kuu]
     );
     const edgf_kokku = parseFloat(edgfKulud.rows[0].kokku);
-    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku;
+
+    // Jooksva kuu vabad lisakulud
+    const lisakulud = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM lisakulud
+       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
+      [w.id, aasta, kuu]
+    );
+    const vabad_lisakulud = parseFloat(lisakulud.rows[0].kokku);
+
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + vabad_lisakulud;
+
+    // Jooksva kuu maksed (kuvamiseks)
     const maksed = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
       [w.id, aasta, kuu]
     );
     const makstud = parseFloat(maksed.rows[0].kokku);
+
+    // ── KUMULATIIVNE SAADA VEEL ──────────────────────────────────
+    // Kõik teenitud kuni selle kuu lõpuni (kaasa arvatud)
+    const kogTeenitudRes = await pool.query(
+      `SELECT
+         COALESCE(SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0)), 0) +
+         COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
+       AS kokku
+       FROM tookirjed tk
+       LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
+       WHERE tk.worker_id=$1 AND tk.kuupaev < $2::date + INTERVAL '1 month'`,
+      [w.id, kuupaevPiir]
+    );
+
+    // Kõik maksed kuni selle kuu lõpuni (kaasa arvatud)
+    const kogMakstudRes = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
+       WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'`,
+      [w.id, kuupaevPiir]
+    );
+
+    const kogTeenitud = parseFloat(kogTeenitudRes.rows[0].kokku) || 0;
+    const kogMakstud = parseFloat(kogMakstudRes.rows[0].kokku) || 0;
+
     andmed.push({
-      nimi: w.nimi, tunnid: tunnid.toFixed(2),
+      nimi: w.nimi,
+      tunnid: tunnid.toFixed(2),
       teenitud: teenitud.toFixed(2),
       km_raha: km_raha_kokku.toFixed(2),
       lisakulu: lisakulu_kokku.toFixed(2),
       edgf: edgf_kokku.toFixed(2),
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
-      saadaVeel: (kogusumma - makstud).toFixed(2),
+      saadaVeel: (kogTeenitud - kogMakstud).toFixed(2),
       kirjed: kirjed.rows
     });
   }
