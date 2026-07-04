@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+
 function noudaSisslogimist(req, res, next) {
   if (!req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
   next();
 }
+
 // Töötaja ettevõtted (ainult talle määratud)
 router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
   try {
@@ -22,6 +24,7 @@ router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
     res.json([]);
   }
 });
+
 // Objektid ettevõtte järgi
 router.get('/objektid/:ettevoteId', async (req, res) => {
   try {
@@ -34,6 +37,7 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
     res.json([]);
   }
 });
+
 // Lisa töökirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
@@ -45,21 +49,25 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     let tunnid = minutid / 60;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     if (tunnid > 16) return res.json({ ok: false, veateade: 'Üle 16 tunni? Kontrolli kellaaegu' });
+
     const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
     if (tyyp === 'cramo' && tunnid >= 6) {
       tunnid = tunnid - 0.5;
     }
+
     const km = parseFloat(kilomeetrid) || 0;
     const km_raha = km > 0 ? (km / 100 * 12) : 0;
     const lisakulu = parseFloat(lisakulu_summa) || 0;
     const lisakulu_sel = lisakulu_selgitus || '';
+
     const result = await pool.query(
       `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
       [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel]
     );
     const kirjeId = result.rows[0].id;
+
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [req.session.workerId, 'LISA_TOOKIRJE', JSON.stringify({
@@ -67,12 +75,14 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
         tunnid: tunnid.toFixed(2), kommentaar
       }), req.ip]
     );
+
     res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), kirjeId, lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 // Kustuta töökirje
 router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
   try {
@@ -86,11 +96,13 @@ router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
     );
     if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
     const k = kirje.rows[0];
+
     const r = await pool.query(
       `DELETE FROM tookirjed WHERE id=$1 AND worker_id=$2 RETURNING id`,
       [req.params.id, req.session.workerId]
     );
     if (r.rowCount === 0) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [req.session.workerId, 'KUSTUTA_TOOKIRJE', JSON.stringify({
@@ -104,6 +116,7 @@ router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 // Kuu kokkuvõte
 router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
@@ -125,13 +138,16 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
        ORDER BY t.kuupaev, t.algus`,
       [wid, aasta, kuu]
     );
+
+    // Jooksva kuu teenitud summa
     let teenitud = 0;
     kirjed.rows.forEach(k => {
       teenitud += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
       teenitud += parseFloat(k.km_raha || 0);
       teenitud += parseFloat(k.lisakulu_summa || 0);
     });
-    // Lisa vabad lisakulud
+
+    // Jooksva kuu vabad lisakulud
     const lisakulud = await pool.query(
       `SELECT * FROM lisakulud
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3
@@ -141,7 +157,8 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     lisakulud.rows.forEach(l => {
       teenitud += parseFloat(l.summa);
     });
-    // Lisa EDGF kulud
+
+    // Jooksva kuu EDGF kulud
     const edgfKulud = await pool.query(
       `SELECT * FROM edgf_kulud
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
@@ -150,13 +167,45 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     edgfKulud.rows.forEach(e => {
       teenitud += parseFloat(e.summa);
     });
+
     const kogutunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
+
+    // Jooksva kuu maksed (kuvamiseks)
     const maksed = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
        WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
       [wid, aasta, kuu]
     );
     const makstud = parseFloat(maksed.rows[0].kokku);
+
+    // ── KUMULATIIVNE SAADA VEEL ──────────────────────────────────
+    // Kõik teenitud kuni selle kuu lõpuni (kaasa arvatud)
+    const kuupaevPiir = `${aasta}-${String(kuu).padStart(2, '0')}-01`;
+
+    const kogTeenitudRes = await pool.query(
+      `SELECT
+         COALESCE(SUM(tk.tunnid * COALESCE(we.tunnitasu, 0)), 0) +
+         COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
+       AS kokku
+       FROM tookirjed tk
+       LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
+       WHERE tk.worker_id=$1 AND tk.kuupaev < $2::date + INTERVAL '1 month'`,
+      [wid, kuupaevPiir]
+    );
+
+    // Kõik maksed kuni selle kuu lõpuni (kaasa arvatud)
+    const kogMakstudRes = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
+       WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'`,
+      [wid, kuupaevPiir]
+    );
+
+    const kogTeenitud = parseFloat(kogTeenitudRes.rows[0].kokku) || 0;
+    const kogMakstud = parseFloat(kogMakstudRes.rows[0].kokku) || 0;
+
     res.json({
       ok: true,
       kirjed: kirjed.rows,
@@ -165,13 +214,14 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
       kogutunnid: kogutunnid.toFixed(2),
       teenitud: teenitud.toFixed(2),
       makstud: makstud.toFixed(2),
-      saadaVeel: (teenitud - makstud).toFixed(2)
+      saadaVeel: (kogTeenitud - kogMakstud).toFixed(2)
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 // Tulevased tööd
 router.get('/tulevased', noudaSisslogimist, async (req, res) => {
   try {
@@ -190,6 +240,7 @@ router.get('/tulevased', noudaSisslogimist, async (req, res) => {
     res.json([]);
   }
 });
+
 // ── VABAD LISAKULUD ─────────────────────────────────────────────
 router.post('/lisakulu/lisa', noudaSisslogimist, async (req, res) => {
   const { kuupaev, summa, selgitus } = req.body;
@@ -211,6 +262,7 @@ router.post('/lisakulu/lisa', noudaSisslogimist, async (req, res) => {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 router.get('/lisakulu/kuu', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
   try {
@@ -225,6 +277,7 @@ router.get('/lisakulu/kuu', noudaSisslogimist, async (req, res) => {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query(
@@ -237,4 +290,5 @@ router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+
 module.exports = router;
