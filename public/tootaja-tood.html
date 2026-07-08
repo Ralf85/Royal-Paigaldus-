@@ -3,688 +3,368 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Royal Paigaldus — Lisa töökirje</title>
+  <title>Töökirjed</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #94a3b8; --text3: #555; }
-    body.hele { --bg: #f4f5f7; --bg2: #ffffff; --bg3: #e8eaed; --border: rgba(0,0,0,0.08); --text: #1a1a2e; --text2: #444; --text3: #888; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.2s, color 0.2s; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 100; }
+    .topbar-back { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    .topbar-back:hover { border-color: #c9a84c; color: #c9a84c; }
+    .topbar-title { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .topbar-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; }
+    .badge-lidl { background: #FFF200; color: #002060; }
+    .badge-cramo { background: #CD2200; color: #fff; }
+    .badge-muu { background: #0369a1; color: #fff; }
+    .badge-merekohvik { background: #065f46; color: #4ade80; }
+    .badge-edgf { background: #4c1d95; color: #a78bfa; }
+    .leht { max-width: 520px; margin: 0 auto; padding: 20px 16px 40px; }
+    .lisa-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 20px; }
+    .lisa-hdr { padding: 13px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.05); font-size: 13px; font-weight: 600; color: #d0d0d0; display: flex; align-items: center; gap: 8px; }
+    .lisa-body { padding: 14px 16px; }
+    .vorm-rida { display: grid; gap: 10px; margin-bottom: 12px; }
+    .vorm-rida.col2 { grid-template-columns: 1fr 1fr; }
+    .vorm-rida.col3 { grid-template-columns: 1fr 1fr 1fr; }
+    .vorm-grupp label { font-size: 11px; color: #555; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .vorm-grupp input, .vorm-grupp select, .vorm-grupp textarea { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
+    .vorm-grupp input:focus, .vorm-grupp select:focus { outline: none; border-color: #c9a84c; }
+    .lisa-nupp { background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .lisa-nupp:hover { background: #e0b84e; }
+    .lisa-nupp:disabled { opacity: 0.5; cursor: not-allowed; }
+    .teade { font-size: 12px; margin-top: 8px; display: none; padding: 8px 12px; border-radius: 6px; }
+    .teade.ok { background: #14532d; color: #86efac; }
+    .teade.viga { background: #7f1d1d; color: #fca5a5; }
+    .kirjed-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .kirjed-pealkiri { font-size: 13px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+    .kirjed-kokku { font-size: 13px; color: #c9a84c; font-weight: 700; }
+    .kirje-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 13px 14px; margin-bottom: 10px; }
+    .kirje-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .kirje-kp { min-width: 42px; background: #1e2128; border-radius: 8px; padding: 6px 4px; text-align: center; }
+    .kirje-kp-paev { font-size: 17px; font-weight: 700; color: #fff; line-height: 1; }
+    .kirje-kp-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .kirje-info { flex: 1; }
+    .kirje-objekt { font-size: 13px; color: #d0d0d0; font-weight: 500; }
+    .kirje-aeg { font-size: 11px; color: #505560; margin-top: 2px; }
+    .kirje-tunnid { font-size: 17px; font-weight: 700; color: #c9a84c; }
+    .kirje-details { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .kirje-tag { font-size: 11px; background: #1e2128; border-radius: 4px; padding: 3px 8px; color: #666; }
+    .kirje-tag.km { color: #60a5fa; }
+    .kirje-tag.lisakulu { color: #fb923c; }
+    .kirje-tag.komm { color: #888; font-style: italic; }
+    .kirje-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid rgba(255,255,255,0.04); }
+    .muuda-nupp { flex: 1; background: #1a2840; border: 0.5px solid #1e3a5f; border-radius: 8px; padding: 7px; font-size: 12px; color: #60a5fa; cursor: pointer; font-weight: 600; }
+    .muuda-nupp:hover { background: #1e3a5f; }
+    .kustuta-nupp { background: #1a0a0a; border: 0.5px solid #3d0a0a; border-radius: 8px; padding: 7px 14px; font-size: 12px; color: #ef4444; cursor: pointer; font-weight: 600; }
+    .kustuta-nupp:hover { background: #3d0a0a; }
+    .tyhi { padding: 40px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
+    .kokku-kaart { background: #13161c; border: 0.5px solid rgba(201,168,76,0.2); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .kokku-label { font-size: 12px; color: #666; }
+    .kokku-val { font-size: 22px; font-weight: 700; color: #c9a84c; }
 
-    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #c9a84c, #f0d080); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-    .brand-name { font-size: 13px; font-weight: 700; color: #c9a84c; }
-    .brand-sub { font-size: 10px; color: #555; }
-    .tagasi-nupp { font-size: 12px; color: #64748b; background: none; border: 0.5px solid #252830; border-radius: 6px; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
-    .tagasi-nupp:hover { border-color: #c9a84c; color: #c9a84c; }
-
-    .leht { max-width: 520px; margin: 0 auto; padding: 24px 16px 60px; }
-
-    /* Ettevõte valik */
-    .sekts { margin-bottom: 20px; }
-    .sekts-pealkiri { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #3a3d45; margin-bottom: 10px; }
-
-    .emp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .emp-btn { border-radius: 12px; padding: 16px 12px; cursor: pointer; text-align: center; border: 1.5px solid transparent; transition: all 0.15s; background: #13161c; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    .emp-btn:hover { transform: translateY(-2px); }
-    .emp-btn.valitud { transform: translateY(-2px); }
-    .emp-btn.lidl { border-color: #003d99; }
-    .emp-btn.lidl.valitud { background: #002060; border-color: #4488ff; box-shadow: 0 0 0 2px rgba(68,136,255,0.2); }
-    .emp-btn.cramo { border-color: #3a0d07; }
-    .emp-btn.cramo.valitud { background: #180604; border-color: #ff4433; box-shadow: 0 0 0 2px rgba(255,68,51,0.2); }
-    .emp-btn.muu { border-color: #1a2d40; }
-    .emp-btn.muu.valitud { background: #0e1824; border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,0.15); }
-    .emp-btn.merekohvik { border-color: #1a3020; }
-    .emp-btn.merekohvik.valitud { background: #0a1a10; border-color: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,0.15); }
-    .emp-logo { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
-    .emp-logo.lidl { background: #FFF200; color: #0050AA; }
-    .emp-logo.cramo { background: #CD2200; color: #fff; border-radius: 9px; }
-    .emp-logo.muu { background: #1a3550; color: #38bdf8; border-radius: 9px; font-size: 14px; }
-    .emp-logo.merekohvik { background: #0d2d1a; color: #4ade80; border-radius: 9px; font-size: 14px; }
-    .emp-nimi { font-size: 12px; font-weight: 700; }
-    .emp-nimi.lidl { color: #FFF200; }
-    .emp-nimi.cramo { color: #ff6b50; }
-    .emp-nimi.muu { color: #38bdf8; }
-    .emp-nimi.merekohvik { color: #4ade80; }
-    .emp-tunnitasu { font-size: 11px; color: #444; }
-
-    /* Objekt valik */
-    .valik-grupp { margin-bottom: 16px; }
-    .valik-label { font-size: 12px; color: #64748b; margin-bottom: 6px; display: block; }
-    select, input[type=text], input[type=date], input[type=number], textarea {
-      width: 100%; background: #13161c; border: 0.5px solid #252830; border-radius: 10px;
-      padding: 12px 14px; font-size: 14px; color: #e2e8f0; outline: none;
-      font-family: inherit;
-    }
-    select:focus, input:focus, textarea:focus { border-color: #c9a84c; }
-    textarea { resize: vertical; min-height: 80px; }
-
-    /* Kellaaeg */
-    .kell-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .kell-valik { position: relative; }
-    .kell-valik input { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: 2px; padding: 14px; }
-    .kell-label-small { font-size: 10px; color: #444; text-align: center; margin-top: 4px; }
-
-    /* Tunnid display */
-    .tunnid-display { background: #13161c; border: 0.5px solid #1e2128; border-radius: 10px; padding: 14px; text-align: center; margin-bottom: 16px; }
-    .tunnid-arv { font-size: 32px; font-weight: 700; color: #c9a84c; }
-    .tunnid-sub { font-size: 12px; color: #444; margin-top: 2px; }
-
-    /* KM sektsioon */
-    .km-sekts { background: #0c1520; border: 0.5px solid #1a3050; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .km-pealkiri { font-size: 12px; color: #4488ff; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-    .km-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .km-result { background: #0f2040; border-radius: 8px; padding: 10px 12px; text-align: center; }
-    .km-result-arv { font-size: 18px; font-weight: 700; color: #60a5fa; }
-    .km-result-sub { font-size: 10px; color: #3a5070; margin-top: 2px; }
-
-    /* Lisa nupp */
-    .lisa-nupp { width: 100%; background: linear-gradient(135deg, #c9a84c, #e0b84e); color: #0d0f13; border: none; border-radius: 12px; padding: 16px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .lisa-nupp:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(201,168,76,0.3); }
-    .lisa-nupp:active { transform: translateY(0); }
-    .lisa-nupp:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-    /* Tänased kirjed */
-    .kirjed-nimekiri { margin-top: 24px; }
-    .kirje-rida { background: #13161c; border: 0.5px solid rgba(255,255,255,0.05); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-    .kirje-vasak { flex: 1; }
-    .kirje-firma { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; margin-right: 6px; }
-    .kirje-firma.lidl { background: #FFF200; color: #002060; }
-    .kirje-firma.cramo { background: #CD2200; color: #fff; }
-    .kirje-firma.muu { background: #0369a1; color: #fff; }
-    .kirje-firma.merekohvik { background: #065f46; color: #4ade80; }
-    .kirje-aeg { font-size: 13px; color: #d0d0d0; margin-top: 3px; }
-    .kirje-komm { font-size: 11px; color: #505560; margin-top: 2px; font-style: italic; }
-    .kirje-tunnid { font-size: 18px; font-weight: 700; color: #c9a84c; margin-left: 12px; }
-    .kustuta-btn { background: #2d0a0a; border: 0.5px solid #4a1010; color: #ef4444; border-radius: 7px; padding: 6px 10px; font-size: 13px; cursor: pointer; margin-left: 10px; }
-    .kustuta-btn:hover { background: #3d1010; }
-
-    .teade { border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-bottom: 14px; display: none; }
-    .teade.ok { background: #0d2d1a; border: 0.5px solid #1a4d2a; color: #4ade80; }
-    .teade.viga { background: #2d0a0a; border: 0.5px solid #4a1010; color: #f87171; }
-
-    .tyhi { padding: 20px; text-align: center; color: #3a3d45; font-size: 13px; }
-
-    /* Kuupäev */
-    input[type=date] { color-scheme: dark; }
-    /* Kalender */
-    .kal-paev { text-align:center; font-size:14px; padding:7px 4px; border-radius:8px; cursor:pointer; color:#e2e8f0; transition:all 0.1s; }
-    .kal-paev:hover { background:#1e2128; }
-    .kal-paev.taana { border:1.5px solid #c9a84c; color:#c9a84c; font-weight:700; }
-    .kal-paev.valitud { background:#c9a84c !important; color:#0d0f13 !important; font-weight:700; }
-    .kal-paev.tookirjega { background:#2d1f0a; color:#f0a040; font-weight:600; }
-    .kal-paev.teine-kuu { color:#333; cursor:default; }
+    /* Muutmise modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: flex-start; justify-content: center; padding: 20px 16px; overflow-y: auto; }
+    .modal-overlay.avatud { display: flex; }
+    .modal-sisu { background: #13161c; border: 0.5px solid rgba(255,255,255,0.08); border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; margin-top: 20px; }
+    .modal-hdr { padding: 16px 20px; border-bottom: 0.5px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
+    .modal-hdr-tekst { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+    .modal-sulge { background: none; border: none; color: #555; font-size: 22px; cursor: pointer; }
+    .modal-sulge:hover { color: #aaa; }
+    .modal-body { padding: 16px 20px 20px; }
+    .salvesta-nupp { width: 100%; background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+    .salvesta-nupp:hover { background: #e0b84e; }
+    .salvesta-nupp:disabled { opacity: 0.5; }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <div class="brand">
-      <div class="brand-logo">👑</div>
-      <div><div class="brand-name">ROYAL PAIGALDUS</div><div class="brand-sub">Tööpäevik</div></div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:#aaa">☀️</button>
-      <button class="tagasi-nupp" onclick="window.location='/tootaja'">← Tagasi</button>
+    <button class="topbar-back" onclick="history.back()">← Tagasi</button>
+    <span class="topbar-badge" id="ettevoteBadge"></span>
+    <span class="topbar-title" id="ettevoteNimi">Töökirjed</span>
+  </div>
+
+  <!-- Muutmise modal -->
+  <div class="modal-overlay" id="muutaModal">
+    <div class="modal-sisu">
+      <div class="modal-hdr">
+        <span class="modal-hdr-tekst">✏️ Muuda töökirjet</span>
+        <button class="modal-sulge" onclick="sulgeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="muuta-id">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="muuta-kuupaev" style="color-scheme:dark"></div>
+          <div class="vorm-grupp"><label>Objekt</label><input type="text" id="muuta-objekt" readonly style="color:#555"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Algus</label><input type="time" id="muuta-algus"></div>
+          <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="muuta-lopp"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kilomeetrid</label><input type="number" id="muuta-km" placeholder="0" min="0" step="1"></div>
+          <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="muuta-lisakulu" placeholder="0.00" min="0" step="0.01"></div>
+        </div>
+        <div class="vorm-rida" id="muuta-lisakulu-sel-rida">
+          <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="muuta-lisakulu-sel" placeholder="nt. sõidukulud"></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="muuta-komm" placeholder="vabatahtlik"></div>
+        </div>
+        <button class="salvesta-nupp" id="muuta-salvesta-nupp" onclick="salvestaMuutus()">Salvesta muutused</button>
+        <div class="teade" id="muuta-teade"></div>
+      </div>
     </div>
   </div>
 
   <div class="leht">
-    <div class="teade ok" id="teade-ok"></div>
-    <div class="teade viga" id="teade-viga"></div>
-
-    <!-- 1. Ettevõte valik -->
-    <div class="sekts">
-      <div class="sekts-pealkiri">Vali projekt</div>
-      <div class="emp-grid" id="ettevotteGrid">
-        <div style="color:#555;font-size:13px;padding:16px;grid-column:1/-1">Laadimine...</div>
-      </div>
-    </div>
-
-    <!-- 2. Objekt (ainult LIDL puhul) -->
-    <div class="valik-grupp" id="objektRida" style="display:none">
-      <label class="valik-label">Objekt</label>
-      <select id="objektValik">
-        <option value="">— Pole määratud —</option>
-      </select>
-    </div>
-
-    <!-- 3. Kuupäev -->
-    <div class="valik-grupp">
-      <label class="valik-label">Kuupäev</label>
-      <div id="kalenderWrapper">
-        <div id="kalenderNupp" onclick="toggleKalender()" style="background:#13161c;border:0.5px solid #252830;border-radius:10px;padding:12px 14px;font-size:14px;color:#e2e8f0;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-          <span id="kalenderTekst">Laadimine...</span>
-          <span style="color:#555">📅</span>
-        </div>
-        <div id="kalenderPanel" style="display:none;background:#13161c;border:0.5px solid #252830;border-radius:12px;padding:16px;margin-top:6px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <button onclick="kalenderKuu(-1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:4px 10px">‹</button>
-            <span id="kalenderKuuNimi" style="font-size:14px;font-weight:600;color:#e2e8f0"></span>
-            <button onclick="kalenderKuu(1)" style="background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:4px 10px">›</button>
+    <!-- Lisa uus kirje -->
+    <div class="lisa-kaart">
+      <div class="lisa-hdr">➕ Lisa töökirje</div>
+      <div class="lisa-body">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="kuupaev" style="color-scheme:dark"></div>
+          <div class="vorm-grupp" id="objekt-grupp" style="display:none"><label>Objekt</label>
+            <select id="objekt"><option value="">— Vali objekt —</option></select>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">E</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">T</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">K</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">N</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">R</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">L</div>
-            <div style="text-align:center;font-size:10px;color:#555;padding:4px">P</div>
-          </div>
-          <div id="kalenderPaevad" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
         </div>
-      </div>
-      <input type="hidden" id="kuupaev">
-    </div>
-
-    <!-- 4. Kellaaeg -->
-    <div class="sekts">
-      <div class="sekts-pealkiri">Tööaeg</div>
-      <div class="kell-grid">
-        <div class="kell-valik">
-          <input type="time" id="algus" value="08:00" oninput="arvutaTunnid()">
-          <div class="kell-label-small">Algus</div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Algus</label><input type="time" id="algus" value="08:00"></div>
+          <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="lopp" value="17:00"></div>
         </div>
-        <div class="kell-valik">
-          <input type="time" id="lopp" value="17:00" oninput="arvutaTunnid()">
-          <div class="kell-label-small">Lõpp</div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kilomeetrid</label><input type="number" id="km" placeholder="0" min="0" step="1" value="0"></div>
+          <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="lisakulu" placeholder="0.00" min="0" step="0.01" value="0"></div>
         </div>
+        <div class="vorm-rida" id="lisakulu-sel-rida" style="display:none">
+          <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="lisakulu-sel" placeholder="nt. sõidukulud, tööriistad..."></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="kommentaar" placeholder="vabatahtlik"></div>
+        </div>
+        <button class="lisa-nupp" id="lisa-nupp" onclick="lisaKirje()">Salvesta kirje</button>
+        <div class="teade" id="lisa-teade"></div>
       </div>
     </div>
 
-    <!-- 5. Tunnid display -->
-    <div class="tunnid-display">
-      <div class="tunnid-arv" id="tunnidArv">9.0 h</div>
-      <div class="tunnid-sub" id="tunnidSub">töötundi</div>
+    <!-- Kirjete nimekiri -->
+    <div class="kirjed-hdr">
+      <span class="kirjed-pealkiri">Selle kuu kirjed</span>
+      <span class="kirjed-kokku" id="kirjed-kokku"></span>
     </div>
-
-    <!-- 6. KM (ainult LIDL puhul) -->
-    <div class="km-sekts" id="kmSekts" style="display:none">
-      <div class="km-pealkiri">🚗 Sõidupäevik (LIDL)</div>
-      <div class="km-grid">
-        <div class="valik-grupp" style="margin:0">
-          <label class="valik-label">Kilomeetrid (edasi-tagasi)</label>
-          <input type="number" id="kilomeetrid" placeholder="0" min="0" step="1" oninput="arvutaKm()">
-        </div>
-        <div class="km-result">
-          <div class="km-result-arv" id="kmRaha">0.00 €</div>
-          <div class="km-result-sub">sõiduraha (12€/100km)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 7. Kommentaar -->
-    <div class="valik-grupp">
-      <label class="valik-label">Töökirjeldus (vabatahtlik)</label>
-      <textarea id="kommentaar" placeholder="nt. ladu, riiulite paigaldus, ülevaatus..."></textarea>
-    </div>
-
-    <!-- 8. Lisakulu -->
-    <div class="km-sekts" style="background:#1a1208;border-color:#3a2a10;margin-bottom:16px">
-      <div class="km-pealkiri" style="color:#f0b84e">💸 Lisakulu (vabatahtlik)</div>
-      <div class="km-grid">
-        <div class="valik-grupp" style="margin:0">
-          <label class="valik-label">Summa (€)</label>
-          <input type="number" id="lisakulu_summa" placeholder="0.00" min="0" step="0.01">
-        </div>
-        <div class="valik-grupp" style="margin:0">
-          <label class="valik-label">Selgitus</label>
-          <input type="text" id="lisakulu_selgitus" placeholder="nt. Bolt Drive, parkimine...">
-        </div>
-      </div>
-    </div>
-
-    <!-- Lisa nupp -->
-    <button class="lisa-nupp" id="lisaNupp" onclick="lisaKirje()" disabled>
-      ➕ Lisa töökirje
-    </button>
-
-    <!-- Pildi upload (LIDL puhul pärast salvestamist) -->
-    <div id="piltdeUploadSekts" style="display:none;margin-top:12px">
-      <div style="background:#0c1520;border:0.5px solid #1a3050;border-radius:12px;padding:16px">
-        <div style="font-size:12px;color:#4488ff;font-weight:600;margin-bottom:12px">📸 Lisa töö fotod (kuni 12)</div>
-        <label for="piltdeInput" style="display:block;background:#13161c;border:1.5px dashed #1a3050;border-radius:10px;padding:20px;text-align:center;cursor:pointer;color:#555;font-size:13px">
-          <span id="piltdeLabelTekst">📷 Klõpsa et valida fotod</span>
-        </label>
-        <input type="file" id="piltdeInput" multiple accept="image/*" style="display:none" onchange="eelvaatePildid(this)">
-        <div id="piltdeEelvaade" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px"></div>
-        <button id="piltdeUploadNupp" onclick="laadiFotodUles()" style="display:none;margin-top:10px;width:100%;background:#4488ff;color:#fff;border:none;border-radius:8px;padding:12px;font-size:13px;font-weight:600;cursor:pointer">
-          ⬆ Laadi fotod üles
-        </button>
-        <div id="piltdeTeade" style="margin-top:8px;font-size:12px;color:#4ade80;display:none"></div>
-      </div>
-    </div>
-
-    <!-- Tänased kirjed -->
-    <div class="kirjed-nimekiri">
-      <div class="sekts-pealkiri" style="margin-top:8px">Tänased kirjed</div>
-      <div id="kirjedSisu"><div class="tyhi">Täna pole kirjeid lisatud</div></div>
-    </div>
+    <div id="kirjed-sisu"><div class="tyhi">Laadimine...</div></div>
   </div>
 
   <script>
-    const TOKEN = localStorage.getItem('workerToken') || '';
-    const KUUD_NIMED = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
-    let valitudEttevote = null;
-    let ettevotted = [];
-    let kalenderKuupäev = new Date(); // aktiivne kuu kalendris
-    let valitudKuupäev = new Date(); // valitud kuupäev
-    let tookirjeKuupäevad = new Set(); // kuupäevad kus on kirjeid
+    var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    var TOKEN = localStorage.getItem('workerToken') || '';
+    var ettevoteId = null;
+    var etteVoteTyyp = '';
 
-    function kuupaevISO(d) {
-      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }
-
-    function toggleKalender() {
-      const p = document.getElementById('kalenderPanel');
-      p.style.display = p.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function kalenderKuu(suund) {
-      kalenderKuupäev = new Date(kalenderKuupäev.getFullYear(), kalenderKuupäev.getMonth() + suund, 1);
-      joonistаKalender();
-    }
-
-    async function laadiTookirjeKuupäevad() {
-      const t = new Date();
-      // Laadi praeguse ja eelmise kuu kirjed
-      for (let i = 0; i <= 1; i++) {
-        const kuu = t.getMonth() + 1 - i;
-        const aasta = kuu <= 0 ? t.getFullYear() - 1 : t.getFullYear();
-        const kuu2 = kuu <= 0 ? kuu + 12 : kuu;
-        try {
-          const v = await api(`/api/tood/kokkuvote?aasta=${aasta}&kuu=${kuu2}`);
-          if (v.ok && v.kirjed) {
-            v.kirjed.forEach(k => tookirjeKuupäevad.add(k.kuupaev.split('T')[0]));
-          }
-        } catch(e) {}
-      }
-      joonistаKalender();
-    }
-
-    function joonistаKalender() {
-      const aasta = kalenderKuupäev.getFullYear();
-      const kuu = kalenderKuupäev.getMonth();
-      document.getElementById('kalenderKuuNimi').textContent = KUUD_NIMED[kuu] + ' ' + aasta;
-
-      const taana = new Date();
-      const tanaISO = kuupaevISO(taana);
-      const valitudISO = kuupaevISO(valitudKuupäev);
-
-      // Kuu esimene päev ja selle nädalapäev (0=E, 6=P)
-      const esimene = new Date(aasta, kuu, 1);
-      let algusNädalapäev = esimene.getDay(); // 0=P, 1=E...
-      algusNädalapäev = algusNädalapäev === 0 ? 6 : algusNädalapäev - 1; // teisenda E=0
-
-      const viimane = new Date(aasta, kuu + 1, 0).getDate();
-      const div = document.getElementById('kalenderPaevad');
-      let html = '';
-
-      // Eelmise kuu päevad
-      for (let i = algusNädalapäev - 1; i >= 0; i--) {
-        const ep = new Date(aasta, kuu, -i);
-        html += `<div class="kal-paev teine-kuu">${ep.getDate()}</div>`;
-      }
-
-      // Selle kuu päevad
-      for (let p = 1; p <= viimane; p++) {
-        const d = new Date(aasta, kuu, p);
-        const iso = kuupaevISO(d);
-        let klass = 'kal-paev';
-        if (iso === tanaISO) klass += ' taana';
-        if (iso === valitudISO) klass += ' valitud';
-        if (tookirjeKuupäevad.has(iso)) klass += ' tookirjega';
-        html += `<div class="${klass}" onclick="valiKuupaev('${iso}')">${p}</div>`;
-      }
-
-      // Järgmise kuu päevad
-      const lõppNädalapäev = new Date(aasta, kuu, viimane).getDay();
-      const puudu = lõppNädalapäev === 0 ? 0 : 7 - lõppNädalapäev;
-      for (let i = 1; i <= puudu; i++) {
-        html += `<div class="kal-paev teine-kuu">${i}</div>`;
-      }
-
-      div.innerHTML = html;
-    }
-
-    function valiKuupaev(iso) {
-      valitudKuupäev = new Date(iso + 'T12:00:00');
-      document.getElementById('kuupaev').value = iso;
-      const d = valitudKuupäev;
-      document.getElementById('kalenderTekst').textContent =
-        `${d.getDate()}. ${KUUD_NIMED[d.getMonth()]} ${d.getFullYear()}`;
-      document.getElementById('kalenderPanel').style.display = 'none';
-      joonistаKalender();
-    }
-
-    async function api(url, opts={}) {
+    function api(url, opts) {
+      opts = opts || {};
       opts.headers = opts.headers || {};
       opts.headers['x-session-token'] = TOKEN;
-      opts.headers['Content-Type'] = 'application/json';
-      return fetch(url, opts).then(r => r.json());
+      if (!(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
+      return fetch(url, opts).then(function(r) { return r.json(); });
     }
 
     async function init() {
       if (!TOKEN) { window.location = '/'; return; }
-      const s = await api('/api/auth/sessioon');
+      var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
 
-      // Initsialiseeri kalender tänase kuupäevaga
-      const t = new Date();
-      valitudKuupäev = new Date(t);
-      kalenderKuupäev = new Date(t);
-      const tanaISO = kuupaevISO(t);
-      document.getElementById('kuupaev').value = tanaISO;
-      document.getElementById('kalenderTekst').textContent =
-        `${t.getDate()}. ${KUUD_NIMED[t.getMonth()]} ${t.getFullYear()}`;
-      joonistаKalender();
-      laadiTookirjeKuupäevad(); // laadi oranžid päevad taustal
+      var params = new URLSearchParams(window.location.search);
+      ettevoteId = params.get('ettevote');
+      if (!ettevoteId) { window.location = '/tootaja'; return; }
 
-      // Laadi ettevõtted
-      ettevotted = await api('/api/tood/minu-ettevotted');
-      ehitaEttevotteGrid();
+      var t = new Date();
+      document.getElementById('kuupaev').value = t.toISOString().split('T')[0];
 
-      // Vaata kas URL-is on ettevõte
-      const params = new URLSearchParams(window.location.search);
-      const eId = params.get('ettevote');
-      if (eId) {
-        const leitud = ettevotted.find(e => e.id == eId);
-        if (leitud) valiEttevote(leitud);
+      // Lae ettevõtted
+      var ettevotted = await api('/api/tood/minu-ettevotted');
+      var ettevote = ettevotted.find(function(e) { return String(e.id) === String(ettevoteId); });
+      if (!ettevote) { window.location = '/tootaja'; return; }
+
+      etteVoteTyyp = (ettevote.tyyp || 'muu').toLowerCase();
+      document.getElementById('ettevoteNimi').textContent = ettevote.nimi;
+      var badge = document.getElementById('ettevoteBadge');
+      badge.textContent = ettevote.nimi;
+      badge.className = 'topbar-badge badge-' + etteVoteTyyp;
+
+      // Lae objektid
+      var objektid = await api('/api/tood/objektid/' + ettevoteId);
+      if (Array.isArray(objektid) && objektid.length) {
+        var sel = document.getElementById('objekt');
+        objektid.forEach(function(o) {
+          var opt = document.createElement('option');
+          opt.value = o.id; opt.textContent = o.nimi;
+          sel.appendChild(opt);
+        });
+        document.getElementById('objekt-grupp').style.display = 'block';
       }
 
-      arvutaTunnid();
-      await laadiTanaKirjed();
-    }
-
-    function ehitaEttevotteGrid() {
-      const grid = document.getElementById('ettevotteGrid');
-      if (!ettevotted.length) {
-        grid.innerHTML = '<div style="color:#555;font-size:13px;padding:16px;grid-column:1/-1">Ühtegi projekti pole määratud</div>';
-        return;
-      }
-      grid.innerHTML = ettevotted.map(e => {
-        const tyyp = (e.tyyp || 'muu').toLowerCase();
-        const logoHTML = tyyp === 'lidl'
-          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="18" cy="18" r="18" fill="#FFF200"/>
-              <text x="18" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#0050AA" font-family="Arial">LIDL</text>
-              <circle cx="18" cy="22" r="6" fill="none" stroke="#0050AA" stroke-width="1.5"/>
-              <circle cx="18" cy="22" r="3.5" fill="#CD2200"/>
-            </svg>`
-          : tyyp === 'cramo'
-          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <rect width="36" height="36" rx="8" fill="#CD2200"/>
-              <text x="18" y="23" text-anchor="middle" font-size="13" font-weight="900" fill="white" font-family="Arial">CR</text>
-            </svg>`
-          : tyyp === 'merekohvik'
-          ? `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <rect width="36" height="36" rx="8" fill="#0d2d1a"/>
-              <path d="M4 26 Q18 8 32 26" stroke="#4ade80" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-              <path d="M8 26 Q18 12 28 26" stroke="#4ade80" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.4"/>
-            </svg>`
-          : `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <rect width="36" height="36" rx="8" fill="#1a3550"/>
-              <text x="18" y="24" text-anchor="middle" font-size="20" font-family="Arial">🔨</text>
-            </svg>`;
-        return `<div class="emp-btn ${tyyp}" id="emp-${e.id}" onclick="valiEttevote(${JSON.stringify(e).replace(/"/g,'&quot;')})">
-          <div class="emp-logo ${tyyp}" style="background:none;border-radius:0;padding:0">${logoHTML}</div>
-          <div class="emp-nimi ${tyyp}">${e.nimi}</div>
-          <div class="emp-tunnitasu">${parseFloat(e.tunnitasu||0).toFixed(2)} €/h</div>
-        </div>`;
-      }).join('');
-    }
-
-    async function valiEttevote(e) {
-      valitudEttevote = e;
-      const tyyp = (e.tyyp || 'muu').toLowerCase();
-
-      // Visuaalne valik
-      document.querySelectorAll('.emp-btn').forEach(b => b.classList.remove('valitud'));
-      const btn = document.getElementById('emp-' + e.id);
-      if (btn) btn.classList.add('valitud');
-
-      // KM sekts ainult LIDL
-      document.getElementById('kmSekts').style.display = tyyp === 'lidl' ? 'block' : 'none';
-      document.getElementById('piltdeUploadSekts').style.display = 'none';
-      if (tyyp !== 'lidl') { document.getElementById('kilomeetrid').value = ''; arvutaKm(); }
-
-      // Objekt valik
-      const objektRida = document.getElementById('objektRida');
-      if (tyyp === 'lidl' || tyyp === 'cramo') {
-        objektRida.style.display = 'block';
-        await laadiObjektid(e.id);
-      } else {
-        objektRida.style.display = 'none';
-      }
-
-      document.getElementById('lisaNupp').disabled = false;
-      arvutaTunnid();
-    }
-
-    async function laadiObjektid(ettevoteId) {
-      const objektid = await api(`/api/tood/objektid/${ettevoteId}`);
-      const sel = document.getElementById('objektValik');
-      sel.innerHTML = '<option value="">— Pole määratud —</option>';
-      objektid.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o.id;
-        opt.textContent = o.nimi;
-        sel.appendChild(opt);
+      // Lisakulu selgitus
+      document.getElementById('lisakulu').addEventListener('input', function() {
+        document.getElementById('lisakulu-sel-rida').style.display = parseFloat(this.value) > 0 ? 'block' : 'none';
       });
-    }
 
-    function arvutaTunnid() {
-      const algus = document.getElementById('algus').value;
-      const lopp = document.getElementById('lopp').value;
-      const arv = document.getElementById('tunnidArv');
-      const sub = document.getElementById('tunnidSub');
-
-      if (!algus || !lopp) { arv.textContent = '—'; return; }
-
-      const [ah, am] = algus.split(':').map(Number);
-      const [lh, lm] = lopp.split(':').map(Number);
-      let min = (lh * 60 + lm) - (ah * 60 + am);
-
-      if (min < 0) {
-        // Öövahetus
-        arv.textContent = ((1440 + min) / 60).toFixed(1) + ' h';
-        sub.textContent = 'öövahetus';
-      } else if (min === 0) {
-        arv.textContent = '—';
-        sub.textContent = 'kontrolli kellaaegu';
-      } else {
-        arv.textContent = (min / 60).toFixed(1) + ' h';
-        sub.textContent = 'töötundi';
-      }
-    }
-
-    function arvutaKm() {
-      const km = parseFloat(document.getElementById('kilomeetrid').value) || 0;
-      const raha = km / 100 * 12;
-      document.getElementById('kmRaha').textContent = raha.toFixed(2) + ' €';
+      await laadiKirjed();
     }
 
     async function lisaKirje() {
-      if (!valitudEttevote) return;
+      var kuupaev = document.getElementById('kuupaev').value;
+      var algus = document.getElementById('algus').value;
+      var lopp = document.getElementById('lopp').value;
+      var km = document.getElementById('km').value || '0';
+      var lisakulu = document.getElementById('lisakulu').value || '0';
+      var lisakulu_sel = document.getElementById('lisakulu-sel').value;
+      var kommentaar = document.getElementById('kommentaar').value;
+      var objekt_id = document.getElementById('objekt').value || null;
+      var teade = document.getElementById('lisa-teade');
+      var nupp = document.getElementById('lisa-nupp');
 
-      const algus = document.getElementById('algus').value;
-      const lopp = document.getElementById('lopp').value;
-      const kuupaev = document.getElementById('kuupaev').value;
-      const kommentaar = document.getElementById('kommentaar').value;
-      const objekt_id = document.getElementById('objektValik').value || null;
-      const km = parseFloat(document.getElementById('kilomeetrid').value) || 0;
-      const lisakulu_summa = parseFloat(document.getElementById('lisakulu_summa').value) || 0;
-      const lisakulu_selgitus = document.getElementById('lisakulu_selgitus').value;
+      if (!kuupaev || !algus || !lopp) {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = 'Täida kuupäev, algus ja lõpp!'; return;
+      }
 
-      const nupp = document.getElementById('lisaNupp');
-      nupp.disabled = true;
-      nupp.textContent = 'Salvestamine...';
-
-      const vastus = await api('/api/tood/lisa', {
+      nupp.disabled = true; nupp.textContent = 'Salvestab...';
+      var r = await api('/api/tood/lisa', {
         method: 'POST',
-        body: JSON.stringify({
-          ettevote_id: valitudEttevote.id,
-          objekt_id,
-          kuupaev,
-          algus,
-          lopp,
-          kommentaar,
-          kilomeetrid: km,
-          lisakulu_summa,
-          lisakulu_selgitus
-        })
+        body: JSON.stringify({ ettevote_id: ettevoteId, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel })
       });
+      nupp.disabled = false; nupp.textContent = 'Salvesta kirje';
 
-      nupp.disabled = false;
-      nupp.innerHTML = '➕ Lisa töökirje';
-
-      if (vastus.ok) {
-        naita('ok', `✓ Lisatud! ${vastus.tunnid} tundi${vastus.km_raha > 0 ? ' + ' + parseFloat(vastus.km_raha).toFixed(2) + '€ sõiduraha' : ''}`);
+      if (r.ok) {
+        teade.className = 'teade ok'; teade.style.display = 'block';
+        teade.textContent = '✅ Kirje salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' (lõunapaus 30min maha arvestatud)' : '');
         document.getElementById('kommentaar').value = '';
-        document.getElementById('kilomeetrid').value = '';
-        document.getElementById('lisakulu_summa').value = '';
-        document.getElementById('lisakulu_selgitus').value = '';
-        arvutaKm();
-
-        // LIDL puhul näita foto upload sektsiooni
-        if (valitudEttevote && (valitudEttevote.tyyp || '').toLowerCase() === 'lidl' && vastus.kirjeId) {
-          viimaneKirjeId = vastus.kirjeId;
-          document.getElementById('piltdeUploadSekts').style.display = 'block';
-          document.getElementById('piltdeTeade').style.display = 'none';
-          document.getElementById('piltdeEelvaade').innerHTML = '';
-          document.getElementById('piltdeUploadNupp').style.display = 'none';
-          document.getElementById('piltdeLabelTekst').textContent = '📷 Klõpsa et valida fotod';
-        }
-
-        tookirjeKuupäevad.clear();
-        await laadiTookirjeKuupäevad();
-        await laadiTanaKirjed();
+        document.getElementById('km').value = '0';
+        document.getElementById('lisakulu').value = '0';
+        document.getElementById('lisakulu-sel').value = '';
+        document.getElementById('lisakulu-sel-rida').style.display = 'none';
+        await laadiKirjed();
+        setTimeout(function() { teade.style.display = 'none'; }, 5000);
       } else {
-        naita('viga', vastus.veateade || 'Viga salvestamisel');
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
       }
     }
 
-    async function laadiTanaKirjed() {
-      const t = new Date();
-      const vastus = await api(`/api/tood/kokkuvote?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
-      const div = document.getElementById('kirjedSisu');
-      const KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    async function laadiKirjed() {
+      var t = new Date();
+      var vastus = await api('/api/tood/kokkuvote?aasta=' + t.getFullYear() + '&kuu=' + (t.getMonth()+1));
+      var div = document.getElementById('kirjed-sisu');
+      var kirjedEl = document.getElementById('kirjed-kokku');
 
-      if (!vastus.ok || !vastus.kirjed || !vastus.kirjed.length) {
+      if (!vastus.ok || !vastus.kirjed) {
         div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        kirjedEl.textContent = '';
         return;
       }
 
-      div.innerHTML = vastus.kirjed.map(k => {
-        const d = new Date(k.kuupaev);
-        const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
-        const kmInfo = k.kilomeetrid > 0 ? ` · 🚗 ${k.kilomeetrid}km (${parseFloat(k.km_raha||0).toFixed(2)}€)` : '';
-        const lisakuluInfo = parseFloat(k.lisakulu_summa||0) > 0 ? ` · 💸 ${parseFloat(k.lisakulu_summa).toFixed(2)}€${k.lisakulu_selgitus ? ' ('+k.lisakulu_selgitus+')' : ''}` : '';
-        const kuupaevTekst = `${d.getDate()}. ${KUUD_LYHIKE[d.getMonth()]}`;
-        return `<div class="kirje-rida">
-          <div class="kirje-vasak">
-            <div><span class="kirje-firma ${tyyp}">${k.ettevote_nimi}</span> <span style="font-size:11px;color:#666">${kuupaevTekst}</span>${k.objekt_nimi ? `<span style="font-size:12px;color:#888"> · ${k.objekt_nimi}</span>` : ''}</div>
-            <div class="kirje-aeg">${k.algus} – ${k.lopp}${kmInfo}${lisakuluInfo}</div>
-            ${k.kommentaar ? `<div class="kirje-komm">${k.kommentaar}</div>` : ''}
-          </div>
-          <div style="display:flex;align-items:center">
-            <div class="kirje-tunnid">${parseFloat(k.tunnid).toFixed(1)}h</div>
-            <button class="kustuta-btn" onclick="kustutaKirje(${k.id})">🗑</button>
-          </div>
-        </div>`;
+      // Filtreeri ainult selle ettevõtte kirjed
+      var kirjed = vastus.kirjed.filter(function(k) { return String(k.ettevote_id) === String(ettevoteId); });
+
+      if (!kirjed.length) {
+        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        kirjedEl.textContent = '';
+        return;
+      }
+
+      var kokkuTunnid = kirjed.reduce(function(s, k) { return s + parseFloat(k.tunnid); }, 0);
+      kirjedEl.textContent = kokkuTunnid.toFixed(1) + ' h kokku';
+
+      div.innerHTML = kirjed.map(function(k) {
+        var d = new Date(k.kuupaev);
+        var km = parseFloat(k.kilomeetrid || 0);
+        var lisakulu = parseFloat(k.lisakulu_summa || 0);
+        var tags = '';
+        if (km > 0) tags += '<span class="kirje-tag km">🚗 ' + km + ' km · ' + (km/100*12).toFixed(2) + '€</span>';
+        if (lisakulu > 0) tags += '<span class="kirje-tag lisakulu">💸 ' + lisakulu.toFixed(2) + '€' + (k.lisakulu_selgitus ? ' · ' + k.lisakulu_selgitus : '') + '</span>';
+        if (k.kommentaar) tags += '<span class="kirje-tag komm">' + k.kommentaar + '</span>';
+        return '<div class="kirje-kaart">'
+          + '<div class="kirje-hdr">'
+          + '<div class="kirje-kp"><div class="kirje-kp-paev">' + d.getDate() + '</div><div class="kirje-kp-kuu">' + KUUD_L[d.getMonth()] + '</div></div>'
+          + '<div class="kirje-info">'
+          + '<div class="kirje-objekt">' + (k.objekt_nimi || k.ettevote_nimi) + '</div>'
+          + '<div class="kirje-aeg">' + k.algus.slice(0,5) + ' – ' + k.lopp.slice(0,5) + '</div>'
+          + '</div>'
+          + '<div class="kirje-tunnid">' + parseFloat(k.tunnid).toFixed(1) + 'h</div>'
+          + '</div>'
+          + (tags ? '<div class="kirje-details">' + tags + '</div>' : '')
+          + '<div class="kirje-actions">'
+          + '<button class="muuda-nupp" onclick=\'avaModal(' + JSON.stringify(k) + ')\'>✏️ Muuda</button>'
+          + '<button class="kustuta-nupp" onclick="kustutaKirje(' + k.id + ')">🗑 Kustuta</button>'
+          + '</div>'
+          + '</div>';
       }).join('');
+    }
+
+    // ── MUUTMINE ───────────────────────────────────────────────
+    function avaModal(kirje) {
+      document.getElementById('muuta-id').value = kirje.id;
+      document.getElementById('muuta-kuupaev').value = kirje.kuupaev ? kirje.kuupaev.split('T')[0] : '';
+      document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
+      document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
+      document.getElementById('muuta-km').value = parseFloat(kirje.kilomeetrid || 0);
+      document.getElementById('muuta-lisakulu').value = parseFloat(kirje.lisakulu_summa || 0);
+      document.getElementById('muuta-lisakulu-sel').value = kirje.lisakulu_selgitus || '';
+      document.getElementById('muuta-komm').value = kirje.kommentaar || '';
+      document.getElementById('muuta-objekt').value = kirje.objekt_nimi || kirje.ettevote_nimi || '';
+      document.getElementById('muuta-teade').style.display = 'none';
+      document.getElementById('muutaModal').classList.add('avatud');
+    }
+
+    function sulgeModal() {
+      document.getElementById('muutaModal').classList.remove('avatud');
+    }
+
+    async function salvestaMuutus() {
+      var id = document.getElementById('muuta-id').value;
+      var kuupaev = document.getElementById('muuta-kuupaev').value;
+      var algus = document.getElementById('muuta-algus').value;
+      var lopp = document.getElementById('muuta-lopp').value;
+      var km = document.getElementById('muuta-km').value || '0';
+      var lisakulu = document.getElementById('muuta-lisakulu').value || '0';
+      var lisakulu_sel = document.getElementById('muuta-lisakulu-sel').value;
+      var kommentaar = document.getElementById('muuta-komm').value;
+      var teade = document.getElementById('muuta-teade');
+      var nupp = document.getElementById('muuta-salvesta-nupp');
+
+      if (!kuupaev || !algus || !lopp) {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = 'Täida kõik väljad'; return;
+      }
+
+      nupp.disabled = true; nupp.textContent = 'Salvestab...';
+      var r = await api('/api/tood/kirje/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({ kuupaev, algus, lopp, kommentaar, kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel })
+      });
+      nupp.disabled = false; nupp.textContent = 'Salvesta muutused';
+
+      if (r.ok) {
+        sulgeModal();
+        await laadiKirjed();
+      } else {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
     }
 
     async function kustutaKirje(id) {
       if (!confirm('Kustutad selle töökirje? Seda ei saa tagasi võtta.')) return;
-      const v = await api(`/api/tood/kustuta/${id}`, { method: 'DELETE' });
-      if (v.ok) {
-        naita('ok', 'Kirje kustutatud');
-        await laadiTanaKirjed();
+      var r = await api('/api/tood/kustuta/' + id, { method: 'DELETE' });
+      if (r.ok) {
+        await laadiKirjed();
       } else {
-        naita('viga', v.veateade || 'Kustutamine ebaõnnestus');
+        alert(r.veateade || 'Kustutamine ebaõnnestus');
       }
     }
 
-    let viimaneKirjeId = null;
+    document.getElementById('muutaModal').addEventListener('click', function(e) {
+      if (e.target === this) sulgeModal();
+    });
 
-    function eelvaatePildid(input) {
-      const files = Array.from(input.files).slice(0, 12);
-      const div = document.getElementById('piltdeEelvaade');
-      div.innerHTML = files.map((f, i) => {
-        const url = URL.createObjectURL(f);
-        return `<div style="position:relative">
-          <img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid #1a3050">
-          <div style="position:absolute;bottom:2px;right:4px;font-size:9px;color:#aaa;background:rgba(0,0,0,0.6);padding:1px 4px;border-radius:3px">${i+1}</div>
-        </div>`;
-      }).join('');
-      document.getElementById('piltdeUploadNupp').style.display = files.length ? 'block' : 'none';
-      document.getElementById('piltdeLabel').textContent = files.length ? `${files.length} foto valitud` : 'Klõpsa et valida fotod';
-    }
-
-    async function laadiFotodUles() {
-      if (!viimaneKirjeId) return;
-      const input = document.getElementById('piltdeInput');
-      const files = Array.from(input.files).slice(0, 12);
-      if (!files.length) return;
-
-      const nupp = document.getElementById('piltdeUploadNupp');
-      nupp.textContent = 'Laadin üles...';
-      nupp.disabled = true;
-
-      const formData = new FormData();
-      files.forEach(f => formData.append('pildid', f));
-
-      try {
-        const vastus = await fetch(`/api/pildid/upload/${viimaneKirjeId}`, {
-          method: 'POST',
-          headers: { 'x-session-token': TOKEN },
-          body: formData
-        }).then(r => r.json());
-
-        if (vastus.ok) {
-          document.getElementById('piltdeTeade').style.display = 'block';
-          document.getElementById('piltdeTeade').textContent = `✅ ${vastus.arv} fotot üles laaditud!`;
-          document.getElementById('piltdeEelvaade').innerHTML = '';
-          document.getElementById('piltdeUploadNupp').style.display = 'none';
-          input.value = '';
-          document.getElementById('piltdeLabelTekst').textContent = '📷 Klõpsa et valida fotod';
-          setTimeout(() => {
-            document.getElementById('piltdeUploadSekts').style.display = 'none';
-            document.getElementById('piltdeTeade').style.display = 'none';
-          }, 3000);
-        } else {
-          nupp.textContent = '⬆ Laadi fotod üles';
-          nupp.disabled = false;
-          alert(vastus.veateade || 'Upload ebaõnnestus');
-        }
-      } catch (e) {
-        nupp.textContent = '⬆ Laadi fotod üles';
-        nupp.disabled = false;
-      }
-    }
-
-    function naita(tyyp, tekst) {
-      const ok = document.getElementById('teade-ok');
-      const viga = document.getElementById('teade-viga');
-      ok.style.display = 'none';
-      viga.style.display = 'none';
-      if (tyyp === 'ok') { ok.textContent = tekst; ok.style.display = 'block'; setTimeout(() => ok.style.display='none', 4000); }
-      else { viga.textContent = tekst; viga.style.display = 'block'; setTimeout(() => viga.style.display='none', 5000); }
-    }
-
-    function vahetaTeema() {
-      const hele = document.body.classList.toggle('hele');
-      localStorage.setItem('teema', hele ? 'hele' : 'tume');
-      document.getElementById('teemaNupp').textContent = hele ? '🌙' : '☀️';
-    }
-    if (localStorage.getItem('teema') === 'hele') {
-      document.body.classList.add('hele');
-      document.addEventListener('DOMContentLoaded', () => {
-        const n = document.getElementById('teemaNupp');
-        if (n) n.textContent = '🌙';
-      });
-    }
     init();
   </script>
 </body>
