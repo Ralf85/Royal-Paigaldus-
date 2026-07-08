@@ -484,7 +484,15 @@
       var ettevotted = await api('/api/tood/minu-ettevotted');
       var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
       var div = document.getElementById('ettevotteKaardid');
-      if (!ettevotted.length) { div.innerHTML = '<div style="color:#555;font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>'; return; }
+      if (!ettevotted.length) {
+        div.innerHTML = '<div style="color:#555;font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>'
+          + (onRe ? '<div class="emp-card re" onclick="toggleReModal()" style="grid-column:1">'
+            + '<div class="emp-logo re"><span style="font-size:18px">🏁</span></div>'
+            + '<div class="emp-label re">RALLY EST</div>'
+            + '<div class="emp-tunnid">0 €</div>'
+            + '<div class="emp-tunnid-sub">kulud sellel kuul</div></div>' : '');
+        return;
+      }
       var tunnidFirma = {};
       if (kokkuvote.ok && kokkuvote.kirjed) {
         kokkuvote.kirjed.forEach(function(k) { tunnidFirma[k.ettevote_id] = (tunnidFirma[k.ettevote_id] || 0) + parseFloat(k.tunnid); });
