@@ -291,4 +291,52 @@ router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
+// Töötaja muudab oma töökirjet
+router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
+  const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
+  try {
+    const vana = await pool.query(
+      'SELECT * FROM tookirjed WHERE id=$1 AND worker_id=$2',
+      [req.params.id, req.session.workerId]
+    );
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+
+    const [ah, am] = algus.split(':').map(Number);
+    const [lh, lm] = lopp.split(':').map(Number);
+    let minutid = (lh * 60 + lm) - (ah * 60 + am);
+    if (minutid < 0) minutid += 1440;
+    let tunnid = minutid / 60;
+    if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
+    if (tunnid > 16) return res.json({ ok: false, veateade: 'Üle 16 tunni? Kontrolli kellaaegu' });
+
+    // Cramo lõunapaus
+    const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [vana.rows[0].ettevote_id]);
+    const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
+    if (tyyp === 'cramo' && tunnid >= 6) tunnid = tunnid - 0.5;
+
+    const km = parseFloat(kilomeetrid) || 0;
+    const km_raha = km > 0 ? (km / 100 * 12) : 0;
+    const lisakulu = parseFloat(lisakulu_summa) || 0;
+
+    await pool.query(
+      `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5,
+       kilomeetrid=$6, km_raha=$7, lisakulu_summa=$8, lisakulu_selgitus=$9 WHERE id=$10`,
+      [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', req.params.id]
+    );
+
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [req.session.workerId, 'MUUDA_TOOKIRJE', JSON.stringify({
+        kirje_id: req.params.id, kuupaev, algus, lopp, tunnid: tunnid.toFixed(2)
+      }), req.ip]
+    );
+
+    res.json({ ok: true, tunnid: tunnid.toFixed(2) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+
 module.exports = router;
