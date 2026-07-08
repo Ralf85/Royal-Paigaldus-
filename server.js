@@ -51,6 +51,7 @@ app.use('/api/pildid', require('./routes/pildid'));
 app.use('/api/push', require('./routes/push').router);
 app.use('/api/graafik', require('./routes/graafik'));
 app.use('/api/edgf', require('./routes/edgf'));
+app.use('/api/re', require('./routes/re'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
