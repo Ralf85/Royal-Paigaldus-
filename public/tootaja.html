@@ -584,6 +584,7 @@
           + '<div class="tr-info"><div><span class="tr-badge badge-'+tyyp+'">'+t.ettevote_nimi+'</span><span class="tr-objekt">'+(t.objekt_nimi||'')+'</span></div>'
           + (t.algus_kell?'<div class="tr-kirjeldus">'+t.algus_kell+(t.lopp_kell?' – '+t.lopp_kell:'')+'</div>':'')
           + (t.kirjeldus?'<div class="tr-kirjeldus">'+t.kirjeldus+'</div>':'')
+          + (t.teised_tootajad&&t.teised_tootajad.length?'<div class="tr-kirjeldus" style="color:#4ade80">👷 '+t.teised_tootajad.join(', ')+'</div>':'')
           + '</div><div class="tr-paevad"><div class="tr-paevad-arv">'+(paevJaani>0?paevJaani+'p':'täna')+'</div></div></div>';
       }).join('');
       if (koik.length > 5 && !naitaKoikTulevased) {
