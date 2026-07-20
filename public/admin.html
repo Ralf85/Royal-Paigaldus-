@@ -1092,6 +1092,12 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
   <div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
     <h3 style="margin-bottom:20px;color:var(--tekst)">✏️ Muuda tulevast tööd</h3>
     <input type="hidden" id="mt-id">
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--hall);display:block;margin-bottom:6px">Töötajad</label>
+      <div id="mt-workers-valik" style="background:var(--bg3);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
+        <span style="color:var(--hall);font-size:13px">Laadimine...</span>
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="mt-kuupaev" style="color-scheme:dark"></div>
       <div><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Algus</label><input type="time" id="mt-algus"></div>
@@ -1576,20 +1582,75 @@ function naitaTeade(id,tyyp,tekst){
   setTimeout(()=>el.style.display='none',4000);
 }
 
-function avaaMuutaTulevane(t){
+async function avaaMuutaTulevane(t){
   document.getElementById('mt-id').value=t.id;
   document.getElementById('mt-kuupaev').value=t.kuupaev?t.kuupaev.split('T')[0]:'';
   document.getElementById('mt-algus').value=t.algus_kell||'';
   document.getElementById('mt-lopp').value=t.lopp_kell||'';
   document.getElementById('mt-kirjeldus').value=t.kirjeldus||'';
+
+  // Lae töötajad ja märgi praegune töötaja
+  const workers = await api('/api/admin/tootajad');
+  const div = document.getElementById('mt-workers-valik');
+  // Leia kõik sama kuupäeva/ettevõtte/objektiga tööd et näha kes on juba määratud
+  const samad = await api('/api/admin/tulevased');
+  const samalPaeval = samad.filter(x =>
+    x.kuupaev && x.kuupaev.split('T')[0] === (t.kuupaev ? t.kuupaev.split('T')[0] : '') &&
+    x.ettevote_id === t.ettevote_id &&
+    (x.objekt_id === t.objekt_id || (!x.objekt_id && !t.objekt_id))
+  ).map(x => x.worker_id);
+
+  div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${samalPaeval.includes(w.id)?'#c9a84c':'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+      <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${samalPaeval.includes(w.id)?'checked':''}> ${w.nimi}
+    </label>`).join('');
+
   document.getElementById('muutaTulevaneModal').style.display='flex';
 }
 
 async function salvestaMuutaTulevane(){
   const id=document.getElementById('mt-id').value;
-  const r=await api(`/api/admin/tulevased/${id}`,{method:'PUT',body:JSON.stringify({kuupaev:document.getElementById('mt-kuupaev').value,algus_kell:document.getElementById('mt-algus').value,lopp_kell:document.getElementById('mt-lopp').value,kirjeldus:document.getElementById('mt-kirjeldus').value})});
-  if(r.ok){document.getElementById('muutaTulevaneModal').style.display='none';laadiTulevasteToodTabel();}
-  else alert(r.veateade||'Viga salvestamisel');
+  const kuupaev=document.getElementById('mt-kuupaev').value;
+  const algus_kell=document.getElementById('mt-algus').value;
+  const lopp_kell=document.getElementById('mt-lopp').value;
+  const kirjeldus=document.getElementById('mt-kirjeldus').value;
+
+  // Uuenda praeguse kirje andmed
+  const r=await api(`/api/admin/tulevased/${id}`,{method:'PUT',body:JSON.stringify({kuupaev,algus_kell,lopp_kell,kirjeldus})});
+  if(!r.ok){alert(r.veateade||'Viga salvestamisel');return;}
+
+  // Leia praegune kirje andmed (ettevote_id, objekt_id)
+  const koikTulevased=await api('/api/admin/tulevased');
+  const praegune=koikTulevased.find(x=>String(x.id)===String(id));
+  if(praegune){
+    // Leia kõik sama kuupäeva/ettevõtte/objektiga kirjed
+    const samad=koikTulevased.filter(x=>
+      x.kuupaev&&x.kuupaev.split('T')[0]===kuupaev&&
+      x.ettevote_id===praegune.ettevote_id&&
+      (x.objekt_id===praegune.objekt_id||(!x.objekt_id&&!praegune.objekt_id))
+    );
+    const valitudWorkers=[...document.querySelectorAll('#mt-workers-valik input:checked')].map(cb=>parseInt(cb.value));
+    const olemasolevadWorkers=samad.map(x=>x.worker_id);
+
+    // Lisa puuduvad töötajad
+    for(const wid of valitudWorkers){
+      if(!olemasolevadWorkers.includes(wid)){
+        await api('/api/admin/tulevased',{method:'POST',body:JSON.stringify({
+          worker_id:wid,ettevote_id:praegune.ettevote_id,objekt_id:praegune.objekt_id,
+          kuupaev,algus_kell,lopp_kell,kirjeldus
+        })});
+      }
+    }
+    // Kustuta eemaldatud töötajad
+    for(const kirje of samad){
+      if(!valitudWorkers.includes(kirje.worker_id)&&String(kirje.id)!==String(id)){
+        await api(`/api/admin/tulevased/${kirje.id}`,{method:'DELETE'});
+      }
+    }
+  }
+
+  document.getElementById('muutaTulevaneModal').style.display='none';
+  laadiTulevasteToodTabel();
 }
 
 function avaaMuutaModal(kirje){
