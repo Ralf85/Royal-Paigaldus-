@@ -235,7 +235,24 @@ router.get('/tulevased', noudaSisslogimist, async (req, res) => {
        ORDER BY t.kuupaev, t.algus_kell`,
       [req.session.workerId]
     );
-    res.json(r.rows);
+
+    // Lisa igale tööle teised samale kuupäevale/objektile määratud töötajad
+    const kirjed = r.rows;
+    for (const kirje of kirjed) {
+      const teised = await pool.query(
+        `SELECT w.nimi FROM tulevased_tood tt
+         JOIN workers w ON tt.worker_id = w.id
+         WHERE tt.kuupaev = $1
+           AND tt.ettevote_id = $2
+           AND (tt.objekt_id IS NULL OR tt.objekt_id = $3)
+           AND tt.worker_id != $4
+         ORDER BY w.nimi`,
+        [kirje.kuupaev, kirje.ettevote_id, kirje.objekt_id || null, req.session.workerId]
+      );
+      kirje.teised_tootajad = teised.rows.map(w => w.nimi);
+    }
+
+    res.json(kirjed);
   } catch (err) {
     res.json([]);
   }
