@@ -382,6 +382,7 @@
     var KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     var aktiivsKuu, aktiivsAasta, aktiivsWorkerId = null;
     var onMerekohvik = false;
+    var naitaKoikTulevased = false;
     var onEdgf = false;
     var onRe = false;
     var TOKEN = localStorage.getItem('workerToken') || '';
@@ -456,6 +457,11 @@
         }; })(btn);
         filter.appendChild(btn);
       }
+    }
+
+    function naitaKoikTulevasedTood() {
+      naitaKoikTulevased = true;
+      laadiTulevasedTood();
     }
 
     async function laadiKoik() {
@@ -566,7 +572,7 @@
           .map(function(v) { return {kuupaev:v.kuupaev.substring(0,10),ettevote_nimi:'MEREKOHVIK',tyyp:'merekohvik',objekt_nimi:'',algus_kell:v.algus,lopp_kell:v.lopp,kirjeldus:v['märkus']||'',onGraafik:true}; });
       } catch(e) {}
       var koik = (Array.isArray(andmed) ? andmed : []).concat(graafikAndmed).sort(function(a,b) { return new Date(a.kuupaev)-new Date(b.kuupaev); });
-      var naita = koik.slice(0,5);
+      var naita = naitaKoikTulevased ? koik : koik.slice(0,5);
       var div = document.getElementById('tulevasteToodSisu');
       document.getElementById('tulevaste-arv').textContent = koik.length;
       if (!koik.length) { div.innerHTML = '<div class="tyhi-olek">Tulevasi töid pole kirjas</div>'; return; }
@@ -578,7 +584,10 @@
           + '<div class="tr-info"><div><span class="tr-badge badge-'+tyyp+'">'+t.ettevote_nimi+'</span><span class="tr-objekt">'+(t.objekt_nimi||'')+'</span></div>'
           + (t.kirjeldus?'<div class="tr-kirjeldus">'+t.kirjeldus+'</div>':'')
           + '</div><div class="tr-paevad"><div class="tr-paevad-arv">'+(paevJaani>0?paevJaani+'p':'täna')+'</div></div></div>';
-      }).join('')+(koik.length>5?'<div style="padding:10px 16px;text-align:center;color:#555;font-size:12px">+ '+(koik.length-5)+' veel...</div>':'');
+      }).join('');
+      if (koik.length > 5 && !naitaKoikTulevased) {
+        div.innerHTML += '<div style="padding:10px 16px;text-align:center"><button onclick="naitaKoikTulevasedTood()" style="background:none;border:0.5px solid #252830;border-radius:8px;padding:8px 20px;color:#aaa;font-size:13px;cursor:pointer">+ '+(koik.length-5)+' veel... Näita kõiki</button></div>';
+      }
     }
 
     async function laadiToopaevik() {
