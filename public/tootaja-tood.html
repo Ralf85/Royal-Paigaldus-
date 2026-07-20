@@ -1,180 +1,427 @@
-const express = require('express');
-const router = express.Router();
-const { pool } = require('../db');
-const cloudinary = require('cloudinary').v2;
-const multer = require('multer');
-const archiver = require('archiver');
-const https = require('https');
-const http = require('http');
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Töökirjed</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 100; }
+    .topbar-back { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    .topbar-back:hover { border-color: #c9a84c; color: #c9a84c; }
+    .topbar-title { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .topbar-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; }
+    .badge-lidl { background: #FFF200; color: #002060; }
+    .badge-cramo { background: #CD2200; color: #fff; }
+    .badge-muu { background: #0369a1; color: #fff; }
+    .badge-merekohvik { background: #065f46; color: #4ade80; }
+    .badge-edgf { background: #4c1d95; color: #a78bfa; }
+    .leht { max-width: 520px; margin: 0 auto; padding: 20px 16px 40px; }
+    .lisa-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 20px; }
+    .lisa-hdr { padding: 13px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.05); font-size: 13px; font-weight: 600; color: #d0d0d0; display: flex; align-items: center; gap: 8px; }
+    .lisa-body { padding: 14px 16px; }
+    .vorm-rida { display: grid; gap: 10px; margin-bottom: 12px; }
+    .vorm-rida.col2 { grid-template-columns: 1fr 1fr; }
+    .vorm-rida.col3 { grid-template-columns: 1fr 1fr 1fr; }
+    .vorm-grupp label { font-size: 11px; color: #555; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .vorm-grupp input, .vorm-grupp select, .vorm-grupp textarea { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
+    .vorm-grupp input:focus, .vorm-grupp select:focus { outline: none; border-color: #c9a84c; }
+    .lisa-nupp { background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .lisa-nupp:hover { background: #e0b84e; }
+    .lisa-nupp:disabled { opacity: 0.5; cursor: not-allowed; }
+    .teade { font-size: 12px; margin-top: 8px; display: none; padding: 8px 12px; border-radius: 6px; }
+    .teade.ok { background: #14532d; color: #86efac; }
+    .teade.viga { background: #7f1d1d; color: #fca5a5; }
+    .kirjed-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .kirjed-pealkiri { font-size: 13px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
+    .kirjed-kokku { font-size: 13px; color: #c9a84c; font-weight: 700; }
+    .kirje-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 13px 14px; margin-bottom: 10px; }
+    .kirje-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .kirje-kp { min-width: 42px; background: #1e2128; border-radius: 8px; padding: 6px 4px; text-align: center; }
+    .kirje-kp-paev { font-size: 17px; font-weight: 700; color: #fff; line-height: 1; }
+    .kirje-kp-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .kirje-info { flex: 1; }
+    .kirje-objekt { font-size: 13px; color: #d0d0d0; font-weight: 500; }
+    .kirje-aeg { font-size: 11px; color: #505560; margin-top: 2px; }
+    .kirje-tunnid { font-size: 17px; font-weight: 700; color: #c9a84c; }
+    .kirje-details { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .kirje-tag { font-size: 11px; background: #1e2128; border-radius: 4px; padding: 3px 8px; color: #666; }
+    .kirje-tag.km { color: #60a5fa; }
+    .kirje-tag.lisakulu { color: #fb923c; }
+    .kirje-tag.komm { color: #888; font-style: italic; }
+    .kirje-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid rgba(255,255,255,0.04); }
+    .muuda-nupp { flex: 1; background: #1a2840; border: 0.5px solid #1e3a5f; border-radius: 8px; padding: 7px; font-size: 12px; color: #60a5fa; cursor: pointer; font-weight: 600; }
+    .muuda-nupp:hover { background: #1e3a5f; }
+    .kustuta-nupp { background: #1a0a0a; border: 0.5px solid #3d0a0a; border-radius: 8px; padding: 7px 14px; font-size: 12px; color: #ef4444; cursor: pointer; font-weight: 600; }
+    .kustuta-nupp:hover { background: #3d0a0a; }
+    .tyhi { padding: 40px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
+    .kokku-kaart { background: #13161c; border: 0.5px solid rgba(201,168,76,0.2); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .kokku-label { font-size: 12px; color: #666; }
+    .kokku-val { font-size: 22px; font-weight: 700; color: #c9a84c; }
 
-function getCloudinary() {
-  console.log('Cloudinary config:', {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'PUUDUB',
-    api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'PUUDUB'
-  });
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-  });
-  return cloudinary;
-}
+    /* Muutmise modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: flex-start; justify-content: center; padding: 20px 16px; overflow-y: auto; }
+    .modal-overlay.avatud { display: flex; }
+    .modal-sisu { background: #13161c; border: 0.5px solid rgba(255,255,255,0.08); border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; margin-top: 20px; }
+    .modal-hdr { padding: 16px 20px; border-bottom: 0.5px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
+    .modal-hdr-tekst { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+    .modal-sulge { background: none; border: none; color: #555; font-size: 22px; cursor: pointer; }
+    .modal-sulge:hover { color: #aaa; }
+    .modal-body { padding: 16px 20px 20px; }
+    .salvesta-nupp { width: 100%; background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+    .salvesta-nupp:hover { background: #e0b84e; }
+    .salvesta-nupp:disabled { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="topbar-back" onclick="history.back()">← Tagasi</button>
+    <span class="topbar-badge" id="ettevoteBadge"></span>
+    <span class="topbar-title" id="ettevoteNimi">Töökirjed</span>
+  </div>
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per pilt
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Ainult pildifailid!'));
-  }
-});
+  <!-- Muutmise modal -->
+  <div class="modal-overlay" id="muutaModal">
+    <div class="modal-sisu">
+      <div class="modal-hdr">
+        <span class="modal-hdr-tekst">✏️ Muuda töökirjet</span>
+        <button class="modal-sulge" onclick="sulgeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="muuta-id">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="muuta-kuupaev" style="color-scheme:dark"></div>
+          <div class="vorm-grupp"><label>Objekt</label><input type="text" id="muuta-objekt" readonly style="color:#555"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Algus</label><input type="time" id="muuta-algus"></div>
+          <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="muuta-lopp"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kilomeetrid</label><input type="number" id="muuta-km" placeholder="0" min="0" step="1"></div>
+          <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="muuta-lisakulu" placeholder="0.00" min="0" step="0.01"></div>
+        </div>
+        <div class="vorm-rida" id="muuta-lisakulu-sel-rida">
+          <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="muuta-lisakulu-sel" placeholder="nt. sõidukulud"></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="muuta-komm" placeholder="vabatahtlik"></div>
+        </div>
+        <button class="salvesta-nupp" id="muuta-salvesta-nupp" onclick="salvestaMuutus()">Salvesta muutused</button>
+        <div class="teade" id="muuta-teade"></div>
+      </div>
+    </div>
+  </div>
 
-function noudaSisslogimist(req, res, next) {
-  if (!req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
-  next();
-}
+  <div class="leht">
+    <!-- Lisa uus kirje -->
+    <div class="lisa-kaart">
+      <div class="lisa-hdr">➕ Lisa töökirje</div>
+      <div class="lisa-body">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="kuupaev" style="color-scheme:dark"></div>
+          <div class="vorm-grupp" id="objekt-grupp" style="display:none"><label>Objekt</label>
+            <select id="objekt"><option value="">— Vali objekt —</option></select>
+          </div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Algus</label><input type="time" id="algus" value="08:00"></div>
+          <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="lopp" value="17:00"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Kilomeetrid</label><input type="number" id="km" placeholder="0" min="0" step="1" value="0"></div>
+          <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="lisakulu" placeholder="0.00" min="0" step="0.01" value="0"></div>
+        </div>
+        <div class="vorm-rida" id="lisakulu-sel-rida" style="display:none">
+          <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="lisakulu-sel" placeholder="nt. sõidukulud, tööriistad..."></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="kommentaar" placeholder="vabatahtlik"></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp">
+            <label>Pilt (vabatahtlik)</label>
+            <div style="display:flex;gap:8px">
+              <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="lisa-foto-kaamera" accept="image/*" capture="environment" style="display:none"></label>
+              <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="lisa-foto-album" accept="image/*" style="display:none"></label>
+            </div>
+            <div id="lisa-foto-eelvaade" style="margin-top:6px;display:none"><img id="lisa-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></div>
+          </div>
+        </div>
+        <button class="lisa-nupp" id="lisa-nupp" onclick="lisaKirje()">Salvesta kirje</button>
+        <div class="teade" id="lisa-teade"></div>
+      </div>
+    </div>
 
-function noudaAdmin(req, res, next) {
-  if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
-  next();
-}
+    <!-- Kirjete nimekiri -->
+    <div class="kirjed-hdr">
+      <span class="kirjed-pealkiri">Selle kuu kirjed</span>
+      <span class="kirjed-kokku" id="kirjed-kokku"></span>
+    </div>
+    <div id="kirjed-sisu"><div class="tyhi">Laadimine...</div></div>
+  </div>
 
-// Laadi pildid üles (kuni 12 korraga)
-router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12), async (req, res) => {
-  const { tookirjeId } = req.params;
-  try {
-    // Kontrolli et töökirje kuulub sellele töötajale
-    const kirje = await pool.query(
-      'SELECT t.*, e.tyyp, o.nimi as objekt_nimi FROM tookirjed t JOIN ettevotted e ON t.ettevote_id=e.id LEFT JOIN objektid o ON t.objekt_id=o.id WHERE t.id=$1 AND t.worker_id=$2',
-      [tookirjeId, req.session.workerId]
-    );
-    if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  <script>
+    var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    var TOKEN = localStorage.getItem('workerToken') || '';
+    var ettevoteId = null;
+    var etteVoteTyyp = '';
 
-    const k = kirje.rows[0];
-    const objektNimi = (k.objekt_nimi || 'objekt').replace(/[^a-zA-Z0-9]/g, '_');
-    const kuupaev = k.kuupaev.toISOString ? k.kuupaev.toISOString().split('T')[0] : String(k.kuupaev).split('T')[0];
-    const folder = `royal-paigaldus/${objektNimi}/${kuupaev}`;
-
-    const uploaded = [];
-    for (const file of req.files) {
-      const result = await new Promise((resolve, reject) => {
-        const stream = getCloudinary().uploader.upload_stream(
-          { folder, resource_type: 'image', quality: 'auto', fetch_format: 'auto' },
-          (err, result) => err ? reject(err) : resolve(result)
-        );
-        stream.end(file.buffer);
-      });
-
-      await pool.query(
-        'INSERT INTO tookirje_pildid (tookirje_id, url, public_id, nimi) VALUES ($1,$2,$3,$4)',
-        [tookirjeId, result.secure_url, result.public_id, file.originalname]
-      );
-      uploaded.push({ url: result.secure_url, public_id: result.public_id });
+    function api(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['x-session-token'] = TOKEN;
+      if (!(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
+      return fetch(url, opts).then(function(r) { return r.json(); });
     }
 
-    res.json({ ok: true, pildid: uploaded, arv: uploaded.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, veateade: err.message });
-  }
-});
+    async function init() {
+      if (!TOKEN) { window.location = '/'; return; }
+      var s = await api('/api/auth/sessioon');
+      if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
 
-// Töökirje pildid
-router.get('/tookirje/:tookirjeId', async (req, res) => {
-  const r = await pool.query(
-    'SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud',
-    [req.params.tookirjeId]
-  );
-  res.json(r.rows);
-});
+      var params = new URLSearchParams(window.location.search);
+      ettevoteId = params.get('ettevote');
+      if (!ettevoteId) { window.location = '/tootaja'; return; }
 
-// Kustuta pilt
-router.delete('/:piltId', noudaSisslogimist, async (req, res) => {
-  try {
-    const pilt = await pool.query('SELECT p.*, t.worker_id FROM tookirje_pildid p JOIN tookirjed t ON p.tookirje_id=t.id WHERE p.id=$1', [req.params.piltId]);
-    if (!pilt.rows.length) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
-    if (pilt.rows[0].worker_id !== req.session.workerId && !req.session.isAdmin) return res.status(401).json({ ok: false });
-    await getCloudinary().uploader.destroy(pilt.rows[0].public_id);
-    await pool.query('DELETE FROM tookirje_pildid WHERE id=$1', [req.params.piltId]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ ok: false, veateade: err.message });
-  }
-});
+      var t = new Date();
+      document.getElementById('kuupaev').value = t.toISOString().split('T')[0];
 
-// Admin: kõik pildid objekti kaupa
-router.get('/admin/objektid', noudaAdmin, async (req, res) => {
-  const r = await pool.query(
-    `SELECT o.id, o.nimi, e.nimi as ettevote_nimi, COUNT(p.id) as piltide_arv
-     FROM objektid o
-     JOIN ettevotted e ON o.ettevote_id=e.id
-     LEFT JOIN tookirjed t ON t.objekt_id=o.id
-     LEFT JOIN tookirje_pildid p ON p.tookirje_id=t.id
-     GROUP BY o.id, o.nimi, e.nimi
-     HAVING COUNT(p.id) > 0
-     ORDER BY e.nimi, o.nimi`
-  );
-  res.json(r.rows);
-});
+      // Lae ettevõtted
+      var ettevotted = await api('/api/tood/minu-ettevotted');
+      var ettevote = ettevotted.find(function(e) { return String(e.id) === String(ettevoteId); });
+      if (!ettevote) { window.location = '/tootaja'; return; }
 
-// Admin: pildid ühe objekti kohta
-router.get('/admin/objekt/:objektId', noudaAdmin, async (req, res) => {
-  const r = await pool.query(
-    `SELECT p.*, t.kuupaev, w.nimi as worker_nimi, o.nimi as objekt_nimi
-     FROM tookirje_pildid p
-     JOIN tookirjed t ON p.tookirje_id=t.id
-     JOIN workers w ON t.worker_id=w.id
-     JOIN objektid o ON t.objekt_id=o.id
-     WHERE t.objekt_id=$1
-     ORDER BY t.kuupaev DESC, p.loodud`,
-    [req.params.objektId]
-  );
-  res.json(r.rows);
-});
+      etteVoteTyyp = (ettevote.tyyp || 'muu').toLowerCase();
+      document.getElementById('ettevoteNimi').textContent = ettevote.nimi;
+      var badge = document.getElementById('ettevoteBadge');
+      badge.textContent = ettevote.nimi;
+      badge.className = 'topbar-badge badge-' + etteVoteTyyp;
 
-// Admin: ZIP allalaadimine objekti piltidest
-router.get('/admin/zip/:objektId', noudaAdmin, async (req, res) => {
-  try {
-    const pildid = await pool.query(
-      `SELECT p.url, p.nimi, t.kuupaev, w.nimi as worker_nimi, o.nimi as objekt_nimi
-       FROM tookirje_pildid p
-       JOIN tookirjed t ON p.tookirje_id=t.id
-       JOIN workers w ON t.worker_id=w.id
-       JOIN objektid o ON t.objekt_id=o.id
-       WHERE t.objekt_id=$1
-       ORDER BY t.kuupaev, p.loodud`,
-      [req.params.objektId]
-    );
+      // Lae objektid
+      var objektid = await api('/api/tood/objektid/' + ettevoteId);
+      if (Array.isArray(objektid) && objektid.length) {
+        var sel = document.getElementById('objekt');
+        objektid.forEach(function(o) {
+          var opt = document.createElement('option');
+          opt.value = o.id; opt.textContent = o.nimi;
+          sel.appendChild(opt);
+        });
+        document.getElementById('objekt-grupp').style.display = 'block';
+      }
 
-    if (!pildid.rows.length) return res.status(404).json({ ok: false, veateade: 'Pilte ei leitud' });
+      // Foto eelvaade
+      function setupFotoEelvaade(inputId) {
+        document.getElementById(inputId).addEventListener('change', function() {
+          var file = this.files[0];
+          if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+              document.getElementById('lisa-foto-img').src = e.target.result;
+              document.getElementById('lisa-foto-eelvaade').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            window._lisaFotoInput = inputId;
+          }
+        });
+      }
+      setupFotoEelvaade('lisa-foto-kaamera');
+      setupFotoEelvaade('lisa-foto-album');
 
-    const objektNimi = pildid.rows[0].objekt_nimi.replace(/[^a-zA-Z0-9]/g, '_');
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${objektNimi}_pildid.zip"`);
-
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
-
-    for (const pilt of pildid.rows) {
-      const kuupaev = String(pilt.kuupaev).split('T')[0];
-      const fileName = `${kuupaev}_${pilt.worker_nimi}_${pilt.nimi || 'pilt.jpg'}`.replace(/[^a-zA-Z0-9._-]/g, '_');
-      await new Promise((resolve, reject) => {
-        const url = new URL(pilt.url);
-        const proto = url.protocol === 'https:' ? https : http;
-        proto.get(pilt.url, (imgRes) => {
-          archive.append(imgRes, { name: fileName });
-          imgRes.on('end', resolve);
-          imgRes.on('error', reject);
-        }).on('error', reject);
+      // Lisakulu selgitus
+      document.getElementById('lisakulu').addEventListener('input', function() {
+        document.getElementById('lisakulu-sel-rida').style.display = parseFloat(this.value) > 0 ? 'block' : 'none';
       });
+
+      await laadiKirjed();
     }
 
-    archive.finalize();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, veateade: err.message });
-  }
-});
+    async function lisaKirje() {
+      var kuupaev = document.getElementById('kuupaev').value;
+      var algus = document.getElementById('algus').value;
+      var lopp = document.getElementById('lopp').value;
+      var km = document.getElementById('km').value || '0';
+      var lisakulu = document.getElementById('lisakulu').value || '0';
+      var lisakulu_sel = document.getElementById('lisakulu-sel').value;
+      var kommentaar = document.getElementById('kommentaar').value;
+      var objekt_id = document.getElementById('objekt').value || null;
+      var teade = document.getElementById('lisa-teade');
+      var nupp = document.getElementById('lisa-nupp');
 
-module.exports = router;
+      if (!kuupaev || !algus || !lopp) {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = 'Täida kuupäev, algus ja lõpp!'; return;
+      }
+
+      nupp.disabled = true; nupp.textContent = 'Salvestab...';
+      var r = await api('/api/tood/lisa', {
+        method: 'POST',
+        body: JSON.stringify({ ettevote_id: ettevoteId, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel })
+      });
+      nupp.disabled = false; nupp.textContent = 'Salvesta kirje';
+
+      if (r.ok) {
+        // Lae foto üles kui on valitud
+        var fotoInput = window._lisaFotoInput;
+        var foto = fotoInput ? document.getElementById(fotoInput).files[0] : null;
+        if (foto && r.kirjeId) {
+          var fd = new FormData();
+          fd.append('kirje_id', r.kirjeId);
+          fd.append('foto', foto);
+          await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
+        }
+        teade.className = 'teade ok'; teade.style.display = 'block';
+        teade.textContent = '✅ Kirje salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' (lõunapaus 30min maha arvestatud)' : '');
+        document.getElementById('kommentaar').value = '';
+        document.getElementById('km').value = '0';
+        document.getElementById('lisakulu').value = '0';
+        document.getElementById('lisakulu-sel').value = '';
+        document.getElementById('lisakulu-sel-rida').style.display = 'none';
+        document.getElementById('lisa-foto-kaamera').value = '';
+        document.getElementById('lisa-foto-album').value = '';
+        document.getElementById('lisa-foto-eelvaade').style.display = 'none';
+        window._lisaFotoInput = null;
+        await laadiKirjed();
+        setTimeout(function() { teade.style.display = 'none'; }, 5000);
+      } else {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
+    }
+
+    async function laadiKirjed() {
+      var t = new Date();
+      var vastus = await api('/api/tood/kokkuvote?aasta=' + t.getFullYear() + '&kuu=' + (t.getMonth()+1));
+      var div = document.getElementById('kirjed-sisu');
+      var kirjedEl = document.getElementById('kirjed-kokku');
+
+      if (!vastus.ok || !vastus.kirjed) {
+        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        kirjedEl.textContent = '';
+        return;
+      }
+
+      // Filtreeri ainult selle ettevõtte kirjed
+      var kirjed = vastus.kirjed.filter(function(k) { return String(k.ettevote_id) === String(ettevoteId); });
+
+      // Lae pildid kirjete kaupa
+      try {
+        var kirjeIds = kirjed.map(function(k) { return k.id; });
+        var pildidVastus = await api('/api/tood/pildid-batch?ids=' + kirjeIds.join(','));
+        if (pildidVastus && pildidVastus.ok && pildidVastus.pildid) {
+          var pildidMap = {};
+          pildidVastus.pildid.forEach(function(p) {
+            if (!pildidMap[p.kirje_id]) pildidMap[p.kirje_id] = [];
+            pildidMap[p.kirje_id].push(p);
+          });
+          kirjed = kirjed.map(function(k) { k.pildid = pildidMap[k.id] || []; return k; });
+        }
+      } catch(e) {}
+
+      if (!kirjed.length) {
+        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        kirjedEl.textContent = '';
+        return;
+      }
+
+      var kokkuTunnid = kirjed.reduce(function(s, k) { return s + parseFloat(k.tunnid); }, 0);
+      kirjedEl.textContent = kokkuTunnid.toFixed(1) + ' h kokku';
+
+      div.innerHTML = kirjed.map(function(k) {
+        var d = new Date(k.kuupaev);
+        var km = parseFloat(k.kilomeetrid || 0);
+        var lisakulu = parseFloat(k.lisakulu_summa || 0);
+        var tags = '';
+        if (km > 0) tags += '<span class="kirje-tag km">🚗 ' + km + ' km · ' + (km/100*12).toFixed(2) + '€</span>';
+        if (lisakulu > 0) tags += '<span class="kirje-tag lisakulu">💸 ' + lisakulu.toFixed(2) + '€' + (k.lisakulu_selgitus ? ' · ' + k.lisakulu_selgitus : '') + '</span>';
+        if (k.kommentaar) tags += '<span class="kirje-tag komm">' + k.kommentaar + '</span>';
+        return '<div class="kirje-kaart">'
+          + '<div class="kirje-hdr">'
+          + '<div class="kirje-kp"><div class="kirje-kp-paev">' + d.getDate() + '</div><div class="kirje-kp-kuu">' + KUUD_L[d.getMonth()] + '</div></div>'
+          + '<div class="kirje-info">'
+          + '<div class="kirje-objekt">' + (k.objekt_nimi || k.ettevote_nimi) + '</div>'
+          + '<div class="kirje-aeg">' + k.algus.slice(0,5) + ' – ' + k.lopp.slice(0,5) + '</div>'
+          + '</div>'
+          + '<div class="kirje-tunnid">' + parseFloat(k.tunnid).toFixed(1) + 'h</div>'
+          + '</div>'
+          + (tags ? '<div class="kirje-details">' + tags + '</div>' : '')
+          + (k.pildid && k.pildid.length ? '<div class="kirje-details">' + k.pildid.map(function(p) { return '<a href="'+p.foto_url+'" target="_blank" style="font-size:11px;color:#60a5fa;background:#0e1824;border-radius:4px;padding:3px 8px;">📷 vaata pilti</a>'; }).join('') + '</div>' : '')
+          + '<div class="kirje-actions">'
+          + '<button class="muuda-nupp" onclick=\'avaModal(' + JSON.stringify(k) + ')\'>✏️ Muuda</button>'
+          + '<button class="kustuta-nupp" onclick="kustutaKirje(' + k.id + ')">🗑 Kustuta</button>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    // ── MUUTMINE ───────────────────────────────────────────────
+    function avaModal(kirje) {
+      document.getElementById('muuta-id').value = kirje.id;
+      document.getElementById('muuta-kuupaev').value = kirje.kuupaev ? kirje.kuupaev.split('T')[0] : '';
+      document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
+      document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
+      document.getElementById('muuta-km').value = parseFloat(kirje.kilomeetrid || 0);
+      document.getElementById('muuta-lisakulu').value = parseFloat(kirje.lisakulu_summa || 0);
+      document.getElementById('muuta-lisakulu-sel').value = kirje.lisakulu_selgitus || '';
+      document.getElementById('muuta-komm').value = kirje.kommentaar || '';
+      document.getElementById('muuta-objekt').value = kirje.objekt_nimi || kirje.ettevote_nimi || '';
+      document.getElementById('muuta-teade').style.display = 'none';
+      document.getElementById('muutaModal').classList.add('avatud');
+    }
+
+    function sulgeModal() {
+      document.getElementById('muutaModal').classList.remove('avatud');
+    }
+
+    async function salvestaMuutus() {
+      var id = document.getElementById('muuta-id').value;
+      var kuupaev = document.getElementById('muuta-kuupaev').value;
+      var algus = document.getElementById('muuta-algus').value;
+      var lopp = document.getElementById('muuta-lopp').value;
+      var km = document.getElementById('muuta-km').value || '0';
+      var lisakulu = document.getElementById('muuta-lisakulu').value || '0';
+      var lisakulu_sel = document.getElementById('muuta-lisakulu-sel').value;
+      var kommentaar = document.getElementById('muuta-komm').value;
+      var teade = document.getElementById('muuta-teade');
+      var nupp = document.getElementById('muuta-salvesta-nupp');
+
+      if (!kuupaev || !algus || !lopp) {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = 'Täida kõik väljad'; return;
+      }
+
+      nupp.disabled = true; nupp.textContent = 'Salvestab...';
+      var r = await api('/api/tood/kirje/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({ kuupaev, algus, lopp, kommentaar, kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel })
+      });
+      nupp.disabled = false; nupp.textContent = 'Salvesta muutused';
+
+      if (r.ok) {
+        sulgeModal();
+        await laadiKirjed();
+      } else {
+        teade.className = 'teade viga'; teade.style.display = 'block';
+        teade.textContent = r.veateade || 'Viga salvestamisel';
+      }
+    }
+
+    async function kustutaKirje(id) {
+      if (!confirm('Kustutad selle töökirje? Seda ei saa tagasi võtta.')) return;
+      var r = await api('/api/tood/kustuta/' + id, { method: 'DELETE' });
+      if (r.ok) {
+        await laadiKirjed();
+      } else {
+        alert(r.veateade || 'Kustutamine ebaõnnestus');
+      }
+    }
+
+    document.getElementById('muutaModal').addEventListener('click', function(e) {
+      if (e.target === this) sulgeModal();
+    });
+
+    init();
+  </script>
+</body>
+</html>
