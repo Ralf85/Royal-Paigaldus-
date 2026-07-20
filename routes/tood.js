@@ -339,4 +339,24 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
 });
 
 
+// Töökirjete pildid batch
+router.get('/pildid-batch', noudaSisslogimist, async (req, res) => {
+  const { ids } = req.query;
+  if (!ids) return res.json({ ok: true, pildid: [] });
+  try {
+    const idList = ids.split(',').map(Number).filter(Boolean);
+    if (!idList.length) return res.json({ ok: true, pildid: [] });
+    const r = await pool.query(
+      `SELECT tp.*, t.worker_id FROM tookirje_pildid tp
+       JOIN tookirjed t ON tp.kirje_id = t.id
+       WHERE tp.kirje_id = ANY($1) AND t.worker_id = $2
+       ORDER BY tp.loodud ASC`,
+      [idList, req.session.workerId]
+    );
+    res.json({ ok: true, pildid: r.rows });
+  } catch (err) {
+    res.json({ ok: true, pildid: [] });
+  }
+});
+
 module.exports = router;
