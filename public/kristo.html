@@ -192,7 +192,7 @@
       document.getElementById('sisu').innerHTML =
         '<div class="galerii-header">'
         + '<div class="galerii-pealkiri">' + objektNimi + '</div>'
-        + '<a class="zip-nupp" href="' + zipUrl + '" target="_blank">⬇ ZIP</a>'
+        + '<button class="zip-nupp" onclick="laadiZip(' + objektId + ')">⬇ ZIP</button>'
         + '</div>'
         + '<div class="galerii-grid">'
         + praegusedPildid.map(function(p, i) {
@@ -264,6 +264,28 @@
         laadiKirjeldused();
       }
     });
+
+    async function laadiZip(objektId) {
+      var btn = event.target;
+      btn.textContent = '⏳ Laadin...';
+      btn.disabled = true;
+      try {
+        var url = '/api/kristo/zip/' + objektId + '?kirjeldus=' + encodeURIComponent(aktiivsKirjeldus) + '&_token=' + TOKEN;
+        var response = await fetch(url, { headers: { 'x-session-token': TOKEN } });
+        if (!response.ok) throw new Error('Viga');
+        var blob = await response.blob();
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (aktiivsObjektNimi || 'pildid') + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch(e) {
+        alert('ZIP allalaadimine ebaõnnestus');
+      }
+      btn.textContent = '⬇ ZIP';
+      btn.disabled = false;
+    }
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
 
