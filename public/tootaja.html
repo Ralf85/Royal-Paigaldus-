@@ -402,6 +402,7 @@
       if (!TOKEN) { window.location = '/'; return; }
       var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
+      if (s.workerId === 17) { window.location = '/kristo'; return; }
       var initsiaalid = s.nimi.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().slice(0,2);
       document.getElementById('avatarInitsiaalid').textContent = initsiaalid;
       document.getElementById('workerNimiTop').textContent = s.nimi;
