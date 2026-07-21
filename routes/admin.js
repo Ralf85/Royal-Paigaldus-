@@ -477,156 +477,155 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
 router.post('/raport-excel', noudaAdmin, async (req, res) => {
   const { andmed, tyyp, algus, lopp, esitus_hind } = req.body;
   if (!andmed || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
-
   const { execSync } = require('child_process');
   const fs = require('fs');
-  const path = require('path');
-  const km_maar = 0.24;
 
-  // Kirjuta Python skript temp faili
   const skript = `
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-import json, sys
+import json
 
 andmed = ${JSON.stringify(andmed)}
 tyyp = "${tyyp}"
-algus = "${algus}"
-lopp = "${lopp}"
+algus_kp = "${algus}"
+lopp_kp = "${lopp}"
 esitus_hind = ${esitus_hind}
-km_maar = ${km_maar}
+km_maar = 0.24
 
 wb = openpyxl.Workbook()
 ws = wb.active
 ws.title = "Raport"
 
+TITLE_FILL = PatternFill("solid", fgColor="1F3864")
+SUBTITLE_FILL = PatternFill("solid", fgColor="2E4057")
 HEADER_FILL = PatternFill("solid", fgColor="C0504D")
-KOKKU_FILL = PatternFill("solid", fgColor="4BACC6")
-WHITE = PatternFill("solid", fgColor="FFFFFF")
-LIGHT_FILL = PatternFill("solid", fgColor="F2F2F2")
-HEADER_FONT = Font(name="Arial", bold=True, color="FFFFFF", size=11)
-KOKKU_FONT = Font(name="Arial", bold=True, color="FFFFFF", size=11)
+KOKKU_FILL = PatternFill("solid", fgColor="2E75B6")
+RIDA1_FILL = PatternFill("solid", fgColor="FFFFFF")
+RIDA2_FILL = PatternFill("solid", fgColor="DCE6F1")
+
+TITLE_FONT = Font(name="Arial", bold=True, size=16, color="FFFFFF")
+SUBTITLE_FONT = Font(name="Arial", bold=True, size=11, color="A8C4E0")
+HEADER_FONT = Font(name="Arial", bold=True, size=11, color="FFFFFF")
+KOKKU_FONT = Font(name="Arial", bold=True, size=11, color="FFFFFF")
 DATA_FONT = Font(name="Arial", size=10)
-TITLE_FONT = Font(name="Arial", bold=True, size=14)
-thin = Side(style='thin', color="CCCCCC")
+thin = Side(style="thin", color="B8CCE4")
 border = Border(left=thin, right=thin, top=thin, bottom=thin)
-center = Alignment(horizontal="center", vertical="center")
-left_align = Alignment(horizontal="left", vertical="center")
-right_align = Alignment(horizontal="right", vertical="center")
+center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+left_a = Alignment(horizontal="left", vertical="center")
+right_a = Alignment(horizontal="right", vertical="center")
 
-ws.merge_cells("A1:I1")
-ws["A1"] = f"{tyyp.upper()} raport — {algus} kuni {lopp}"
-ws["A1"].font = TITLE_FONT
-ws["A1"].alignment = left_align
-ws.row_dimensions[1].height = 30
-ws.append([])
-
-headers = ["Töötaja", "Kuupäev", "Objekt", "Algus", "Lõpp", "Tunnid",
-           f"Esitushind (käibemaksuta)", "KM 24%", "Summa (km-ga)"]
+headers = ["Tootaja","Kuupaev","Objekt","Algus","Lopp","Tunnid","Esitushind (km-ta)","KM 24%","Summa (km-ga)"]
 if tyyp == "lidl":
     headers.append("Pildid ZIP")
+ncols = len(headers)
+last_col = get_column_letter(ncols)
 
-ws.append(headers)
-hdr_row = 3
-for col, h in enumerate(headers, 1):
-    cell = ws.cell(row=hdr_row, column=col)
+ws.merge_cells(f"A1:{last_col}1")
+ws["A1"] = f"{tyyp.upper()} RAPORT  |  {algus_kp} - {lopp_kp}  |  {esitus_hind}e/h + KM"
+ws["A1"].fill = TITLE_FILL
+ws["A1"].font = TITLE_FONT
+ws["A1"].alignment = center
+ws.row_dimensions[1].height = 40
+
+ws.merge_cells(f"A2:{last_col}2")
+ws["A2"] = "Royal Paigaldus OU"
+ws["A2"].fill = SUBTITLE_FILL
+ws["A2"].font = SUBTITLE_FONT
+ws["A2"].alignment = center
+ws.row_dimensions[2].height = 22
+
+real_headers = ["Tootaja","Kuupaev","Objekt","Algus","Lopp","Tunnid","Esitushind (km-ta)","KM 24%","Summa (km-ga)"]
+if tyyp == "lidl":
+    real_headers.append("Pildid ZIP")
+for col, h in enumerate(real_headers, 1):
+    cell = ws.cell(row=3, column=col, value=h)
     cell.fill = HEADER_FILL
     cell.font = HEADER_FONT
     cell.alignment = center
     cell.border = border
-ws.row_dimensions[hdr_row].height = 35
+ws.row_dimensions[3].height = 32
 
-kokku_tunnid = 0
-kokku_esitus = 0
+kokku_tunnid = 0.0
 for i, k in enumerate(andmed):
-    row = hdr_row + 1 + i
-    tunnid = float(k.get('tunnid', 0))
-    summa_ilm = tunnid * esitus_hind
-    km = summa_ilm * km_maar
-    summa_km = summa_ilm + km
+    row = 4 + i
+    tunnid = float(k.get("tunnid", 0))
+    summa_ilm = round(tunnid * esitus_hind, 2)
+    km = round(summa_ilm * km_maar, 2)
+    summa_km = round(summa_ilm + km, 2)
     kokku_tunnid += tunnid
-    kokku_esitus += summa_km
-
-    kp = k.get('kuupaev', '')
-    if 'T' in str(kp): kp = str(kp).split('T')[0]
-    parts = str(kp).split('-')
-    kp_str = f"{parts[2]}.{parts[1]}.{parts[0]}" if len(parts) == 3 else kp
-    algus_aeg = (k.get('algus') or '')[:5]
-    lopp_aeg = (k.get('lopp') or '')[:5]
-
-    fill = WHITE if i % 2 == 0 else LIGHT_FILL
-    rida = [k.get('worker_nimi',''), kp_str, k.get('objekt_nimi',''), algus_aeg, lopp_aeg,
+    kp = str(k.get("kuupaev","")).split("T")[0]
+    parts = kp.split("-")
+    kp_str = f"{parts[2]}.{parts[1]}.{parts[0]}" if len(parts)==3 else kp
+    fill = RIDA1_FILL if i % 2 == 0 else RIDA2_FILL
+    rida = [k.get("worker_nimi",""), kp_str, k.get("objekt_nimi",""),
+            (k.get("algus") or "")[:5], (k.get("lopp") or "")[:5],
             tunnid, summa_ilm, km, summa_km]
     if tyyp == "lidl":
-        rida.append(k.get('zip_url', ''))
-
+        rida.append(k.get("zip_url",""))
     for col, val in enumerate(rida, 1):
         cell = ws.cell(row=row, column=col, value=val)
         cell.fill = fill
         cell.font = DATA_FONT
         cell.border = border
-        if col in [6, 7, 8, 9]:
-            cell.alignment = right_align
-            if isinstance(val, (int, float)):
-                cell.number_format = '#,##0.00'
+        if col >= 6:
+            cell.alignment = right_a
+            if isinstance(val, float):
+                cell.number_format = "#,##0.00"
         else:
-            cell.alignment = left_align
+            cell.alignment = left_a
 
-kokku_row = hdr_row + 1 + len(andmed)
-kokku_data = ["KOKKU", "", "", "", "", kokku_tunnid,
-              kokku_tunnid * esitus_hind,
-              kokku_tunnid * esitus_hind * km_maar,
-              kokku_esitus]
+kokku_row = 4 + len(andmed)
+kokku_ilm = round(kokku_tunnid * esitus_hind, 2)
+kokku_km = round(kokku_ilm * km_maar, 2)
+kokku_km_ga = round(kokku_ilm + kokku_km, 2)
+kokku_vals = ["KOKKU","","","","",kokku_tunnid,kokku_ilm,kokku_km,kokku_km_ga]
 if tyyp == "lidl":
-    kokku_data.append("")
-
-for col, val in enumerate(kokku_data, 1):
+    kokku_vals.append("")
+for col, val in enumerate(kokku_vals, 1):
     cell = ws.cell(row=kokku_row, column=col, value=val)
     cell.fill = KOKKU_FILL
     cell.font = KOKKU_FONT
     cell.border = border
-    if col in [6, 7, 8, 9]:
-        cell.alignment = right_align
-        if isinstance(val, (int, float)):
-            cell.number_format = '#,##0.00'
+    if col == 1:
+        cell.alignment = center
+    elif col >= 6:
+        cell.alignment = right_a
+        if isinstance(val, float):
+            cell.number_format = "#,##0.00"
     else:
         cell.alignment = center
+ws.row_dimensions[kokku_row].height = 24
 
-col_widths = [15, 12, 25, 8, 8, 10, 22, 10, 16]
+col_widths = [14, 12, 28, 8, 8, 10, 22, 10, 16]
 if tyyp == "lidl":
     col_widths.append(55)
 for i, w in enumerate(col_widths, 1):
     ws.column_dimensions[get_column_letter(i)].width = w
 
-ws.freeze_panes = "A4"
-last_col = get_column_letter(len(headers))
 ws.auto_filter.ref = f"A3:{last_col}3"
+ws.freeze_panes = "A4"
 wb.save("/tmp/raport_out.xlsx")
 print("OK")
 `;
 
   try {
-    const skriptPath = '/tmp/raport_skript.py';
-    fs.writeFileSync(skriptPath, skript);
-    execSync(`python3 ${skriptPath}`, { timeout: 30000 });
-
-    const xlsxPath = '/tmp/raport_out.xlsx';
-    if (!fs.existsSync(xlsxPath)) {
-      return res.status(500).json({ ok: false, veateade: 'Exceli genereerimine ebaõnnestus' });
+    fs.writeFileSync('/tmp/raport_skript.py', skript);
+    execSync('python3 /tmp/raport_skript.py', { timeout: 30000 });
+    if (!fs.existsSync('/tmp/raport_out.xlsx')) {
+      return res.status(500).json({ ok: false, veateade: 'Excel genereerimine ebaonnestus' });
     }
-
     const failiNimi = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
-    const fileStream = fs.createReadStream(xlsxPath);
+    const fileStream = fs.createReadStream('/tmp/raport_out.xlsx');
     fileStream.pipe(res);
     fileStream.on('end', () => {
-      try { fs.unlinkSync(xlsxPath); fs.unlinkSync(skriptPath); } catch(e) {}
+      try { fs.unlinkSync('/tmp/raport_out.xlsx'); fs.unlinkSync('/tmp/raport_skript.py'); } catch(e) {}
     });
   } catch (err) {
     console.error('Excel viga:', err.message);
-    res.status(500).json({ ok: false, veateade: 'Exceli genereerimine ebaõnnestus: ' + err.message });
+    res.status(500).json({ ok: false, veateade: 'Excel viga: ' + err.message });
   }
 });
 
