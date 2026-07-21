@@ -606,7 +606,9 @@
           + '<div class="tp-info"><div><span class="tp-badge badge-'+tyyp+'">'+k.ettevote_nimi+'</span><span class="tp-objekt">'+(k.objekt_nimi||'')+'</span></div>'
           + '<div class="tp-aeg">'+k.algus.slice(0,5)+' – '+k.lopp.slice(0,5)+kmInfo+lisakuluInfo+'</div>'
           + (k.kommentaar?'<div class="tp-komm">'+k.kommentaar+'</div>':'')
-          + '</div><div class="tp-tunnid">'+parseFloat(k.tunnid).toFixed(1)+'h</div></div>';
+          + '</div><div class="tp-tunnid">'+parseFloat(k.tunnid).toFixed(1)+'h</div>'
+          + '<a href="/tootaja-tood?ettevote='+k.ettevote_id+'" style="color:#444;font-size:18px;padding:4px;text-decoration:none" title="Muuda/kustuta">✏️</a>'
+          + '</div>';
       }).join('');
     }
 
