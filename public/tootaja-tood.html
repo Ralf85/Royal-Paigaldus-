@@ -176,6 +176,33 @@
       return fetch(url, opts).then(function(r) { return r.json(); });
     }
 
+    // Kompresseeri pilt enne üleslaadimist
+    async function kompresseeriFoto(file) {
+      return new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var maxSize = 1600;
+            var w = img.width, h = img.height;
+            if (w > maxSize || h > maxSize) {
+              if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+              else { w = Math.round(w * maxSize / h); h = maxSize; }
+            }
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(function(blob) {
+              resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            }, 'image/jpeg', 0.80);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
     async function init() {
       if (!TOKEN) { window.location = '/'; return; }
       var s = await api('/api/auth/sessioon');
@@ -314,13 +341,16 @@
           nupp.textContent = '📷 Laadin pilte... (0/' + kokku + ')';
           nupp.style.background = '#1a5c8a';
 
-          // Lae kõik korraga aga näita progressi
-          var fd = new FormData();
-          fd.append('kirje_id', r.kirjeId);
-          fotodUpload.slice(0, 12).forEach(function(f) { fd.append('pildid', f); });
-
-          nupp.textContent = '📷 Laadin ' + kokku + ' pilti...';
-          await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
+          // Kompresseeri ja lae ükshaaval
+          var failid = fotodUpload.slice(0, 12);
+          for (var pi = 0; pi < failid.length; pi++) {
+            nupp.textContent = '📷 Laadin... (' + (pi+1) + '/' + kokku + ')';
+            var kompressitud = await kompresseeriFoto(failid[pi]);
+            var fd = new FormData();
+            fd.append('kirje_id', r.kirjeId);
+            fd.append('pildid', kompressitud);
+            await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
+          }
           nupp.textContent = '✅ Pildid laaditud!';
         }
 
