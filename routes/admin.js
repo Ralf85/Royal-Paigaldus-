@@ -479,19 +479,28 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
   if (!andmed || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
   const { execSync } = require('child_process');
   const fs = require('fs');
+  const km_maar = 0.24;
 
-  const skript = `
-import openpyxl
+  // Kirjuta andmed JSON faili
+  const dataPath = '/tmp/raport_data.json';
+  const outPath = '/tmp/raport_out.xlsx';
+  const skriptPath = '/tmp/raport_gen.py';
+
+  fs.writeFileSync(dataPath, JSON.stringify({ andmed, tyyp, algus, lopp, esitus_hind, km_maar }));
+
+  const skript = `import openpyxl, json
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-import json
 
-andmed = ${JSON.stringify(andmed)}
-tyyp = "${tyyp}"
-algus_kp = "${algus}"
-lopp_kp = "${lopp}"
-esitus_hind = ${esitus_hind}
-km_maar = 0.24
+with open('/tmp/raport_data.json') as f:
+    d = json.load(f)
+
+andmed = d['andmed']
+tyyp = d['tyyp']
+algus_kp = d['algus']
+lopp_kp = d['lopp']
+esitus_hind = d['esitus_hind']
+km_maar = d['km_maar']
 
 wb = openpyxl.Workbook()
 ws = wb.active
@@ -503,7 +512,6 @@ HEADER_FILL = PatternFill("solid", fgColor="C0504D")
 KOKKU_FILL = PatternFill("solid", fgColor="2E75B6")
 RIDA1_FILL = PatternFill("solid", fgColor="FFFFFF")
 RIDA2_FILL = PatternFill("solid", fgColor="DCE6F1")
-
 TITLE_FONT = Font(name="Arial", bold=True, size=16, color="FFFFFF")
 SUBTITLE_FONT = Font(name="Arial", bold=True, size=11, color="A8C4E0")
 HEADER_FONT = Font(name="Arial", bold=True, size=11, color="FFFFFF")
@@ -535,10 +543,7 @@ ws["A2"].font = SUBTITLE_FONT
 ws["A2"].alignment = center
 ws.row_dimensions[2].height = 22
 
-real_headers = ["Tootaja","Kuupaev","Objekt","Algus","Lopp","Tunnid","Esitushind (km-ta)","KM 24%","Summa (km-ga)"]
-if tyyp == "lidl":
-    real_headers.append("Pildid ZIP")
-for col, h in enumerate(real_headers, 1):
+for col, h in enumerate(headers, 1):
     cell = ws.cell(row=3, column=col, value=h)
     cell.fill = HEADER_FILL
     cell.font = HEADER_FONT
@@ -577,9 +582,9 @@ for i, k in enumerate(andmed):
 
 kokku_row = 4 + len(andmed)
 kokku_ilm = round(kokku_tunnid * esitus_hind, 2)
-kokku_km = round(kokku_ilm * km_maar, 2)
-kokku_km_ga = round(kokku_ilm + kokku_km, 2)
-kokku_vals = ["KOKKU","","","","",kokku_tunnid,kokku_ilm,kokku_km,kokku_km_ga]
+kokku_km_val = round(kokku_ilm * km_maar, 2)
+kokku_km_ga = round(kokku_ilm + kokku_km_val, 2)
+kokku_vals = ["KOKKU","","","","",kokku_tunnid,kokku_ilm,kokku_km_val,kokku_km_ga]
 if tyyp == "lidl":
     kokku_vals.append("")
 for col, val in enumerate(kokku_vals, 1):
@@ -605,23 +610,23 @@ for i, w in enumerate(col_widths, 1):
 
 ws.auto_filter.ref = f"A3:{last_col}3"
 ws.freeze_panes = "A4"
-wb.save("/tmp/raport_out.xlsx")
+wb.save('/tmp/raport_out.xlsx')
 print("OK")
 `;
 
   try {
-    fs.writeFileSync('/tmp/raport_skript.py', skript);
-    execSync('python3 /tmp/raport_skript.py', { timeout: 30000 });
-    if (!fs.existsSync('/tmp/raport_out.xlsx')) {
+    fs.writeFileSync(skriptPath, skript);
+    const result = execSync('python3 ' + skriptPath, { timeout: 30000 });
+    if (!fs.existsSync(outPath)) {
       return res.status(500).json({ ok: false, veateade: 'Excel genereerimine ebaonnestus' });
     }
-    const failiNimi = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
+    const failiNimi = tyyp + '_raport_' + algus + '_' + lopp + '.xlsx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
-    const fileStream = fs.createReadStream('/tmp/raport_out.xlsx');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + failiNimi + '"');
+    const fileStream = fs.createReadStream(outPath);
     fileStream.pipe(res);
     fileStream.on('end', () => {
-      try { fs.unlinkSync('/tmp/raport_out.xlsx'); fs.unlinkSync('/tmp/raport_skript.py'); } catch(e) {}
+      try { fs.unlinkSync(outPath); fs.unlinkSync(skriptPath); fs.unlinkSync(dataPath); } catch(e) {}
     });
   } catch (err) {
     console.error('Excel viga:', err.message);
