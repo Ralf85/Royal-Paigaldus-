@@ -209,6 +209,15 @@
           sel.appendChild(opt);
         });
         document.getElementById('objekt-grupp').style.display = 'block';
+
+        // Cramo puhul vali automaatselt "Soojakute hooldus ja paigaldus"
+        if (etteVoteTyyp === 'cramo') {
+          Array.from(sel.options).forEach(function(opt) {
+            if (opt.textContent.toLowerCase().includes('soojakute')) {
+              sel.value = opt.value;
+            }
+          });
+        }
       }
 
       // Foto eelvaade
