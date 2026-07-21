@@ -473,6 +473,163 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
   res.send('\uFEFF' + header + '\r\n' + koikRead.join('\r\n'));
 });
 
+
+router.post('/raport-excel', noudaAdmin, async (req, res) => {
+  const { andmed, tyyp, algus, lopp, esitus_hind } = req.body;
+  if (!andmed || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
+
+  const { execSync } = require('child_process');
+  const fs = require('fs');
+  const path = require('path');
+  const km_maar = 0.24;
+
+  // Kirjuta Python skript temp faili
+  const skript = `
+import openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+import json, sys
+
+andmed = ${JSON.stringify(andmed)}
+tyyp = "${tyyp}"
+algus = "${algus}"
+lopp = "${lopp}"
+esitus_hind = ${esitus_hind}
+km_maar = ${km_maar}
+
+wb = openpyxl.Workbook()
+ws = wb.active
+ws.title = "Raport"
+
+HEADER_FILL = PatternFill("solid", fgColor="C0504D")
+KOKKU_FILL = PatternFill("solid", fgColor="4BACC6")
+WHITE = PatternFill("solid", fgColor="FFFFFF")
+LIGHT_FILL = PatternFill("solid", fgColor="F2F2F2")
+HEADER_FONT = Font(name="Arial", bold=True, color="FFFFFF", size=11)
+KOKKU_FONT = Font(name="Arial", bold=True, color="FFFFFF", size=11)
+DATA_FONT = Font(name="Arial", size=10)
+TITLE_FONT = Font(name="Arial", bold=True, size=14)
+thin = Side(style='thin', color="CCCCCC")
+border = Border(left=thin, right=thin, top=thin, bottom=thin)
+center = Alignment(horizontal="center", vertical="center")
+left_align = Alignment(horizontal="left", vertical="center")
+right_align = Alignment(horizontal="right", vertical="center")
+
+ws.merge_cells("A1:I1")
+ws["A1"] = f"{tyyp.upper()} raport — {algus} kuni {lopp}"
+ws["A1"].font = TITLE_FONT
+ws["A1"].alignment = left_align
+ws.row_dimensions[1].height = 30
+ws.append([])
+
+headers = ["Töötaja", "Kuupäev", "Objekt", "Algus", "Lõpp", "Tunnid",
+           f"Esitushind (käibemaksuta)", "KM 24%", "Summa (km-ga)"]
+if tyyp == "lidl":
+    headers.append("Pildid ZIP")
+
+ws.append(headers)
+hdr_row = 3
+for col, h in enumerate(headers, 1):
+    cell = ws.cell(row=hdr_row, column=col)
+    cell.fill = HEADER_FILL
+    cell.font = HEADER_FONT
+    cell.alignment = center
+    cell.border = border
+ws.row_dimensions[hdr_row].height = 35
+
+kokku_tunnid = 0
+kokku_esitus = 0
+for i, k in enumerate(andmed):
+    row = hdr_row + 1 + i
+    tunnid = float(k.get('tunnid', 0))
+    summa_ilm = tunnid * esitus_hind
+    km = summa_ilm * km_maar
+    summa_km = summa_ilm + km
+    kokku_tunnid += tunnid
+    kokku_esitus += summa_km
+
+    kp = k.get('kuupaev', '')
+    if 'T' in str(kp): kp = str(kp).split('T')[0]
+    parts = str(kp).split('-')
+    kp_str = f"{parts[2]}.{parts[1]}.{parts[0]}" if len(parts) == 3 else kp
+    algus_aeg = (k.get('algus') or '')[:5]
+    lopp_aeg = (k.get('lopp') or '')[:5]
+
+    fill = WHITE if i % 2 == 0 else LIGHT_FILL
+    rida = [k.get('worker_nimi',''), kp_str, k.get('objekt_nimi',''), algus_aeg, lopp_aeg,
+            tunnid, summa_ilm, km, summa_km]
+    if tyyp == "lidl":
+        rida.append(k.get('zip_url', ''))
+
+    for col, val in enumerate(rida, 1):
+        cell = ws.cell(row=row, column=col, value=val)
+        cell.fill = fill
+        cell.font = DATA_FONT
+        cell.border = border
+        if col in [6, 7, 8, 9]:
+            cell.alignment = right_align
+            if isinstance(val, (int, float)):
+                cell.number_format = '#,##0.00'
+        else:
+            cell.alignment = left_align
+
+kokku_row = hdr_row + 1 + len(andmed)
+kokku_data = ["KOKKU", "", "", "", "", kokku_tunnid,
+              kokku_tunnid * esitus_hind,
+              kokku_tunnid * esitus_hind * km_maar,
+              kokku_esitus]
+if tyyp == "lidl":
+    kokku_data.append("")
+
+for col, val in enumerate(kokku_data, 1):
+    cell = ws.cell(row=kokku_row, column=col, value=val)
+    cell.fill = KOKKU_FILL
+    cell.font = KOKKU_FONT
+    cell.border = border
+    if col in [6, 7, 8, 9]:
+        cell.alignment = right_align
+        if isinstance(val, (int, float)):
+            cell.number_format = '#,##0.00'
+    else:
+        cell.alignment = center
+
+col_widths = [15, 12, 25, 8, 8, 10, 22, 10, 16]
+if tyyp == "lidl":
+    col_widths.append(55)
+for i, w in enumerate(col_widths, 1):
+    ws.column_dimensions[get_column_letter(i)].width = w
+
+ws.freeze_panes = "A4"
+last_col = get_column_letter(len(headers))
+ws.auto_filter.ref = f"A3:{last_col}3"
+wb.save("/tmp/raport_out.xlsx")
+print("OK")
+`;
+
+  try {
+    const skriptPath = '/tmp/raport_skript.py';
+    fs.writeFileSync(skriptPath, skript);
+    execSync(`python3 ${skriptPath}`, { timeout: 30000 });
+
+    const xlsxPath = '/tmp/raport_out.xlsx';
+    if (!fs.existsSync(xlsxPath)) {
+      return res.status(500).json({ ok: false, veateade: 'Exceli genereerimine ebaõnnestus' });
+    }
+
+    const failiNimi = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    const fileStream = fs.createReadStream(xlsxPath);
+    fileStream.pipe(res);
+    fileStream.on('end', () => {
+      try { fs.unlinkSync(xlsxPath); fs.unlinkSync(skriptPath); } catch(e) {}
+    });
+  } catch (err) {
+    console.error('Excel viga:', err.message);
+    res.status(500).json({ ok: false, veateade: 'Exceli genereerimine ebaõnnestus: ' + err.message });
+  }
+});
+
 module.exports = router;
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────
