@@ -144,9 +144,9 @@
             <label>Pilt (vabatahtlik)</label>
             <div style="display:flex;gap:8px">
               <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="lisa-foto-kaamera" accept="image/*" capture="environment" style="display:none"></label>
-              <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="lisa-foto-album" accept="image/*" style="display:none"></label>
+              <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">🖼️ Album (kuni 12)<input type="file" id="lisa-foto-album" accept="image/*" multiple style="display:none"></label>
             </div>
-            <div id="lisa-foto-eelvaade" style="margin-top:6px;display:none"><img id="lisa-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></div>
+            <div id="lisa-foto-eelvaade" style="margin-top:6px;display:none"><div id="lisa-foto-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div><div id="lisa-foto-arv" style="font-size:11px;color:#555;margin-top:4px"></div></div>
           </div>
         </div>
         <button class="lisa-nupp" id="lisa-nupp" onclick="lisaKirje()">Salvesta kirje</button>
@@ -212,22 +212,45 @@
       }
 
       // Foto eelvaade
-      function setupFotoEelvaade(inputId) {
-        document.getElementById(inputId).addEventListener('change', function() {
-          var file = this.files[0];
-          if (file) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-              document.getElementById('lisa-foto-img').src = e.target.result;
-              document.getElementById('lisa-foto-eelvaade').style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-            window._lisaFotoInput = inputId;
-          }
+      document.getElementById('lisa-foto-kaamera').addEventListener('change', function() {
+        var file = this.files[0];
+        if (file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var grid = document.getElementById('lisa-foto-grid');
+            grid.innerHTML = '<img src="'+e.target.result+'" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:0.5px solid #252830">';
+            document.getElementById('lisa-foto-eelvaade').style.display = 'block';
+            document.getElementById('lisa-foto-arv').textContent = '1 pilt valitud';
+          };
+          reader.readAsDataURL(file);
+          window._lisaFotoInput = 'lisa-foto-kaamera';
+          window._lisaFotod = [file];
+        }
+      });
+
+      document.getElementById('lisa-foto-album').addEventListener('change', function() {
+        var files = Array.from(this.files).slice(0, 12);
+        if (!files.length) return;
+        window._lisaFotoInput = 'lisa-foto-album';
+        window._lisaFotod = files;
+        var grid = document.getElementById('lisa-foto-grid');
+        grid.innerHTML = '';
+        document.getElementById('lisa-foto-eelvaade').style.display = 'block';
+        document.getElementById('lisa-foto-arv').textContent = files.length + ' pilti valitud (laadib üles salvestamisel)';
+        files.forEach(function(file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:0.5px solid #252830';
+            grid.appendChild(img);
+          };
+          reader.readAsDataURL(file);
         });
-      }
-      setupFotoEelvaade('lisa-foto-kaamera');
-      setupFotoEelvaade('lisa-foto-album');
+        if (files.length > 12) {
+          document.getElementById('lisa-foto-arv').textContent = '⚠️ Max 12 pilti — esimesed 12 valitud';
+        }
+      });
 
       // Lisakulu selgitus
       document.getElementById('lisakulu').addEventListener('input', function() {
@@ -262,13 +285,12 @@
       nupp.disabled = false; nupp.textContent = 'Salvesta kirje';
 
       if (r.ok) {
-        // Lae foto üles kui on valitud
-        var fotoInput = window._lisaFotoInput;
-        var foto = fotoInput ? document.getElementById(fotoInput).files[0] : null;
-        if (foto && r.kirjeId) {
+        // Lae fotod üles kui on valitud
+        var fotod = window._lisaFotod || [];
+        if (fotod.length && r.kirjeId) {
           var fd = new FormData();
           fd.append('kirje_id', r.kirjeId);
-          fd.append('foto', foto);
+          fotod.slice(0, 12).forEach(function(f) { fd.append('pildid', f); });
           await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
         }
         teade.className = 'teade ok'; teade.style.display = 'block';
@@ -281,7 +303,9 @@
         document.getElementById('lisa-foto-kaamera').value = '';
         document.getElementById('lisa-foto-album').value = '';
         document.getElementById('lisa-foto-eelvaade').style.display = 'none';
+        document.getElementById('lisa-foto-grid').innerHTML = '';
         window._lisaFotoInput = null;
+        window._lisaFotod = [];
         await laadiKirjed();
         setTimeout(function() { teade.style.display = 'none'; }, 5000);
       } else {
@@ -308,7 +332,7 @@
       // Lae pildid kirjete kaupa
       try {
         var kirjeIds = kirjed.map(function(k) { return k.id; });
-        var pildidVastus = await api('/api/tood/pildid-batch?ids=' + kirjeIds.join(','));
+        var pildidVastus = await api('/api/pildid/batch?ids=' + kirjeIds.join(','));
         if (pildidVastus && pildidVastus.ok && pildidVastus.pildid) {
           var pildidMap = {};
           pildidVastus.pildid.forEach(function(p) {
