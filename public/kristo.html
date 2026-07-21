@@ -247,6 +247,18 @@
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
 
+    // Blokeeri brauseri tagasi nupp - jää kristo lehel
+    history.pushState(null, null, window.location.href);
+    window.addEventListener('popstate', function() {
+      history.pushState(null, null, window.location.href);
+      // Navigeeri kristo sisemiselt
+      if (aktiivsObjektId) {
+        laadiPoed(aktiivsKirjeldus);
+      } else if (aktiivsKirjeldus) {
+        laadiKirjeldused();
+      }
+    });
+
     init();
   </script>
 </body>
