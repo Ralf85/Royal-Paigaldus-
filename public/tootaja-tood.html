@@ -31,7 +31,7 @@
     .lisa-nupp:hover { background: #e0b84e; }
     .lisa-nupp:disabled { opacity: 0.5; cursor: not-allowed; }
     .teade { font-size: 12px; margin-top: 8px; display: none; padding: 8px 12px; border-radius: 6px; }
-    .teade.ok { background: #14532d; color: #86efac; }
+    .teade.ok { background: #14532d; color: #86efac; border-left: 4px solid #4ade80; font-size: 14px; font-weight: 600; padding: 12px 16px; }
     .teade.viga { background: #7f1d1d; color: #fca5a5; }
     .kirjed-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .kirjed-pealkiri { font-size: 13px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
@@ -286,12 +286,13 @@
         teade.textContent = 'Täida kuupäev, algus ja lõpp!'; return;
       }
 
-      nupp.disabled = true; nupp.textContent = 'Salvestab...';
+      nupp.disabled = true; nupp.textContent = '⏳ Salvestab...'; nupp.style.background = '#555';
       var r = await api('/api/tood/lisa', {
         method: 'POST',
         body: JSON.stringify({ ettevote_id: ettevoteId, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel })
       });
       nupp.disabled = false; nupp.textContent = 'Salvesta kirje';
+      nupp.style.background = '#c9a84c';
 
       if (r.ok) {
         // Lae fotod üles kui on valitud
@@ -317,12 +318,13 @@
         document.getElementById('lisakulu-sel').value = '';
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
 
-        // Näita teadet
+        // Näita teadet ja keeri üles
         teade.className = 'teade ok'; teade.style.display = 'block';
-        teade.textContent = '✅ Kirje salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' (lõunapaus 30min maha arvestatud)' : '');
+        teade.textContent = '✅ Salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' · lõunapaus arvestatud' : '');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
 
         await laadiKirjed();
-        setTimeout(function() { teade.style.display = 'none'; }, 8000);
+        setTimeout(function() { teade.style.display = 'none'; }, 6000);
       } else {
         teade.className = 'teade viga'; teade.style.display = 'block';
         teade.textContent = r.veateade || 'Viga salvestamisel';
