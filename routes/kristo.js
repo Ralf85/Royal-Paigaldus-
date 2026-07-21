@@ -12,60 +12,71 @@ function noudaKristo(req, res, next) {
   next();
 }
 
-// Lidli projektid kuu kaupa (kus on pilte)
-router.get('/projektid', noudaKristo, async (req, res) => {
-  const { aasta, kuu } = req.query;
+// Tase 1: Kõik kirjeldused (grupeeritud) - uusim üleval
+router.get('/kirjeldused', noudaKristo, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT
-         o.id as objekt_id,
-         o.nimi as objekt_nimi,
-         DATE(t.kuupaev) as kuupaev,
+         COALESCE(t.kommentaar, 'Määramata') as kirjeldus,
+         COUNT(DISTINCT o.id) as poodide_arv,
          COUNT(DISTINCT p.id) as piltide_arv,
-         STRING_AGG(DISTINCT w.nimi, ', ' ORDER BY w.nimi) as tootajad
+         MAX(t.kuupaev) as viimane_kuupaev
        FROM tookirje_pildid p
        JOIN tookirjed t ON p.tookirje_id = t.id
        JOIN objektid o ON t.objekt_id = o.id
        JOIN ettevotted e ON o.ettevote_id = e.id
-       JOIN workers w ON t.worker_id = w.id
        WHERE e.nimi = 'LIDL'
-         AND EXTRACT(YEAR FROM t.kuupaev) = $1
-         AND EXTRACT(MONTH FROM t.kuupaev) = $2
-       GROUP BY o.id, o.nimi, DATE(t.kuupaev)
+       GROUP BY COALESCE(t.kommentaar, 'Määramata')
        HAVING COUNT(DISTINCT p.id) > 0
-       ORDER BY DATE(t.kuupaev) DESC, o.nimi`,
-      [aasta, kuu]
+       ORDER BY MAX(t.kuupaev) DESC`
     );
-    res.json({ ok: true, projektid: r.rows });
+    res.json({ ok: true, kirjeldused: r.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
 
-// Pildid ühe projekti ja kuupäeva kohta
-router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
-  const { kuupaev } = req.query;
+// Tase 2: Poodide nimekiri kirjelduse järgi
+router.get('/poed', noudaKristo, async (req, res) => {
+  const { kirjeldus } = req.query;
   try {
-    let query, params;
-    if (kuupaev) {
-      query = `SELECT p.id, p.url, p.nimi, DATE(t.kuupaev) as kuupaev, w.nimi as worker_nimi
-               FROM tookirje_pildid p
-               JOIN tookirjed t ON p.tookirje_id = t.id
-               JOIN workers w ON t.worker_id = w.id
-               WHERE t.objekt_id = $1 AND DATE(t.kuupaev) = $2
-               ORDER BY t.kuupaev, p.loodud`;
-      params = [req.params.objektId, kuupaev];
-    } else {
-      query = `SELECT p.id, p.url, p.nimi, DATE(t.kuupaev) as kuupaev, w.nimi as worker_nimi
-               FROM tookirje_pildid p
-               JOIN tookirjed t ON p.tookirje_id = t.id
-               JOIN workers w ON t.worker_id = w.id
-               WHERE t.objekt_id = $1
-               ORDER BY t.kuupaev, p.loodud`;
-      params = [req.params.objektId];
-    }
-    const r = await pool.query(query, params);
+    const r = await pool.query(
+      `SELECT
+         o.id as objekt_id,
+         o.nimi as objekt_nimi,
+         COUNT(DISTINCT p.id) as piltide_arv,
+         MAX(t.kuupaev) as viimane_kuupaev
+       FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       JOIN objektid o ON t.objekt_id = o.id
+       JOIN ettevotted e ON o.ettevote_id = e.id
+       WHERE e.nimi = 'LIDL'
+         AND COALESCE(t.kommentaar, 'Määramata') = $1
+       GROUP BY o.id, o.nimi
+       HAVING COUNT(DISTINCT p.id) > 0
+       ORDER BY MAX(t.kuupaev) DESC, o.nimi`,
+      [kirjeldus]
+    );
+    res.json({ ok: true, poed: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Tase 3: Pildid poe ja kirjelduse järgi
+router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
+  const { kirjeldus } = req.query;
+  try {
+    const r = await pool.query(
+      `SELECT p.id, p.url, DATE(t.kuupaev) as kuupaev
+       FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       WHERE t.objekt_id = $1
+         AND COALESCE(t.kommentaar, 'Määramata') = $2
+       ORDER BY t.kuupaev DESC, p.loodud`,
+      [req.params.objektId, kirjeldus]
+    );
     res.json({ ok: true, pildid: r.rows });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
