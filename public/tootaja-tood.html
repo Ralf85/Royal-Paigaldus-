@@ -302,21 +302,27 @@
           fotod.slice(0, 12).forEach(function(f) { fd.append('pildid', f); });
           await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
         }
-        teade.className = 'teade ok'; teade.style.display = 'block';
-        teade.textContent = '✅ Kirje salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' (lõunapaus 30min maha arvestatud)' : '');
+        // Puhasta fotod ENNE teadet et vältida topelt üleslaadimist
+        window._lisaFotoInput = null;
+        window._lisaFotod = [];
+        document.getElementById('lisa-foto-kaamera').value = '';
+        document.getElementById('lisa-foto-album').value = '';
+        document.getElementById('lisa-foto-eelvaade').style.display = 'none';
+        document.getElementById('lisa-foto-grid').innerHTML = '';
+
+        // Puhasta vorm
         document.getElementById('kommentaar').value = '';
         document.getElementById('km').value = '0';
         document.getElementById('lisakulu').value = '0';
         document.getElementById('lisakulu-sel').value = '';
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
-        document.getElementById('lisa-foto-kaamera').value = '';
-        document.getElementById('lisa-foto-album').value = '';
-        document.getElementById('lisa-foto-eelvaade').style.display = 'none';
-        document.getElementById('lisa-foto-grid').innerHTML = '';
-        window._lisaFotoInput = null;
-        window._lisaFotod = [];
+
+        // Näita teadet
+        teade.className = 'teade ok'; teade.style.display = 'block';
+        teade.textContent = '✅ Kirje salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' (lõunapaus 30min maha arvestatud)' : '');
+
         await laadiKirjed();
-        setTimeout(function() { teade.style.display = 'none'; }, 5000);
+        setTimeout(function() { teade.style.display = 'none'; }, 8000);
       } else {
         teade.className = 'teade viga'; teade.style.display = 'block';
         teade.textContent = r.veateade || 'Viga salvestamisel';
