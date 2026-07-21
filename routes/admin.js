@@ -542,7 +542,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
         const cell = row.getCell(j + 1);
         cell.value = val;
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
-        cell.font = { name: 'Arial', size: 10 };
+        cell.font = { name: 'Arial', size: 10, bold: j === 0 };
         cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
         if (j >= 5) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -550,6 +550,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
         } else {
           cell.alignment = { horizontal: 'left', vertical: 'middle' };
         }
+        row.height = 20;
       });
     });
 
@@ -562,7 +563,17 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
     if (tyyp === 'lidl') kokku_vals.push('');
 
     const kokku_row = ws.getRow(kokku_row_idx);
-    kokku_row.height = 24;
+    kokku_row.height = 26;
+    // Paks joon KOKKU rea kohale
+    for (let c = 1; c <= ncols; c++) {
+      const cell = kokku_row.getCell(c);
+      cell.border = {
+        top: {style:'medium', color:{argb:'FF1F3864'}},
+        bottom: {style:'thin', color:{argb:'FFB8CCE4'}},
+        left: {style:'thin', color:{argb:'FFB8CCE4'}},
+        right: {style:'thin', color:{argb:'FFB8CCE4'}}
+      };
+    }
     kokku_vals.forEach((val, j) => {
       const cell = kokku_row.getCell(j + 1);
       cell.value = val;
@@ -580,7 +591,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
     });
 
     // Veeru laiused
-    const colWidths = [14, 12, 28, 8, 8, 10, 22, 10, 16];
+    const colWidths = [16, 13, 30, 8, 8, 10, 22, 10, 16];
     if (tyyp === 'lidl') colWidths.push(55);
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
