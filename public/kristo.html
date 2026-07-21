@@ -188,7 +188,7 @@
         return;
       }
 
-      var zipUrl = '/api/pildid/admin/zip/' + objektId + '?_token=' + TOKEN;
+      var zipUrl = '/api/kristo/zip/' + objektId + '?kirjeldus=' + encodeURIComponent(aktiivsKirjeldus) + '&_token=' + TOKEN;
       document.getElementById('sisu').innerHTML =
         '<div class="galerii-header">'
         + '<div class="galerii-pealkiri">' + objektNimi + '</div>'
