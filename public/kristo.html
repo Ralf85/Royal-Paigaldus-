@@ -204,7 +204,13 @@
     // ── BREADCRUMB ───────────────────────────────────────────
     function uuendaBreadcrumb() {
       var bc = document.getElementById('breadcrumb');
-      var html = '<span class="bc-item' + (!aktiivsKirjeldus ? ' ak' : '') + '" onclick="laadiKirjeldused()">Kõik projektid</span>';
+      var tagasiHtml = '';
+      if (aktiivsKirjeldus && !aktiivsObjektId) {
+        tagasiHtml = '<button onclick="laadiKirjeldused()" style="background:#1e2128;border:0.5px solid #252830;border-radius:6px;color:#aaa;font-size:12px;padding:5px 10px;cursor:pointer;margin-right:8px">← Tagasi</button>';
+      } else if (aktiivsObjektId) {
+        tagasiHtml = '<button onclick="laadiPoed(aktiivsKirjeldus)" style="background:#1e2128;border:0.5px solid #252830;border-radius:6px;color:#aaa;font-size:12px;padding:5px 10px;cursor:pointer;margin-right:8px">← Tagasi</button>';
+      }
+      var html = tagasiHtml + '<span class="bc-item' + (!aktiivsKirjeldus ? ' ak' : '') + '" onclick="laadiKirjeldused()">Kõik projektid</span>';
       if (aktiivsKirjeldus) {
         html += '<span class="bc-sep">›</span>';
         html += '<span class="bc-item' + (!aktiivsObjektId ? ' ak' : '') + '" onclick="laadiPoed(\'' + aktiivsKirjeldus.replace(/'/g,"\\'") + '\')">' + aktiivsKirjeldus + '</span>';
@@ -246,18 +252,6 @@
     document.getElementById('suurOverlay').addEventListener('click', function(e) { if (e.target === this) sulgeSuur(); });
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
-
-    // Blokeeri brauseri tagasi nupp - jää kristo lehel
-    history.pushState(null, null, window.location.href);
-    window.addEventListener('popstate', function() {
-      history.pushState(null, null, window.location.href);
-      // Navigeeri kristo sisemiselt
-      if (aktiivsObjektId) {
-        laadiPoed(aktiivsKirjeldus);
-      } else if (aktiivsKirjeldus) {
-        laadiKirjeldused();
-      }
-    });
 
     init();
   </script>
