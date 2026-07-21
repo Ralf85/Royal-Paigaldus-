@@ -83,4 +83,60 @@ router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
   }
 });
 
+// ZIP allalaadimine Kristole
+router.get('/zip/:objektId', noudaKristo, async (req, res) => {
+  const archiver = require('archiver');
+  const https = require('https');
+  const http = require('http');
+  const { kirjeldus } = req.query;
+  try {
+    let query, params;
+    if (kirjeldus) {
+      query = `SELECT p.url, p.nimi, DATE(t.kuupaev) as kuupaev, w.nimi as worker_nimi
+               FROM tookirje_pildid p
+               JOIN tookirjed t ON p.tookirje_id = t.id
+               JOIN workers w ON t.worker_id = w.id
+               WHERE t.objekt_id = $1 AND COALESCE(t.kommentaar, 'Määramata') = $2
+               ORDER BY t.kuupaev, p.loodud`;
+      params = [req.params.objektId, kirjeldus];
+    } else {
+      query = `SELECT p.url, p.nimi, DATE(t.kuupaev) as kuupaev, w.nimi as worker_nimi
+               FROM tookirje_pildid p
+               JOIN tookirjed t ON p.tookirje_id = t.id
+               JOIN workers w ON t.worker_id = w.id
+               WHERE t.objekt_id = $1
+               ORDER BY t.kuupaev, p.loodud`;
+      params = [req.params.objektId];
+    }
+    const pildid = await pool.query(query, params);
+    if (!pildid.rows.length) return res.status(404).json({ ok: false, veateade: 'Pilte ei leitud' });
+
+    const objektInfo = await pool.query('SELECT nimi FROM objektid WHERE id=$1', [req.params.objektId]);
+    const objektNimi = (objektInfo.rows[0]?.nimi || 'pildid').replace(/[^a-zA-Z0-9]/g, '_');
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${objektNimi}_pildid.zip"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+
+    for (const pilt of pildid.rows) {
+      const kuupaev = String(pilt.kuupaev).split('T')[0];
+      const fileName = `${kuupaev}_${pilt.nimi || 'pilt.jpg'}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
+      await new Promise((resolve, reject) => {
+        const url = new URL(pilt.url);
+        const proto = url.protocol === 'https:' ? https : http;
+        proto.get(pilt.url, (imgRes) => {
+          archive.append(imgRes, { name: fileName });
+          imgRes.on('end', resolve);
+          imgRes.on('error', reject);
+        }).on('error', reject);
+      });
+    }
+    archive.finalize();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 module.exports = router;
