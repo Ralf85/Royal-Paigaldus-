@@ -319,7 +319,8 @@
         </div>
         <div style="display:flex;gap:10px">
           <button class="nupp kull" onclick="laadiRaportEelvaade()">Näita eelvaadet</button>
-          <button class="raport-nupp" onclick="laadiRaportCSV()">⬇ Laadi CSV</button>
+          <button class="raport-nupp" onclick="laadiRaportCSV()">⬇ CSV</button>
+          <button class="raport-nupp" style="background:#1a7431" onclick="laadiRaportExcel()">⬇ Excel</button>
         </div>
         <div id="r-teade" style="margin-top:10px;font-size:13px;color:#ef4444;display:none"></div>
       </div>
@@ -2004,9 +2005,13 @@ async function laadiRaportCSV() {
 
   const kokku_ilm = kokku_tunnid * esitusHind;
   const kokku_km = kokku_ilm * 0.24;
+  const kokku_ilm_str = String(kokku_ilm.toFixed(2)).replace('.',',');
+  const kokku_km_str = String((kokku_ilm * 0.24).toFixed(2)).replace('.',',');
+  const kokku_esitus_str = String(kokku_esitus.toFixed(2)).replace('.',',');
+  const kokku_tunnid_str = String(kokku_tunnid.toFixed(1)).replace('.',',');
   const kokkuRow = tyyp === 'lidl'
-    ? `KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.',',')};;;${String(kokku_ilm.toFixed(2)).replace('.',',')};;${String(kokku_km.toFixed(2)).replace('.',',')};;${String(kokku_esitus.toFixed(2)).replace('.',',')}`
-    : `KOKKU;;;;;${String(kokku_tunnid.toFixed(1)).replace('.',',')};;${String(kokku_ilm.toFixed(2)).replace('.',',')};;${String(kokku_km.toFixed(2)).replace('.',',')};;${String(kokku_esitus.toFixed(2)).replace('.',',')}`;
+    ? `KOKKU;;;;; ${kokku_tunnid_str};${kokku_ilm_str};${kokku_km_str};${kokku_esitus_str};`
+    : `KOKKU;;;;;${kokku_tunnid_str};${kokku_ilm_str};${kokku_km_str};${kokku_esitus_str}`;
 
   const failiNimi = `${tyyp}_raport_${algus}_${lopp}.csv`;
   const csv = '\uFEFF' + header + '\r\n' + read.join('\r\n') + '\r\n' + kokkuRow;
@@ -2017,6 +2022,41 @@ async function laadiRaportCSV() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+
+async function laadiRaportExcel() {
+  const { ettevote_id, objekt_id, algus, lopp, workers, tyyp } = getRaportParams();
+  const teade = document.getElementById('r-teade');
+  if (!ettevote_id) { teade.style.display='block'; teade.textContent='Vali ettevõte!'; return; }
+  if (!algus || !lopp) { teade.style.display='block'; teade.textContent='Vali kuupäevad!'; return; }
+  if (!workers.length) { teade.style.display='block'; teade.textContent='Vali töötajad!'; return; }
+  teade.style.display = 'none';
+
+  const params = new URLSearchParams({ ettevote_id, objekt_id, algus, lopp, workers: workers.join(',') });
+  const andmed = await api(`/api/admin/raport-filter?${params}`);
+  if (!andmed.length) { teade.style.display='block'; teade.textContent='Kirjeid ei leitud'; return; }
+
+  // Lisa ZIP URL-id Lidli puhul
+  const esitusHind = ESITUSHIND[tyyp] || 0;
+  const andmedZip = andmed.map(k => ({
+    ...k,
+    zip_url: tyyp === 'lidl' && k.objekt_id
+      ? `https://royal-paigaldus-production.up.railway.app/api/pildid/admin/zip/${k.objekt_id}?_token=${TOKEN}`
+      : ''
+  }));
+
+  const r = await fetch('/api/admin/raport-excel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
+    body: JSON.stringify({ andmed: andmedZip, tyyp, algus, lopp, esitus_hind: esitusHind })
+  });
+
+  if (!r.ok) { teade.style.display='block'; teade.textContent='Viga Exceli genereerimisel'; return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
 
 async function välju(){localStorage.removeItem('adminToken');window.location='/admin-login';}
 
