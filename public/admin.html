@@ -283,20 +283,38 @@
   </div>
   <div class="sektsioon" id="tab7">
     <div class="kaart">
-      <div class="kaart-hdr">📄 Projekti raport</div>
+      <div class="kaart-hdr">📄 Raport</div>
       <div class="kaart-body">
         <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="r-ettevote" onchange="laadiRaportObjektid()"></select></div>
-          <div class="vorm-grupp"><label>Objekt (vabatahtlik)</label><select id="r-objekt"><option value="">— Kõik objektid —</option></select></div>
+          <div class="vorm-grupp">
+            <label>Ettevõte</label>
+            <select id="r-ettevote" onchange="r_ettevoteVahetud()">
+              <option value="">— Vali ettevõte —</option>
+            </select>
+          </div>
+          <div class="vorm-grupp" id="r-objekt-grupp">
+            <label>Objekt (vabatahtlik)</label>
+            <select id="r-objekt"><option value="">— Kõik objektid —</option></select>
+          </div>
         </div>
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Kuupäevast</label><input type="date" id="r-algus" style="color-scheme:dark"></div>
-          <div class="vorm-grupp"><label>Kuupäevani</label><input type="date" id="r-lopp" style="color-scheme:dark"></div>
+        <!-- Lidl: kuupäevast-kuupäevani -->
+        <div id="r-lidl-filter" style="display:none">
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>Kuupäevast</label><input type="date" id="r-algus" style="color-scheme:dark"></div>
+            <div class="vorm-grupp"><label>Kuupäevani</label><input type="date" id="r-lopp" style="color-scheme:dark"></div>
+          </div>
+        </div>
+        <!-- Cramo: kuu põhine -->
+        <div id="r-cramo-filter" style="display:none">
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>Kuu</label><select id="r-kuu"></select></div>
+            <div class="vorm-grupp"><label>Aasta</label><select id="r-aasta"></select></div>
+          </div>
         </div>
         <div class="vorm-grupp" style="margin-bottom:16px">
           <label style="margin-bottom:8px;display:block">Töötajad</label>
           <div id="r-workers" style="background:var(--bg3);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px">
-            <span style="color:var(--hall);font-size:13px">Laadimine...</span>
+            <span style="color:var(--hall);font-size:13px">Vali ettevõte</span>
           </div>
         </div>
         <div style="display:flex;gap:10px">
@@ -1819,6 +1837,184 @@ function laadiReCSV(e) {
   const kuu = document.getElementById('re-filter-kuu')?.value || '';
   const aasta = document.getElementById('re-filter-aasta')?.value || '';
   window.location = `/api/re/admin/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
+}
+
+
+// ── RAPORT TAB ────────────────────────────────────────────────
+
+const ESITUSHIND = { lidl: 27, cramo: 25 };
+const KM = 1.24;
+
+async function laadiRaportTab() {
+  const sel = document.getElementById('r-ettevote');
+  if (sel && !sel.options.length || (sel.options.length === 1 && sel.options[0].value === '')) {
+    sel.innerHTML = '<option value="">— Vali ettevõte —</option>';
+    if (Array.isArray(kõikEttevotted)) {
+      kõikEttevotted.filter(e => ['lidl','cramo'].includes((e.tyyp||'').toLowerCase()))
+        .forEach(e => {
+          const o = document.createElement('option');
+          o.value = e.id; o.textContent = e.nimi; o.dataset.tyyp = e.tyyp;
+          sel.appendChild(o);
+        });
+    }
+  }
+  // Kuu/aasta valikud Cramole
+  const t = new Date();
+  const kuuSel = document.getElementById('r-kuu');
+  const aastasSel = document.getElementById('r-aasta');
+  if (kuuSel && !kuuSel.options.length) {
+    KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuuSel.appendChild(o); });
+  }
+  if (aastasSel && !aastasSel.options.length) {
+    for(let y=t.getFullYear(); y>=t.getFullYear()-2; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aastasSel.appendChild(o); }
+  }
+  // Töötajad
+  const workers = await api('/api/admin/tootajad');
+  document.getElementById('r-workers').innerHTML = '<label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid #c9a84c;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#c9a84c"><input type="checkbox" id="r-koik" style="width:auto;margin:0" onchange="valiKõikTootajad(this)" checked> Kõik</label>'
+    + workers.filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)"><input type="checkbox" class="r-worker" value="${w.id}" style="width:auto;margin:0" checked> ${w.nimi}</label>`).join('');
+  // Kuupäevad Lidlile
+  const algus = document.getElementById('r-algus');
+  const lopp = document.getElementById('r-lopp');
+  if (algus && !algus.value) algus.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
+  if (lopp && !lopp.value) lopp.value = t.toISOString().split('T')[0];
+}
+
+function r_ettevoteVahetud() {
+  const sel = document.getElementById('r-ettevote');
+  const tyyp = sel.options[sel.selectedIndex]?.dataset?.tyyp?.toLowerCase() || '';
+  document.getElementById('r-lidl-filter').style.display = tyyp === 'lidl' ? 'block' : 'none';
+  document.getElementById('r-cramo-filter').style.display = tyyp === 'cramo' ? 'block' : 'none';
+  laadiRaportObjektid();
+}
+
+async function laadiRaportObjektid() {
+  const ettevoteId = document.getElementById('r-ettevote').value;
+  const sel = document.getElementById('r-objekt');
+  sel.innerHTML = '<option value="">— Kõik objektid —</option>';
+  if (!ettevoteId) return;
+  const objektid = await api(`/api/tood/objektid/${ettevoteId}`);
+  if (Array.isArray(objektid)) objektid.forEach(o => sel.innerHTML += `<option value="${o.id}">${o.nimi}</option>`);
+}
+
+function valiKõikTootajad(cb) { document.querySelectorAll('.r-worker').forEach(c => c.checked = cb.checked); }
+
+function getRaportTyyp() {
+  const sel = document.getElementById('r-ettevote');
+  return sel.options[sel.selectedIndex]?.dataset?.tyyp?.toLowerCase() || '';
+}
+
+function getRaportParams() {
+  const tyyp = getRaportTyyp();
+  const ettevote_id = document.getElementById('r-ettevote').value;
+  const objekt_id = document.getElementById('r-objekt').value;
+  const workers = [...document.querySelectorAll('.r-worker:checked')].map(c => c.value);
+  let algus, lopp;
+  if (tyyp === 'cramo') {
+    const kuu = document.getElementById('r-kuu').value;
+    const aasta = document.getElementById('r-aasta').value;
+    algus = `${aasta}-${String(kuu).padStart(2,'0')}-01`;
+    const viimane = new Date(aasta, kuu, 0).getDate();
+    lopp = `${aasta}-${String(kuu).padStart(2,'0')}-${viimane}`;
+  } else {
+    algus = document.getElementById('r-algus').value;
+    lopp = document.getElementById('r-lopp').value;
+  }
+  return { ettevote_id, objekt_id, algus, lopp, workers, tyyp };
+}
+
+async function laadiRaportEelvaade() {
+  const { ettevote_id, objekt_id, algus, lopp, workers, tyyp } = getRaportParams();
+  const teade = document.getElementById('r-teade');
+  if (!ettevote_id) { teade.style.display='block'; teade.textContent='Vali ettevõte!'; return; }
+  if (!algus || !lopp) { teade.style.display='block'; teade.textContent='Vali kuupäevad!'; return; }
+  if (!workers.length) { teade.style.display='block'; teade.textContent='Vali töötajad!'; return; }
+  teade.style.display = 'none';
+
+  const params = new URLSearchParams({ ettevote_id, objekt_id, algus, lopp, workers: workers.join(',') });
+  const andmed = await api(`/api/admin/raport-filter?${params}`);
+  const kaart = document.getElementById('r-eelvaade-kaart');
+  const div = document.getElementById('r-eelvaade');
+  kaart.style.display = 'block';
+
+  if (!andmed.length) { div.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hall)">Kirjeid ei leitud</div>'; return; }
+
+  const esitusHind = ESITUSHIND[tyyp] || 0;
+  const esitusKm = esitusHind * KM;
+
+  let kokku_tunnid = 0, kokku_esitus = 0;
+  let html = `<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Objekt</th><th>Aeg</th><th>Tunnid</th><th>Esitushind/h</th><th>Summa (km-ga)</th></tr></thead><tbody>`;
+  andmed.forEach(k => {
+    const tunnid = parseFloat(k.tunnid);
+    const summaKm = tunnid * esitusKm;
+    kokku_tunnid += tunnid; kokku_esitus += summaKm;
+    html += `<tr><td>${k.worker_nimi}</td><td>${formatKp(k.kuupaev)}</td><td style="color:var(--hall)">${k.objekt_nimi||'—'}</td><td>${k.algus?.slice(0,5)||''}–${k.lopp?.slice(0,5)||''}</td><td>${tunnid.toFixed(1)}h</td><td>${esitusHind}€ + KM</td><td style="color:#4ade80;font-weight:600">${summaKm.toFixed(2)}€</td></tr>`;
+  });
+  html += `<tr style="font-weight:700;border-top:1px solid var(--piir)"><td colspan="4">KOKKU</td><td>${kokku_tunnid.toFixed(1)}h</td><td>${esitusHind}€ + KM</td><td style="color:#4ade80">${kokku_esitus.toFixed(2)}€</td></tr>`;
+  div.innerHTML = html + '</tbody></table>';
+}
+
+async function laadiRaportCSV() {
+  const { ettevote_id, objekt_id, algus, lopp, workers, tyyp } = getRaportParams();
+  const teade = document.getElementById('r-teade');
+  if (!ettevote_id) { teade.style.display='block'; teade.textContent='Vali ettevõte!'; return; }
+  if (!algus || !lopp) { teade.style.display='block'; teade.textContent='Vali kuupäevad!'; return; }
+  if (!workers.length) { teade.style.display='block'; teade.textContent='Vali töötajad!'; return; }
+  teade.style.display = 'none';
+
+  const esitusHind = ESITUSHIND[tyyp] || 0;
+  const esitusKm = esitusHind * KM;
+
+  const params = new URLSearchParams({ ettevote_id, objekt_id, algus, lopp, workers: workers.join(',') });
+  const andmed = await api(`/api/admin/raport-filter?${params}`);
+  if (!andmed.length) { teade.style.display='block'; teade.textContent='Kirjeid ei leitud'; return; }
+
+  // Grupeeri objekti järgi ZIP linkide jaoks (Lidl)
+  const objektMap = {};
+  andmed.forEach(k => {
+    if (k.objekt_nimi && !objektMap[k.objekt_nimi]) {
+      objektMap[k.objekt_nimi] = k.objekt_id || '';
+    }
+  });
+
+  let kokku_tunnid = 0, kokku_esitus = 0;
+  const header = tyyp === 'lidl'
+    ? 'Töötaja;Kuupäev;Objekt;Algus;Lõpp;Tunnid;Esitushind (käibemaksuta);KM 24%;Summa (km-ga);Pildid ZIP'
+    : 'Töötaja;Kuupäev;Objekt;Algus;Lõpp;Tunnid;Esitushind (käibemaksuta);KM 24%;Summa (km-ga)';
+
+  const read = andmed.map(k => {
+    const tunnid = parseFloat(k.tunnid);
+    const summaIlm = tunnid * esitusHind;
+    const km = summaIlm * 0.24;
+    const summaKm = tunnid * esitusKm;
+    kokku_tunnid += tunnid; kokku_esitus += summaKm;
+    const kp = new Date(k.kuupaev); const kpStr = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
+    const zipUrl = tyyp === 'lidl' && k.objekt_id
+      ? `https://royal-paigaldus-production.up.railway.app/api/pildid/admin/zip/${k.objekt_id}?_token=${TOKEN}`
+      : '';
+    const row = [
+      k.worker_nimi, kpStr, k.objekt_nimi||'', k.algus?.slice(0,5)||'', k.lopp?.slice(0,5)||'',
+      String(tunnid.toFixed(1)).replace('.',','),
+      String(summaIlm.toFixed(2)).replace('.',','),
+      String(km.toFixed(2)).replace('.',','),
+      String(summaKm.toFixed(2)).replace('.',',')
+    ];
+    if (tyyp === 'lidl') row.push(zipUrl);
+    return row.join(';');
+  });
+
+  const kokku_ilm = kokku_tunnid * esitusHind;
+  const kokku_km = kokku_ilm * 0.24;
+  const kokkuRow = tyyp === 'lidl'
+    ? `KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.',',')};;;${String(kokku_ilm.toFixed(2)).replace('.',',')};;${String(kokku_km.toFixed(2)).replace('.',',')};;${String(kokku_esitus.toFixed(2)).replace('.',',')}`
+    : `KOKKU;;;;;${String(kokku_tunnid.toFixed(1)).replace('.',',')};;${String(kokku_ilm.toFixed(2)).replace('.',',')};;${String(kokku_km.toFixed(2)).replace('.',',')};;${String(kokku_esitus.toFixed(2)).replace('.',',')}`;
+
+  const failiNimi = `${tyyp}_raport_${algus}_${lopp}.csv`;
+  const csv = '\uFEFF' + header + '\r\n' + read.join('\r\n') + '\r\n' + kokkuRow;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = failiNimi;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 
