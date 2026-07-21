@@ -130,6 +130,7 @@
 
     // ── TASE 1: Kirjeldused ──────────────────────────────────
     async function laadiKirjeldused() {
+      history.pushState(null, '', '/kristo');
       aktiivsKirjeldus = null; aktiivsObjektId = null;
       uuendaBreadcrumb();
       document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
@@ -153,6 +154,7 @@
 
     // ── TASE 2: Poed ─────────────────────────────────────────
     async function laadiPoed(kirjeldus) {
+      history.pushState({ tase: 'poed', kirjeldus: kirjeldus }, '', '/kristo');
       aktiivsKirjeldus = kirjeldus; aktiivsObjektId = null;
       uuendaBreadcrumb();
       document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
@@ -174,6 +176,7 @@
 
     // ── TASE 3: Pildid ───────────────────────────────────────
     async function laadiPildid(objektId, objektNimi) {
+      history.pushState({ tase: 'pildid', kirjeldus: aktiivsKirjeldus, objektId: objektId, objektNimi: objektNimi }, '', '/kristo');
       aktiivsObjektId = objektId; aktiivsObjektNimi = objektNimi;
       uuendaBreadcrumb();
       document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
@@ -250,6 +253,17 @@
       if (e.key === 'Escape') sulgeSuur();
     });
     document.getElementById('suurOverlay').addEventListener('click', function(e) { if (e.target === this) sulgeSuur(); });
+
+    window.addEventListener('popstate', function(e) {
+      if (e.state && e.state.tase === 'pildid') {
+        aktiivsKirjeldus = e.state.kirjeldus;
+        laadiPoed(e.state.kirjeldus);
+      } else if (e.state && e.state.tase === 'poed') {
+        laadiKirjeldused();
+      } else {
+        laadiKirjeldused();
+      }
+    });
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
 
