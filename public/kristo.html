@@ -7,72 +7,69 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
+
     .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #FFF200, #ffdd00); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #002060; }
+    .brand-logo { width: 32px; height: 32px; background: #FFF200; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #002060; }
     .brand-name { font-size: 13px; font-weight: 700; color: #FFF200; }
     .brand-sub { font-size: 10px; color: #555; }
     .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .worker-nimi { font-size: 13px; color: #bbb; }
     .logout-btn { font-size: 11px; color: #444; background: none; border: 0.5px solid #2a2a2a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
     .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
 
-    .leht { max-width: 600px; margin: 0 auto; padding: 24px 16px 40px; }
+    /* Breadcrumb */
+    .breadcrumb { display: flex; align-items: center; gap: 6px; padding: 12px 20px; background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.04); font-size: 12px; flex-wrap: wrap; }
+    .bc-item { color: #555; cursor: pointer; }
+    .bc-item:hover { color: #aaa; }
+    .bc-item.ak { color: #e2e8f0; cursor: default; }
+    .bc-sep { color: #333; }
 
-    /* Kuu navigatsioon */
-    .kuu-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .kuu-nav-nupp { background: #1e2128; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 20px; cursor: pointer; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-    .kuu-nav-nupp:hover { border-color: #FFF200; color: #FFF200; }
-    .kuu-nimi { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+    .leht { max-width: 600px; margin: 0 auto; padding: 20px 16px 40px; }
 
-    /* Projekt kaardid */
-    .projekt-nimekiri { display: flex; flex-direction: column; gap: 10px; }
-    .projekt-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
-    .projekt-kaart:hover { border-color: rgba(255,242,0,0.3); transform: translateY(-1px); }
-    .projekt-kaart:active { transform: translateY(0); }
-    .projekt-hdr { padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-    .projekt-kuupaev { min-width: 44px; background: #1e2128; border-radius: 8px; padding: 7px 4px; text-align: center; flex-shrink: 0; }
-    .projekt-kuupaev-paev { font-size: 18px; font-weight: 700; color: #fff; line-height: 1; }
-    .projekt-kuupaev-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
-    .projekt-info { flex: 1; }
-    .projekt-badge { display: inline-block; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 4px; background: #FFF200; color: #002060; margin-bottom: 4px; }
-    .projekt-nimi { font-size: 14px; font-weight: 600; color: #e2e8f0; }
-    .projekt-tootajad { font-size: 11px; color: #505560; margin-top: 3px; }
-    .projekt-piltide-arv { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-    .piltide-arv-badge { background: rgba(255,242,0,0.1); border: 0.5px solid rgba(255,242,0,0.2); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #FFF200; }
-    .projekt-nool { color: #333; font-size: 16px; }
+    /* Nimekiri */
+    .nimekiri { display: flex; flex-direction: column; gap: 8px; }
 
-    /* Piltide galerii (modal) */
-    .galerii-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92); z-index: 200; flex-direction: column; }
-    .galerii-overlay.avatud { display: flex; }
-    .galerii-hdr { background: #13161c; padding: 14px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 0.5px solid rgba(255,255,255,0.06); flex-shrink: 0; }
-    .galerii-sulge { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 13px; padding: 6px 12px; cursor: pointer; }
-    .galerii-sulge:hover { border-color: #ef4444; color: #ef4444; }
-    .galerii-pealkiri { font-size: 14px; font-weight: 600; color: #e2e8f0; flex: 1; }
-    .galerii-alla { background: #FFF200; color: #002060; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; }
-    .galerii-sisu { flex: 1; overflow-y: auto; padding: 16px; }
+    /* Kirjelduse kaart (tase 1) */
+    .kirjeldus-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px 18px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: border-color 0.15s; }
+    .kirjeldus-kaart:hover { border-color: rgba(255,242,0,0.3); }
+    .kirjeldus-ikoon { width: 44px; height: 44px; background: rgba(255,242,0,0.08); border: 0.5px solid rgba(255,242,0,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .kirjeldus-info { flex: 1; }
+    .kirjeldus-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+    .kirjeldus-meta { font-size: 11px; color: #505560; }
+    .kirjeldus-nool { color: #333; font-size: 18px; }
+
+    /* Poe kaart (tase 2) */
+    .pood-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: border-color 0.15s; }
+    .pood-kaart:hover { border-color: rgba(255,242,0,0.3); }
+    .pood-badge { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: #FFF200; color: #002060; flex-shrink: 0; }
+    .pood-nimi { font-size: 14px; font-weight: 600; color: #e2e8f0; flex: 1; }
+    .pood-arv { background: rgba(255,242,0,0.08); border: 0.5px solid rgba(255,242,0,0.15); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #FFF200; flex-shrink: 0; }
+    .pood-nool { color: #333; font-size: 16px; }
+
+    /* Piltide galerii (tase 3) */
+    .galerii-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .galerii-pealkiri { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .zip-nupp { background: #FFF200; color: #002060; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; }
     .galerii-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
     .galerii-pilt-wrap { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer; }
     .galerii-pilt-wrap img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
-    .galerii-pilt-wrap:hover img { opacity: 0.85; }
-    .galerii-pilt-info { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 8px 6px 4px; font-size: 9px; color: rgba(255,255,255,0.7); }
+    .galerii-pilt-wrap:hover img { opacity: 0.8; }
+    .galerii-kuupaev { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 8px 5px 4px; font-size: 10px; color: rgba(255,255,255,0.8); font-weight: 500; }
 
-    /* Suur pilt vaade */
-    .suur-pilt-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.97); z-index: 300; align-items: center; justify-content: center; }
-    .suur-pilt-overlay.avatud { display: flex; }
-    .suur-pilt-overlay img { max-width: 95vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
-    .suur-pilt-sulge { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; border-radius: 50%; color: #fff; font-size: 20px; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .suur-pilt-nool { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; border-radius: 50%; color: #fff; font-size: 20px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .suur-pilt-nool.vasak { left: 12px; }
-    .suur-pilt-nool.parem { right: 12px; }
-    .suur-pilt-info { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.5); }
+    /* Suur pilt */
+    .suur-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.97); z-index: 300; align-items: center; justify-content: center; }
+    .suur-overlay.avatud { display: flex; }
+    .suur-overlay img { max-width: 95vw; max-height: 90vh; object-fit: contain; border-radius: 6px; }
+    .suur-sulge { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; border-radius: 50%; color: #fff; font-size: 20px; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .suur-nool { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; border-radius: 50%; color: #fff; font-size: 22px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .suur-nool.vasak { left: 12px; }
+    .suur-nool.parem { right: 12px; }
+    .suur-info { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 12px; color: rgba(255,255,255,0.5); }
 
-    .tyhi { padding: 60px 20px; text-align: center; color: #3a3d45; font-size: 14px; }
-    .laadimine { padding: 40px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
+    .tyhi { padding: 50px 20px; text-align: center; color: #3a3d45; font-size: 14px; }
+    .laadimine { padding: 30px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
 
-    @media (min-width: 480px) {
-      .galerii-grid { grid-template-columns: repeat(4, 1fr); }
-    }
+    @media (min-width: 480px) { .galerii-grid { grid-template-columns: repeat(4, 1fr); } }
   </style>
 </head>
 <body>
@@ -82,172 +79,171 @@
       <div><div class="brand-name">LIDL PROJEKTID</div><div class="brand-sub">Royal Paigaldus</div></div>
     </div>
     <div class="topbar-right">
-      <span class="worker-nimi" id="workerNimi"></span>
+      <span style="font-size:13px;color:#bbb" id="workerNimi"></span>
       <button class="logout-btn" onclick="välju()">Välja</button>
     </div>
   </div>
 
-  <!-- Piltide galerii modal -->
-  <div class="galerii-overlay" id="galeriiOverlay">
-    <div class="galerii-hdr">
-      <button class="galerii-sulge" onclick="sulgeGalerii()">← Tagasi</button>
-      <span class="galerii-pealkiri" id="galeriiPealkiri"></span>
-      <a class="galerii-alla" id="galeriiZipLink" href="#" target="_blank">⬇ ZIP</a>
-    </div>
-    <div class="galerii-sisu">
-      <div class="galerii-grid" id="galeriiGrid">
-        <div class="laadimine">Laadimine...</div>
-      </div>
-    </div>
+  <!-- Breadcrumb -->
+  <div class="breadcrumb" id="breadcrumb">
+    <span class="bc-item ak">Kõik projektid</span>
   </div>
 
   <!-- Suur pilt -->
-  <div class="suur-pilt-overlay" id="suurPiltOverlay">
-    <button class="suur-pilt-sulge" onclick="sulgeSuurPilt()">✕</button>
-    <button class="suur-pilt-nool vasak" onclick="navigeeriPilt(-1)">‹</button>
-    <img id="suurPiltImg" src="" alt="">
-    <button class="suur-pilt-nool parem" onclick="navigeeriPilt(1)">›</button>
-    <div class="suur-pilt-info" id="suurPiltInfo"></div>
+  <div class="suur-overlay" id="suurOverlay">
+    <button class="suur-sulge" onclick="sulgeSuur()">✕</button>
+    <button class="suur-nool vasak" onclick="navigeeri(-1)">‹</button>
+    <img id="suurImg" src="" alt="">
+    <button class="suur-nool parem" onclick="navigeeri(1)">›</button>
+    <div class="suur-info" id="suurInfo"></div>
   </div>
 
   <div class="leht">
-    <div class="kuu-nav">
-      <button class="kuu-nav-nupp" onclick="kuuNavig(-1)">‹</button>
-      <span class="kuu-nimi" id="kuuNimi"></span>
-      <button class="kuu-nav-nupp" onclick="kuuNavig(1)">›</button>
-    </div>
-    <div id="projektidSisu"><div class="laadimine">Laadimine...</div></div>
+    <div id="sisu"><div class="laadimine">Laadimine...</div></div>
   </div>
 
   <script>
-    var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
     var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     var TOKEN = localStorage.getItem('workerToken') || '';
-    var aktiivsKuu = new Date();
-    var praegusedPildid = [];
-    var praeguneIndex = 0;
+    var praegusedPildid = [], praeguneIndex = 0;
+    var aktiivsKirjeldus = null, aktiivsObjektId = null, aktiivsObjektNimi = null;
 
-    function api(url, opts) {
-      opts = opts || {};
-      opts.headers = opts.headers || {};
-      opts.headers['x-session-token'] = TOKEN;
-      opts.headers['Content-Type'] = 'application/json';
-      return fetch(url, opts).then(function(r) { return r.json(); });
+    function api(url) {
+      return fetch(url, { headers: { 'x-session-token': TOKEN, 'Content-Type': 'application/json' } }).then(function(r) { return r.json(); });
+    }
+
+    function formatKp(str) {
+      var s = str ? String(str).split('T')[0] : '';
+      var parts = s.split('-');
+      if (parts.length < 3) return s;
+      return parseInt(parts[2]) + '. ' + KUUD_L[parseInt(parts[1])-1];
     }
 
     async function init() {
       if (!TOKEN) { window.location = '/'; return; }
       var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
-      // Ainult Kristo (ID 17) saab seda vaadet näha
       if (s.workerId !== 17) { window.location = '/tootaja'; return; }
       document.getElementById('workerNimi').textContent = s.nimi;
-      laadiProjektid();
+      laadiKirjeldused();
     }
 
-    function kuuNavig(suund) {
-      aktiivsKuu = new Date(aktiivsKuu.getFullYear(), aktiivsKuu.getMonth() + suund, 1);
-      laadiProjektid();
-    }
-
-    async function laadiProjektid() {
-      var aasta = aktiivsKuu.getFullYear();
-      var kuu = aktiivsKuu.getMonth() + 1;
-      document.getElementById('kuuNimi').textContent = KUUD[kuu-1] + ' ' + aasta;
-      document.getElementById('projektidSisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
-
-      var r = await api('/api/kristo/projektid?aasta=' + aasta + '&kuu=' + kuu);
-      var div = document.getElementById('projektidSisu');
-
-      if (!r.ok || !r.projektid || !r.projektid.length) {
-        div.innerHTML = '<div class="tyhi">📷 Selle kuu projektide pilte pole veel lisatud</div>';
+    // ── TASE 1: Kirjeldused ──────────────────────────────────
+    async function laadiKirjeldused() {
+      aktiivsKirjeldus = null; aktiivsObjektId = null;
+      uuendaBreadcrumb();
+      document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/kirjeldused');
+      if (!r.ok || !r.kirjeldused || !r.kirjeldused.length) {
+        document.getElementById('sisu').innerHTML = '<div class="tyhi">📷 Pilte pole veel lisatud</div>';
         return;
       }
-
-      div.innerHTML = '<div class="projekt-nimekiri">' +
-        r.projektid.map(function(p) {
-          var d = new Date(p.kuupaev + 'T12:00:00');
-          return '<div class="projekt-kaart" onclick="avaGalerii(' + p.objekt_id + ', \'' + p.objekt_nimi.replace(/'/g, "\\'") + '\', \'' + p.kuupaev + '\')">'
-            + '<div class="projekt-hdr">'
-            + '<div class="projekt-kuupaev"><div class="projekt-kuupaev-paev">' + d.getDate() + '</div><div class="projekt-kuupaev-kuu">' + KUUD_L[d.getMonth()] + '</div></div>'
-            + '<div class="projekt-info">'
-            + '<div><span class="projekt-badge">LIDL</span></div>'
-            + '<div class="projekt-nimi">' + p.objekt_nimi + '</div>'
-            + (p.tootajad ? '<div class="projekt-tootajad">👷 ' + p.tootajad + '</div>' : '')
+      document.getElementById('sisu').innerHTML = '<div class="nimekiri">' +
+        r.kirjeldused.map(function(k) {
+          return '<div class="kirjeldus-kaart" onclick="laadiPoed(\'' + k.kirjeldus.replace(/'/g,"\\'") + '\')">'
+            + '<div class="kirjeldus-ikoon">🔧</div>'
+            + '<div class="kirjeldus-info">'
+            + '<div class="kirjeldus-nimi">' + k.kirjeldus + '</div>'
+            + '<div class="kirjeldus-meta">📷 ' + k.piltide_arv + ' pilti · ' + k.poodide_arv + ' poodi · viimane: ' + formatKp(k.viimane_kuupaev) + '</div>'
             + '</div>'
-            + '<div class="projekt-piltide-arv">'
-            + '<div class="piltide-arv-badge">📷 ' + p.piltide_arv + '</div>'
-            + '<div class="projekt-nool">›</div>'
-            + '</div>'
-            + '</div>'
+            + '<div class="kirjeldus-nool">›</div>'
             + '</div>';
         }).join('') + '</div>';
     }
 
-    async function avaGalerii(objektId, objektNimi, kuupaev) {
-      document.getElementById('galeriiPealkiri').textContent = objektNimi;
-      document.getElementById('galeriiGrid').innerHTML = '<div class="laadimine">Laadimine...</div>';
-      document.getElementById('galeriiOverlay').classList.add('avatud');
+    // ── TASE 2: Poed ─────────────────────────────────────────
+    async function laadiPoed(kirjeldus) {
+      aktiivsKirjeldus = kirjeldus; aktiivsObjektId = null;
+      uuendaBreadcrumb();
+      document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/poed?kirjeldus=' + encodeURIComponent(kirjeldus));
+      if (!r.ok || !r.poed || !r.poed.length) {
+        document.getElementById('sisu').innerHTML = '<div class="tyhi">Poode ei leitud</div>';
+        return;
+      }
+      document.getElementById('sisu').innerHTML = '<div class="nimekiri">' +
+        r.poed.map(function(p) {
+          return '<div class="pood-kaart" onclick="laadiPildid(' + p.objekt_id + ', \'' + p.objekt_nimi.replace(/'/g,"\\'") + '\')">'
+            + '<span class="pood-badge">LIDL</span>'
+            + '<span class="pood-nimi">' + p.objekt_nimi + '</span>'
+            + '<span class="pood-arv">📷 ' + p.piltide_arv + '</span>'
+            + '<span class="pood-nool">›</span>'
+            + '</div>';
+        }).join('') + '</div>';
+    }
 
-      // ZIP link
-      var zipLink = document.getElementById('galeriiZipLink');
-      zipLink.href = '/api/pildid/admin/zip/' + objektId + '?_token=' + TOKEN;
-
-      var r = await api('/api/kristo/pildid/' + objektId + '?kuupaev=' + kuupaev);
+    // ── TASE 3: Pildid ───────────────────────────────────────
+    async function laadiPildid(objektId, objektNimi) {
+      aktiivsObjektId = objektId; aktiivsObjektNimi = objektNimi;
+      uuendaBreadcrumb();
+      document.getElementById('sisu').innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/pildid/' + objektId + '?kirjeldus=' + encodeURIComponent(aktiivsKirjeldus));
       praegusedPildid = (r.ok && r.pildid) ? r.pildid : [];
 
       if (!praegusedPildid.length) {
-        document.getElementById('galeriiGrid').innerHTML = '<div class="laadimine" style="grid-column:1/-1">Pilte pole</div>';
+        document.getElementById('sisu').innerHTML = '<div class="tyhi">Pilte pole</div>';
         return;
       }
 
-      document.getElementById('galeriiGrid').innerHTML = praegusedPildid.map(function(p, i) {
-        var d = new Date(p.kuupaev + 'T12:00:00');
-        return '<div class="galerii-pilt-wrap" onclick="avaSuurPilt(' + i + ')">'
-          + '<img src="' + p.url + '" loading="lazy" alt="">'
-          + '<div class="galerii-pilt-info">' + p.worker_nimi + ' · ' + d.getDate() + '. ' + KUUD_L[d.getMonth()] + '</div>'
-          + '</div>';
-      }).join('');
+      var zipUrl = '/api/pildid/admin/zip/' + objektId + '?_token=' + TOKEN;
+      document.getElementById('sisu').innerHTML =
+        '<div class="galerii-header">'
+        + '<div class="galerii-pealkiri">' + objektNimi + '</div>'
+        + '<a class="zip-nupp" href="' + zipUrl + '" target="_blank">⬇ ZIP</a>'
+        + '</div>'
+        + '<div class="galerii-grid">'
+        + praegusedPildid.map(function(p, i) {
+          return '<div class="galerii-pilt-wrap" onclick="avaSuur(' + i + ')">'
+            + '<img src="' + p.url + '" loading="lazy" alt="">'
+            + '<div class="galerii-kuupaev">' + formatKp(p.kuupaev) + '</div>'
+            + '</div>';
+        }).join('')
+        + '</div>';
     }
 
-    function sulgeGalerii() {
-      document.getElementById('galeriiOverlay').classList.remove('avatud');
+    // ── BREADCRUMB ───────────────────────────────────────────
+    function uuendaBreadcrumb() {
+      var bc = document.getElementById('breadcrumb');
+      var html = '<span class="bc-item' + (!aktiivsKirjeldus ? ' ak' : '') + '" onclick="laadiKirjeldused()">Kõik projektid</span>';
+      if (aktiivsKirjeldus) {
+        html += '<span class="bc-sep">›</span>';
+        html += '<span class="bc-item' + (!aktiivsObjektId ? ' ak' : '') + '" onclick="laadiPoed(\'' + aktiivsKirjeldus.replace(/'/g,"\\'") + '\')">' + aktiivsKirjeldus + '</span>';
+      }
+      if (aktiivsObjektId) {
+        html += '<span class="bc-sep">›</span>';
+        html += '<span class="bc-item ak">' + aktiivsObjektNimi + '</span>';
+      }
+      bc.innerHTML = html;
     }
 
-    function avaSuurPilt(index) {
+    // ── SUUR PILT ────────────────────────────────────────────
+    function avaSuur(index) {
       praeguneIndex = index;
-      uuendaSuurPilt();
-      document.getElementById('suurPiltOverlay').classList.add('avatud');
+      uuendaSuur();
+      document.getElementById('suurOverlay').classList.add('avatud');
     }
 
-    function sulgeSuurPilt() {
-      document.getElementById('suurPiltOverlay').classList.remove('avatud');
-    }
+    function sulgeSuur() { document.getElementById('suurOverlay').classList.remove('avatud'); }
 
-    function navigeeriPilt(suund) {
+    function navigeeri(suund) {
       praeguneIndex = (praeguneIndex + suund + praegusedPildid.length) % praegusedPildid.length;
-      uuendaSuurPilt();
+      uuendaSuur();
     }
 
-    function uuendaSuurPilt() {
+    function uuendaSuur() {
       var p = praegusedPildid[praeguneIndex];
       if (!p) return;
-      document.getElementById('suurPiltImg').src = p.url;
-      var d = new Date(p.kuupaev + 'T12:00:00');
-      document.getElementById('suurPiltInfo').textContent = p.worker_nimi + ' · ' + d.getDate() + '. ' + KUUD_L[d.getMonth()] + ' · ' + (praeguneIndex+1) + '/' + praegusedPildid.length;
+      document.getElementById('suurImg').src = p.url;
+      document.getElementById('suurInfo').textContent = formatKp(p.kuupaev) + ' · ' + (praeguneIndex+1) + '/' + praegusedPildid.length;
     }
 
-    // Klaviatuuri navigeerimine
     document.addEventListener('keydown', function(e) {
-      if (!document.getElementById('suurPiltOverlay').classList.contains('avatud')) return;
-      if (e.key === 'ArrowLeft') navigeeriPilt(-1);
-      if (e.key === 'ArrowRight') navigeeriPilt(1);
-      if (e.key === 'Escape') sulgeSuurPilt();
+      if (!document.getElementById('suurOverlay').classList.contains('avatud')) return;
+      if (e.key === 'ArrowLeft') navigeeri(-1);
+      if (e.key === 'ArrowRight') navigeeri(1);
+      if (e.key === 'Escape') sulgeSuur();
     });
-
-    document.getElementById('suurPiltOverlay').addEventListener('click', function(e) {
-      if (e.target === this) sulgeSuurPilt();
-    });
+    document.getElementById('suurOverlay').addEventListener('click', function(e) { if (e.target === this) sulgeSuur(); });
 
     function välju() { localStorage.removeItem('workerToken'); window.location = '/'; }
 
