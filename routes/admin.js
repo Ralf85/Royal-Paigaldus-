@@ -508,7 +508,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
 
     // Rida 3 - päis
     const hdrRow = ws.getRow(3);
-    hdrRow.height = 32;
+    hdrRow.height = 55;
     headers.forEach((h, i) => {
       const cell = hdrRow.getCell(i + 1);
       cell.value = h;
@@ -632,6 +632,7 @@ async function filterPäring(req) {
   
   let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
             t.kilomeetrid, t.km_raha, t.lisakulu_summa, t.lisakulu_selgitus,
+            t.objekt_id,
             w.nimi as worker_nimi, e.nimi as ettevote_nimi,
             COALESCE(o.nimi,'') as objekt_nimi,
             COALESCE(we.tunnitasu, t.muu_tunnitasu, 0) as tunnitasu
