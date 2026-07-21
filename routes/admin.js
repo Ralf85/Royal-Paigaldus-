@@ -477,157 +477,122 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
 router.post('/raport-excel', noudaAdmin, async (req, res) => {
   const { andmed, tyyp, algus, lopp, esitus_hind } = req.body;
   if (!andmed || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
-  const { execSync } = require('child_process');
-  const fs = require('fs');
-  const km_maar = 0.24;
-
-  // Kirjuta andmed JSON faili
-  const dataPath = '/tmp/raport_data.json';
-  const outPath = '/tmp/raport_out.xlsx';
-  const skriptPath = '/tmp/raport_gen.py';
-
-  fs.writeFileSync(dataPath, JSON.stringify({ andmed, tyyp, algus, lopp, esitus_hind, km_maar }));
-
-  const skript = `import openpyxl, json
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-
-with open('/tmp/raport_data.json') as f:
-    d = json.load(f)
-
-andmed = d['andmed']
-tyyp = d['tyyp']
-algus_kp = d['algus']
-lopp_kp = d['lopp']
-esitus_hind = d['esitus_hind']
-km_maar = d['km_maar']
-
-wb = openpyxl.Workbook()
-ws = wb.active
-ws.title = "Raport"
-
-TITLE_FILL = PatternFill("solid", fgColor="1F3864")
-SUBTITLE_FILL = PatternFill("solid", fgColor="2E4057")
-HEADER_FILL = PatternFill("solid", fgColor="C0504D")
-KOKKU_FILL = PatternFill("solid", fgColor="2E75B6")
-RIDA1_FILL = PatternFill("solid", fgColor="FFFFFF")
-RIDA2_FILL = PatternFill("solid", fgColor="DCE6F1")
-TITLE_FONT = Font(name="Arial", bold=True, size=16, color="FFFFFF")
-SUBTITLE_FONT = Font(name="Arial", bold=True, size=11, color="A8C4E0")
-HEADER_FONT = Font(name="Arial", bold=True, size=11, color="FFFFFF")
-KOKKU_FONT = Font(name="Arial", bold=True, size=11, color="FFFFFF")
-DATA_FONT = Font(name="Arial", size=10)
-thin = Side(style="thin", color="B8CCE4")
-border = Border(left=thin, right=thin, top=thin, bottom=thin)
-center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-left_a = Alignment(horizontal="left", vertical="center")
-right_a = Alignment(horizontal="right", vertical="center")
-
-headers = ["Tootaja","Kuupaev","Objekt","Algus","Lopp","Tunnid","Esitushind (km-ta)","KM 24%","Summa (km-ga)"]
-if tyyp == "lidl":
-    headers.append("Pildid ZIP")
-ncols = len(headers)
-last_col = get_column_letter(ncols)
-
-ws.merge_cells(f"A1:{last_col}1")
-ws["A1"] = f"{tyyp.upper()} RAPORT  |  {algus_kp} - {lopp_kp}  |  {esitus_hind}e/h + KM"
-ws["A1"].fill = TITLE_FILL
-ws["A1"].font = TITLE_FONT
-ws["A1"].alignment = center
-ws.row_dimensions[1].height = 40
-
-ws.merge_cells(f"A2:{last_col}2")
-ws["A2"] = "Royal Paigaldus OU"
-ws["A2"].fill = SUBTITLE_FILL
-ws["A2"].font = SUBTITLE_FONT
-ws["A2"].alignment = center
-ws.row_dimensions[2].height = 22
-
-for col, h in enumerate(headers, 1):
-    cell = ws.cell(row=3, column=col, value=h)
-    cell.fill = HEADER_FILL
-    cell.font = HEADER_FONT
-    cell.alignment = center
-    cell.border = border
-ws.row_dimensions[3].height = 32
-
-kokku_tunnid = 0.0
-for i, k in enumerate(andmed):
-    row = 4 + i
-    tunnid = float(k.get("tunnid", 0))
-    summa_ilm = round(tunnid * esitus_hind, 2)
-    km = round(summa_ilm * km_maar, 2)
-    summa_km = round(summa_ilm + km, 2)
-    kokku_tunnid += tunnid
-    kp = str(k.get("kuupaev","")).split("T")[0]
-    parts = kp.split("-")
-    kp_str = f"{parts[2]}.{parts[1]}.{parts[0]}" if len(parts)==3 else kp
-    fill = RIDA1_FILL if i % 2 == 0 else RIDA2_FILL
-    rida = [k.get("worker_nimi",""), kp_str, k.get("objekt_nimi",""),
-            (k.get("algus") or "")[:5], (k.get("lopp") or "")[:5],
-            tunnid, summa_ilm, km, summa_km]
-    if tyyp == "lidl":
-        rida.append(k.get("zip_url",""))
-    for col, val in enumerate(rida, 1):
-        cell = ws.cell(row=row, column=col, value=val)
-        cell.fill = fill
-        cell.font = DATA_FONT
-        cell.border = border
-        if col >= 6:
-            cell.alignment = right_a
-            if isinstance(val, float):
-                cell.number_format = "#,##0.00"
-        else:
-            cell.alignment = left_a
-
-kokku_row = 4 + len(andmed)
-kokku_ilm = round(kokku_tunnid * esitus_hind, 2)
-kokku_km_val = round(kokku_ilm * km_maar, 2)
-kokku_km_ga = round(kokku_ilm + kokku_km_val, 2)
-kokku_vals = ["KOKKU","","","","",kokku_tunnid,kokku_ilm,kokku_km_val,kokku_km_ga]
-if tyyp == "lidl":
-    kokku_vals.append("")
-for col, val in enumerate(kokku_vals, 1):
-    cell = ws.cell(row=kokku_row, column=col, value=val)
-    cell.fill = KOKKU_FILL
-    cell.font = KOKKU_FONT
-    cell.border = border
-    if col == 1:
-        cell.alignment = center
-    elif col >= 6:
-        cell.alignment = right_a
-        if isinstance(val, float):
-            cell.number_format = "#,##0.00"
-    else:
-        cell.alignment = center
-ws.row_dimensions[kokku_row].height = 24
-
-col_widths = [14, 12, 28, 8, 8, 10, 22, 10, 16]
-if tyyp == "lidl":
-    col_widths.append(55)
-for i, w in enumerate(col_widths, 1):
-    ws.column_dimensions[get_column_letter(i)].width = w
-
-ws.auto_filter.ref = f"A3:{last_col}3"
-ws.freeze_panes = "A4"
-wb.save('/tmp/raport_out.xlsx')
-print("OK")
-`;
 
   try {
-    fs.writeFileSync(skriptPath, skript);
-    const result = execSync('python3 ' + skriptPath, { timeout: 30000 });
-    if (!fs.existsSync(outPath)) {
-      return res.status(500).json({ ok: false, veateade: 'Excel genereerimine ebaonnestus' });
-    }
-    const failiNimi = tyyp + '_raport_' + algus + '_' + lopp + '.xlsx';
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="' + failiNimi + '"');
-    const fileStream = fs.createReadStream(outPath);
-    fileStream.pipe(res);
-    fileStream.on('end', () => {
-      try { fs.unlinkSync(outPath); fs.unlinkSync(skriptPath); fs.unlinkSync(dataPath); } catch(e) {}
+    const ExcelJS = require('exceljs');
+    const km_maar = 0.24;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Raport');
+
+    const headers = ['Töötaja','Kuupäev','Objekt','Algus','Lõpp','Tunnid','Esitushind (km-ta)','KM 24%','Summa (km-ga)'];
+    if (tyyp === 'lidl') headers.push('Pildid ZIP');
+    const ncols = headers.length;
+
+    // Rida 1 - pealkiri
+    ws.mergeCells(1, 1, 1, ncols);
+    const titleCell = ws.getCell('A1');
+    titleCell.value = `${tyyp.toUpperCase()} RAPORT  |  ${algus} - ${lopp}  |  ${esitus_hind}€/h + KM`;
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+    titleCell.font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 40;
+
+    // Rida 2 - firma
+    ws.mergeCells(2, 1, 2, ncols);
+    const subCell = ws.getCell('A2');
+    subCell.value = 'Royal Paigaldus OÜ';
+    subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E4057' } };
+    subCell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFA8C4E0' } };
+    subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(2).height = 22;
+
+    // Rida 3 - päis
+    const hdrRow = ws.getRow(3);
+    hdrRow.height = 32;
+    headers.forEach((h, i) => {
+      const cell = hdrRow.getCell(i + 1);
+      cell.value = h;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0504D' } };
+      cell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
     });
+
+    // Andmed
+    let kokku_tunnid = 0;
+    andmed.forEach((k, i) => {
+      const row = ws.getRow(4 + i);
+      const tunnid = parseFloat(k.tunnid || 0);
+      const summa_ilm = Math.round(tunnid * esitus_hind * 100) / 100;
+      const km = Math.round(summa_ilm * km_maar * 100) / 100;
+      const summa_km = Math.round((summa_ilm + km) * 100) / 100;
+      kokku_tunnid += tunnid;
+
+      const kp = String(k.kuupaev || '').split('T')[0];
+      const parts = kp.split('-');
+      const kp_str = parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : kp;
+
+      const bgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFDCE6F1';
+      const rida = [k.worker_nimi||'', kp_str, k.objekt_nimi||'',
+        (k.algus||'').slice(0,5), (k.lopp||'').slice(0,5),
+        tunnid, summa_ilm, km, summa_km];
+      if (tyyp === 'lidl') rida.push(k.zip_url || '');
+
+      rida.forEach((val, j) => {
+        const cell = row.getCell(j + 1);
+        cell.value = val;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
+        cell.font = { name: 'Arial', size: 10 };
+        cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
+        if (j >= 5) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          if (typeof val === 'number') cell.numFmt = '#,##0.00';
+        } else {
+          cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        }
+      });
+    });
+
+    // KOKKU rida
+    const kokku_row_idx = 4 + andmed.length;
+    const kokku_ilm = Math.round(kokku_tunnid * esitus_hind * 100) / 100;
+    const kokku_km = Math.round(kokku_ilm * km_maar * 100) / 100;
+    const kokku_km_ga = Math.round((kokku_ilm + kokku_km) * 100) / 100;
+    const kokku_vals = ['KOKKU','','','','', kokku_tunnid, kokku_ilm, kokku_km, kokku_km_ga];
+    if (tyyp === 'lidl') kokku_vals.push('');
+
+    const kokku_row = ws.getRow(kokku_row_idx);
+    kokku_row.height = 24;
+    kokku_vals.forEach((val, j) => {
+      const cell = kokku_row.getCell(j + 1);
+      cell.value = val;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E75B6' } };
+      cell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
+      if (j === 0) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if (j >= 5) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        if (typeof val === 'number') cell.numFmt = '#,##0.00';
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    });
+
+    // Veeru laiused
+    const colWidths = [14, 12, 28, 8, 8, 10, 22, 10, 16];
+    if (tyyp === 'lidl') colWidths.push(55);
+    colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+    // AutoFilter
+    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: ncols } };
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+
+    const failiNimi = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    await wb.xlsx.write(res);
+    res.end();
   } catch (err) {
     console.error('Excel viga:', err.message);
     res.status(500).json({ ok: false, veateade: 'Excel viga: ' + err.message });
