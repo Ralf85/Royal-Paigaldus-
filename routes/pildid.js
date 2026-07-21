@@ -8,16 +8,8 @@ const https = require('https');
 const http = require('http');
 
 function getCloudinary() {
-  console.log('Cloudinary config:', {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'PUUDUB',
-    api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'PUUDUB'
-  });
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-  });
+  console.log('Cloudinary config:', { cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'PUUDUB', api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'PUUDUB' });
+  cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
   return cloudinary;
 }
 
@@ -41,13 +33,18 @@ function noudaAdmin(req, res, next) {
 }
 
 // Laadi pildid üles (kuni 12 korraga)
-router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12), async (req, res) => {
-  const { tookirjeId } = req.params;
+router.post('/lisa', noudaSisslogimist, upload.array('pildid', 12), async (req, res) => {
+  const { kirje_id } = req.body;
+  if (!kirje_id) return res.json({ ok: false, veateade: 'kirje_id puudub' });
+
   try {
     // Kontrolli et töökirje kuulub sellele töötajale
     const kirje = await pool.query(
-      'SELECT t.*, e.tyyp, o.nimi as objekt_nimi FROM tookirjed t JOIN ettevotted e ON t.ettevote_id=e.id LEFT JOIN objektid o ON t.objekt_id=o.id WHERE t.id=$1 AND t.worker_id=$2',
-      [tookirjeId, req.session.workerId]
+      `SELECT t.*, e.tyyp, o.nimi as objekt_nimi FROM tookirjed t
+       JOIN ettevotted e ON t.ettevote_id = e.id
+       LEFT JOIN objektid o ON t.objekt_id = o.id
+       WHERE t.id=$1 AND t.worker_id=$2`,
+      [kirje_id, req.session.workerId]
     );
     if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
 
@@ -57,7 +54,9 @@ router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12)
     const folder = `royal-paigaldus/${objektNimi}/${kuupaev}`;
 
     const uploaded = [];
-    for (const file of req.files) {
+    const files = req.files || [];
+
+    for (const file of files) {
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
           { folder, resource_type: 'image', quality: 'auto', fetch_format: 'auto' },
@@ -65,10 +64,9 @@ router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12)
         );
         stream.end(file.buffer);
       });
-
       await pool.query(
         'INSERT INTO tookirje_pildid (tookirje_id, url, public_id, nimi) VALUES ($1,$2,$3,$4)',
-        [tookirjeId, result.secure_url, result.public_id, file.originalname]
+        [kirje_id, result.secure_url, result.public_id, file.originalname]
       );
       uploaded.push({ url: result.secure_url, public_id: result.public_id });
     }
@@ -82,17 +80,19 @@ router.post('/upload/:tookirjeId', noudaSisslogimist, upload.array('pildid', 12)
 
 // Töökirje pildid
 router.get('/tookirje/:tookirjeId', async (req, res) => {
-  const r = await pool.query(
-    'SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud',
-    [req.params.tookirjeId]
-  );
+  const r = await pool.query('SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud', [req.params.tookirjeId]);
   res.json(r.rows);
 });
 
 // Kustuta pilt
 router.delete('/:piltId', noudaSisslogimist, async (req, res) => {
   try {
-    const pilt = await pool.query('SELECT p.*, t.worker_id FROM tookirje_pildid p JOIN tookirjed t ON p.tookirje_id=t.id WHERE p.id=$1', [req.params.piltId]);
+    const pilt = await pool.query(
+      `SELECT p.*, t.worker_id FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       WHERE p.id=$1`,
+      [req.params.piltId]
+    );
     if (!pilt.rows.length) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
     if (pilt.rows[0].worker_id !== req.session.workerId && !req.session.isAdmin) return res.status(401).json({ ok: false });
     await getCloudinary().uploader.destroy(pilt.rows[0].public_id);
@@ -108,11 +108,10 @@ router.get('/admin/objektid', noudaAdmin, async (req, res) => {
   const r = await pool.query(
     `SELECT o.id, o.nimi, e.nimi as ettevote_nimi, COUNT(p.id) as piltide_arv
      FROM objektid o
-     JOIN ettevotted e ON o.ettevote_id=e.id
-     LEFT JOIN tookirjed t ON t.objekt_id=o.id
-     LEFT JOIN tookirje_pildid p ON p.tookirje_id=t.id
-     GROUP BY o.id, o.nimi, e.nimi
-     HAVING COUNT(p.id) > 0
+     JOIN ettevotted e ON o.ettevote_id = e.id
+     LEFT JOIN tookirjed t ON t.objekt_id = o.id
+     LEFT JOIN tookirje_pildid p ON p.tookirje_id = t.id
+     GROUP BY o.id, o.nimi, e.nimi HAVING COUNT(p.id) > 0
      ORDER BY e.nimi, o.nimi`
   );
   res.json(r.rows);
@@ -123,9 +122,9 @@ router.get('/admin/objekt/:objektId', noudaAdmin, async (req, res) => {
   const r = await pool.query(
     `SELECT p.*, t.kuupaev, w.nimi as worker_nimi, o.nimi as objekt_nimi
      FROM tookirje_pildid p
-     JOIN tookirjed t ON p.tookirje_id=t.id
-     JOIN workers w ON t.worker_id=w.id
-     JOIN objektid o ON t.objekt_id=o.id
+     JOIN tookirjed t ON p.tookirje_id = t.id
+     JOIN workers w ON t.worker_id = w.id
+     JOIN objektid o ON t.objekt_id = o.id
      WHERE t.objekt_id=$1
      ORDER BY t.kuupaev DESC, p.loodud`,
     [req.params.objektId]
@@ -139,41 +138,52 @@ router.get('/admin/zip/:objektId', noudaAdmin, async (req, res) => {
     const pildid = await pool.query(
       `SELECT p.url, p.nimi, t.kuupaev, w.nimi as worker_nimi, o.nimi as objekt_nimi
        FROM tookirje_pildid p
-       JOIN tookirjed t ON p.tookirje_id=t.id
-       JOIN workers w ON t.worker_id=w.id
-       JOIN objektid o ON t.objekt_id=o.id
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       JOIN workers w ON t.worker_id = w.id
+       JOIN objektid o ON t.objekt_id = o.id
        WHERE t.objekt_id=$1
        ORDER BY t.kuupaev, p.loodud`,
       [req.params.objektId]
     );
-
     if (!pildid.rows.length) return res.status(404).json({ ok: false, veateade: 'Pilte ei leitud' });
-
     const objektNimi = pildid.rows[0].objekt_nimi.replace(/[^a-zA-Z0-9]/g, '_');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${objektNimi}_pildid.zip"`);
-
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.pipe(res);
-
     for (const pilt of pildid.rows) {
       const kuupaev = String(pilt.kuupaev).split('T')[0];
-      const fileName = `${kuupaev}_${pilt.worker_nimi}_${pilt.nimi || 'pilt.jpg'}`.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `${kuupaev}_${pilt.worker_nimi}_${pilt.nimi || 'pilt.jpg'}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
       await new Promise((resolve, reject) => {
         const url = new URL(pilt.url);
         const proto = url.protocol === 'https:' ? https : http;
-        proto.get(pilt.url, (imgRes) => {
-          archive.append(imgRes, { name: fileName });
-          imgRes.on('end', resolve);
-          imgRes.on('error', reject);
-        }).on('error', reject);
+        proto.get(pilt.url, (imgRes) => { archive.append(imgRes, { name: fileName }); imgRes.on('end', resolve); imgRes.on('error', reject); }).on('error', reject);
       });
     }
-
     archive.finalize();
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Töötaja enda kirjete pildid batch
+router.get('/batch', noudaSisslogimist, async (req, res) => {
+  const { ids } = req.query;
+  if (!ids) return res.json({ ok: true, pildid: [] });
+  try {
+    const idList = ids.split(',').map(Number).filter(Boolean);
+    if (!idList.length) return res.json({ ok: true, pildid: [] });
+    const r = await pool.query(
+      `SELECT p.*, t.worker_id FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       WHERE p.tookirje_id = ANY($1) AND t.worker_id = $2
+       ORDER BY p.loodud ASC`,
+      [idList, req.session.workerId]
+    );
+    res.json({ ok: true, pildid: r.rows });
+  } catch (err) {
+    res.json({ ok: true, pildid: [] });
   }
 });
 
