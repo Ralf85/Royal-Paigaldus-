@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Royal Paigaldus — Tööpäevik</title>
+  <script>
+    // Kiire suunamine Kristole enne lehekülje laadimist
+    (function() {
+      var token = localStorage.getItem('workerToken');
+      if (!token) return;
+      fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } })
+        .then(function(r) { return r.json(); })
+        .then(function(s) { if (s.sisselogitud && s.workerId === 17) window.location.replace('/kristo'); });
+    })();
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #555; }
