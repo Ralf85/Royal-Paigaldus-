@@ -303,9 +303,28 @@
           fotod.slice(0, 12).forEach(function(f) { fd.append('pildid', f); });
           await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
         }
-        // Puhasta fotod ENNE teadet et vältida topelt üleslaadimist
+        // Puhasta fotod kohe
+        var fotodUpload = window._lisaFotod || [];
         window._lisaFotoInput = null;
         window._lisaFotod = [];
+
+        // Lae fotod üles progressiga
+        if (fotodUpload.length && r.kirjeId) {
+          var kokku = fotodUpload.slice(0, 12).length;
+          nupp.textContent = '📷 Laadin pilte... (0/' + kokku + ')';
+          nupp.style.background = '#1a5c8a';
+
+          // Lae kõik korraga aga näita progressi
+          var fd = new FormData();
+          fd.append('kirje_id', r.kirjeId);
+          fotodUpload.slice(0, 12).forEach(function(f) { fd.append('pildid', f); });
+
+          nupp.textContent = '📷 Laadin ' + kokku + ' pilti...';
+          await fetch('/api/pildid/lisa', { method: 'POST', headers: {'x-session-token': TOKEN}, body: fd });
+          nupp.textContent = '✅ Pildid laaditud!';
+        }
+
+        // Puhasta fotode eelvaade
         document.getElementById('lisa-foto-kaamera').value = '';
         document.getElementById('lisa-foto-album').value = '';
         document.getElementById('lisa-foto-eelvaade').style.display = 'none';
@@ -320,7 +339,7 @@
 
         // Näita teadet ja keeri üles
         teade.className = 'teade ok'; teade.style.display = 'block';
-        teade.textContent = '✅ Salvestatud! ' + r.tunnid + 'h' + (r.lounaPaus ? ' · lõunapaus arvestatud' : '');
+        teade.textContent = '✅ Salvestatud! ' + r.tunnid + 'h' + (fotodUpload.length ? ' · ' + fotodUpload.length + ' pilti lisatud' : '') + (r.lounaPaus ? ' · lõunapaus arvestatud' : '');
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
         await laadiKirjed();
