@@ -191,18 +191,30 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rally_estonia_kulud_${kuuNimi}.csv"`);
     let csv = '\uFEFF';
+    // Detailne nimekiri
     csv += 'Kuupaev;Tootaja;Summa (EUR);Selgitus;Foto link\r\n';
     let kokku = 0;
+    const tootajaKulud = {};
     r.rows.forEach(row => {
       const d = new Date(row.kuupaev);
       const kp = `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
       const summa = parseFloat(row.summa);
       kokku += summa;
+      if (!tootajaKulud[row.worker_nimi]) tootajaKulud[row.worker_nimi] = 0;
+      tootajaKulud[row.worker_nimi] += summa;
       const foto = row.foto_url || '';
       const selgitus = (row.selgitus || '').replace(/;/g, ',');
       csv += `${kp};${row.worker_nimi};${summa.toFixed(2).replace('.',',')};${selgitus};${foto}\r\n`;
     });
-    csv += `KOKKU;;;${kokku.toFixed(2).replace('.',',')};;\r\n`;
+    // Tühirida
+    csv += '\r\n';
+    // Kokkuvõte
+    csv += 'KOKKUVOTE;;;;;;\r\n';
+    csv += 'Tootaja;Kulud kokku;;;;\r\n';
+    Object.entries(tootajaKulud).sort((a,b) => b[1]-a[1]).forEach(([nimi, summa]) => {
+      csv += `${nimi};${summa.toFixed(2).replace('.',',')};;;;\r\n`;
+    });
+    csv += `KOKKU KÕIK;${kokku.toFixed(2).replace('.',',')};;;;\r\n`;
     res.send(csv);
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
