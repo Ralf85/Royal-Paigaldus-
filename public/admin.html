@@ -2058,6 +2058,31 @@ async function laadiRaportExcel() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+async function laadiFotod(){
+  const div=document.getElementById('fotodSisu');
+  div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
+  const objektid=await api('/api/pildid/admin/objektid');
+  if(!Array.isArray(objektid)||!objektid.length){div.innerHTML='<div style="padding:24px;text-align:center;color:var(--hall)">Fotosid pole üles laaditud</div>';return;}
+  div.innerHTML=objektid.map(o=>`
+    <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:0.5px solid var(--piir2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div><span style="font-size:11px;color:var(--hall)">${o.ettevote_nimi}</span><div style="font-size:15px;font-weight:600;color:var(--tekst)">${o.nimi}</div><span style="font-size:12px;color:var(--hall)">${o.piltide_arv} fotot</span></div>
+        <a href="/api/pildid/admin/zip/${o.id}?_token=${TOKEN}" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none">⬇ ZIP</a>
+      </div>
+      <div id="pildid-${o.id}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="color:var(--hall);font-size:12px;cursor:pointer" onclick="laadiObjektPildid(${o.id})">Klõpsa nägemiseks...</div>
+      </div>
+    </div>`).join('');
+}
+
+async function laadiObjektPildid(objektId){
+  const div=document.getElementById(`pildid-${objektId}`);
+  div.innerHTML='<div style="color:var(--hall);font-size:12px">Laadimine...</div>';
+  const pildid=await api(`/api/pildid/admin/objekt/${objektId}`);
+  if(!Array.isArray(pildid)||!pildid.length){div.innerHTML='<div style="color:var(--hall);font-size:12px">Pilte ei leitud</div>';return;}
+  div.innerHTML=pildid.map(p=>{const kp=new Date(p.kuupaev);return `<div><a href="${p.url}" target="_blank"><img src="${p.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:0.5px solid var(--sisend-piir)"></a><div style="font-size:9px;color:var(--hall);margin-top:3px;text-align:center">${kp.getDate()}.${kp.getMonth()+1} · ${p.worker_nimi}</div></div>`;}).join('');
+}
+
 async function välju(){localStorage.removeItem('adminToken');window.location='/admin-login';}
 
 init();
