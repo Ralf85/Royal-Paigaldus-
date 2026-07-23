@@ -165,16 +165,21 @@
           <div class="vorm-grupp"><label>Lõpp</label><input type="time" id="lopp" value="17:00"></div>
         </div>
 
-        <!-- Kirjeldus rippmenüü + vaba tekst -->
-        <div class="vorm-rida">
+        <!-- Kirjeldus rippmenüü (ainult tulevaste tööde alt) -->
+        <div class="vorm-rida" id="kirjeldus-grupp">
           <div class="vorm-grupp">
             <label>Kirjeldus</label>
-            <div class="kirjeldus-valik">
-              <select class="kirjeldus-select" id="kirjeldus-select" onchange="kirjeldusVahetud()">
-                <option value="">— Vali kirjeldus —</option>
-              </select>
-              <input type="text" class="kirjeldus-vaba" id="kirjeldus-vaba" placeholder="Kirjuta ise...">
-            </div>
+            <select class="kirjeldus-select" id="kirjeldus-select">
+              <option value="">— Vali kirjeldus —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Kommentaar töötajale -->
+        <div class="vorm-rida">
+          <div class="vorm-grupp">
+            <label>Kommentaar (vabatahtlik)</label>
+            <input type="text" id="kommentaar" placeholder="Midagi lisada? nt. tee oli suletud...">
           </div>
         </div>
 
@@ -323,41 +328,15 @@
         var sel = document.getElementById('kirjeldus-select');
         var kirjeldused = [];
 
-        // 1. Tulevaste tööde kirjeldused
-        try {
-          var tulevased = await api('/api/tood/tulevased');
-          if (Array.isArray(tulevased)) {
-            tulevased.forEach(function(t) {
-              if (t.ettevote_id == ettevoteId && t.kirjeldus && !kirjeldused.includes(t.kirjeldus)) {
-                kirjeldused.push(t.kirjeldus);
-              }
-            });
-          }
-        } catch(e) {}
-
-        // 2. Olemasolevate töökirjete kommentaarid (viimased 3 kuud)
-        try {
-          var t = new Date();
-          var vastus = await api('/api/tood/kokkuvote?aasta=' + t.getFullYear() + '&kuu=' + (t.getMonth()+1));
-          if (vastus.ok && vastus.kirjed) {
-            vastus.kirjed.forEach(function(k) {
-              if (String(k.ettevote_id) === String(ettevoteId) && k.kommentaar && !kirjeldused.includes(k.kommentaar)) {
-                kirjeldused.push(k.kommentaar);
-              }
-            });
-          }
-          // Eelmine kuu
-          var eelKuu = t.getMonth() === 0 ? 12 : t.getMonth();
-          var eelAasta = t.getMonth() === 0 ? t.getFullYear()-1 : t.getFullYear();
-          var vastus2 = await api('/api/tood/kokkuvote?aasta=' + eelAasta + '&kuu=' + eelKuu);
-          if (vastus2.ok && vastus2.kirjed) {
-            vastus2.kirjed.forEach(function(k) {
-              if (String(k.ettevote_id) === String(ettevoteId) && k.kommentaar && !kirjeldused.includes(k.kommentaar)) {
-                kirjeldused.push(k.kommentaar);
-              }
-            });
-          }
-        } catch(e) {}
+        // Ainult tulevaste tööde kirjeldused
+        var tulevased = await api('/api/tood/tulevased');
+        if (Array.isArray(tulevased)) {
+          tulevased.forEach(function(t) {
+            if (t.ettevote_id == ettevoteId && t.kirjeldus && !kirjeldused.includes(t.kirjeldus)) {
+              kirjeldused.push(t.kirjeldus);
+            }
+          });
+        }
 
         if (kirjeldused.length) {
           kirjeldused.forEach(function(k) {
@@ -365,34 +344,18 @@
             opt.value = k; opt.textContent = k;
             sel.appendChild(opt);
           });
+        } else {
+          // Kui kirjeldusi pole, peida rippmenüü
+          var grupp = document.getElementById('kirjeldus-grupp');
+          if (grupp) grupp.style.display = 'none';
         }
-
-        // Lisa "Muu - kirjuta ise" valik alati
-        var muuOpt = document.createElement('option');
-        muuOpt.value = '__muu__'; muuOpt.textContent = '✏️ Muu — kirjuta ise';
-        sel.appendChild(muuOpt);
       } catch(e) {
         console.error('Kirjelduste laadimine ebaõnnestus:', e);
       }
     }
 
-    function kirjeldusVahetud() {
-      var sel = document.getElementById('kirjeldus-select');
-      var vaba = document.getElementById('kirjeldus-vaba');
-      if (sel.value === '__muu__') {
-        vaba.classList.add('nahtav');
-        vaba.focus();
-      } else {
-        vaba.classList.remove('nahtav');
-        vaba.value = '';
-      }
-    }
-
     function getKirjeldus() {
-      var sel = document.getElementById('kirjeldus-select');
-      var vaba = document.getElementById('kirjeldus-vaba');
-      if (sel.value === '__muu__') return vaba.value;
-      return sel.value;
+      return document.getElementById('kirjeldus-select').value;
     }
 
     // ── FOTOD ────────────────────────────────────────────────
@@ -464,6 +427,8 @@
       var lisakulu_sel = document.getElementById('lisakulu-sel').value;
       var objekt_id = document.getElementById('objekt').value || null;
       var kirjeldus = getKirjeldus();
+      var kommentaarTekst = document.getElementById('kommentaar').value;
+      var loplikKommentaar = kirjeldus && kommentaarTekst ? kirjeldus + ' · ' + kommentaarTekst : (kirjeldus || kommentaarTekst);
 
       if (!kuupaev || !algus || !lopp) {
         naitaTeade('❌ Täida kuupäev, algus ja lõpp!', 'viga');
@@ -483,7 +448,7 @@
           body: JSON.stringify({
             ettevote_id: ettevoteId, objekt_id: objekt_id,
             kuupaev: kuupaev, algus: algus, lopp: lopp,
-            kommentaar: kirjeldus,
+            kommentaar: loplikKommentaar,
             kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel
           })
         });
@@ -541,8 +506,7 @@
         document.getElementById('lisakulu-sel').value = '';
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
         document.getElementById('kirjeldus-select').value = '';
-        document.getElementById('kirjeldus-vaba').value = '';
-        document.getElementById('kirjeldus-vaba').classList.remove('nahtav');
+        document.getElementById('kommentaar').value = '';
 
         var teadeTekst = '✅ Salvestatud! ' + r.tunnid + 'h';
         if (fotodKoopia.length) teadeTekst += ' · ' + fotodKoopia.length + ' pilti lisatud';
