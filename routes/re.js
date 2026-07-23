@@ -191,12 +191,18 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rally_estonia_kulud_${kuuNimi}.csv"`);
     let csv = '\uFEFF';
-    csv += 'Kuupäev,Töötaja,Summa,Selgitus,Foto\n';
+    csv += 'Kuupaev;Tootaja;Summa (EUR);Selgitus;Foto link\r\n';
+    let kokku = 0;
     r.rows.forEach(row => {
-      const kp = String(row.kuupaev).split('T')[0];
+      const d = new Date(row.kuupaev);
+      const kp = `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
+      const summa = parseFloat(row.summa);
+      kokku += summa;
       const foto = row.foto_url || '';
-      csv += `"${kp}","${row.worker_nimi}","${parseFloat(row.summa).toFixed(2)}","${row.selgitus}","${foto}"\n`;
+      const selgitus = (row.selgitus || '').replace(/;/g, ',');
+      csv += `${kp};${row.worker_nimi};${summa.toFixed(2).replace('.',',')};${selgitus};${foto}\r\n`;
     });
+    csv += `KOKKU;;;${kokku.toFixed(2).replace('.',',')};;\r\n`;
     res.send(csv);
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
