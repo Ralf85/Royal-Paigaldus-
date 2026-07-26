@@ -1334,10 +1334,21 @@ async function api(url, opts = {}) {
   if (!(opts.body instanceof FormData)) {
     opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
   }
-  const r = await fetch(url, opts);
+  let r;
+  try {
+    r = await fetch(url, opts);
+  } catch (networkErr) {
+    return { ok: false, veateade: 'Võrguviga: ' + networkErr.message };
+  }
   const token = r.headers.get('x-session-token');
   if (token) { TOKEN = token; localStorage.setItem('adminToken', token); }
-  return r.json();
+  try {
+    return await r.json();
+  } catch (parseErr) {
+    // Server ei vastanud JSON-iga (nt endpoint puudub veel serveris, või serveri viga) —
+    // varem lasi see vea "vaikselt" katki minna ja terve leht jäi hanguma; nüüd anname selge teate.
+    return { ok: false, veateade: `Serveri vastust ei õnnestunud lugeda (HTTP ${r.status}). Kontrolli, kas kõik failid said üles laetud ja Railway on "Active".` };
+  }
 }
 
 const tabid = document.querySelectorAll('.tab');
