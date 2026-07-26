@@ -59,51 +59,43 @@ router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// ---------- WORKER + ADMIN: drill-down Etapp → Rada → Punkt → Korv ----------
+// ---------- WORKER + ADMIN: drill-down Võistlus → Park → Korv ----------
 
-router.get('/aktiivne', noudaLubatud, async (req, res) => {
-  const ev = await pool.query('SELECT * FROM xseeria_events WHERE aktiivne = true ORDER BY kuupaev DESC LIMIT 1');
-  if (ev.rows.length === 0) return res.json({ ok: true, event: null });
-  res.json({ ok: true, event: ev.rows[0] });
+// Kõik võistlused (töötaja valib ise, mitte automaatne "aktiivne")
+router.get('/events', noudaLubatud, async (req, res) => {
+  const r = await pool.query('SELECT * FROM xseeria_events ORDER BY aktiivne DESC, kuupaev DESC');
+  res.json({ ok: true, events: r.rows });
 });
 
-router.get('/event/:eventId/rajad', noudaLubatud, async (req, res) => {
-  const r = await pool.query(
-    `SELECT r.id, r.event_id, r.nimi, r.jrk_nr, r.loodud, COUNT(a.id)::int AS punktide_arv
-     FROM xseeria_rajad r
-     LEFT JOIN xseeria_asukohad a ON a.rada_id = r.id
-     WHERE r.event_id = $1
-     GROUP BY r.id, r.event_id, r.nimi, r.jrk_nr, r.loodud
-     ORDER BY r.jrk_nr, r.nimi`,
-    [req.params.eventId]
-  );
-  res.json({ ok: true, rajad: r.rows });
-});
-
-router.get('/rada/:radaId/asukohad', noudaLubatud, async (req, res) => {
-  const rada = await pool.query('SELECT * FROM xseeria_rajad WHERE id=$1', [req.params.radaId]);
-  if (!rada.rows.length) return res.json({ ok: false, veateade: 'Rada ei leitud' });
+router.get('/event/:eventId/asukohad', noudaLubatud, async (req, res) => {
+  const ev = await pool.query('SELECT * FROM xseeria_events WHERE id=$1', [req.params.eventId]);
+  if (!ev.rows.length) return res.json({ ok: false, veateade: 'Võistlust ei leitud' });
   const asukohad = await pool.query(
-    `SELECT a.id, a.event_id, a.rada_id, a.nimi, a.korvide_arv, a.viskekohtade_arv, a.jrk_nr,
+    `SELECT a.id, a.event_id, a.nimi, a.korvide_arv, a.viskekohtade_arv, a.jrk_nr,
        a.markused, a.foto_url, a.foto_public_id, a.loodud,
        COUNT(k.id)::int AS korvide_koguarv,
        COUNT(CASE WHEN k.paigaldus_staatus='tehtud' THEN 1 END)::int AS paigaldatud_arv,
-       COUNT(CASE WHEN k.puhastus_staatus='tehtud' THEN 1 END)::int AS puhastatud_arv
+       COUNT(CASE WHEN k.puhastus_staatus='tehtud' THEN 1 END)::int AS puhastatud_arv,
+       MIN(k.number::int) AS min_nr,
+       MAX(k.number::int) AS max_nr
      FROM xseeria_asukohad a
      LEFT JOIN xseeria_korvid k ON k.asukoht_id = a.id
-     WHERE a.rada_id = $1
-     GROUP BY a.id, a.event_id, a.rada_id, a.nimi, a.korvide_arv, a.viskekohtade_arv, a.jrk_nr,
+     WHERE a.event_id = $1
+     GROUP BY a.id, a.event_id, a.nimi, a.korvide_arv, a.viskekohtade_arv, a.jrk_nr,
        a.markused, a.foto_url, a.foto_public_id, a.loodud
      ORDER BY a.jrk_nr, a.nimi`,
-    [req.params.radaId]
+    [req.params.eventId]
   );
-  res.json({ ok: true, rada: rada.rows[0], asukohad: asukohad.rows });
+  res.json({ ok: true, event: ev.rows[0], asukohad: asukohad.rows });
 });
 
 router.get('/asukoht/:asukohtId/korvid', noudaLubatud, async (req, res) => {
   const asukoht = await pool.query('SELECT * FROM xseeria_asukohad WHERE id=$1', [req.params.asukohtId]);
   if (!asukoht.rows.length) return res.json({ ok: false, veateade: 'Punkti ei leitud' });
-  const korvid = await pool.query('SELECT * FROM xseeria_korvid WHERE asukoht_id=$1 ORDER BY jrk_nr, number', [req.params.asukohtId]);
+  const korvid = await pool.query(
+    'SELECT * FROM xseeria_korvid WHERE asukoht_id=$1 ORDER BY jrk_nr, number::int',
+    [req.params.asukohtId]
+  );
   res.json({ ok: true, asukoht: asukoht.rows[0], korvid: korvid.rows });
 });
 
@@ -162,7 +154,7 @@ router.post('/asukoht/:id/rajakaart', noudaLubatud, upload.single('foto'), async
   }
 });
 
-// ---------- ADMIN: üritused ----------
+// ---------- ADMIN: võistlused ----------
 
 router.get('/admin/events', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT * FROM xseeria_events ORDER BY kuupaev DESC');
@@ -186,48 +178,34 @@ router.post('/admin/events/:id/aktiveeri', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- ADMIN: rajad ----------
-
-router.get('/admin/event/:eventId/rajad', noudaAdmin, async (req, res) => {
-  const r = await pool.query(
-    `SELECT r.id, r.event_id, r.nimi, r.jrk_nr, r.loodud, COUNT(a.id)::int AS punktide_arv
-     FROM xseeria_rajad r
-     LEFT JOIN xseeria_asukohad a ON a.rada_id = r.id
-     WHERE r.event_id = $1
-     GROUP BY r.id, r.event_id, r.nimi, r.jrk_nr, r.loodud
-     ORDER BY r.jrk_nr, r.nimi`,
-    [req.params.eventId]
-  );
-  res.json({ ok: true, rajad: r.rows });
-});
-
-router.post('/admin/rajad', noudaAdmin, async (req, res) => {
-  const { event_id, nimi } = req.body;
-  if (!event_id || !nimi) return res.json({ ok: false, veateade: 'event_id ja nimi on kohustuslikud' });
-  const maxRow = await pool.query('SELECT COALESCE(MAX(jrk_nr),0) AS m FROM xseeria_rajad WHERE event_id=$1', [event_id]);
-  const r = await pool.query(
-    'INSERT INTO xseeria_rajad (event_id, nimi, jrk_nr) VALUES ($1,$2,$3) RETURNING *',
-    [event_id, nimi, maxRow.rows[0].m + 1]
-  );
-  res.json({ ok: true, rada: r.rows[0] });
-});
-
-router.delete('/admin/rajad/:id', noudaAdmin, async (req, res) => {
-  await pool.query('DELETE FROM xseeria_rajad WHERE id=$1', [req.params.id]);
+router.delete('/admin/events/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM xseeria_events WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 
-// ---------- ADMIN: asukohad (punktid) ----------
+// ---------- ADMIN: pargid (asukohad) — otse võistluse alla, ilma vahetasemeta ----------
 
+// Kiirlisamine: "Nimi, korvide arv, viskekohtade arv" — korvide numbrid jätkuvad
+// automaatselt terve võistluse peale (nt kui Annakanalil oli 1-13, siis järgmine park saab 14st edasi)
 router.post('/admin/asukohad/bulk', noudaAdmin, async (req, res) => {
-  const { rada_id, tekst } = req.body;
-  if (!rada_id || !tekst) return res.json({ ok: false, veateade: 'rada_id ja tekst on kohustuslikud' });
-  const rada = await pool.query('SELECT * FROM xseeria_rajad WHERE id=$1', [rada_id]);
-  if (!rada.rows.length) return res.json({ ok: false, veateade: 'Rada ei leitud' });
-  const eventId = rada.rows[0].event_id;
+  const { event_id, tekst } = req.body;
+  if (!event_id || !tekst) return res.json({ ok: false, veateade: 'event_id ja tekst on kohustuslikud' });
+  const ev = await pool.query('SELECT * FROM xseeria_events WHERE id=$1', [event_id]);
+  if (!ev.rows.length) return res.json({ ok: false, veateade: 'Võistlust ei leitud' });
+
   const read = tekst.split('\n').map((l) => l.trim()).filter(Boolean);
-  const maxRow = await pool.query('SELECT COALESCE(MAX(jrk_nr),0) AS m FROM xseeria_asukohad WHERE rada_id=$1', [rada_id]);
+  const maxRow = await pool.query('SELECT COALESCE(MAX(jrk_nr),0) AS m FROM xseeria_asukohad WHERE event_id=$1', [event_id]);
   let jrk = maxRow.rows[0].m;
+
+  const maxKorv = await pool.query(
+    `SELECT COALESCE(MAX(k.number::int), 0) AS m
+     FROM xseeria_korvid k
+     JOIN xseeria_asukohad a ON a.id = k.asukoht_id
+     WHERE a.event_id = $1`,
+    [event_id]
+  );
+  let jooksevNr = maxKorv.rows[0].m;
+
   const lisatud = [];
   for (const line of read) {
     const parts = line.split(',').map((p) => p.trim());
@@ -237,12 +215,13 @@ router.post('/admin/asukohad/bulk', noudaAdmin, async (req, res) => {
     const viske = parseInt(parts[2], 10) || 0;
     jrk++;
     const r = await pool.query(
-      'INSERT INTO xseeria_asukohad (event_id, rada_id, nimi, korvide_arv, viskekohtade_arv, jrk_nr) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [eventId, rada_id, nimi, korvid, viske, jrk]
+      'INSERT INTO xseeria_asukohad (event_id, nimi, korvide_arv, viskekohtade_arv, jrk_nr) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [event_id, nimi, korvid, viske, jrk]
     );
     const asukohtId = r.rows[0].id;
-    for (let n = 1; n <= korvid; n++) {
-      await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [asukohtId, String(n), n]);
+    for (let i = 1; i <= korvid; i++) {
+      jooksevNr++;
+      await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [asukohtId, String(jooksevNr), i]);
     }
     lisatud.push(r.rows[0]);
   }
