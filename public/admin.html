@@ -1083,15 +1083,23 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
       <div class="kaart-body">
         <div id="xs-eventpick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
-        <div class="vorm-rida col3">
-          <div class="vorm-grupp"><label>Uue võistluse nimi</label><input id="xs-ev-nimi" placeholder="Tartu X36"></div>
-          <div class="vorm-grupp"><label>Kuupäev</label><input id="xs-ev-kuupaev" type="date"></div>
-          <div class="vorm-grupp"><label>Hooaeg</label>
-            <select id="xs-ev-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
+
+        <button class="nupp kull" id="xs-ev-uus-nupp" onclick="xsToggleUusVoistlusVorm()">+ Uus võistlus</button>
+
+        <div id="xs-ev-uus-vorm" style="display:none;margin-top:14px">
+          <div class="vorm-rida col3">
+            <div class="vorm-grupp"><label>Uue võistluse nimi</label><input id="xs-ev-nimi" placeholder="Tartu X36"></div>
+            <div class="vorm-grupp"><label>Kuupäev</label><input id="xs-ev-kuupaev" type="date"></div>
+            <div class="vorm-grupp"><label>Hooaeg</label>
+              <select id="xs-ev-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
+            </div>
           </div>
+          <div style="display:flex;gap:8px">
+            <button class="nupp kull" onclick="xsLooEvent()">Loo võistlus</button>
+            <button class="nupp hall" onclick="xsToggleUusVoistlusVorm()">Tühista</button>
+          </div>
+          <div style="font-size:11px;color:var(--hall);margin-top:8px">Tiim näeb kõiki loodud võistlusi nimekirjas ja valib ise õige.</div>
         </div>
-        <button class="nupp kull" onclick="xsLooEvent()">+ Uus võistlus</button>
-        <div style="font-size:11px;color:var(--hall);margin-top:8px">Tiim näeb kõiki loodud võistlusi nimekirjas ja valib ise õige.</div>
         <div class="teade" id="xs-ev-teade"></div>
 
         <div id="xs-event-edit" style="display:none;margin-top:18px;padding-top:16px;border-top:0.5px solid var(--piir2)">
@@ -2423,8 +2431,19 @@ async function xsLooEvent() {
   teade.style.display = 'none';
   document.getElementById('xs-ev-nimi').value = '';
   document.getElementById('xs-ev-kuupaev').value = '';
+  document.getElementById('xs-ev-uus-vorm').style.display = 'none';
+  document.getElementById('xs-ev-uus-nupp').style.display = 'inline-block';
   xsAktiivneEventId = d.event.id;
   await xsLaadiEvents();
+}
+
+function xsToggleUusVoistlusVorm() {
+  const vorm = document.getElementById('xs-ev-uus-vorm');
+  const nupp = document.getElementById('xs-ev-uus-nupp');
+  const avatud = vorm.style.display !== 'none';
+  vorm.style.display = avatud ? 'none' : 'block';
+  nupp.style.display = avatud ? 'inline-block' : 'none';
+  document.getElementById('xs-ev-teade').style.display = 'none';
 }
 
 async function xsLisaBulk() {
