@@ -164,17 +164,7 @@ async function laadiKorvid() {
   const tehtud = d.korvid.filter(k => k.paigaldus_staatus === 'tehtud').length;
   const puhas = d.korvid.filter(k => k.puhastus_staatus === 'tehtud').length;
 
-  let html = `
-    <div class="foto-kaart">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <b style="font-size:13px">🗺️ Rajakaart</b>
-        <label class="foto-nupp">📷 ${a.foto_url ? 'Vaheta pilt' : 'Lisa pilt'}
-          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(this)">
-        </label>
-      </div>
-      ${a.foto_url ? `<img src="${a.foto_url}" alt="Rajakaart">` : ''}
-    </div>
-    <div class="summary"><b>${escapeHtml(a.nimi)}</b><span>${tehtud}/${d.korvid.length} paigaldatud · ${puhas}/${d.korvid.length} puhas</span></div>`;
+  let html = `<div class="summary"><b>${escapeHtml(a.nimi)}</b><span>${tehtud}/${d.korvid.length} paigaldatud · ${puhas}/${d.korvid.length} puhas</span></div>`;
 
   html += d.korvid.map(k => kaart(k)).join('');
   sisu.innerHTML = html || '<div class="empty">Korve pole.</div>';
@@ -186,6 +176,10 @@ function kaart(k) {
   return `
     <div class="card">
       <div class="rida1"><div class="nimi">Rada nr ${escapeHtml(k.number)}</div></div>
+      ${k.foto_url ? `<img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block">` : ''}
+      <label class="foto-nupp" style="margin-top:8px">📷 ${k.foto_url ? 'Vaheta rajakaart' : 'Lisa rajakaart'}
+        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
+      </label>
       <div class="staatused">
         <button class="stbtn ${done ? 'done' : ''}" onclick="toggleKorv(${k.id}, 'paigaldatud', ${done})">
           ${done ? '✅ Paigaldatud' : '⬜ Märgi paigaldatuks'}
@@ -207,12 +201,12 @@ async function toggleKorv(id, tuup, praeguOn) {
   laadiKorvid();
 }
 
-async function laeUlesRajakaart(input) {
+async function laeUlesRajakaart(korvId, input) {
   const file = input.files[0];
   if (!file) return;
   const fd = new FormData();
   fd.append('foto', file);
-  await api('/asukoht/' + praeguneAsukoht.id + '/rajakaart', { method: 'POST', body: fd });
+  await api('/korvid/' + korvId + '/rajakaart', { method: 'POST', body: fd });
   laadiKorvid();
 }
 
