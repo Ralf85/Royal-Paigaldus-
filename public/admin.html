@@ -1094,6 +1094,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
               <select id="xs-ev-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
             </div>
           </div>
+          <div class="vorm-grupp" style="margin-bottom:12px">
+            <label>Rajakaardi link (valikuline)</label>
+            <input id="xs-ev-rajakaart" placeholder="https://... (nt Google Maps, PDF)">
+          </div>
           <div style="display:flex;gap:8px">
             <button class="nupp kull" onclick="xsLooEvent()">Loo võistlus</button>
             <button class="nupp hall" onclick="xsToggleUusVoistlusVorm()">Tühista</button>
@@ -1110,6 +1114,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <div class="vorm-grupp"><label>Hooaeg</label>
               <select id="xs-ev-edit-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
             </div>
+          </div>
+          <div class="vorm-grupp" style="margin-bottom:12px">
+            <label>Rajakaardi link (valikuline)</label>
+            <input id="xs-ev-edit-rajakaart" placeholder="https://... (nt Google Maps, PDF)">
           </div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="nupp kull" onclick="xsSalvestaEvent()">Salvesta muudatused</button>
@@ -2355,6 +2363,7 @@ async function xsLaadiEvents() {
       document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
       document.getElementById('xs-ev-edit-kuupaev').value = String(ev.kuupaev).slice(0,10);
       document.getElementById('xs-ev-edit-hooaeg').value = ev.hooaeg;
+      document.getElementById('xs-ev-edit-rajakaart').value = ev.rajakaart_url || '';
     }
     await xsLaadiAsukohad();
     await xsLaadiTootajaValikud();
@@ -2391,12 +2400,13 @@ async function xsSalvestaEvent() {
   const nimi = document.getElementById('xs-ev-edit-nimi').value.trim();
   const kuupaev = document.getElementById('xs-ev-edit-kuupaev').value;
   const hooaeg = document.getElementById('xs-ev-edit-hooaeg').value;
+  const rajakaart_url = document.getElementById('xs-ev-edit-rajakaart').value.trim();
   const teade = document.getElementById('xs-ev-edit-teade');
   if (!nimi || !kuupaev) {
     teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
     return;
   }
-  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'PUT', body: JSON.stringify({ nimi, kuupaev, hooaeg }) });
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'PUT', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_url }) });
   if (!d.ok) {
     teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
     return;
@@ -2418,12 +2428,13 @@ async function xsLooEvent() {
   const nimi = document.getElementById('xs-ev-nimi').value.trim();
   const kuupaev = document.getElementById('xs-ev-kuupaev').value;
   const hooaeg = document.getElementById('xs-ev-hooaeg').value;
+  const rajakaart_url = document.getElementById('xs-ev-rajakaart').value.trim();
   const teade = document.getElementById('xs-ev-teade');
   if (!nimi || !kuupaev) {
     teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
     return;
   }
-  const d = await api('/api/xseeria/admin/events', { method: 'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg }) });
+  const d = await api('/api/xseeria/admin/events', { method: 'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_url }) });
   if (!d.ok) {
     teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
     return;
@@ -2431,6 +2442,7 @@ async function xsLooEvent() {
   teade.style.display = 'none';
   document.getElementById('xs-ev-nimi').value = '';
   document.getElementById('xs-ev-kuupaev').value = '';
+  document.getElementById('xs-ev-rajakaart').value = '';
   document.getElementById('xs-ev-uus-vorm').style.display = 'none';
   document.getElementById('xs-ev-uus-nupp').style.display = 'inline-block';
   xsAktiivneEventId = d.event.id;
@@ -2903,7 +2915,7 @@ async function xsLaadiSponsoridUldnimekiri() {
       <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.tooted || '—')}</td>
       <td style="white-space:nowrap">
         <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g, "&apos;")})'>✎</button>
-        <button class="nupp punane" onclick="xsKustutaSponsor(${s.id}, ${JSON.stringify(s.nimi)})">🗑</button>
+        <button class="nupp punane" onclick='xsKustutaSponsor(${s.id}, ${JSON.stringify(s.nimi).replace(/'/g, "&apos;")})'>🗑</button>
       </td>
     </tr>`).join('') + '</tbody></table>';
 }
