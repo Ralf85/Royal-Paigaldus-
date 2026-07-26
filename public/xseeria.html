@@ -135,13 +135,23 @@ async function naitaAsukohad(eventId, eventNimi) {
   praeguneEvent = { id: eventId, nimi: eventNimi };
   const sisu = document.getElementById('sisu');
   sisu.innerHTML = 'Laadimine...';
-  const [d, sp, teg] = await Promise.all([
+  const [d, sp, ul, teg] = await Promise.all([
     api('/event/' + eventId + '/asukohad'),
     api('/event/' + eventId + '/sponsorid'),
+    api('/event/' + eventId + '/ulesanded'),
     api('/event/' + eventId + '/tegevused')
   ]);
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
   const sponsorHtml = (sp && sp.ok && sp.sponsorid.length) ? sponsorKaardid(eventId, sp.sponsorid) : '';
+  const ulesandedHtml = (ul && ul.ok && ul.ulesanded.length)
+    ? `<div class="tile" onclick="naitaUlesanded(${eventId}, '${escapeAttr(eventNimi)}')">
+        <div class="ikoon">✅</div>
+        <div class="info">
+          <div class="nimi">ÜLESANDED</div>
+          <div class="sub">${ul.ulesanded.filter(u => !u.tehtud).length}/${ul.ulesanded.length} tegemata</div>
+        </div>
+      </div>`
+    : '';
   const tegevusedHtml = (teg && teg.ok && teg.tegevused.length)
     ? `<div class="tile" onclick="naitaTegevused(${eventId}, '${escapeAttr(eventNimi)}')">
         <div class="ikoon">🚚</div>
@@ -155,8 +165,8 @@ async function naitaAsukohad(eventId, eventNimi) {
   const rajakaartHtml = rajakaartUrl
     ? `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank">🗺️ RAJAKAART</a>`
     : '';
-  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + tegevusedHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
-  sisu.innerHTML = sponsorHtml + tegevusedHtml + rajakaartHtml + d.asukohad.map(a => {
+  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
+  sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
     const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
     return `
@@ -195,6 +205,45 @@ function sponsorKaart(eventId, s) {
 async function muudaSponsorStaatus(eventId, sponsorId, staatus) {
   await api('/event/' + eventId + '/sponsorid/' + sponsorId + '/staatus', { method: 'POST', body: JSON.stringify({ staatus }) });
   if (praeguneEvent && praeguneEvent.id === eventId) naitaAsukohad(eventId, praeguneEvent.nimi);
+}
+
+// ── ÜLESANDED: organisatoorne checklist, aga ainult need, kus mina olen vastutaja ──
+async function naitaUlesanded(eventId, eventNimi) {
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Ülesanded' }
+  ]);
+  await laadiUlesanded(eventId, eventNimi);
+}
+
+async function laadiUlesanded(eventId, eventNimi) {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + eventId + '/ulesanded');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  if (!d.ulesanded.length) { sisu.innerHTML = '<div class="empty">Sulle pole hetkel ühtegi ülesannet määratud.</div>'; return; }
+  sisu.innerHTML = d.ulesanded.map(u => ulesandeKaart(eventId, eventNimi, u)).join('');
+}
+
+function ulesandeKaart(eventId, eventNimi, u) {
+  const tehtud = !!u.tehtud;
+  const tahtaeg = u.tahtaeg ? fmtKp(u.tahtaeg) : '';
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi" style="${tehtud ? 'text-decoration:line-through;opacity:0.6' : ''}">${escapeHtml(u.tekst)}</div></div>
+      ${u.kategooria ? `<div class="meta">🏷️ ${escapeHtml(u.kategooria)}</div>` : ''}
+      ${tahtaeg ? `<div class="meta">📅 ${tahtaeg}</div>` : ''}
+      <div class="staatused">
+        <button class="stbtn ${tehtud ? 'done' : ''}" onclick="lulitaUlesanne(${eventId}, '${escapeAttr(eventNimi)}', ${u.id})">
+          ${tehtud ? '✅ Tehtud' : '⬜ Märgi tehtuks'}
+        </button>
+      </div>
+    </div>`;
+}
+
+async function lulitaUlesanne(eventId, eventNimi, id) {
+  await api('/event/' + eventId + '/ulesanded/' + id + '/toggle', { method: 'POST' });
+  await laadiUlesanded(eventId, eventNimi);
 }
 
 // ── TEGEVUSED: logistilised ülesanded (kuupäev+kellaaeg, võib olla mitu inimest) ──
