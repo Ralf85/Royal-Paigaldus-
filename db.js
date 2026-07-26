@@ -275,6 +275,9 @@ async function initDB() {
         UNIQUE(event_id, sponsor_id)
       );
     `);
+    // Sponsori per-event staatusele lisandub vastutaja (töötaja, kes selle eest vastutab) — nii saab
+    // nii admin kui ka määratud töötaja ise oma X-seeria vaates staatust (ootel/käes/tagastatud) märkida.
+    await client.query(`ALTER TABLE xseeria_event_sponsorid ADD COLUMN IF NOT EXISTS vastutaja_id INTEGER REFERENCES workers(id) ON DELETE SET NULL;`);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
