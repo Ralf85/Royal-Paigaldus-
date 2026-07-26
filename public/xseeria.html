@@ -155,11 +155,21 @@ async function naitaKorvid(asukohtId, asukohtNimi, eventId, eventNimi) {
   await laadiKorvid();
 }
 
+let praegusedKorvidAndmed = null;
+let naidatudPildid = new Set();
+
 async function laadiKorvid() {
   const sisu = document.getElementById('sisu');
   sisu.innerHTML = 'Laadimine...';
   const d = await api('/asukoht/' + praeguneAsukoht.id + '/korvid');
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  praegusedKorvidAndmed = d;
+  joonistaKorvid();
+}
+
+function joonistaKorvid() {
+  const d = praegusedKorvidAndmed;
+  const sisu = document.getElementById('sisu');
   const a = d.asukoht;
   const tehtud = d.korvid.filter(k => k.paigaldus_staatus === 'tehtud').length;
   const puhas = d.korvid.filter(k => k.puhastus_staatus === 'tehtud').length;
@@ -170,13 +180,23 @@ async function laadiKorvid() {
   sisu.innerHTML = html || '<div class="empty">Korve pole.</div>';
 }
 
+function lulitaPilt(korvId) {
+  if (naidatudPildid.has(korvId)) naidatudPildid.delete(korvId);
+  else naidatudPildid.add(korvId);
+  joonistaKorvid();
+}
+
 function kaart(k) {
   const done = k.paigaldus_staatus === 'tehtud';
   const clean = k.puhastus_staatus === 'tehtud';
+  const piltNaidatud = naidatudPildid.has(k.id);
   return `
     <div class="card">
       <div class="rida1"><div class="nimi">Rada nr ${escapeHtml(k.number)}</div></div>
-      ${k.foto_url ? `<a href="${k.foto_url}" target="_blank"><img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block"></a>` : ''}
+      ${k.foto_url ? `
+        <button class="foto-nupp" style="margin-top:8px" onclick="lulitaPilt(${k.id})">🖼️ ${piltNaidatud ? 'Peida pilt' : 'Näita pilti'}</button>
+        ${piltNaidatud ? `<a href="${k.foto_url}" target="_blank"><img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block"></a>` : ''}
+      ` : ''}
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <label class="foto-nupp" style="margin:0">📷 ${k.foto_url ? 'Vaheta pilt' : 'Lisa pilt'}
           <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
