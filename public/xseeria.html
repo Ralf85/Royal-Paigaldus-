@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>X-seeria — Tiim</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #f2f4f7; color: #1a1a1a; }
+  header { background: #1e3a8a; color: white; padding: 16px 20px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+  #login { max-width: 360px; margin: 60px auto; padding: 24px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  #login h2 { margin-top: 0; }
+  #login input { width: 100%; padding: 14px; font-size: 20px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; text-align: center; letter-spacing: 4px; }
+  #login button, .btn { width: 100%; padding: 14px; font-size: 16px; border: none; border-radius: 8px; background: #1e3a8a; color: white; font-weight: 600; cursor: pointer; }
+  #err { color: #c0392b; font-size: 14px; min-height: 18px; margin-top: 6px; }
+  #app { display: none; padding: 12px; max-width: 640px; margin: 0 auto; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin: 12px 4px; }
+  .topbar .who { font-size: 14px; color: #555; }
+  .refresh { background: none; border: 1px solid #1e3a8a; color: #1e3a8a; border-radius: 8px; padding: 8px 14px; font-size: 14px; }
+  .summary { background: white; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; display: flex; justify-content: space-between; }
+  .card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card .rida1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .nimi { font-size: 17px; font-weight: 700; }
+  .card .arv { font-size: 14px; color: #555; }
+  .card .staatused { display: flex; gap: 8px; margin-top: 10px; }
+  .stbtn { flex: 1; padding: 12px 8px; border-radius: 8px; border: 2px solid #ddd; font-size: 14px; font-weight: 600; background: #fafafa; color: #666; }
+  .stbtn.done { background: #16a34a; border-color: #16a34a; color: white; }
+  .stbtn.clean { background: #0ea5e9; border-color: #0ea5e9; color: white; }
+  .meta { font-size: 12px; color: #888; margin-top: 6px; }
+  .empty { text-align: center; color: #888; margin-top: 60px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🥏 X-seeria</h1>
+  <p>Rajapaigalduse checklist</p>
+</header>
+
+<div id="login">
+  <h2>Sisene PIN-koodiga</h2>
+  <input id="pin" type="password" inputmode="numeric" maxlength="10" placeholder="PIN">
+  <button onclick="logi_sisse()">Sisene</button>
+  <div id="err"></div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="who" id="kes"></div>
+    <button class="refresh" onclick="laadi()">↻ Värskenda</button>
+  </div>
+  <div id="sisu"></div>
+</div>
+
+<script>
+let token = localStorage.getItem('xseeria_token');
+let nimi = localStorage.getItem('xseeria_nimi');
+
+if (token) {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('kes').textContent = 'Tere, ' + nimi;
+  laadi();
+}
+
+async function logi_sisse() {
+  const pin = document.getElementById('pin').value.trim();
+  document.getElementById('err').textContent = '';
+  if (!pin) return;
+  const r = await fetch('/api/xseeria/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin })
+  });
+  const d = await r.json();
+  if (!d.ok) { document.getElementById('err').textContent = d.veateade || 'Viga'; return; }
+  token = d.token; nimi = d.nimi;
+  localStorage.setItem('xseeria_token', token);
+  localStorage.setItem('xseeria_nimi', nimi);
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('kes').textContent = 'Tere, ' + nimi;
+  laadi();
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-xseeria-token': token }, opts.headers || {});
+  const r = await fetch('/api/xseeria' + path, opts);
+  return r.json();
+}
+
+async function laadi() {
+  const d = await api('/aktiivne');
+  const sisu = document.getElementById('sisu');
+  if (!d.ok) { logi_valja(); return; }
+  if (!d.event) { sisu.innerHTML = '<div class="empty">Hetkel pole aktiivset üritust.<br>Küsi adminilt.</div>'; return; }
+  const tehtud = d.asukohad.filter(a => a.paigaldus_staatus === 'tehtud').length;
+  const puhas = d.asukohad.filter(a => a.puhastus_staatus === 'tehtud').length;
+  let html = `<div class="summary"><b>${escapeHtml(d.event.nimi)}</b><span>${tehtud}/${d.asukohad.length} paigaldatud · ${puhas}/${d.asukohad.length} puhas</span></div>`;
+  html += d.asukohad.map(a => kaart(a)).join('');
+  sisu.innerHTML = html || '<div class="empty">Asukohti pole veel lisatud.</div>';
+}
+
+function kaart(a) {
+  const done = a.paigaldus_staatus === 'tehtud';
+  const clean = a.puhastus_staatus === 'tehtud';
+  const arvTekst = a.korvide_arv + ' korvi' + (a.viskekohtade_arv ? ' · ' + a.viskekohtade_arv + ' viskekohta' : '');
+  return `
+    <div class="card">
+      <div class="rida1">
+        <div class="nimi">${escapeHtml(a.nimi)}</div>
+        <div class="arv">${arvTekst}</div>
+      </div>
+      ${a.markused ? `<div class="meta">📝 ${escapeHtml(a.markused)}</div>` : ''}
+      <div class="staatused">
+        <button class="stbtn ${done ? 'done' : ''}" onclick="toggle(${a.id}, 'paigaldatud', ${done})">
+          ${done ? '✅ Paigaldatud' : '⬜ Märgi paigaldatuks'}
+        </button>
+        <button class="stbtn ${clean ? 'clean' : ''}" onclick="toggle(${a.id}, 'puhas', ${clean})">
+          ${clean ? '🧹 Puhas' : '⬜ Märgi puhtaks'}
+        </button>
+      </div>
+      ${done ? `<div class="meta">Paigaldas: ${escapeHtml(a.paigaldas_nimi || '')} ${fmtAeg(a.paigaldatud_kell)}</div>` : ''}
+      ${clean ? `<div class="meta">Puhastas: ${escapeHtml(a.puhastas_nimi || '')} ${fmtAeg(a.puhastatud_kell)}</div>` : ''}
+    </div>`;
+}
+
+async function toggle(id, tuup, praeguOn) {
+  const tee = tuup === 'paigaldatud'
+    ? (praeguOn ? '/asukohad/' + id + '/paigaldus-tagasi' : '/asukohad/' + id + '/paigaldatud')
+    : (praeguOn ? '/asukohad/' + id + '/puhastus-tagasi' : '/asukohad/' + id + '/puhas');
+  await api(tee, { method: 'POST' });
+  laadi();
+}
+
+function fmtAeg(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('et-EE') + ' ' + d.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function logi_valja() {
+  localStorage.removeItem('xseeria_token');
+  localStorage.removeItem('xseeria_nimi');
+  location.reload();
+}
+
+setInterval(() => { if (token) laadi(); }, 30000);
+</script>
+</body>
+</html>

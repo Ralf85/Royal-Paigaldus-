@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X-seeria — Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #f2f4f7; color: #1a1a1a; }
+  header { background: #1e3a8a; color: white; padding: 16px 20px; }
+  header h1 { margin: 0; font-size: 20px; }
+  #login { max-width: 360px; margin: 60px auto; padding: 24px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  #login input { width: 100%; padding: 14px; font-size: 20px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; text-align: center; letter-spacing: 4px; }
+  button { padding: 10px 16px; border: none; border-radius: 8px; background: #1e3a8a; color: white; font-weight: 600; cursor: pointer; font-size: 14px; }
+  #err { color: #c0392b; font-size: 14px; min-height: 18px; margin-top: 6px; }
+  #app { display: none; max-width: 820px; margin: 0 auto; padding: 16px; }
+  section { background: white; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  section h2 { margin-top: 0; font-size: 16px; }
+  label { display: block; font-size: 13px; color: #555; margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  textarea { min-height: 100px; font-family: monospace; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
+  .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.wait { background: #fef3c7; color: #92400e; }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 140px; }
+  .summary { font-size: 14px; color: #444; margin-bottom: 10px; }
+  .del { background: #dc2626; padding: 4px 8px; font-size: 12px; }
+  .hint { font-size: 12px; color: #888; margin-top: 4px; }
+  .eventpick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .eventpick .item { padding: 6px 12px; border-radius: 20px; border: 1px solid #ccc; font-size: 13px; cursor: pointer; }
+  .eventpick .item.active { background: #1e3a8a; color: white; border-color: #1e3a8a; }
+</style>
+</head>
+<body>
+<header><h1>🥏 X-seeria — Admin</h1></header>
+
+<div id="login">
+  <h2>Admin PIN</h2>
+  <input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+  <button style="width:100%" onclick="logi_sisse()">Sisene</button>
+  <div id="err"></div>
+</div>
+
+<div id="app">
+
+  <section>
+    <h2>Üritused</h2>
+    <div class="eventpick" id="eventpick"></div>
+    <div class="row">
+      <div><label>Ürituse nimi</label><input id="ev_nimi" placeholder="X-seeria Tartu"></div>
+      <div><label>Kuupäev</label><input id="ev_kuupaev" type="date"></div>
+      <div><label>Hooaeg</label>
+        <select id="ev_hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
+      </div>
+      <div><button onclick="loo_event()">+ Uus üritus</button></div>
+    </div>
+    <p class="hint">Uue ürituse loomine muudab selle automaatselt aktiivseks (tiim näeb ainult aktiivset üritust).</p>
+  </section>
+
+  <section id="asukohad_sektsioon" style="display:none">
+    <h2>Asukohad — <span id="aktiivne_nimi"></span></h2>
+    <div class="summary" id="summary"></div>
+    <label>Kiire lisamine (üks rida = üks asukoht: "Nimi, korvide arv, viskekohtade arv")</label>
+    <textarea id="bulk" placeholder="Annakanal, 13&#10;ERM, 22&#10;Spordipark, 10&#10;Laululava, 4&#10;Vanalinn, 4&#10;Ahhaa keskus, 2"></textarea>
+    <button style="margin-top:8px" onclick="lisa_bulk()">+ Lisa asukohad</button>
+    <table id="tabel"></table>
+  </section>
+
+  <section>
+    <h2>Tiimiliikmed</h2>
+    <div class="row">
+      <div><label>Nimi</label><input id="w_nimi" placeholder="Nimi"></div>
+      <div><label>PIN</label><input id="w_pin" placeholder="1234"></div>
+      <div><button onclick="lisa_worker()">+ Lisa liige</button></div>
+    </div>
+    <table id="workers_tabel"></table>
+  </section>
+
+</div>
+
+<script>
+let token = localStorage.getItem('xseeria_admin_token');
+let events = [];
+let aktiivneEventId = null;
+
+if (token) {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  init();
+}
+
+async function logi_sisse() {
+  const pin = document.getElementById('pin').value.trim();
+  const r = await fetch('/api/xseeria/admin-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+  const d = await r.json();
+  if (!d.ok) { document.getElementById('err').textContent = d.veateade || 'Viga'; return; }
+  token = d.token;
+  localStorage.setItem('xseeria_admin_token', token);
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  init();
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-xseeria-token': token }, opts.headers || {});
+  const r = await fetch('/api/xseeria' + path, opts);
+  return r.json();
+}
+
+async function init() {
+  await laadi_events();
+  await laadi_workers();
+  setInterval(laadi_asukohad, 20000);
+}
+
+async function laadi_events() {
+  const d = await api('/admin/events');
+  events = d.events || [];
+  const box = document.getElementById('eventpick');
+  box.innerHTML = events.map(e =>
+    `<div class="item ${e.aktiivne ? 'active' : ''}" onclick="vaheta_event(${e.id})">${escapeHtml(e.nimi)} (${e.kuupaev.slice(0,10)})</div>`
+  ).join('') || '<span class="hint">Üritusi pole veel.</span>';
+  const active = events.find(e => e.aktiivne);
+  if (active) { aktiivneEventId = active.id; document.getElementById('asukohad_sektsioon').style.display = 'block'; document.getElementById('aktiivne_nimi').textContent = active.nimi; await laadi_asukohad(); }
+}
+
+async function vaheta_event(id) {
+  await api('/admin/events/' + id + '/aktiveeri', { method: 'POST' });
+  await laadi_events();
+}
+
+async function loo_event() {
+  const nimi = document.getElementById('ev_nimi').value.trim();
+  const kuupaev = document.getElementById('ev_kuupaev').value;
+  const hooaeg = document.getElementById('ev_hooaeg').value;
+  if (!nimi || !kuupaev) return alert('Täida nimi ja kuupäev');
+  const d = await api('/admin/events', { method: 'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg }) });
+  if (!d.ok) return alert(d.veateade || 'Viga');
+  document.getElementById('ev_nimi').value = '';
+  document.getElementById('ev_kuupaev').value = '';
+  await laadi_events();
+}
+
+async function lisa_bulk() {
+  const tekst = document.getElementById('bulk').value;
+  if (!tekst.trim() || !aktiivneEventId) return;
+  const d = await api('/admin/asukohad/bulk', { method: 'POST', body: JSON.stringify({ event_id: aktiivneEventId, tekst }) });
+  if (!d.ok) return alert(d.veateade || 'Viga');
+  document.getElementById('bulk').value = '';
+  await laadi_asukohad();
+}
+
+async function laadi_asukohad() {
+  if (!aktiivneEventId) return;
+  const d = await api('/aktiivne');
+  if (!d.ok || !d.event) return;
+  const rows = d.asukohad;
+  const tehtud = rows.filter(a => a.paigaldus_staatus === 'tehtud').length;
+  const puhas = rows.filter(a => a.puhastus_staatus === 'tehtud').length;
+  document.getElementById('summary').textContent = `Kokku ${rows.length} asukohta · ${tehtud} paigaldatud · ${puhas} puhastatud · ${rows.reduce((s,a)=>s+Number(a.korvide_arv||0),0)} korvi kokku`;
+  const t = document.getElementById('tabel');
+  t.innerHTML = `<tr><th>Asukoht</th><th>Korve</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th></th></tr>` +
+    rows.map(a => `<tr>
+      <td>${escapeHtml(a.nimi)}</td>
+      <td>${a.korvide_arv}</td>
+      <td>${a.viskekohtade_arv || 0}</td>
+      <td><span class="badge ${a.paigaldus_staatus === 'tehtud' ? 'ok' : 'wait'}">${a.paigaldus_staatus === 'tehtud' ? '✅ ' + escapeHtml(a.paigaldas_nimi||'') : 'ootel'}</span></td>
+      <td><span class="badge ${a.puhastus_staatus === 'tehtud' ? 'ok' : 'wait'}">${a.puhastus_staatus === 'tehtud' ? '✅ ' + escapeHtml(a.puhastas_nimi||'') : 'ootel'}</span></td>
+      <td><button class="del" onclick="kustuta_asukoht(${a.id})">Kustuta</button></td>
+    </tr>`).join('');
+}
+
+async function kustuta_asukoht(id) {
+  if (!confirm('Kustutada see asukoht?')) return;
+  await api('/admin/asukohad/' + id, { method: 'DELETE' });
+  await laadi_asukohad();
+}
+
+async function laadi_workers() {
+  const d = await api('/admin/workers');
+  const t = document.getElementById('workers_tabel');
+  t.innerHTML = `<tr><th>Nimi</th><th>PIN</th><th>Aktiivne</th></tr>` +
+    (d.workers || []).map(w => `<tr><td>${escapeHtml(w.nimi)}</td><td>${escapeHtml(w.pin)}</td><td>${w.aktiivne ? '✅' : '—'}</td></tr>`).join('');
+}
+
+async function lisa_worker() {
+  const nimi = document.getElementById('w_nimi').value.trim();
+  const pin = document.getElementById('w_pin').value.trim();
+  if (!nimi || !pin) return alert('Täida nimi ja PIN');
+  const d = await api('/admin/workers', { method: 'POST', body: JSON.stringify({ nimi, pin }) });
+  if (!d.ok) return alert(d.veateade || 'Viga');
+  document.getElementById('w_nimi').value = '';
+  document.getElementById('w_pin').value = '';
+  await laadi_workers();
+}
+
+function escapeHtml(s) {
+  return (s || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+</script>
+</body>
+</html>
