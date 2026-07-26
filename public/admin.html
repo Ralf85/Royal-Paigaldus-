@@ -172,6 +172,7 @@
     <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
     <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
     <button class="tab" onclick="avatTab(10)">🏁 Rally Estonia</button>
+    <button class="tab" onclick="avatTab(11)">🥏 X-seeria</button>
   </div>
   <div class="sektsioon nhtav" id="tab0">
     <div class="kuu-rida">
@@ -1074,6 +1075,46 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
   </div>
 
+  <div class="sektsioon" id="tab11">
+    <div class="kaart">
+      <div class="kaart-hdr">🥏 X-seeria — Üritused</div>
+      <div class="kaart-body">
+        <div id="xs-eventpick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <div class="vorm-rida col3">
+          <div class="vorm-grupp"><label>Ürituse nimi</label><input id="xs-ev-nimi" placeholder="X-seeria Tartu"></div>
+          <div class="vorm-grupp"><label>Kuupäev</label><input id="xs-ev-kuupaev" type="date"></div>
+          <div class="vorm-grupp"><label>Hooaeg</label>
+            <select id="xs-ev-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
+          </div>
+        </div>
+        <button class="nupp kull" onclick="xsLooEvent()">+ Uus üritus</button>
+        <div style="font-size:11px;color:var(--hall);margin-top:8px">Uue ürituse loomine muudab selle automaatselt aktiivseks — tiim näeb ainult aktiivset üritust.</div>
+        <div class="teade" id="xs-ev-teade"></div>
+      </div>
+    </div>
+
+    <div class="kaart" id="xs-asukohad-kaart" style="display:none">
+      <div class="kaart-hdr">📍 Asukohad — <span id="xs-aktiivne-nimi"></span></div>
+      <div class="kaart-body">
+        <div style="font-size:13px;color:var(--tekst3);margin-bottom:12px" id="xs-summary"></div>
+        <div class="vorm-grupp">
+          <label>Kiire lisamine (üks rida = "Nimi, korvide arv, viskekohtade arv")</label>
+          <textarea id="xs-bulk" rows="5" style="font-family:monospace" placeholder="Annakanal, 13&#10;ERM, 22&#10;Spordipark, 10&#10;Laululava, 4&#10;Vanalinn, 4&#10;Ahhaa keskus, 2"></textarea>
+        </div>
+        <button class="nupp kull" style="margin-top:8px" onclick="xsLisaBulk()">+ Lisa asukohad</button>
+        <div id="xs-tabel" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <div class="kaart">
+      <div class="kaart-hdr">👷 X-seeria — Töötajate ligipääs</div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Luba töötajatele X-seeria kaart — nad näevad seda oma tavalises Töötaja rakenduses (sama PIN, sama link mida juba kasutavad) ja saavad sealt rajapaigalduse checklisti avada.</div>
+        <div id="xsLubatudSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 <!-- Töötaja detailmodal -->
 <div class="tootaja-modal-overlay" id="tootajaModal">
@@ -1218,6 +1259,7 @@ function avatTab(i) {
   }
   if(i===9) laadiEdgfTab();
   if(i===10) laadiReTab();
+  if(i===11) xsLaadiTab();
 }
 
 async function init() {
@@ -2084,6 +2126,115 @@ async function laadiObjektPildid(objektId){
 }
 
 async function välju(){localStorage.removeItem('adminToken');window.location='/admin-login';}
+
+// ── X-SEERIA ─────────────────────────────────────────────────
+
+let xsEvents = [];
+let xsAktiivneEventId = null;
+
+async function xsLaadiTab() {
+  await xsLaadiEvents();
+  await xsLaadiLubatud();
+}
+
+async function xsLaadiEvents() {
+  const d = await api('/api/xseeria/admin/events');
+  xsEvents = d.events || [];
+  const box = document.getElementById('xs-eventpick');
+  box.innerHTML = xsEvents.map(e =>
+    `<span class="nupp ${e.aktiivne ? 'kull' : 'hall'}" style="cursor:pointer" onclick="xsVahetaEvent(${e.id})">${e.nimi} (${String(e.kuupaev).slice(0,10)})</span>`
+  ).join('') || '<span style="font-size:12px;color:var(--hall)">Üritusi pole veel.</span>';
+  const active = xsEvents.find(e => e.aktiivne);
+  const kaart = document.getElementById('xs-asukohad-kaart');
+  if (active) {
+    xsAktiivneEventId = active.id;
+    kaart.style.display = 'block';
+    document.getElementById('xs-aktiivne-nimi').textContent = active.nimi;
+    await xsLaadiAsukohad();
+  } else {
+    kaart.style.display = 'none';
+  }
+}
+
+async function xsVahetaEvent(id) {
+  await api('/api/xseeria/admin/events/' + id + '/aktiveeri', { method: 'POST' });
+  await xsLaadiEvents();
+}
+
+async function xsLooEvent() {
+  const nimi = document.getElementById('xs-ev-nimi').value.trim();
+  const kuupaev = document.getElementById('xs-ev-kuupaev').value;
+  const hooaeg = document.getElementById('xs-ev-hooaeg').value;
+  const teade = document.getElementById('xs-ev-teade');
+  if (!nimi || !kuupaev) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
+    return;
+  }
+  const d = await api('/api/xseeria/admin/events', { method: 'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg }) });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  document.getElementById('xs-ev-nimi').value = '';
+  document.getElementById('xs-ev-kuupaev').value = '';
+  await xsLaadiEvents();
+}
+
+async function xsLisaBulk() {
+  const tekst = document.getElementById('xs-bulk').value;
+  if (!tekst.trim() || !xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/asukohad/bulk', { method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, tekst }) });
+  if (!d.ok) return alert(d.veateade || 'Viga');
+  document.getElementById('xs-bulk').value = '';
+  await xsLaadiAsukohad();
+}
+
+async function xsLaadiAsukohad() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/aktiivne');
+  if (!d.ok || !d.event) return;
+  const rows = d.asukohad;
+  const tehtud = rows.filter(a => a.paigaldus_staatus === 'tehtud').length;
+  const puhas = rows.filter(a => a.puhastus_staatus === 'tehtud').length;
+  const korvidKokku = rows.reduce((s,a) => s + Number(a.korvide_arv||0), 0);
+  document.getElementById('xs-summary').textContent = `Kokku ${rows.length} asukohta · ${tehtud} paigaldatud · ${puhas} puhastatud · ${korvidKokku} korvi kokku`;
+  const t = document.getElementById('xs-tabel');
+  t.innerHTML = `<table><thead><tr><th>Asukoht</th><th>Korve</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th></th></tr></thead><tbody>` +
+    rows.map(a => `<tr>
+      <td>${a.nimi}</td>
+      <td>${a.korvide_arv}</td>
+      <td>${a.viskekohtade_arv || 0}</td>
+      <td>${a.paigaldus_staatus === 'tehtud' ? '✅ ' + (a.paigaldas_nimi||'') : '<span style="color:var(--hall)">ootel</span>'}</td>
+      <td>${a.puhastus_staatus === 'tehtud' ? '✅ ' + (a.puhastas_nimi||'') : '<span style="color:var(--hall)">ootel</span>'}</td>
+      <td><button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button></td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+
+async function xsKustutaAsukoht(id) {
+  if (!confirm('Kustutada see asukoht?')) return;
+  await api('/api/xseeria/admin/asukohad/' + id, { method: 'DELETE' });
+  await xsLaadiAsukohad();
+}
+
+async function xsLaadiLubatud() {
+  const r = await api('/api/xseeria/admin/lubatud');
+  const div = document.getElementById('xsLubatudSisu');
+  if (!Array.isArray(r)) { div.innerHTML = '<div style="color:var(--hall)">Viga laadimisel</div>'; return; }
+  div.innerHTML = r.map(w => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
+      <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+        <span style="color:${w.lubatud?'#4ade80':'var(--hall)'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
+        <input type="checkbox" ${w.lubatud?'checked':''} onchange="xsToggleLubatud(${w.id}, this.checked)" style="width:auto;accent-color:#38bdf8">
+      </label>
+    </div>`).join('');
+}
+
+async function xsToggleLubatud(workerId, lubatud) {
+  await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  await xsLaadiLubatud();
+}
 
 init();
 </script>
