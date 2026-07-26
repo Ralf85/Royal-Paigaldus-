@@ -178,6 +178,13 @@ router.post('/admin/events/:id/aktiveeri', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+router.put('/admin/events/:id', noudaAdmin, async (req, res) => {
+  const { nimi, kuupaev, hooaeg } = req.body;
+  if (!nimi || !kuupaev) return res.json({ ok: false, veateade: 'Nimi ja kuupäev on kohustuslikud' });
+  await pool.query('UPDATE xseeria_events SET nimi=$1, kuupaev=$2, hooaeg=$3 WHERE id=$4', [nimi, kuupaev, hooaeg || 'suvi', req.params.id]);
+  res.json({ ok: true });
+});
+
 router.delete('/admin/events/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM xseeria_events WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
@@ -228,9 +235,84 @@ router.post('/admin/asukohad/bulk', noudaAdmin, async (req, res) => {
   res.json({ ok: true, lisatud });
 });
 
+// Kattuvuse kontroll: kas mõni neist numbritest on selles võistluses juba kasutusel (valikuliselt välja arvatud üks asukoht - muutmise puhul)
+async function leiaKattuvusedEventis(eventId, algus, lopp, valjaArvatudAsukohtId) {
+  const params = [eventId, algus, lopp];
+  let query = `
+    SELECT k.number, a.nimi
+    FROM xseeria_korvid k
+    JOIN xseeria_asukohad a ON a.id = k.asukoht_id
+    WHERE a.event_id = $1 AND k.number::int BETWEEN $2 AND $3
+  `;
+  if (valjaArvatudAsukohtId) {
+    query += ' AND a.id != $4';
+    params.push(valjaArvatudAsukohtId);
+  }
+  const r = await pool.query(query, params);
+  return r.rows;
+}
+
+// Lisa üks park käsitsi valitud rajanumbrite vahemikuga (dropdown 1-150)
+router.post('/admin/asukohad', noudaAdmin, async (req, res) => {
+  const { event_id, nimi, algus_nr, lopp_nr, viskekohtade_arv } = req.body;
+  const algus = parseInt(algus_nr, 10);
+  const lopp = parseInt(lopp_nr, 10);
+  if (!event_id || !nimi || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  if (lopp < algus) return res.json({ ok: false, veateade: 'Lõppnumber peab olema ≥ algusnumber' });
+
+  const kattuvused = await leiaKattuvusedEventis(event_id, algus, lopp, null);
+  if (kattuvused.length) {
+    const nimed = [...new Set(kattuvused.map(k => k.nimi))].join(', ');
+    return res.json({ ok: false, veateade: `Rajanumbrid on juba kasutusel (${nimed}): ${kattuvused.map(k=>k.number).join(', ')}` });
+  }
+
+  const maxRow = await pool.query('SELECT COALESCE(MAX(jrk_nr),0) AS m FROM xseeria_asukohad WHERE event_id=$1', [event_id]);
+  const jrk = maxRow.rows[0].m + 1;
+  const korvideArv = lopp - algus + 1;
+  const r = await pool.query(
+    'INSERT INTO xseeria_asukohad (event_id, nimi, korvide_arv, viskekohtade_arv, jrk_nr) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+    [event_id, nimi, korvideArv, parseInt(viskekohtade_arv, 10) || 0, jrk]
+  );
+  const asukohtId = r.rows[0].id;
+  let i = 1;
+  for (let n = algus; n <= lopp; n++) {
+    await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [asukohtId, String(n), i]);
+    i++;
+  }
+  res.json({ ok: true, asukoht: r.rows[0] });
+});
+
 router.put('/admin/asukohad/:id', noudaAdmin, async (req, res) => {
   const { nimi, markused } = req.body;
   await pool.query('UPDATE xseeria_asukohad SET nimi=$1, markused=$2 WHERE id=$3', [nimi, markused || null, req.params.id]);
+  res.json({ ok: true });
+});
+
+// Muuda pargi nime ja/või rajanumbrite vahemikku (kirjutab üle olemasolevad korvid selle pargi all)
+router.put('/admin/asukohad/:id/tapsed', noudaAdmin, async (req, res) => {
+  const { nimi, algus_nr, lopp_nr, viskekohtade_arv } = req.body;
+  const algus = parseInt(algus_nr, 10);
+  const lopp = parseInt(lopp_nr, 10);
+  if (!nimi || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  if (lopp < algus) return res.json({ ok: false, veateade: 'Lõppnumber peab olema ≥ algusnumber' });
+
+  const asukoht = await pool.query('SELECT * FROM xseeria_asukohad WHERE id=$1', [req.params.id]);
+  if (!asukoht.rows.length) return res.json({ ok: false, veateade: 'Parki ei leitud' });
+
+  const kattuvused = await leiaKattuvusedEventis(asukoht.rows[0].event_id, algus, lopp, req.params.id);
+  if (kattuvused.length) {
+    const nimed = [...new Set(kattuvused.map(k => k.nimi))].join(', ');
+    return res.json({ ok: false, veateade: `Rajanumbrid on juba kasutusel (${nimed}): ${kattuvused.map(k=>k.number).join(', ')}` });
+  }
+
+  const korvideArv = lopp - algus + 1;
+  await pool.query('UPDATE xseeria_asukohad SET nimi=$1, korvide_arv=$2, viskekohtade_arv=$3 WHERE id=$4', [nimi, korvideArv, parseInt(viskekohtade_arv, 10) || 0, req.params.id]);
+  await pool.query('DELETE FROM xseeria_korvid WHERE asukoht_id=$1', [req.params.id]);
+  let i = 1;
+  for (let n = algus; n <= lopp; n++) {
+    await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [req.params.id, String(n), i]);
+    i++;
+  }
   res.json({ ok: true });
 });
 
