@@ -278,6 +278,25 @@ async function initDB() {
     // Sponsori per-event staatusele lisandub vastutaja (töötaja, kes selle eest vastutab) — nii saab
     // nii admin kui ka määratud töötaja ise oma X-seeria vaates staatust (ootel/käes/tagastatud) märkida.
     await client.query(`ALTER TABLE xseeria_event_sponsorid ADD COLUMN IF NOT EXISTS vastutaja_id INTEGER REFERENCES workers(id) ON DELETE SET NULL;`);
+
+    // Logistilised tegevused (korvide pealelaadimine, bussi toomine, tankimine jne) — kuupäev+kellaaeg,
+    // ja mitu inimest saab korraga määrata (paljudele tegevustele on vaja rohkem kui üht töötajat).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_tegevused (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        tegevus VARCHAR(300) NOT NULL,
+        kuupaev DATE,
+        kellaaeg TIME,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_tegevuse_inimesed (
+        id SERIAL PRIMARY KEY,
+        tegevus_id INTEGER REFERENCES xseeria_tegevused(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        UNIQUE(tegevus_id, worker_id)
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
