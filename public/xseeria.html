@@ -135,18 +135,28 @@ async function naitaAsukohad(eventId, eventNimi) {
   praeguneEvent = { id: eventId, nimi: eventNimi };
   const sisu = document.getElementById('sisu');
   sisu.innerHTML = 'Laadimine...';
-  const [d, sp] = await Promise.all([
+  const [d, sp, teg] = await Promise.all([
     api('/event/' + eventId + '/asukohad'),
-    api('/event/' + eventId + '/sponsorid')
+    api('/event/' + eventId + '/sponsorid'),
+    api('/event/' + eventId + '/tegevused')
   ]);
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
   const sponsorHtml = (sp && sp.ok && sp.sponsorid.length) ? sponsorKaardid(eventId, sp.sponsorid) : '';
+  const tegevusedHtml = (teg && teg.ok && teg.tegevused.length)
+    ? `<div class="tile" onclick="naitaTegevused(${eventId}, '${escapeAttr(eventNimi)}')">
+        <div class="ikoon">🚚</div>
+        <div class="info">
+          <div class="nimi">TEGEVUSED</div>
+          <div class="sub">${teg.tegevused.length} sulle määratud tegevust</div>
+        </div>
+      </div>`
+    : '';
   const rajakaartUrl = d.event && d.event.rajakaart_url;
   const rajakaartHtml = rajakaartUrl
     ? `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank">🗺️ RAJAKAART</a>`
     : '';
-  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
-  sisu.innerHTML = sponsorHtml + rajakaartHtml + d.asukohad.map(a => {
+  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + tegevusedHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
+  sisu.innerHTML = sponsorHtml + tegevusedHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
     const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
     return `
@@ -185,6 +195,32 @@ function sponsorKaart(eventId, s) {
 async function muudaSponsorStaatus(eventId, sponsorId, staatus) {
   await api('/event/' + eventId + '/sponsorid/' + sponsorId + '/staatus', { method: 'POST', body: JSON.stringify({ staatus }) });
   if (praeguneEvent && praeguneEvent.id === eventId) naitaAsukohad(eventId, praeguneEvent.nimi);
+}
+
+// ── TEGEVUSED: logistilised ülesanded (kuupäev+kellaaeg, võib olla mitu inimest) ──
+async function naitaTegevused(eventId, eventNimi) {
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Tegevused' }
+  ]);
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + eventId + '/tegevused');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  if (!d.tegevused.length) { sisu.innerHTML = '<div class="empty">Sulle pole hetkel ühtegi tegevust määratud.</div>'; return; }
+  sisu.innerHTML = d.tegevused.map(t => tegevusKaart(t)).join('');
+}
+
+function tegevusKaart(t) {
+  const kp = t.kuupaev ? fmtKp(t.kuupaev) : '';
+  const kell = t.kellaaeg ? String(t.kellaaeg).slice(0, 5) : '';
+  const inimesed = (t.inimesed || []).map(p => escapeHtml(p.nimi)).join(', ');
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">🚚 ${escapeHtml(t.tegevus)}</div></div>
+      ${(kp || kell) ? `<div class="meta">📅 ${kp}${kell ? ' kell ' + kell : ''}</div>` : ''}
+      ${inimesed ? `<div class="meta">👷 ${inimesed}</div>` : ''}
+    </div>`;
 }
 
 // ── TASE 3: korvid (üksikud, + rajakaart) ───────────────────────
