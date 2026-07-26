@@ -218,6 +218,9 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    // Rajakaardi foto käib nüüd iga üksiku korvi (raja numbri) kohta, mitte terve pargi kohta
+    await client.query(`ALTER TABLE xseeria_korvid ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+    await client.query(`ALTER TABLE xseeria_korvid ADD COLUMN IF NOT EXISTS foto_public_id TEXT;`);
     // Ühekordne migratsioon: varem loodud asukohad (enne rada-taset) said default "Rada" külge
     const orbud = await client.query(`SELECT DISTINCT event_id FROM xseeria_asukohad WHERE rada_id IS NULL AND event_id IS NOT NULL`);
     for (const row of orbud.rows) {
