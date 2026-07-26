@@ -370,7 +370,8 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
 });
 
 // ---------- ADMIN: organisatoorne pool — ülesanded (checklist) ----------
-// Mitte kunagi töötaja vaates — ainult admin.html X-seeria tabis, vastutaja on lihtsalt info (ei näita töötajale).
+// Admin näeb ja haldab kõiki. Vastutajale määratud töötaja näeb SEDA ÜLESANNET ka ise (vt allpool worker-otspunkte)
+// ja saab selle ise valmis märkida — teised (ilma vastutajata või teisele määratud) ülesanded jäävad talle nähtamatuks.
 
 router.get('/admin/events/:eventId/ulesanded', noudaAdmin, async (req, res) => {
   try {
@@ -435,6 +436,47 @@ router.post('/admin/ulesanded/:id/toggle', noudaAdmin, async (req, res) => {
 router.delete('/admin/ulesanded/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM xseeria_ulesanded WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
+});
+
+// Töötaja näeb ainult neid ülesandeid, kus TEMA on vastutaja (ülesanded ilma vastutajata või
+// mõne teise vastutajaga jäävad talle nähtamatuks — need on adminni enda organisatoorne pool).
+router.get('/event/:eventId/ulesanded', noudaLubatud, async (req, res) => {
+  try {
+    const workerId = req.session.workerId || null;
+    const r = await pool.query(
+      `SELECT u.*, w.nimi AS vastutaja_nimi
+       FROM xseeria_ulesanded u
+       LEFT JOIN workers w ON w.id = u.vastutaja_id
+       WHERE u.event_id = $1
+       ORDER BY u.tehtud ASC, u.tahtaeg ASC NULLS LAST, u.loodud ASC`,
+      [req.params.eventId]
+    );
+    const ulesanded = workerId
+      ? r.rows.filter(u => String(u.vastutaja_id) === String(workerId))
+      : r.rows;
+    res.json({ ok: true, ulesanded });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Töötaja saab ise oma ülesande valmis/pooleli märkida — ainult SIIS, kui tema on selle vastutaja.
+router.post('/event/:eventId/ulesanded/:id/toggle', noudaLubatud, async (req, res) => {
+  try {
+    const praegu = await pool.query('SELECT tehtud, vastutaja_id FROM xseeria_ulesanded WHERE id=$1', [req.params.id]);
+    if (!praegu.rows.length) return res.json({ ok: false, veateade: 'Ülesannet ei leitud' });
+    if (!req.session.isAdmin && String(praegu.rows[0].vastutaja_id) !== String(req.session.workerId)) {
+      return res.status(403).json({ ok: false, veateade: 'See ülesanne pole sulle määratud' });
+    }
+    const uusTehtud = !praegu.rows[0].tehtud;
+    await pool.query(
+      'UPDATE xseeria_ulesanded SET tehtud=$1, tehtud_kell=$2 WHERE id=$3',
+      [uusTehtud, uusTehtud ? new Date() : null, req.params.id]
+    );
+    res.json({ ok: true, tehtud: uusTehtud });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
 });
 
 // ---------- ADMIN: sponsorid ----------
