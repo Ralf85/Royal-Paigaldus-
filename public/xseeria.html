@@ -6,93 +6,85 @@
 <title>X-seeria — Tiim</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #f2f4f7; color: #1a1a1a; }
-  header { background: #1e3a8a; color: white; padding: 16px 20px; }
-  header h1 { margin: 0; font-size: 20px; }
-  header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
-  #login { max-width: 360px; margin: 60px auto; padding: 24px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-  #login h2 { margin-top: 0; }
-  #login input { width: 100%; padding: 14px; font-size: 20px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; text-align: center; letter-spacing: 4px; }
-  #login button, .btn { width: 100%; padding: 14px; font-size: 16px; border: none; border-radius: 8px; background: #1e3a8a; color: white; font-weight: 600; cursor: pointer; }
-  #err { color: #c0392b; font-size: 14px; min-height: 18px; margin-top: 6px; }
-  #app { display: none; padding: 12px; max-width: 640px; margin: 0 auto; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0d0f13; color: #e2e8f0; }
+  header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { margin: 0; font-size: 18px; }
+  header a { color: #c9a84c; font-size: 12px; text-decoration: none; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; }
+  #app { padding: 12px; max-width: 640px; margin: 0 auto; }
   .topbar { display: flex; justify-content: space-between; align-items: center; margin: 12px 4px; }
-  .topbar .who { font-size: 14px; color: #555; }
-  .refresh { background: none; border: 1px solid #1e3a8a; color: #1e3a8a; border-radius: 8px; padding: 8px 14px; font-size: 14px; }
-  .summary { background: white; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; display: flex; justify-content: space-between; }
-  .card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .topbar .who { font-size: 13px; color: #888; }
+  .refresh { background: none; border: 1px solid #c9a84c; color: #c9a84c; border-radius: 8px; padding: 8px 14px; font-size: 14px; }
+  .summary { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; display: flex; justify-content: space-between; }
+  .card { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
   .card .rida1 { display: flex; justify-content: space-between; align-items: baseline; }
   .card .nimi { font-size: 17px; font-weight: 700; }
-  .card .arv { font-size: 14px; color: #555; }
+  .card .arv { font-size: 14px; color: #888; }
   .card .staatused { display: flex; gap: 8px; margin-top: 10px; }
-  .stbtn { flex: 1; padding: 12px 8px; border-radius: 8px; border: 2px solid #ddd; font-size: 14px; font-weight: 600; background: #fafafa; color: #666; }
+  .stbtn { flex: 1; padding: 12px 8px; border-radius: 8px; border: 2px solid #252830; font-size: 14px; font-weight: 600; background: #0d0f13; color: #888; }
   .stbtn.done { background: #16a34a; border-color: #16a34a; color: white; }
   .stbtn.clean { background: #0ea5e9; border-color: #0ea5e9; color: white; }
-  .meta { font-size: 12px; color: #888; margin-top: 6px; }
-  .empty { text-align: center; color: #888; margin-top: 60px; }
+  .meta { font-size: 12px; color: #666; margin-top: 6px; }
+  .empty { text-align: center; color: #666; margin-top: 60px; padding: 0 20px; }
+  .empty a { color: #c9a84c; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>🥏 X-seeria</h1>
-  <p>Rajapaigalduse checklist</p>
+  <a href="/">← Tagasi</a>
 </header>
-
-<div id="login">
-  <h2>Sisene PIN-koodiga</h2>
-  <input id="pin" type="password" inputmode="numeric" maxlength="10" placeholder="PIN">
-  <button onclick="logi_sisse()">Sisene</button>
-  <div id="err"></div>
-</div>
 
 <div id="app">
   <div class="topbar">
     <div class="who" id="kes"></div>
     <button class="refresh" onclick="laadi()">↻ Värskenda</button>
   </div>
-  <div id="sisu"></div>
+  <div id="sisu">Laadimine...</div>
 </div>
 
 <script>
-let token = localStorage.getItem('xseeria_token');
-let nimi = localStorage.getItem('xseeria_nimi');
+let token = localStorage.getItem('workerToken');
 
-if (token) {
-  document.getElementById('login').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('kes').textContent = 'Tere, ' + nimi;
-  laadi();
+if (!token) {
+  document.getElementById('sisu').innerHTML = '<div class="empty">Sa pole sisse logitud.<br><br>Ava esmalt <a href="/tootaja">Töötaja rakendus</a> ja logi oma PIN-koodiga sisse, seejärel ava see leht uuesti.</div>';
+} else {
+  algatus();
 }
 
-async function logi_sisse() {
-  const pin = document.getElementById('pin').value.trim();
-  document.getElementById('err').textContent = '';
-  if (!pin) return;
-  const r = await fetch('/api/xseeria/login', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin })
-  });
-  const d = await r.json();
-  if (!d.ok) { document.getElementById('err').textContent = d.veateade || 'Viga'; return; }
-  token = d.token; nimi = d.nimi;
-  localStorage.setItem('xseeria_token', token);
-  localStorage.setItem('xseeria_nimi', nimi);
-  document.getElementById('login').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('kes').textContent = 'Tere, ' + nimi;
+async function algatus() {
+  try {
+    const r = await fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } });
+    const s = await r.json();
+    if (!s.sisselogitud || s.isAdmin) {
+      document.getElementById('sisu').innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja">Töötaja rakendus</a> ja logi uuesti sisse.</div>';
+      return;
+    }
+    document.getElementById('kes').textContent = 'Tere, ' + s.nimi;
+  } catch (e) {}
   laadi();
+  setInterval(() => { if (token) laadi(); }, 30000);
 }
 
 async function api(path, opts = {}) {
-  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-xseeria-token': token }, opts.headers || {});
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-session-token': token }, opts.headers || {});
   const r = await fetch('/api/xseeria' + path, opts);
   return r.json();
 }
 
 async function laadi() {
-  const d = await api('/aktiivne');
   const sisu = document.getElementById('sisu');
-  if (!d.ok) { logi_valja(); return; }
+  const kontroll = await api('/kontroll');
+  if (kontroll.ok === false && kontroll.veateade === 'Palun logi sisse') {
+    sisu.innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja">Töötaja rakendus</a> ja logi uuesti sisse.</div>';
+    return;
+  }
+  if (kontroll.lubatud === false) {
+    sisu.innerHTML = '<div class="empty">Sul pole veel X-seeria ligipääsu.<br>Palu adminil see lubada.</div>';
+    return;
+  }
+  const d = await api('/aktiivne');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga andmete laadimisel.</div>'; return; }
   if (!d.event) { sisu.innerHTML = '<div class="empty">Hetkel pole aktiivset üritust.<br>Küsi adminilt.</div>'; return; }
   const tehtud = d.asukohad.filter(a => a.paigaldus_staatus === 'tehtud').length;
   const puhas = d.asukohad.filter(a => a.puhastus_staatus === 'tehtud').length;
@@ -142,14 +134,6 @@ function fmtAeg(iso) {
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-
-function logi_valja() {
-  localStorage.removeItem('xseeria_token');
-  localStorage.removeItem('xseeria_nimi');
-  location.reload();
-}
-
-setInterval(() => { if (token) laadi(); }, 30000);
 </script>
 </body>
 </html>
