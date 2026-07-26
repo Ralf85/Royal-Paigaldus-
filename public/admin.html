@@ -1077,19 +1077,35 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 
   <div class="sektsioon" id="tab11">
     <div class="kaart">
-      <div class="kaart-hdr">🥏 X-seeria — Üritused</div>
+      <div class="kaart-hdr">🥏 X-seeria — Võistlused</div>
       <div class="kaart-body">
         <div id="xs-eventpick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
         <div class="vorm-rida col3">
-          <div class="vorm-grupp"><label>Ürituse nimi</label><input id="xs-ev-nimi" placeholder="X-seeria Tartu"></div>
+          <div class="vorm-grupp"><label>Uue võistluse nimi</label><input id="xs-ev-nimi" placeholder="Tartu X36"></div>
           <div class="vorm-grupp"><label>Kuupäev</label><input id="xs-ev-kuupaev" type="date"></div>
           <div class="vorm-grupp"><label>Hooaeg</label>
             <select id="xs-ev-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
           </div>
         </div>
-        <button class="nupp kull" onclick="xsLooEvent()">+ Uus üritus</button>
-        <div style="font-size:11px;color:var(--hall);margin-top:8px">Uue ürituse loomine muudab selle automaatselt aktiivseks — tiim näeb ainult aktiivset üritust.</div>
+        <button class="nupp kull" onclick="xsLooEvent()">+ Uus võistlus</button>
+        <div style="font-size:11px;color:var(--hall);margin-top:8px">Tiim näeb kõiki loodud võistlusi nimekirjas ja valib ise õige.</div>
         <div class="teade" id="xs-ev-teade"></div>
+
+        <div id="xs-event-edit" style="display:none;margin-top:18px;padding-top:16px;border-top:0.5px solid var(--piir2)">
+          <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Muuda valitud võistlust</div>
+          <div class="vorm-rida col3">
+            <div class="vorm-grupp"><label>Nimi</label><input id="xs-ev-edit-nimi"></div>
+            <div class="vorm-grupp"><label>Kuupäev</label><input id="xs-ev-edit-kuupaev" type="date"></div>
+            <div class="vorm-grupp"><label>Hooaeg</label>
+              <select id="xs-ev-edit-hooaeg"><option value="suvi">Suvi</option><option value="talv">Talv</option></select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="nupp kull" onclick="xsSalvestaEvent()">Salvesta muudatused</button>
+            <button class="nupp punane" onclick="xsKustutaEvent()">🗑 Kustuta võistlus</button>
+          </div>
+          <div class="teade" id="xs-ev-edit-teade"></div>
+        </div>
       </div>
     </div>
 
@@ -1097,11 +1113,31 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <div class="kaart-hdr">📍 Pargid — <span id="xs-aktiivne-nimi"></span></div>
       <div class="kaart-body">
         <div style="font-size:13px;color:var(--tekst3);margin-bottom:12px" id="xs-summary"></div>
+
         <div class="vorm-grupp">
-          <label>Kiire lisamine (üks rida = "Nimi, korvide arv, viskekohtade arv") — korvide numbrid jätkuvad automaatselt terve võistluse peale</label>
+          <label>Kiire lisamine (üks rida = "Nimi, korvide arv, viskekohtade arv") — rajanumbrid jätkuvad automaatselt terve võistluse peale</label>
           <textarea id="xs-bulk" rows="5" style="font-family:monospace" placeholder="Annakanal, 13&#10;ERM, 22&#10;Spordipark, 10&#10;Laululava, 4&#10;Vanalinn, 4&#10;Ahhaa keskus, 2"></textarea>
         </div>
         <button class="nupp kull" style="margin-top:8px" onclick="xsLisaBulk()">+ Lisa pargid</button>
+
+        <div style="margin-top:20px;padding-top:16px;border-top:0.5px solid var(--piir2)">
+          <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px" id="xs-p-pealkiri">Või lisa üks park täpsete rajanumbritega</div>
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>Pargi nimi</label><input id="xs-p-nimi" placeholder="Snelli park"></div>
+            <div class="vorm-grupp"><label>Korvide arv</label><input id="xs-p-arv" type="number" min="1" oninput="xsUuendaLoppNr()"></div>
+            <div class="vorm-grupp"><label>Algusnumber</label><select id="xs-p-algus" onchange="xsUuendaLoppNr()"></select></div>
+            <div class="vorm-grupp"><label>Lõppnumber</label><select id="xs-p-lopp"></select></div>
+          </div>
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>Viskekohti (valikuline)</label><input id="xs-p-viske" type="number" min="0" value="0"></div>
+            <div class="vorm-grupp" style="justify-content:flex-end;flex-direction:row;gap:8px">
+              <button class="nupp kull" id="xs-p-nupp" onclick="xsLisaPark()">+ Lisa park</button>
+              <button class="nupp hall" id="xs-p-tyhista" style="display:none" onclick="xsTyhistaParkEdit()">Tühista</button>
+            </div>
+          </div>
+          <div class="teade" id="xs-p-teade"></div>
+        </div>
+
         <div id="xs-tabel" style="margin-top:16px"></div>
       </div>
     </div>
@@ -2133,8 +2169,26 @@ let xsEvents = [];
 let xsAktiivneEventId = null;
 
 async function xsLaadiTab() {
+  xsTaidaNumbriDropdownid();
   await xsLaadiEvents();
   await xsLaadiLubatud();
+}
+
+function xsTaidaNumbriDropdownid() {
+  const algus = document.getElementById('xs-p-algus');
+  const lopp = document.getElementById('xs-p-lopp');
+  if (algus.options.length) return;
+  for (let n = 1; n <= 150; n++) {
+    algus.innerHTML += `<option value="${n}">${n}</option>`;
+    lopp.innerHTML += `<option value="${n}">${n}</option>`;
+  }
+}
+
+function xsUuendaLoppNr() {
+  const algus = parseInt(document.getElementById('xs-p-algus').value, 10) || 1;
+  const arv = parseInt(document.getElementById('xs-p-arv').value, 10) || 1;
+  const lopp = Math.min(algus + arv - 1, 150);
+  document.getElementById('xs-p-lopp').value = String(lopp);
 }
 
 async function xsLaadiEvents() {
@@ -2146,6 +2200,7 @@ async function xsLaadiEvents() {
   ).join('') || '<span style="font-size:12px;color:var(--hall)">Võistlusi pole veel.</span>';
 
   const asKaart = document.getElementById('xs-asukohad-kaart');
+  const editKaart = document.getElementById('xs-event-edit');
   if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
     const aktiivne = xsEvents.find(e => e.aktiivne);
     xsAktiivneEventId = aktiivne ? aktiivne.id : (xsEvents.length ? xsEvents[0].id : null);
@@ -2154,14 +2209,50 @@ async function xsLaadiEvents() {
     asKaart.style.display = 'block';
     const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
     document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
+    if (ev) {
+      editKaart.style.display = 'block';
+      document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
+      document.getElementById('xs-ev-edit-kuupaev').value = String(ev.kuupaev).slice(0,10);
+      document.getElementById('xs-ev-edit-hooaeg').value = ev.hooaeg;
+    }
     await xsLaadiAsukohad();
   } else {
     asKaart.style.display = 'none';
+    editKaart.style.display = 'none';
   }
 }
 
 async function xsVahetaEvent(id) {
   xsAktiivneEventId = id;
+  xsTyhistaParkEdit();
+  await xsLaadiEvents();
+}
+
+async function xsSalvestaEvent() {
+  if (!xsAktiivneEventId) return;
+  const nimi = document.getElementById('xs-ev-edit-nimi').value.trim();
+  const kuupaev = document.getElementById('xs-ev-edit-kuupaev').value;
+  const hooaeg = document.getElementById('xs-ev-edit-hooaeg').value;
+  const teade = document.getElementById('xs-ev-edit-teade');
+  if (!nimi || !kuupaev) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
+    return;
+  }
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'PUT', body: JSON.stringify({ nimi, kuupaev, hooaeg }) });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.className = 'teade ok'; teade.textContent = 'Salvestatud'; teade.style.display = 'block';
+  await xsLaadiEvents();
+}
+
+async function xsKustutaEvent() {
+  if (!xsAktiivneEventId) return;
+  const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
+  if (!confirm(`Kustutada võistlus "${ev ? ev.nimi : ''}" koos KÕIGI selle parkide ja korvidega? Seda ei saa tagasi võtta.`)) return;
+  await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'DELETE' });
+  xsAktiivneEventId = null;
   await xsLaadiEvents();
 }
 
@@ -2195,6 +2286,61 @@ async function xsLisaBulk() {
   await xsLaadiAsukohad();
 }
 
+let xsMuudetavAsukohtId = null;
+
+async function xsLisaPark() {
+  const nimi = document.getElementById('xs-p-nimi').value.trim();
+  const algus_nr = document.getElementById('xs-p-algus').value;
+  const lopp_nr = document.getElementById('xs-p-lopp').value;
+  const viskekohtade_arv = document.getElementById('xs-p-viske').value || 0;
+  const teade = document.getElementById('xs-p-teade');
+  if (!nimi || !xsAktiivneEventId) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida vähemalt pargi nimi'; teade.style.display = 'block';
+    return;
+  }
+  let d;
+  if (xsMuudetavAsukohtId) {
+    d = await api('/api/xseeria/admin/asukohad/' + xsMuudetavAsukohtId + '/tapsed', {
+      method: 'PUT', body: JSON.stringify({ nimi, algus_nr, lopp_nr, viskekohtade_arv })
+    });
+  } else {
+    d = await api('/api/xseeria/admin/asukohad', {
+      method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, nimi, algus_nr, lopp_nr, viskekohtade_arv })
+    });
+  }
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaParkEdit();
+  await xsLaadiAsukohad();
+}
+
+function xsAlustaParkEdit(a) {
+  xsMuudetavAsukohtId = a.id;
+  document.getElementById('xs-p-nimi').value = a.nimi;
+  document.getElementById('xs-p-arv').value = a.korvide_koguarv;
+  if (a.min_nr) document.getElementById('xs-p-algus').value = String(a.min_nr);
+  if (a.max_nr) document.getElementById('xs-p-lopp').value = String(a.max_nr);
+  document.getElementById('xs-p-viske').value = a.viskekohtade_arv || 0;
+  document.getElementById('xs-p-pealkiri').textContent = `Muudad parki "${a.nimi}"`;
+  document.getElementById('xs-p-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-p-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-p-teade').style.display = 'none';
+  document.getElementById('xs-p-nimi').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function xsTyhistaParkEdit() {
+  xsMuudetavAsukohtId = null;
+  document.getElementById('xs-p-nimi').value = '';
+  document.getElementById('xs-p-arv').value = '';
+  document.getElementById('xs-p-viske').value = 0;
+  document.getElementById('xs-p-pealkiri').textContent = 'Või lisa üks park täpsete rajanumbritega';
+  document.getElementById('xs-p-nupp').textContent = '+ Lisa park';
+  document.getElementById('xs-p-tyhista').style.display = 'none';
+}
+
 async function xsLaadiAsukohad() {
   if (!xsAktiivneEventId) return;
   const d = await api('/api/xseeria/event/' + xsAktiivneEventId + '/asukohad');
@@ -2214,13 +2360,17 @@ async function xsLaadiAsukohad() {
       <td>${a.paigaldatud_arv}/${a.korvide_koguarv}</td>
       <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
       <td>${a.foto_url ? `<a href="${a.foto_url}" target="_blank">🖼️</a>` : '—'}</td>
-      <td><button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button></td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(a).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button>
+      </td>
     </tr>`).join('') + `</tbody></table>`;
 }
 
 async function xsKustutaAsukoht(id) {
-  if (!confirm('Kustutada see park?')) return;
+  if (!confirm('Kustutada see park koos kõigi korvidega?')) return;
   await api('/api/xseeria/admin/asukohad/' + id, { method: 'DELETE' });
+  if (xsMuudetavAsukohtId === id) xsTyhistaParkEdit();
   await xsLaadiAsukohad();
 }
 
