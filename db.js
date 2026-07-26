@@ -297,6 +297,19 @@ async function initDB() {
         UNIQUE(tegevus_id, worker_id)
       );
     `);
+
+    // Kulude raport — päris kulud selle võistluse kohta (toode, kogus, hind/tk). Ainult adminnile,
+    // et üritusele järgi vaadata, mis tegelikult maksma läks.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_kulud (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        toode VARCHAR(300) NOT NULL,
+        kogus NUMERIC(10,2) NOT NULL DEFAULT 1,
+        hind NUMERIC(10,2) NOT NULL DEFAULT 0,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
