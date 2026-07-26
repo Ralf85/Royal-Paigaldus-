@@ -176,12 +176,12 @@ router.get('/admin/events', noudaAdmin, async (req, res) => {
 });
 
 router.post('/admin/events', noudaAdmin, async (req, res) => {
-  const { nimi, kuupaev, hooaeg } = req.body;
+  const { nimi, kuupaev, hooaeg, rajakaart_url } = req.body;
   if (!nimi || !kuupaev) return res.json({ ok: false, veateade: 'Nimi ja kuupäev on kohustuslikud' });
   await pool.query('UPDATE xseeria_events SET aktiivne = false');
   const r = await pool.query(
-    'INSERT INTO xseeria_events (nimi, kuupaev, hooaeg, aktiivne) VALUES ($1,$2,$3,true) RETURNING *',
-    [nimi, kuupaev, hooaeg || 'suvi']
+    'INSERT INTO xseeria_events (nimi, kuupaev, hooaeg, aktiivne, rajakaart_url) VALUES ($1,$2,$3,true,$4) RETURNING *',
+    [nimi, kuupaev, hooaeg || 'suvi', rajakaart_url || null]
   );
   res.json({ ok: true, event: r.rows[0] });
 });
@@ -193,9 +193,12 @@ router.post('/admin/events/:id/aktiveeri', noudaAdmin, async (req, res) => {
 });
 
 router.put('/admin/events/:id', noudaAdmin, async (req, res) => {
-  const { nimi, kuupaev, hooaeg } = req.body;
+  const { nimi, kuupaev, hooaeg, rajakaart_url } = req.body;
   if (!nimi || !kuupaev) return res.json({ ok: false, veateade: 'Nimi ja kuupäev on kohustuslikud' });
-  await pool.query('UPDATE xseeria_events SET nimi=$1, kuupaev=$2, hooaeg=$3 WHERE id=$4', [nimi, kuupaev, hooaeg || 'suvi', req.params.id]);
+  await pool.query(
+    'UPDATE xseeria_events SET nimi=$1, kuupaev=$2, hooaeg=$3, rajakaart_url=$4 WHERE id=$5',
+    [nimi, kuupaev, hooaeg || 'suvi', rajakaart_url || null, req.params.id]
+  );
   res.json({ ok: true });
 });
 
