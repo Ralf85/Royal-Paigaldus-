@@ -1109,6 +1109,27 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
+    <div class="kaart">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleSponsoridPaneel()">
+        <span>🎁 Sponsorid</span>
+        <span id="xs-sp-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-sponsorid-paneel" style="display:none">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Sponsorid on üks ühine nimekiri kõigi võistluste peale (nad ei kao etapiga, vaid lisanduvad) — uue sponsori lisamisel ilmub see kohe kõigi (ka juba loodud) võistluste alla. Pickup/tagastuse staatust ja kuupäevi iga võistluse jaoks märgid selle võistluse enda lehel.</div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp"><label>Sponsori nimi</label><input id="xs-sp-nimi" placeholder="Sportland"></div>
+          <div class="vorm-grupp"><label>Kontakt</label><input id="xs-sp-kontakt" placeholder="info@sportland.ee"></div>
+          <div class="vorm-grupp" style="grid-column:span 2"><label>Tavapärased tooted</label><input id="xs-sp-tooted" placeholder="Bännerid, SUVI prillid"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="nupp kull" id="xs-sp-nupp" onclick="xsLisaSponsor()">+ Lisa sponsor üldnimekirja</button>
+          <button class="nupp hall" id="xs-sp-tyhista" style="display:none" onclick="xsTyhistaSponsorEdit()">Tühista</button>
+        </div>
+        <div class="teade" id="xs-sp-teade"></div>
+        <div id="xs-sp-uldtabel" style="margin-top:16px"></div>
+      </div>
+    </div>
+
     <div class="kaart" id="xs-asukohad-kaart" style="display:none">
       <div class="kaart-hdr">📍 Pargid — <span id="xs-aktiivne-nimi"></span></div>
       <div class="kaart-body">
@@ -1163,21 +1184,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
-    <div class="kaart" id="xs-sponsorid-kaart" style="display:none">
-      <div class="kaart-hdr">🎁 Sponsorid</div>
+    <div class="kaart" id="xs-sponsorstaatus-kaart" style="display:none">
+      <div class="kaart-hdr">🎁 Sponsorite staatus — <span id="xs-sp-event-nimi"></span></div>
       <div class="kaart-body">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Sponsorid on üks ühine nimekiri kõigi võistluste peale (nad ei kao etapiga, vaid lisanduvad) — uue sponsori lisamisel ilmub see kohe kõigi (ka juba loodud) võistluste alla. Pickup/tagastuse staatus ja kuupäevad märgid iga võistluse jaoks eraldi allpool tabelis.</div>
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp"><label>Sponsori nimi</label><input id="xs-sp-nimi" placeholder="Sportland"></div>
-          <div class="vorm-grupp"><label>Kontakt</label><input id="xs-sp-kontakt" placeholder="info@sportland.ee"></div>
-          <div class="vorm-grupp" style="grid-column:span 2"><label>Tavapärased tooted</label><input id="xs-sp-tooted" placeholder="Bännerid, SUVI prillid"></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="nupp kull" id="xs-sp-nupp" onclick="xsLisaSponsor()">+ Lisa sponsor üldnimekirja</button>
-          <button class="nupp hall" id="xs-sp-tyhista" style="display:none" onclick="xsTyhistaSponsorEdit()">Tühista</button>
-        </div>
-        <div class="teade" id="xs-sp-teade"></div>
-        <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.8px;margin:16px 0 8px" id="xs-sp-tabel-pealkiri">Staatus — <span id="xs-sp-event-nimi"></span></div>
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Kas ja millal on selle võistluse jaoks sponsoritooted järgi toodud ja tagastatud. Uute sponsorite lisamine ja nende nime/kontakti muutmine käib pealehel "🎁 Sponsorid" alt.</div>
         <div id="xs-sp-tabel"></div>
       </div>
     </div>
@@ -2265,6 +2275,15 @@ async function xsLaadiTab() {
   xsTootajad = []; // värskenda vastutaja-valikut iga kord, kui tab avatakse (kui vahepeal keegi Töötajad tabis lubasid muutis)
   await xsLaadiEvents();
   await xsLaadiLubatud();
+  await xsLaadiSponsoridUldnimekiri();
+}
+
+function xsToggleSponsoridPaneel() {
+  const paneel = document.getElementById('xs-sponsorid-paneel');
+  const nool = document.getElementById('xs-sp-nool');
+  const avatud = paneel.style.display !== 'none';
+  paneel.style.display = avatud ? 'none' : 'block';
+  nool.textContent = avatud ? '▼' : '▲';
 }
 
 function xsTaidaNumbriDropdownid() {
@@ -2295,15 +2314,16 @@ async function xsLaadiEvents() {
   const asKaart = document.getElementById('xs-asukohad-kaart');
   const editKaart = document.getElementById('xs-event-edit');
   const ulKaart = document.getElementById('xs-ulesanded-kaart');
-  const spKaart = document.getElementById('xs-sponsorid-kaart');
+  const spStaatusKaart = document.getElementById('xs-sponsorstaatus-kaart');
+  // Kui valitud võistlus on vahepeal kustutatud, tühista valik — aga ÄRA vali automaatselt uut,
+  // et pealeht jääks puhtaks (event chipid + sponsorid + töötajad) kuni admin ise millelegi vajutab
   if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
-    const aktiivne = xsEvents.find(e => e.aktiivne);
-    xsAktiivneEventId = aktiivne ? aktiivne.id : (xsEvents.length ? xsEvents[0].id : null);
+    xsAktiivneEventId = null;
   }
   if (xsAktiivneEventId) {
     asKaart.style.display = 'block';
     ulKaart.style.display = 'block';
-    spKaart.style.display = 'block';
+    spStaatusKaart.style.display = 'block';
     const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
     document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-ul-event-nimi').textContent = ev ? ev.nimi : '';
@@ -2317,12 +2337,12 @@ async function xsLaadiEvents() {
     await xsLaadiAsukohad();
     await xsLaadiTootajaValikud();
     await xsLaadiUlesanded();
-    await xsLaadiSponsoridTabel();
+    await xsLaadiSponsoriStaatusTabel();
   } else {
     asKaart.style.display = 'none';
     editKaart.style.display = 'none';
     ulKaart.style.display = 'none';
-    spKaart.style.display = 'none';
+    spStaatusKaart.style.display = 'none';
   }
 }
 
@@ -2822,30 +2842,45 @@ async function xsLisaUlesanne() {
   await xsLaadiUlesanded();
 }
 
-// ── X-SEERIA: SPONSORID (globaalne nimekiri + per-event staatus) ──
+// ── X-SEERIA: SPONSORID ──
+// 1) Üldnimekiri (pealehel, "🎁 Sponsorid" nupu taga) — sponsori identiteet: nimi/kontakt/tooted. Globaalne, mitte
+//    võistluse külge seotud, kuna sponsorid ei kao etapiga, vaid lisanduvad.
+// 2) Per-event staatuse tabel (valitud võistluse lehel) — ainult ootel/käes/tagastatud + kuupäevad SELLE võistluse jaoks.
 let xsMuudetavSponsorId = null;
 
-async function xsLaadiSponsoridTabel() {
+async function xsLaadiSponsoridUldnimekiri() {
+  const d = await api('/api/xseeria/admin/sponsorid');
+  const div = document.getElementById('xs-sp-uldtabel');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud.</div>'; return; }
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Kontakt</th><th>Tooted</th><th></th></tr></thead><tbody>` +
+    d.sponsorid.map(s => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}</td>
+      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.kontakt || '—')}</td>
+      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.tooted || '—')}</td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp punane" onclick="xsKustutaSponsor(${s.id}, ${JSON.stringify(s.nimi)})">🗑</button>
+      </td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+async function xsLaadiSponsoriStaatusTabel() {
   if (!xsAktiivneEventId) return;
   const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid');
   const div = document.getElementById('xs-sp-tabel');
   if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
-  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud.</div>'; return; }
+  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud — lisa need pealehel "🎁 Sponsorid" alt.</div>'; return; }
   const staatused = { ootel: 'Ootel', kaes: 'Käes', tagastatud: 'Tagastatud' };
-  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Tooted</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th></th></tr></thead><tbody>` +
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th></th></tr></thead><tbody>` +
     d.sponsorid.map(s => `<tr>
-      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}${s.kontakt ? `<div style="font-size:11px;color:var(--hall);font-weight:400">${escapeHtmlXs(s.kontakt)}</div>` : ''}</td>
-      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.tooted || '—')}</td>
+      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}</td>
       <td><select id="xs-sp-staatus-${s.sponsor_id}" style="width:auto;font-size:12px">
         ${Object.entries(staatused).map(([v,l]) => `<option value="${v}" ${s.staatus===v?'selected':''}>${l}</option>`).join('')}
       </select></td>
       <td><input type="date" id="xs-sp-jargi-${s.sponsor_id}" value="${s.jargi_kp ? String(s.jargi_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
       <td><input type="date" id="xs-sp-tagastatud-${s.sponsor_id}" value="${s.tagastatud_kp ? String(s.tagastatud_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
-      <td style="white-space:nowrap">
-        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾</button>
-        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g, "&apos;")})'>✎</button>
-        <button class="nupp punane" onclick="xsKustutaSponsor(${s.sponsor_id}, ${JSON.stringify(s.nimi)})">🗑</button>
-      </td>
+      <td><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾 Salvesta</button></td>
     </tr>`).join('') + '</tbody></table>';
 }
 
@@ -2857,17 +2892,19 @@ async function xsUuendaSponsorStaatus(sponsorId) {
   await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid/' + sponsorId, {
     method: 'PUT', body: JSON.stringify({ staatus, jargi_kp, tagastatud_kp })
   });
-  await xsLaadiSponsoridTabel();
+  await xsLaadiSponsoriStaatusTabel();
 }
 
 function xsAlustaSponsorEdit(s) {
-  xsMuudetavSponsorId = s.sponsor_id;
+  xsMuudetavSponsorId = s.id;
   document.getElementById('xs-sp-nimi').value = s.nimi;
   document.getElementById('xs-sp-kontakt').value = s.kontakt || '';
   document.getElementById('xs-sp-tooted').value = s.tooted || '';
   document.getElementById('xs-sp-nupp').textContent = 'Salvesta muudatused';
   document.getElementById('xs-sp-tyhista').style.display = 'inline-block';
   document.getElementById('xs-sp-teade').style.display = 'none';
+  document.getElementById('xs-sponsorid-paneel').style.display = 'block';
+  document.getElementById('xs-sp-nool').textContent = '▲';
   document.getElementById('xs-sp-nimi').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -2899,14 +2936,16 @@ async function xsLisaSponsor() {
   }
   teade.style.display = 'none';
   xsTyhistaSponsorEdit();
-  await xsLaadiSponsoridTabel();
+  await xsLaadiSponsoridUldnimekiri();
+  if (xsAktiivneEventId) await xsLaadiSponsoriStaatusTabel();
 }
 
 async function xsKustutaSponsor(sponsorId, nimi) {
   if (!confirm(`Kustutada sponsor "${nimi}" TÄIELIKULT üldnimekirjast (kõigi võistluste alt)?`)) return;
   await api('/api/xseeria/admin/sponsorid/' + sponsorId, { method: 'DELETE' });
   if (xsMuudetavSponsorId === sponsorId) xsTyhistaSponsorEdit();
-  await xsLaadiSponsoridTabel();
+  await xsLaadiSponsoridUldnimekiri();
+  if (xsAktiivneEventId) await xsLaadiSponsoriStaatusTabel();
 }
 
 init();
