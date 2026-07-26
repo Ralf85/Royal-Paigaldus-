@@ -1152,6 +1152,31 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
   </div>
 
 </div>
+<!-- X-seeria rajakaartide modal -->
+<div class="tootaja-modal-overlay" id="xsFotoModal">
+  <div class="tootaja-modal-sisu" style="max-width:640px">
+    <div class="tm-hdr">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--tekst)">🖼️ Rajakaardid</div>
+        <div style="font-size:12px;color:var(--hall);margin-top:2px" id="xsFotoParkNimi">—</div>
+      </div>
+      <button class="tm-sulge" onclick="xsSuljeFotoModal()">✕</button>
+    </div>
+    <div class="tm-sektsioon">
+      <div id="xsFotoDropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer">
+        📷 Lohista siia pildid (mitu korraga) või kliki valimiseks
+        <div style="font-size:11px;margin-top:6px">Pildid jagatakse radadele automaatselt — kui failinimes on number (nt "56.jpg"), kasutatakse seda; muidu järjekord, milles pildid valisid.</div>
+        <input type="file" id="xsFotoInput" accept="image/*" multiple style="display:none">
+      </div>
+      <div id="xsFotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:16px"></div>
+      <div class="teade" id="xsFotoTeade" style="margin-top:10px"></div>
+      <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="nupp hall" onclick="xsSuljeFotoModal()">Sulge</button>
+        <button class="nupp kull" id="xsFotoSalvestaNupp" style="display:none" onclick="xsSalvestaFotod()">Salvesta pildid</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Töötaja detailmodal -->
 <div class="tootaja-modal-overlay" id="tootajaModal">
   <div class="tootaja-modal-sisu">
@@ -2361,6 +2386,7 @@ async function xsLaadiAsukohad() {
       <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
       <td style="white-space:nowrap">
         <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(a).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAvaFotoModal(${a.id}, "${escapeJs(a.nimi)}")'>📷</button>
         <button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button>
       </td>
     </tr>`).join('') + `</tbody></table>`;
@@ -2372,6 +2398,139 @@ async function xsKustutaAsukoht(id) {
   if (xsMuudetavAsukohtId === id) xsTyhistaParkEdit();
   await xsLaadiAsukohad();
 }
+
+function escapeJs(s) {
+  return (s || '').toString().replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'");
+}
+
+// ── X-seeria rajakaartide bulk-üleslaadimine (pargi kaupa, lohistades) ──
+
+let xsFotoAsukohtId = null;
+let xsFotoSlotid = []; // [{ korvId, number, olemasolevUrl, uusFail, eelvaadeUrl }]
+
+async function xsAvaFotoModal(asukohtId, nimi) {
+  xsFotoAsukohtId = asukohtId;
+  document.getElementById('xsFotoParkNimi').textContent = nimi;
+  document.getElementById('xsFotoTeade').style.display = 'none';
+  document.getElementById('xsFotoSalvestaNupp').style.display = 'none';
+  document.getElementById('xsFotoGrid').innerHTML = 'Laadimine...';
+  document.getElementById('xsFotoModal').classList.add('avatud');
+
+  const d = await api('/api/xseeria/asukoht/' + asukohtId + '/korvid');
+  if (!d.ok) { document.getElementById('xsFotoGrid').innerHTML = '<div style="color:var(--hall);font-size:13px">Viga laadimisel</div>'; return; }
+  xsFotoSlotid = d.korvid.map(k => ({ korvId: k.id, number: k.number, olemasolevUrl: k.foto_url || null, uusFail: null, eelvaadeUrl: null }));
+  xsJoonistaFotoGrid();
+}
+
+function xsSuljeFotoModal() {
+  document.getElementById('xsFotoModal').classList.remove('avatud');
+  xsFotoSlotid = [];
+  xsFotoAsukohtId = null;
+}
+
+function xsJoonistaFotoGrid() {
+  const grid = document.getElementById('xsFotoGrid');
+  grid.innerHTML = xsFotoSlotid.map((s, i) => {
+    const pilt = s.eelvaadeUrl || s.olemasolevUrl;
+    const uus = !!s.eelvaadeUrl;
+    return `
+      <div style="text-align:center">
+        <div style="position:relative;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);border:0.5px solid ${uus ? '#c9a84c' : 'var(--sisend-piir)'};cursor:pointer" onclick="xsVahetaUksPilt(${i})">
+          ${pilt ? `<img src="${pilt}" style="width:100%;height:100%;object-fit:cover">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--hall);font-size:11px">tühi</div>`}
+          ${uus ? `<div style="position:absolute;top:2px;right:2px;background:#c9a84c;color:#0d0f13;font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px">uus</div>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--hall);margin-top:4px">nr ${s.number}</div>
+      </div>`;
+  }).join('');
+}
+
+function xsVahetaUksPilt(index) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    xsFotoSlotid[index].uusFail = file;
+    xsFotoSlotid[index].eelvaadeUrl = URL.createObjectURL(file);
+    xsJoonistaFotoGrid();
+    xsUuendaFotoSalvestaNupp();
+  };
+  input.click();
+}
+
+function xsUuendaFotoSalvestaNupp() {
+  const onPending = xsFotoSlotid.some(s => s.uusFail);
+  document.getElementById('xsFotoSalvestaNupp').style.display = onPending ? 'inline-block' : 'none';
+}
+
+// Loomulik järjekord: kui failinimest saab numbri kätte, sorteeri numbri järgi; muidu jäta valimisjärjekorda
+function xsSordiFailidLoomulikult(failid) {
+  const koos = failid.map((f, i) => {
+    const m = f.name.match(/(\d+)/);
+    return { f, i, num: m ? parseInt(m[1], 10) : null };
+  });
+  const koikNumbritega = koos.every(x => x.num !== null);
+  if (koikNumbritega) {
+    koos.sort((a, b) => a.num - b.num);
+  } else {
+    koos.sort((a, b) => a.i - b.i);
+  }
+  return koos.map(x => x.f);
+}
+
+function xsFotodValitud(failid) {
+  const sordid = xsSordiFailidLoomulikult(Array.from(failid));
+  // täida esimesed tühjad (ilma olemasoleva pildi ja ilma juba määratud uue failita) slotid järjekorras
+  let idx = 0;
+  for (const file of sordid) {
+    while (idx < xsFotoSlotid.length && (xsFotoSlotid[idx].olemasolevUrl || xsFotoSlotid[idx].uusFail)) idx++;
+    if (idx >= xsFotoSlotid.length) break;
+    xsFotoSlotid[idx].uusFail = file;
+    xsFotoSlotid[idx].eelvaadeUrl = URL.createObjectURL(file);
+    idx++;
+  }
+  xsJoonistaFotoGrid();
+  xsUuendaFotoSalvestaNupp();
+}
+
+async function xsSalvestaFotod() {
+  const teade = document.getElementById('xsFotoTeade');
+  const muudetud = xsFotoSlotid.filter(s => s.uusFail);
+  if (!muudetud.length) return;
+  document.getElementById('xsFotoSalvestaNupp').disabled = true;
+  let tehtud = 0;
+  for (const s of muudetud) {
+    teade.className = 'teade ok'; teade.style.display = 'block';
+    teade.textContent = `Laen üles ${tehtud + 1}/${muudetud.length}...`;
+    const fd = new FormData();
+    fd.append('foto', s.uusFail);
+    await api('/api/xseeria/korvid/' + s.korvId + '/rajakaart', { method: 'POST', body: fd });
+    tehtud++;
+  }
+  teade.textContent = `✅ ${tehtud} pilti laetud üles`;
+  document.getElementById('xsFotoSalvestaNupp').disabled = false;
+  await xsAvaFotoModal(xsFotoAsukohtId, document.getElementById('xsFotoParkNimi').textContent);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('xsFotoDropzone');
+  const input = document.getElementById('xsFotoInput');
+  if (!zone || !input) return;
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { xsFotodValitud(input.files); input.value = ''; });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#c9a84c'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files && e.dataTransfer.files.length) xsFotodValitud(e.dataTransfer.files);
+  });
+});
+
+document.getElementById('xsFotoModal')?.addEventListener('click', function(e) {
+  if (e.target === this) xsSuljeFotoModal();
+});
 
 async function xsLaadiLubatud() {
   const r = await api('/api/xseeria/admin/lubatud');
