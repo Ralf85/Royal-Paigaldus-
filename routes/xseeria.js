@@ -511,10 +511,12 @@ router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req
 });
 
 // ---------- WORKER: sponsori "käsklus" (nimi, vastutaja, kommentaar) + kiire staatuse muutmine ----------
-// Nähtav igale X-seeria ligipääsuga töötajale (mitte ainult vastutajale) — nagu paigaldus/puhastus checklist.
+// Töötajale näidatakse ainult neid sponsoreid, kelle vastutajaks admin on TEMA määranud — mitte kogu nimekirja.
+// (Admin ise, kui peaks seda otspunkti kasutama, näeb ikka kõiki — tema jaoks pole vastutaja-filtrit vaja.)
 
 router.get('/event/:eventId/sponsorid', noudaLubatud, async (req, res) => {
   try {
+    const workerId = req.session.workerId || null;
     const r = await pool.query(
       `SELECT s.id AS sponsor_id, s.nimi, s.kontakt, s.tooted,
          COALESCE(es.staatus, 'ootel') AS staatus, es.jargi_kp, es.tagastatud_kp, es.markused,
@@ -522,8 +524,9 @@ router.get('/event/:eventId/sponsorid', noudaLubatud, async (req, res) => {
        FROM xseeria_sponsorid s
        LEFT JOIN xseeria_event_sponsorid es ON es.sponsor_id = s.id AND es.event_id = $1
        LEFT JOIN workers w ON w.id = es.vastutaja_id
+       WHERE $2::int IS NULL OR es.vastutaja_id = $2
        ORDER BY s.nimi`,
-      [req.params.eventId]
+      [req.params.eventId, workerId]
     );
     res.json({ ok: true, sponsorid: r.rows });
   } catch (err) {
@@ -533,6 +536,7 @@ router.get('/event/:eventId/sponsorid', noudaLubatud, async (req, res) => {
 
 // Töötaja saab kiirelt märkida staatuse (ootel/käes/tagastatud) — ei puuduta vastutajat ega kommentaari,
 // neid haldab ainult admin. Kuupäev täidetakse automaatselt, kui seda pole veel varem pandud.
+// Ainult SELLE sponsori vastutajaks määratud töötaja tohib staatust muuta (admin tohib alati).
 router.post('/event/:eventId/sponsorid/:sponsorId/staatus', noudaLubatud, async (req, res) => {
   const { staatus } = req.body;
   if (!['ootel', 'kaes', 'tagastatud'].includes(staatus)) {
@@ -540,9 +544,15 @@ router.post('/event/:eventId/sponsorid/:sponsorId/staatus', noudaLubatud, async 
   }
   try {
     const olemasolev = await pool.query(
-      'SELECT jargi_kp, tagastatud_kp FROM xseeria_event_sponsorid WHERE event_id=$1 AND sponsor_id=$2',
+      'SELECT jargi_kp, tagastatud_kp, vastutaja_id FROM xseeria_event_sponsorid WHERE event_id=$1 AND sponsor_id=$2',
       [req.params.eventId, req.params.sponsorId]
     );
+    if (!req.session.isAdmin) {
+      const vastutajaId = olemasolev.rows[0]?.vastutaja_id || null;
+      if (vastutajaId !== req.session.workerId) {
+        return res.status(403).json({ ok: false, veateade: 'See sponsor pole sulle määratud' });
+      }
+    }
     let jargi_kp = olemasolev.rows[0]?.jargi_kp || null;
     let tagastatud_kp = olemasolev.rows[0]?.tagastatud_kp || null;
     const tana = new Date().toISOString().slice(0, 10);
