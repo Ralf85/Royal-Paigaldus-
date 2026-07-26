@@ -1150,8 +1150,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" id="xs-asukohad-kaart" style="display:none">
-      <div class="kaart-hdr">📍 Pargid — <span id="xs-aktiivne-nimi"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleKaartPaneel('xs-park-body','xs-park-nool')">
+        <span>📍 Pargid — <span id="xs-aktiivne-nimi"></span></span>
+        <span id="xs-park-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-park-body" style="display:none">
         <div style="font-size:13px;color:var(--tekst3);margin-bottom:12px" id="xs-summary"></div>
 
         <div class="vorm-grupp">
@@ -1183,8 +1186,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" id="xs-ulesanded-kaart" style="display:none">
-      <div class="kaart-hdr">✅ Ülesanded — <span id="xs-ul-event-nimi"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleKaartPaneel('xs-ul-body','xs-ul-nool')">
+        <span>✅ Ülesanded — <span id="xs-ul-event-nimi"></span></span>
+        <span id="xs-ul-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-ul-body" style="display:none">
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Organisatoorne checklist selle võistluse jaoks (bännerid, sponsoritooted, transport jne). Kui määrad vastutaja, näeb SEE töötaja ülesannet ka oma rakenduses ja saab selle ise valmis märkida. Vastutajata ülesanded jäävad ainult sulle nähtavaks.</div>
         <div class="vorm-rida col4">
           <div class="vorm-grupp" style="grid-column:span 2"><label>Ülesanne</label><input id="xs-ul-tekst" placeholder="Too Sportlandist bännerid"></div>
@@ -1204,8 +1210,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" id="xs-tegevused-kaart" style="display:none">
-      <div class="kaart-hdr">🚚 Tegevused — <span id="xs-teg-event-nimi"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleKaartPaneel('xs-teg-body','xs-teg-nool')">
+        <span>🚚 Tegevused — <span id="xs-teg-event-nimi"></span></span>
+        <span id="xs-teg-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-teg-body" style="display:none">
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Logistilised tegevused selle võistluse jaoks (korvide pealelaadimine, bussi toomine, tankimine jne) — kuupäev, kellaaeg ja kes teeb. Nähtav määratud töötaja(te)le nende rakenduses "TEGEVUSED" nupu all.</div>
         <div class="vorm-rida col4">
           <div class="vorm-grupp" style="grid-column:span 2"><label>Tegevus</label><input id="xs-teg-tekst" placeholder="Korvide pealelaadimine"></div>
@@ -1226,16 +1235,22 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" id="xs-sponsorstaatus-kaart" style="display:none">
-      <div class="kaart-hdr">🎁 Sponsorite staatus — <span id="xs-sp-event-nimi"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleKaartPaneel('xs-spst-body','xs-spst-nool')">
+        <span>🎁 Sponsorite staatus — <span id="xs-sp-event-nimi"></span></span>
+        <span id="xs-spst-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-spst-body" style="display:none">
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Kas ja millal on selle võistluse jaoks sponsoritooted järgi toodud ja tagastatud. Uute sponsorite lisamine ja nende nime/kontakti muutmine käib pealehel "🎁 Sponsorid" alt.</div>
         <div id="xs-sp-tabel"></div>
       </div>
     </div>
 
     <div class="kaart" id="xs-kulud-kaart" style="display:none">
-      <div class="kaart-hdr">💰 Kulude raport — <span id="xs-kulu-event-nimi"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleKaartPaneel('xs-kulu-body','xs-kulu-nool')">
+        <span>💰 Kulude raport — <span id="xs-kulu-event-nimi"></span></span>
+        <span id="xs-kulu-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="xs-kulu-body" style="display:none">
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Päris kulud selle võistluse jaoks — lisa iga ost (toode, kogus, hind), et pärast üritust näha kokkuvõtvat summat. Nähtav ainult adminnile.</div>
         <div class="vorm-rida col4">
           <div class="vorm-grupp" style="grid-column:span 2"><label>Toode</label><input id="xs-kulu-toode" placeholder="Bännerid"></div>
@@ -2354,6 +2369,16 @@ function xsToggleLubatudPaneel() {
   const avatud = paneel.style.display !== 'none';
   paneel.style.display = avatud ? 'none' : 'block';
   nool.textContent = avatud ? '▼' : '▲';
+}
+
+// Üldine peida/näita nupp ürituse-detaili kaartidele (Pargid, Ülesanded, Tegevused, Sponsorite staatus, Kulud) —
+// sama muster, mida juba kasutavad "🎁 Sponsorid" ja "👷 Töötajate ligipääs" paneelid.
+function xsToggleKaartPaneel(bodyId, noolId) {
+  const paneel = document.getElementById(bodyId);
+  const nool = document.getElementById(noolId);
+  const avatud = paneel.style.display !== 'none';
+  paneel.style.display = avatud ? 'none' : 'block';
+  if (nool) nool.textContent = avatud ? '▼' : '▲';
 }
 
 function xsTaidaNumbriDropdownid() {
