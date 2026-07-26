@@ -366,4 +366,144 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   }
 });
 
+// ---------- ADMIN: organisatoorne pool — ülesanded (checklist) ----------
+// Mitte kunagi töötaja vaates — ainult admin.html X-seeria tabis, vastutaja on lihtsalt info (ei näita töötajale).
+
+router.get('/admin/events/:eventId/ulesanded', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT u.*, w.nimi AS vastutaja_nimi
+       FROM xseeria_ulesanded u
+       LEFT JOIN workers w ON w.id = u.vastutaja_id
+       WHERE u.event_id = $1
+       ORDER BY u.tehtud ASC, u.tahtaeg ASC NULLS LAST, u.loodud ASC`,
+      [req.params.eventId]
+    );
+    res.json({ ok: true, ulesanded: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/admin/events/:eventId/ulesanded', noudaAdmin, async (req, res) => {
+  const { tekst, kategooria, tahtaeg, vastutaja_id } = req.body;
+  if (!tekst || !tekst.trim()) return res.json({ ok: false, veateade: 'Kirjuta ülesande tekst' });
+  try {
+    const r = await pool.query(
+      `INSERT INTO xseeria_ulesanded (event_id, tekst, kategooria, tahtaeg, vastutaja_id)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.params.eventId, tekst.trim(), kategooria || null, tahtaeg || null, vastutaja_id || null]
+    );
+    res.json({ ok: true, ulesanne: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/admin/ulesanded/:id', noudaAdmin, async (req, res) => {
+  const { tekst, kategooria, tahtaeg, vastutaja_id } = req.body;
+  if (!tekst || !tekst.trim()) return res.json({ ok: false, veateade: 'Kirjuta ülesande tekst' });
+  try {
+    await pool.query(
+      `UPDATE xseeria_ulesanded SET tekst=$1, kategooria=$2, tahtaeg=$3, vastutaja_id=$4 WHERE id=$5`,
+      [tekst.trim(), kategooria || null, tahtaeg || null, vastutaja_id || null, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/admin/ulesanded/:id/toggle', noudaAdmin, async (req, res) => {
+  try {
+    const praegu = await pool.query('SELECT tehtud FROM xseeria_ulesanded WHERE id=$1', [req.params.id]);
+    if (!praegu.rows.length) return res.json({ ok: false, veateade: 'Ülesannet ei leitud' });
+    const uusTehtud = !praegu.rows[0].tehtud;
+    await pool.query(
+      'UPDATE xseeria_ulesanded SET tehtud=$1, tehtud_kell=$2 WHERE id=$3',
+      [uusTehtud, uusTehtud ? new Date() : null, req.params.id]
+    );
+    res.json({ ok: true, tehtud: uusTehtud });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin/ulesanded/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM xseeria_ulesanded WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// ---------- ADMIN: sponsorid ----------
+// Sponsorid on ÜKS ühine nimekiri (mitte võistluse külge seotud) — kuna sponsorid ei kao, vaid lisanduvad
+// etapp-etapilt, kandub iga sponsor automaatselt kõigi (ka juba loodud ja tulevaste) võistluste alla.
+// Pickup/tagastuse staatus ja kuupäevad on aga võistluse-põhised (xseeria_event_sponsorid).
+
+router.get('/admin/sponsorid', noudaAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM xseeria_sponsorid ORDER BY nimi');
+  res.json({ ok: true, sponsorid: r.rows });
+});
+
+router.post('/admin/sponsorid', noudaAdmin, async (req, res) => {
+  const { nimi, kontakt, tooted, markused } = req.body;
+  if (!nimi || !nimi.trim()) return res.json({ ok: false, veateade: 'Sponsori nimi on kohustuslik' });
+  const r = await pool.query(
+    'INSERT INTO xseeria_sponsorid (nimi, kontakt, tooted, markused) VALUES ($1,$2,$3,$4) RETURNING *',
+    [nimi.trim(), kontakt || null, tooted || null, markused || null]
+  );
+  res.json({ ok: true, sponsor: r.rows[0] });
+});
+
+router.put('/admin/sponsorid/:id', noudaAdmin, async (req, res) => {
+  const { nimi, kontakt, tooted, markused } = req.body;
+  if (!nimi || !nimi.trim()) return res.json({ ok: false, veateade: 'Sponsori nimi on kohustuslik' });
+  await pool.query(
+    'UPDATE xseeria_sponsorid SET nimi=$1, kontakt=$2, tooted=$3, markused=$4 WHERE id=$5',
+    [nimi.trim(), kontakt || null, tooted || null, markused || null, req.params.id]
+  );
+  res.json({ ok: true });
+});
+
+router.delete('/admin/sponsorid/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM xseeria_sponsorid WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// Kõik sponsorid + selle KONKREETSE võistluse pickup/tagastuse staatus (LEFT JOIN — sponsor võib olla
+// veel märkimata selle võistluse jaoks, siis staatuseväljad tulevad NULL/vaikeväärtustena)
+router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT s.id AS sponsor_id, s.nimi, s.kontakt, s.tooted,
+         es.id AS staatuse_id, COALESCE(es.staatus, 'ootel') AS staatus,
+         es.jargi_kp, es.tagastatud_kp, es.markused
+       FROM xseeria_sponsorid s
+       LEFT JOIN xseeria_event_sponsorid es ON es.sponsor_id = s.id AND es.event_id = $1
+       ORDER BY s.nimi`,
+      [req.params.eventId]
+    );
+    res.json({ ok: true, sponsorid: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Uuenda/loo selle võistluse+sponsori staatuse rida (upsert)
+router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req, res) => {
+  const { staatus, jargi_kp, tagastatud_kp, markused } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO xseeria_event_sponsorid (event_id, sponsor_id, staatus, jargi_kp, tagastatud_kp, markused, uuendatud)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+       ON CONFLICT (event_id, sponsor_id) DO UPDATE SET
+         staatus=EXCLUDED.staatus, jargi_kp=EXCLUDED.jargi_kp, tagastatud_kp=EXCLUDED.tagastatud_kp,
+         markused=EXCLUDED.markused, uuendatud=NOW()`,
+      [req.params.eventId, req.params.sponsorId, staatus || 'ootel', jargi_kp || null, tagastatud_kp || null, markused || null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 module.exports = router;
