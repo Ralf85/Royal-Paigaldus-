@@ -1093,26 +1093,15 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
-    <div class="kaart" id="xs-rajad-kaart" style="display:none">
-      <div class="kaart-hdr">🛣️ Rajad — <span id="xs-aktiivne-nimi"></span></div>
-      <div class="kaart-body">
-        <div id="xs-radapick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Uue raja nimi</label><input id="xs-rada-nimi" placeholder="nt Rada A / Kesklinn"></div>
-          <div class="vorm-grupp" style="justify-content:flex-end"><button class="nupp kull" onclick="xsLooRada()">+ Uus rada</button></div>
-        </div>
-      </div>
-    </div>
-
     <div class="kaart" id="xs-asukohad-kaart" style="display:none">
-      <div class="kaart-hdr">📍 Punktid — <span id="xs-aktiivne-rada-nimi"></span></div>
+      <div class="kaart-hdr">📍 Pargid — <span id="xs-aktiivne-nimi"></span></div>
       <div class="kaart-body">
         <div style="font-size:13px;color:var(--tekst3);margin-bottom:12px" id="xs-summary"></div>
         <div class="vorm-grupp">
-          <label>Kiire lisamine (üks rida = "Nimi, korvide arv, viskekohtade arv") — iga rea kohta luuakse automaatselt ka numbritatud korvid</label>
+          <label>Kiire lisamine (üks rida = "Nimi, korvide arv, viskekohtade arv") — korvide numbrid jätkuvad automaatselt terve võistluse peale</label>
           <textarea id="xs-bulk" rows="5" style="font-family:monospace" placeholder="Annakanal, 13&#10;ERM, 22&#10;Spordipark, 10&#10;Laululava, 4&#10;Vanalinn, 4&#10;Ahhaa keskus, 2"></textarea>
         </div>
-        <button class="nupp kull" style="margin-top:8px" onclick="xsLisaBulk()">+ Lisa punktid</button>
+        <button class="nupp kull" style="margin-top:8px" onclick="xsLisaBulk()">+ Lisa pargid</button>
         <div id="xs-tabel" style="margin-top:16px"></div>
       </div>
     </div>
@@ -2142,8 +2131,6 @@ async function välju(){localStorage.removeItem('adminToken');window.location='/
 
 let xsEvents = [];
 let xsAktiivneEventId = null;
-let xsRajad = [];
-let xsAktiivneRadaId = null;
 
 async function xsLaadiTab() {
   await xsLaadiEvents();
@@ -2155,24 +2142,26 @@ async function xsLaadiEvents() {
   xsEvents = d.events || [];
   const box = document.getElementById('xs-eventpick');
   box.innerHTML = xsEvents.map(e =>
-    `<span class="nupp ${e.aktiivne ? 'kull' : 'hall'}" style="cursor:pointer" onclick="xsVahetaEvent(${e.id})">${e.nimi} (${String(e.kuupaev).slice(0,10)})</span>`
-  ).join('') || '<span style="font-size:12px;color:var(--hall)">Üritusi pole veel.</span>';
-  const active = xsEvents.find(e => e.aktiivne);
-  const rajaKaart = document.getElementById('xs-rajad-kaart');
-  if (active) {
-    xsAktiivneEventId = active.id;
-    rajaKaart.style.display = 'block';
-    document.getElementById('xs-aktiivne-nimi').textContent = active.nimi;
-    await xsLaadiRajad();
+    `<span class="nupp ${e.id === xsAktiivneEventId ? 'kull' : 'hall'}" style="cursor:pointer" onclick="xsVahetaEvent(${e.id})">${e.nimi} (${String(e.kuupaev).slice(0,10)})</span>`
+  ).join('') || '<span style="font-size:12px;color:var(--hall)">Võistlusi pole veel.</span>';
+
+  const asKaart = document.getElementById('xs-asukohad-kaart');
+  if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
+    const aktiivne = xsEvents.find(e => e.aktiivne);
+    xsAktiivneEventId = aktiivne ? aktiivne.id : (xsEvents.length ? xsEvents[0].id : null);
+  }
+  if (xsAktiivneEventId) {
+    asKaart.style.display = 'block';
+    const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
+    document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
+    await xsLaadiAsukohad();
   } else {
-    rajaKaart.style.display = 'none';
-    document.getElementById('xs-asukohad-kaart').style.display = 'none';
+    asKaart.style.display = 'none';
   }
 }
 
 async function xsVahetaEvent(id) {
-  await api('/api/xseeria/admin/events/' + id + '/aktiveeri', { method: 'POST' });
-  xsAktiivneRadaId = null;
+  xsAktiivneEventId = id;
   await xsLaadiEvents();
 }
 
@@ -2193,72 +2182,34 @@ async function xsLooEvent() {
   teade.style.display = 'none';
   document.getElementById('xs-ev-nimi').value = '';
   document.getElementById('xs-ev-kuupaev').value = '';
-  xsAktiivneRadaId = null;
+  xsAktiivneEventId = d.event.id;
   await xsLaadiEvents();
-}
-
-async function xsLaadiRajad() {
-  if (!xsAktiivneEventId) return;
-  const d = await api('/api/xseeria/admin/event/' + xsAktiivneEventId + '/rajad');
-  xsRajad = d.rajad || [];
-  const box = document.getElementById('xs-radapick');
-  box.innerHTML = xsRajad.map(r =>
-    `<span class="nupp ${r.id === xsAktiivneRadaId ? 'kull' : 'hall'}" style="cursor:pointer" onclick="xsVahetaRada(${r.id})">${r.nimi} (${r.punktide_arv})</span>`
-  ).join('') || '<span style="font-size:12px;color:var(--hall)">Radu pole veel.</span>';
-
-  const asKaart = document.getElementById('xs-asukohad-kaart');
-  if (!xsRajad.find(r => r.id === xsAktiivneRadaId)) {
-    xsAktiivneRadaId = xsRajad.length ? xsRajad[0].id : null;
-  }
-  if (xsAktiivneRadaId) {
-    asKaart.style.display = 'block';
-    const r = xsRajad.find(r => r.id === xsAktiivneRadaId);
-    document.getElementById('xs-aktiivne-rada-nimi').textContent = r ? r.nimi : '';
-    await xsLaadiAsukohad();
-  } else {
-    asKaart.style.display = 'none';
-  }
-}
-
-async function xsVahetaRada(id) {
-  xsAktiivneRadaId = id;
-  await xsLaadiRajad();
-}
-
-async function xsLooRada() {
-  const nimi = document.getElementById('xs-rada-nimi').value.trim();
-  if (!nimi || !xsAktiivneEventId) return alert('Täida raja nimi');
-  const d = await api('/api/xseeria/admin/rajad', { method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, nimi }) });
-  if (!d.ok) return alert(d.veateade || 'Viga');
-  document.getElementById('xs-rada-nimi').value = '';
-  xsAktiivneRadaId = d.rada.id;
-  await xsLaadiRajad();
 }
 
 async function xsLisaBulk() {
   const tekst = document.getElementById('xs-bulk').value;
-  if (!tekst.trim() || !xsAktiivneRadaId) return;
-  const d = await api('/api/xseeria/admin/asukohad/bulk', { method: 'POST', body: JSON.stringify({ rada_id: xsAktiivneRadaId, tekst }) });
+  if (!tekst.trim() || !xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/asukohad/bulk', { method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, tekst }) });
   if (!d.ok) return alert(d.veateade || 'Viga');
   document.getElementById('xs-bulk').value = '';
   await xsLaadiAsukohad();
-  await xsLaadiRajad();
 }
 
 async function xsLaadiAsukohad() {
-  if (!xsAktiivneRadaId) return;
-  const d = await api('/api/xseeria/rada/' + xsAktiivneRadaId + '/asukohad');
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/event/' + xsAktiivneEventId + '/asukohad');
   if (!d.ok) return;
   const rows = d.asukohad;
   const tehtud = rows.reduce((s,a) => s + a.paigaldatud_arv, 0);
   const puhas = rows.reduce((s,a) => s + a.puhastatud_arv, 0);
   const korvidKokku = rows.reduce((s,a) => s + a.korvide_koguarv, 0);
-  document.getElementById('xs-summary').textContent = `Kokku ${rows.length} punkti · ${tehtud}/${korvidKokku} korvi paigaldatud · ${puhas}/${korvidKokku} puhastatud`;
+  document.getElementById('xs-summary').textContent = `Kokku ${rows.length} parki · ${tehtud}/${korvidKokku} korvi paigaldatud · ${puhas}/${korvidKokku} puhastatud`;
   const t = document.getElementById('xs-tabel');
-  t.innerHTML = `<table><thead><tr><th>Punkt</th><th>Korve</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th>Kaart</th><th></th></tr></thead><tbody>` +
+  t.innerHTML = `<table><thead><tr><th>Park</th><th>Korve</th><th>Rajad</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th>Kaart</th><th></th></tr></thead><tbody>` +
     rows.map(a => `<tr>
       <td>${a.nimi}</td>
       <td>${a.korvide_koguarv}</td>
+      <td>${a.min_nr && a.max_nr ? a.min_nr + '-' + a.max_nr : '—'}</td>
       <td>${a.viskekohtade_arv || 0}</td>
       <td>${a.paigaldatud_arv}/${a.korvide_koguarv}</td>
       <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
@@ -2268,10 +2219,9 @@ async function xsLaadiAsukohad() {
 }
 
 async function xsKustutaAsukoht(id) {
-  if (!confirm('Kustutada see punkt?')) return;
+  if (!confirm('Kustutada see park?')) return;
   await api('/api/xseeria/admin/asukohad/' + id, { method: 'DELETE' });
   await xsLaadiAsukohad();
-  await xsLaadiRajad();
 }
 
 async function xsLaadiLubatud() {
