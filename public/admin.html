@@ -1233,6 +1233,24 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
+    <div class="kaart" id="xs-kulud-kaart" style="display:none">
+      <div class="kaart-hdr">💰 Kulude raport — <span id="xs-kulu-event-nimi"></span></div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Päris kulud selle võistluse jaoks — lisa iga ost (toode, kogus, hind), et pärast üritust näha kokkuvõtvat summat. Nähtav ainult adminnile.</div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp" style="grid-column:span 2"><label>Toode</label><input id="xs-kulu-toode" placeholder="Bännerid"></div>
+          <div class="vorm-grupp"><label>Kogus</label><input id="xs-kulu-kogus" type="number" step="0.01" min="0" value="1"></div>
+          <div class="vorm-grupp"><label>Hind (€/tk)</label><input id="xs-kulu-hind" type="number" step="0.01" min="0" value="0"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="nupp kull" id="xs-kulu-nupp" onclick="xsLisaKulu()">+ Lisa kulu</button>
+          <button class="nupp hall" id="xs-kulu-tyhista" style="display:none" onclick="xsTyhistaKuluEdit()">Tühista</button>
+        </div>
+        <div class="teade" id="xs-kulu-teade"></div>
+        <div id="xs-kulu-tabel" style="margin-top:14px"></div>
+      </div>
+    </div>
+
     <div class="kaart">
       <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="xsToggleLubatudPaneel()">
         <span>👷 X-seeria — Töötajate ligipääs</span>
@@ -2368,6 +2386,7 @@ async function xsLaadiEvents() {
   const ulKaart = document.getElementById('xs-ulesanded-kaart');
   const tegKaart = document.getElementById('xs-tegevused-kaart');
   const spStaatusKaart = document.getElementById('xs-sponsorstaatus-kaart');
+  const kuluKaart = document.getElementById('xs-kulud-kaart');
   // Kui valitud võistlus on vahepeal kustutatud, tühista valik — aga ÄRA vali automaatselt uut,
   // et pealeht jääks puhtaks (event chipid + sponsorid + töötajad) kuni admin ise millelegi vajutab
   if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
@@ -2378,11 +2397,13 @@ async function xsLaadiEvents() {
     ulKaart.style.display = 'block';
     tegKaart.style.display = 'block';
     spStaatusKaart.style.display = 'block';
+    kuluKaart.style.display = 'block';
     const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
     document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-ul-event-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-teg-event-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-sp-event-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-kulu-event-nimi').textContent = ev ? ev.nimi : '';
     if (ev) {
       editKaart.style.display = 'block';
       document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
@@ -2395,12 +2416,14 @@ async function xsLaadiEvents() {
     await xsLaadiUlesanded();
     await xsLaadiTegevused();
     await xsLaadiSponsoriStaatusTabel();
+    await xsLaadiKulud();
   } else {
     asKaart.style.display = 'none';
     editKaart.style.display = 'none';
     ulKaart.style.display = 'none';
     tegKaart.style.display = 'none';
     spStaatusKaart.style.display = 'none';
+    kuluKaart.style.display = 'none';
   }
 }
 
@@ -3012,6 +3035,82 @@ async function xsKustutaTegevus(id) {
   await api('/api/xseeria/admin/tegevused/' + id, { method: 'DELETE' });
   if (xsMuudetavTegevusId === id) xsTyhistaTegevuseEdit();
   await xsLaadiTegevused();
+}
+
+// ── X-SEERIA: KULUDE RAPORT (toode, kogus, hind) ──
+let xsMuudetavKuluId = null;
+
+function xsFmtEur(n) {
+  return (Math.round(n * 100) / 100).toFixed(2).replace('.', ',') + ' €';
+}
+
+async function xsLaadiKulud() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/kulud');
+  const div = document.getElementById('xs-kulu-tabel');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.kulud.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Kulusid pole veel lisatud.</div>'; return; }
+  div.innerHTML = `<table><thead><tr><th>Toode</th><th>Kogus</th><th>Hind/tk</th><th>Kokku</th><th></th></tr></thead><tbody>` +
+    d.kulud.map(k => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(k.toode)}</td>
+      <td>${k.kogus}</td>
+      <td>${xsFmtEur(Number(k.hind))}</td>
+      <td style="font-weight:600">${xsFmtEur(k.kokku)}</td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaKuluEdit(${JSON.stringify(k).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp punane" onclick="xsKustutaKulu(${k.id})">🗑</button>
+      </td>
+    </tr>`).join('') +
+    `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Kokku kulud:</td><td colspan="2" style="font-weight:700;color:#c9a84c">${xsFmtEur(d.kokkuSumma)}</td></tr></tfoot></table>`;
+}
+
+function xsAlustaKuluEdit(k) {
+  xsMuudetavKuluId = k.id;
+  document.getElementById('xs-kulu-toode').value = k.toode;
+  document.getElementById('xs-kulu-kogus').value = k.kogus;
+  document.getElementById('xs-kulu-hind').value = k.hind;
+  document.getElementById('xs-kulu-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-kulu-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-kulu-teade').style.display = 'none';
+}
+
+function xsTyhistaKuluEdit() {
+  xsMuudetavKuluId = null;
+  document.getElementById('xs-kulu-toode').value = '';
+  document.getElementById('xs-kulu-kogus').value = '1';
+  document.getElementById('xs-kulu-hind').value = '0';
+  document.getElementById('xs-kulu-nupp').textContent = '+ Lisa kulu';
+  document.getElementById('xs-kulu-tyhista').style.display = 'none';
+}
+
+async function xsLisaKulu() {
+  if (!xsAktiivneEventId) return;
+  const toode = document.getElementById('xs-kulu-toode').value.trim();
+  const kogus = parseFloat(document.getElementById('xs-kulu-kogus').value) || 1;
+  const hind = parseFloat(document.getElementById('xs-kulu-hind').value) || 0;
+  const teade = document.getElementById('xs-kulu-teade');
+  if (!toode) {
+    teade.className = 'teade viga'; teade.textContent = 'Kirjuta toote nimi'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ toode, kogus, hind });
+  const d = xsMuudetavKuluId
+    ? await api('/api/xseeria/admin/kulud/' + xsMuudetavKuluId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/kulud', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaKuluEdit();
+  await xsLaadiKulud();
+}
+
+async function xsKustutaKulu(id) {
+  if (!confirm('Kustutada see kulurida?')) return;
+  await api('/api/xseeria/admin/kulud/' + id, { method: 'DELETE' });
+  if (xsMuudetavKuluId === id) xsTyhistaKuluEdit();
+  await xsLaadiKulud();
 }
 
 // ── X-SEERIA: SPONSORID ──
