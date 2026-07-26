@@ -131,12 +131,12 @@ router.post('/korvid/:id/puhastus-tagasi', noudaLubatud, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Rajakaart (üks foto punkti kohta) — üleslaadimine/asendamine
-router.post('/asukoht/:id/rajakaart', noudaLubatud, upload.single('foto'), async (req, res) => {
+// Rajakaart — üks foto ÜKSIKU raja (korvi) kohta — üleslaadimine/asendamine
+router.post('/korvid/:id/rajakaart', noudaLubatud, upload.single('foto'), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
   try {
-    const vana = await pool.query('SELECT foto_public_id FROM xseeria_asukohad WHERE id=$1', [req.params.id]);
-    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Punkti ei leitud' });
+    const vana = await pool.query('SELECT foto_public_id FROM xseeria_korvid WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Rada ei leitud' });
     if (vana.rows[0].foto_public_id) {
       try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
     }
@@ -147,7 +147,7 @@ router.post('/asukoht/:id/rajakaart', noudaLubatud, upload.single('foto'), async
       );
       stream.end(req.file.buffer);
     });
-    await pool.query('UPDATE xseeria_asukohad SET foto_url=$1, foto_public_id=$2 WHERE id=$3', [result.secure_url, result.public_id, req.params.id]);
+    await pool.query('UPDATE xseeria_korvid SET foto_url=$1, foto_public_id=$2 WHERE id=$3', [result.secure_url, result.public_id, req.params.id]);
     res.json({ ok: true, foto_url: result.secure_url });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
