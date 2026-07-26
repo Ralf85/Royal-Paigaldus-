@@ -2,65 +2,42 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
-function genToken() {
-  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+function noudaSisslogimist(req, res, next) {
+  if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
+  next();
 }
 
-async function getSession(req) {
-  const token = req.headers['x-xseeria-token'] || req.query._token;
-  if (!token) return null;
-  const r = await pool.query(
-    `SELECT s.*, w.nimi AS worker_nimi FROM xseeria_sessions s
-     LEFT JOIN xseeria_workers w ON w.id = s.worker_id
-     WHERE s.token = $1`,
-    [token]
-  );
-  return r.rows[0] || null;
+function noudaAdmin(req, res, next) {
+  if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
+  next();
 }
 
-function requireAuth(session, res) {
-  if (!session) {
-    res.status(401).json({ ok: false, veateade: 'Palun logi uuesti sisse' });
-    return false;
+// Admin pääseb alati ligi; töötaja peab olema eraldi lubatud (xseeria_lubatud)
+async function noudaLubatud(req, res, next) {
+  if (req.session && req.session.isAdmin) return next();
+  if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
+  try {
+    const r = await pool.query('SELECT 1 FROM xseeria_lubatud WHERE worker_id=$1', [req.session.workerId]);
+    if (!r.rows.length) return res.status(403).json({ ok: false, veateade: 'Sul pole X-seeria ligipääsu' });
+    next();
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
-  return true;
 }
 
-function requireAdmin(session, res) {
-  if (!session || !session.is_admin) {
-    res.status(403).json({ ok: false, veateade: 'Puudub admini õigus' });
-    return false;
+// Töötaja: kas mul on X-seeria ligipääs?
+router.get('/kontroll', noudaSisslogimist, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT 1 FROM xseeria_lubatud WHERE worker_id=$1', [req.session.workerId]);
+    res.json({ ok: true, lubatud: r.rows.length > 0 });
+  } catch (err) {
+    res.json({ ok: false, lubatud: false });
   }
-  return true;
-}
-
-// ---------- LOGIN ----------
-
-router.post('/login', async (req, res) => {
-  const { pin } = req.body;
-  const r = await pool.query('SELECT * FROM xseeria_workers WHERE pin = $1 AND aktiivne = true', [pin]);
-  if (r.rows.length === 0) return res.json({ ok: false, veateade: 'Vale PIN' });
-  const worker = r.rows[0];
-  const token = genToken();
-  await pool.query('INSERT INTO xseeria_sessions (token, worker_id, is_admin) VALUES ($1,$2,false)', [token, worker.id]);
-  res.json({ ok: true, token, nimi: worker.nimi });
 });
 
-router.post('/admin-login', async (req, res) => {
-  const { pin } = req.body;
-  const r = await pool.query('SELECT * FROM xseeria_admin WHERE pin = $1', [pin]);
-  if (r.rows.length === 0) return res.json({ ok: false, veateade: 'Vale PIN' });
-  const admin = r.rows[0];
-  const token = genToken();
-  await pool.query('INSERT INTO xseeria_sessions (token, is_admin) VALUES ($1,true)', [token]);
-  res.json({ ok: true, token, nimi: admin.nimi });
-});
+// ---------- WORKER + ADMIN: aktiivne üritus + asukohad ----------
 
-// ---------- WORKER + ADMIN: read active event ----------
-
-router.get('/aktiivne', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAuth(session, res)) return;
+router.get('/aktiivne', noudaLubatud, async (req, res) => {
   const ev = await pool.query('SELECT * FROM xseeria_events WHERE aktiivne = true ORDER BY kuupaev DESC LIMIT 1');
   if (ev.rows.length === 0) return res.json({ ok: true, event: null, asukohad: [] });
   const event = ev.rows[0];
@@ -68,22 +45,16 @@ router.get('/aktiivne', async (req, res) => {
   res.json({ ok: true, event, asukohad: asukohad.rows });
 });
 
-// ---------- WORKER: mark installed / cleaned ----------
-
-router.post('/asukohad/:id/paigaldatud', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAuth(session, res)) return;
-  const nimi = session.is_admin ? 'Admin' : session.worker_nimi;
+router.post('/asukohad/:id/paigaldatud', noudaLubatud, async (req, res) => {
+  const nimi = req.session.isAdmin ? 'Admin' : req.session.workerNimi;
   await pool.query(
     `UPDATE xseeria_asukohad SET paigaldus_staatus='tehtud', paigaldas_id=$1, paigaldas_nimi=$2, paigaldatud_kell=NOW() WHERE id=$3`,
-    [session.worker_id || null, nimi, req.params.id]
+    [req.session.workerId || null, nimi, req.params.id]
   );
   res.json({ ok: true });
 });
 
-router.post('/asukohad/:id/paigaldus-tagasi', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAuth(session, res)) return;
+router.post('/asukohad/:id/paigaldus-tagasi', noudaLubatud, async (req, res) => {
   await pool.query(
     `UPDATE xseeria_asukohad SET paigaldus_staatus='ootel', paigaldas_id=NULL, paigaldas_nimi=NULL, paigaldatud_kell=NULL WHERE id=$1`,
     [req.params.id]
@@ -91,20 +62,16 @@ router.post('/asukohad/:id/paigaldus-tagasi', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/asukohad/:id/puhas', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAuth(session, res)) return;
-  const nimi = session.is_admin ? 'Admin' : session.worker_nimi;
+router.post('/asukohad/:id/puhas', noudaLubatud, async (req, res) => {
+  const nimi = req.session.isAdmin ? 'Admin' : req.session.workerNimi;
   await pool.query(
     `UPDATE xseeria_asukohad SET puhastus_staatus='tehtud', puhastas_id=$1, puhastas_nimi=$2, puhastatud_kell=NOW() WHERE id=$3`,
-    [session.worker_id || null, nimi, req.params.id]
+    [req.session.workerId || null, nimi, req.params.id]
   );
   res.json({ ok: true });
 });
 
-router.post('/asukohad/:id/puhastus-tagasi', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAuth(session, res)) return;
+router.post('/asukohad/:id/puhastus-tagasi', noudaLubatud, async (req, res) => {
   await pool.query(
     `UPDATE xseeria_asukohad SET puhastus_staatus='ootel', puhastas_id=NULL, puhastas_nimi=NULL, puhastatud_kell=NULL WHERE id=$1`,
     [req.params.id]
@@ -112,18 +79,14 @@ router.post('/asukohad/:id/puhastus-tagasi', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- ADMIN: events ----------
+// ---------- ADMIN: üritused ----------
 
-router.get('/admin/events', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.get('/admin/events', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT * FROM xseeria_events ORDER BY kuupaev DESC');
   res.json({ ok: true, events: r.rows });
 });
 
-router.post('/admin/events', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.post('/admin/events', noudaAdmin, async (req, res) => {
   const { nimi, kuupaev, hooaeg } = req.body;
   if (!nimi || !kuupaev) return res.json({ ok: false, veateade: 'Nimi ja kuupäev on kohustuslikud' });
   await pool.query('UPDATE xseeria_events SET aktiivne = false');
@@ -134,19 +97,15 @@ router.post('/admin/events', async (req, res) => {
   res.json({ ok: true, event: r.rows[0] });
 });
 
-router.post('/admin/events/:id/aktiveeri', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.post('/admin/events/:id/aktiveeri', noudaAdmin, async (req, res) => {
   await pool.query('UPDATE xseeria_events SET aktiivne = false');
   await pool.query('UPDATE xseeria_events SET aktiivne = true WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
-// ---------- ADMIN: asukohad (venues) ----------
+// ---------- ADMIN: asukohad ----------
 
-router.post('/admin/asukohad/bulk', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.post('/admin/asukohad/bulk', noudaAdmin, async (req, res) => {
   const { event_id, tekst } = req.body;
   if (!event_id || !tekst) return res.json({ ok: false, veateade: 'event_id ja tekst on kohustuslikud' });
   const read = tekst.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -169,9 +128,7 @@ router.post('/admin/asukohad/bulk', async (req, res) => {
   res.json({ ok: true, lisatud });
 });
 
-router.put('/admin/asukohad/:id', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.put('/admin/asukohad/:id', noudaAdmin, async (req, res) => {
   const { nimi, korvide_arv, viskekohtade_arv, markused } = req.body;
   await pool.query(
     'UPDATE xseeria_asukohad SET nimi=$1, korvide_arv=$2, viskekohtade_arv=$3, markused=$4 WHERE id=$5',
@@ -180,46 +137,39 @@ router.put('/admin/asukohad/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/admin/asukohad/:id', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
+router.delete('/admin/asukohad/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM xseeria_asukohad WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 
-// ---------- ADMIN: workers ----------
+// ---------- ADMIN: töötajate ligipääs (nagu EDGF/Rally Estonia) ----------
 
-router.get('/admin/workers', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
-  const r = await pool.query('SELECT id, nimi, pin, aktiivne FROM xseeria_workers ORDER BY nimi');
-  res.json({ ok: true, workers: r.rows });
-});
-
-router.post('/admin/workers', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
-  const { nimi, pin } = req.body;
-  if (!nimi || !pin) return res.json({ ok: false, veateade: 'Nimi ja PIN on kohustuslikud' });
+router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
-    const r = await pool.query('INSERT INTO xseeria_workers (nimi, pin) VALUES ($1,$2) RETURNING *', [nimi, pin]);
-    res.json({ ok: true, worker: r.rows[0] });
+    const r = await pool.query(
+      `SELECT w.id, w.nimi, (xl.worker_id IS NOT NULL) AS lubatud
+       FROM workers w
+       LEFT JOIN xseeria_lubatud xl ON xl.worker_id = w.id
+       WHERE w.aktiivne = true
+       ORDER BY w.nimi`
+    );
+    res.json(r.rows);
   } catch (err) {
-    if (err.code === '23505') return res.json({ ok: false, veateade: 'See PIN on juba kasutusel' });
-    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+    res.status(500).json({ ok: false });
   }
 });
 
-router.put('/admin/workers/:id', async (req, res) => {
-  const session = await getSession(req);
-  if (!requireAdmin(session, res)) return;
-  const { nimi, pin, aktiivne } = req.body;
+router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
+  const { lubatud } = req.body;
   try {
-    await pool.query('UPDATE xseeria_workers SET nimi=$1, pin=$2, aktiivne=$3 WHERE id=$4', [nimi, pin, aktiivne, req.params.id]);
+    if (lubatud) {
+      await pool.query('INSERT INTO xseeria_lubatud (worker_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.params.workerId]);
+    } else {
+      await pool.query('DELETE FROM xseeria_lubatud WHERE worker_id=$1', [req.params.workerId]);
+    }
     res.json({ ok: true });
   } catch (err) {
-    if (err.code === '23505') return res.json({ ok: false, veateade: 'See PIN on juba kasutusel' });
-    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+    res.status(500).json({ ok: false });
   }
 });
 
