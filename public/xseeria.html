@@ -205,7 +205,7 @@ function kaart(k) {
       ` : ''}
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <label class="foto-nupp" style="margin:0">📷 ${k.foto_url ? 'Vaheta pilt' : 'Lisa pilt'}
-          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
+          <input type="file" accept="image/*" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
         </label>
         ${k.foto_url ? `<button class="foto-nupp" style="border:0.5px solid #333;color:#f87171;background:#1e2128" onclick="kustutaRajakaart(${k.id})">🗑 Kustuta pilt</button>` : ''}
       </div>
