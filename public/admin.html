@@ -2351,7 +2351,7 @@ async function xsLaadiAsukohad() {
   const korvidKokku = rows.reduce((s,a) => s + a.korvide_koguarv, 0);
   document.getElementById('xs-summary').textContent = `Kokku ${rows.length} parki · ${tehtud}/${korvidKokku} korvi paigaldatud · ${puhas}/${korvidKokku} puhastatud`;
   const t = document.getElementById('xs-tabel');
-  t.innerHTML = `<table><thead><tr><th>Park</th><th>Korve</th><th>Rajad</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th>Kaart</th><th></th></tr></thead><tbody>` +
+  t.innerHTML = `<table><thead><tr><th>Park</th><th>Korve</th><th>Rajad</th><th>Viskekohti</th><th>Paigaldus</th><th>Puhastus</th><th></th></tr></thead><tbody>` +
     rows.map(a => `<tr>
       <td>${a.nimi}</td>
       <td>${a.korvide_koguarv}</td>
@@ -2359,7 +2359,6 @@ async function xsLaadiAsukohad() {
       <td>${a.viskekohtade_arv || 0}</td>
       <td>${a.paigaldatud_arv}/${a.korvide_koguarv}</td>
       <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
-      <td>${a.foto_url ? `<a href="${a.foto_url}" target="_blank">🖼️</a>` : '—'}</td>
       <td style="white-space:nowrap">
         <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(a).replace(/'/g, "&apos;")})'>✎</button>
         <button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button>
