@@ -2466,26 +2466,29 @@ function xsUuendaFotoSalvestaNupp() {
   document.getElementById('xsFotoSalvestaNupp').style.display = onPending ? 'inline-block' : 'none';
 }
 
-// Loomulik järjekord: kui failinimest saab numbri kätte, sorteeri numbri järgi; muidu jäta valimisjärjekorda
-function xsSordiFailidLoomulikult(failid) {
-  const koos = failid.map((f, i) => {
-    const m = f.name.match(/(\d+)/);
-    return { f, i, num: m ? parseInt(m[1], 10) : null };
-  });
-  const koikNumbritega = koos.every(x => x.num !== null);
-  if (koikNumbritega) {
-    koos.sort((a, b) => a.num - b.num);
-  } else {
-    koos.sort((a, b) => a.i - b.i);
-  }
-  return koos.map(x => x.f);
-}
-
 function xsFotodValitud(failid) {
-  const sordid = xsSordiFailidLoomulikult(Array.from(failid));
-  // täida esimesed tühjad (ilma olemasoleva pildi ja ilma juba määratud uue failita) slotid järjekorras
+  const arr = Array.from(failid);
+  const jaotamata = [];
+
+  // 1. samm: kui failinimes on number (nt "56.jpg"), sobita see TÄPSELT selle numbriga raja külge
+  arr.forEach(file => {
+    const m = file.name.match(/(\d+)/);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      const slot = xsFotoSlotid.find(s => parseInt(s.number, 10) === num && !s.uusFail);
+      if (slot) {
+        slot.uusFail = file;
+        slot.eelvaadeUrl = URL.createObjectURL(file);
+        return;
+      }
+    }
+    jaotamata.push(file);
+  });
+
+  // 2. samm: failid, millel numbrit polnud VÕI number ei vastanud ühelegi selle pargi rajale,
+  // täidetakse ülejäänud tühjadesse kohtadesse valimisjärjekorras
   let idx = 0;
-  for (const file of sordid) {
+  for (const file of jaotamata) {
     while (idx < xsFotoSlotid.length && (xsFotoSlotid[idx].olemasolevUrl || xsFotoSlotid[idx].uusFail)) idx++;
     if (idx >= xsFotoSlotid.length) break;
     xsFotoSlotid[idx].uusFail = file;
