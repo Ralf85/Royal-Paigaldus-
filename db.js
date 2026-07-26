@@ -197,6 +197,8 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
+    // X-seeria: terve võistluse ühine rajakaardi link (nt Google Maps/PDF), näidatakse töötaja vaates suure nupuna
+    await client.query(`ALTER TABLE xseeria_events ADD COLUMN IF NOT EXISTS rajakaart_url TEXT;`);
     // X-seeria: rada tase + korvide (üksikute) tase + rajakaardi foto — lisatud olemasolevale skeemile
     await client.query(`ALTER TABLE xseeria_asukohad ADD COLUMN IF NOT EXISTS rada_id INTEGER REFERENCES xseeria_rajad(id) ON DELETE CASCADE;`);
     await client.query(`ALTER TABLE xseeria_asukohad ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
