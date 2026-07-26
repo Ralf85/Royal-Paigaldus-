@@ -239,6 +239,40 @@ async function initDB() {
         await client.query(`INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1, $2, $3)`, [a.id, String(n), n]);
       }
     }
+    // X-seeria: organisatoorne pool — ülesanded (checklist per võistlus) + sponsorid (üldine nimekiri, mis kandub
+    // ise iga võistluse alla, kuna sponsorid ei kao, vaid lisanduvad etapp-etapilt)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_ulesanded (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        tekst TEXT NOT NULL,
+        kategooria VARCHAR(100),
+        tahtaeg DATE,
+        vastutaja_id INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        tehtud BOOLEAN NOT NULL DEFAULT false,
+        tehtud_kell TIMESTAMP,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_sponsorid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL,
+        kontakt VARCHAR(200),
+        tooted TEXT,
+        markused TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_event_sponsorid (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        sponsor_id INTEGER REFERENCES xseeria_sponsorid(id) ON DELETE CASCADE,
+        staatus VARCHAR(20) NOT NULL DEFAULT 'ootel',
+        jargi_kp DATE,
+        tagastatud_kp DATE,
+        markused TEXT,
+        uuendatud TIMESTAMP DEFAULT NOW(),
+        UNIQUE(event_id, sponsor_id)
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
