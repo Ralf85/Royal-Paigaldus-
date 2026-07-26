@@ -1291,7 +1291,9 @@ function setTeema(teema) {
 async function api(url, opts = {}) {
   opts.headers = opts.headers || {};
   opts.headers['x-session-token'] = TOKEN;
-  opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+  if (!(opts.body instanceof FormData)) {
+    opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+  }
   const r = await fetch(url, opts);
   const token = r.headers.get('x-session-token');
   if (token) { TOKEN = token; localStorage.setItem('adminToken', token); }
@@ -2494,21 +2496,81 @@ function xsFotodValitud(failid) {
   xsUuendaFotoSalvestaNupp();
 }
 
+// Tihenda pilt enne üleslaadimist (kiirem üleslaadimine, eriti telefoni kaameraga tehtud suurte failide puhul)
+function xsTihendaPilt(file, maxKylg, kvaliteet) {
+  maxKylg = maxKylg || 1600; kvaliteet = kvaliteet || 0.8;
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/')) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxKylg || height > maxKylg) {
+        if (width > height) { height = Math.round(height * maxKylg / width); width = maxKylg; }
+        else { width = Math.round(width * maxKylg / height); height = maxKylg; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => { URL.revokeObjectURL(url); resolve(blob || file); }, 'image/jpeg', kvaliteet);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+// Laadi üks pilt üles otse (mitte läbi jagatud api() abifunktsiooni), koos ajapiiranguga,
+// et üleslaadimine kunagi lõputult "kinni" ei jääks
+async function xsLaeUlesUksPilt(korvId, fail) {
+  const compressed = await xsTihendaPilt(fail);
+  const fd = new FormData();
+  fd.append('foto', compressed, 'rajakaart.jpg');
+  const controller = new AbortController();
+  const ajapiirang = setTimeout(() => controller.abort(), 25000);
+  try {
+    const r = await fetch('/api/xseeria/korvid/' + korvId + '/rajakaart', {
+      method: 'POST',
+      headers: { 'x-session-token': TOKEN },
+      body: fd,
+      signal: controller.signal
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.veateade || 'Serveri viga');
+    return true;
+  } finally {
+    clearTimeout(ajapiirang);
+  }
+}
+
 async function xsSalvestaFotod() {
   const teade = document.getElementById('xsFotoTeade');
   const muudetud = xsFotoSlotid.filter(s => s.uusFail);
   if (!muudetud.length) return;
   document.getElementById('xsFotoSalvestaNupp').disabled = true;
-  let tehtud = 0;
-  for (const s of muudetud) {
-    teade.className = 'teade ok'; teade.style.display = 'block';
-    teade.textContent = `Laen üles ${tehtud + 1}/${muudetud.length}...`;
-    const fd = new FormData();
-    fd.append('foto', s.uusFail);
-    await api('/api/xseeria/korvid/' + s.korvId + '/rajakaart', { method: 'POST', body: fd });
-    tehtud++;
+
+  let valmis = 0, ebaonnestunud = 0;
+  const KONKURENTSUS = 3;
+  teade.className = 'teade ok'; teade.style.display = 'block';
+  teade.textContent = `Laen üles 0/${muudetud.length}...`;
+
+  const jarjekord = muudetud.slice();
+  async function tootleja() {
+    while (jarjekord.length) {
+      const s = jarjekord.shift();
+      try {
+        await xsLaeUlesUksPilt(s.korvId, s.uusFail);
+        valmis++;
+      } catch (e) {
+        ebaonnestunud++;
+      }
+      teade.textContent = `Laen üles ${valmis + ebaonnestunud}/${muudetud.length}` + (ebaonnestunud ? ` (${ebaonnestunud} ebaõnnestus)` : '') + '...';
+    }
   }
-  teade.textContent = `✅ ${tehtud} pilti laetud üles`;
+  await Promise.all(Array.from({ length: Math.min(KONKURENTSUS, muudetud.length) }, tootleja));
+
+  teade.textContent = ebaonnestunud
+    ? `⚠️ ${valmis} pilti üles laetud, ${ebaonnestunud} ebaõnnestus — proovi ebaõnnestunud pildid uuesti`
+    : `✅ ${valmis} pilti üles laetud`;
   document.getElementById('xsFotoSalvestaNupp').disabled = false;
   await xsAvaFotoModal(xsFotoAsukohtId, document.getElementById('xsFotoParkNimi').textContent);
 }
