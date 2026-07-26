@@ -548,8 +548,10 @@ router.post('/event/:eventId/sponsorid/:sponsorId/staatus', noudaLubatud, async 
       [req.params.eventId, req.params.sponsorId]
     );
     if (!req.session.isAdmin) {
-      const vastutajaId = olemasolev.rows[0]?.vastutaja_id || null;
-      if (vastutajaId !== req.session.workerId) {
+      const vastutajaId = olemasolev.rows[0]?.vastutaja_id ?? null;
+      // String() võrdlus, mitte ===, sest workerId võib tulla sessioonist stringina, aga DB-st numbrina —
+      // range võrdlus jätaks siis igal juhul vahele, isegi kui tegelikult sama töötaja.
+      if (String(vastutajaId) !== String(req.session.workerId)) {
         return res.status(403).json({ ok: false, veateade: 'See sponsor pole sulle määratud' });
       }
     }
@@ -653,8 +655,10 @@ router.get('/event/:eventId/tegevused', noudaLubatud, async (req, res) => {
   try {
     const workerId = req.session.workerId || null;
     const koik = await laadiTegevusedJaInimesed(req.params.eventId);
+    // String() võrdlus, sest workerId võib sessioonis olla string, samal ajal kui DB-st tuleb worker_id numbrina —
+    // range === võrdlus (p.id === workerId) jätaks siis KÕIK tegevused vahele, isegi õigesti määratutel.
     const tegevused = workerId
-      ? koik.filter(t => t.inimesed.some(p => p.id === workerId))
+      ? koik.filter(t => t.inimesed.some(p => String(p.id) === String(workerId)))
       : koik;
     res.json({ ok: true, tegevused });
   } catch (err) {
