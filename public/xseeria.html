@@ -176,10 +176,13 @@ function kaart(k) {
   return `
     <div class="card">
       <div class="rida1"><div class="nimi">Rada nr ${escapeHtml(k.number)}</div></div>
-      ${k.foto_url ? `<img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block">` : ''}
-      <label class="foto-nupp" style="margin-top:8px">📷 ${k.foto_url ? 'Vaheta rajakaart' : 'Lisa rajakaart'}
-        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
-      </label>
+      ${k.foto_url ? `<a href="${k.foto_url}" target="_blank"><img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block"></a>` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label class="foto-nupp" style="margin:0">📷 ${k.foto_url ? 'Vaheta pilt' : 'Lisa pilt'}
+          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
+        </label>
+        ${k.foto_url ? `<button class="foto-nupp" style="border:0.5px solid #333;color:#f87171;background:#1e2128" onclick="kustutaRajakaart(${k.id})">🗑 Kustuta pilt</button>` : ''}
+      </div>
       <div class="staatused">
         <button class="stbtn ${done ? 'done' : ''}" onclick="toggleKorv(${k.id}, 'paigaldatud', ${done})">
           ${done ? '✅ Paigaldatud' : '⬜ Märgi paigaldatuks'}
@@ -207,6 +210,12 @@ async function laeUlesRajakaart(korvId, input) {
   const fd = new FormData();
   fd.append('foto', file);
   await api('/korvid/' + korvId + '/rajakaart', { method: 'POST', body: fd });
+  laadiKorvid();
+}
+
+async function kustutaRajakaart(korvId) {
+  if (!confirm('Kustutada selle raja pilt?')) return;
+  await api('/korvid/' + korvId + '/rajakaart', { method: 'DELETE' });
   laadiKorvid();
 }
 
