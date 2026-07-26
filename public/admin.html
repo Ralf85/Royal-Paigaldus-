@@ -1534,6 +1534,9 @@ function laadiCSV(e) {
 
 async function laadiTootajad() {
   const workers = await api('/api/admin/tootajad');
+  const xsLubatudList = await api('/api/xseeria/admin/lubatud');
+  const xsLubatudMap = {};
+  if (Array.isArray(xsLubatudList)) xsLubatudList.forEach(w => xsLubatudMap[w.id] = w.lubatud);
   const div = document.getElementById('tootajadSisu');
   let html = '';
   for(const w of workers) {
@@ -1541,11 +1544,12 @@ async function laadiTootajad() {
     const weMap = {};
     we.forEach(x => weMap[x.ettevote_id] = x.tunnitasu);
     const ettevotteNimed = kõikEttevotted.filter(e => weMap[e.id] !== undefined).map(e => e.nimi).join(', ');
+    const onXs = !!xsLubatudMap[w.id];
     html += `<div class="tootaja-kompakt">
       <div class="tootaja-rida" onclick="toggleTootajaDetail(${w.id})">
         <div class="tootaja-avatar">${w.nimi[0]}</div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'var(--tekst)':'var(--hall)'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:var(--hall)">(mitteaktiivne)</span>':''}</div>
+          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'var(--tekst)':'var(--hall)'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:var(--hall)">(mitteaktiivne)</span>':''}${onXs?' <span style="font-size:10px;color:#c9a84c">🥏 X-seeria</span>':''}</div>
           <div style="font-size:11px;color:var(--hall);margin-top:2px">PIN: ${w.pin}${ettevotteNimed?' · '+ettevotteNimed:''}</div>
         </div>
         <span id="tootaja-nool-${w.id}" style="color:var(--hall);font-size:12px">▼</span>
@@ -1558,6 +1562,9 @@ async function laadiTootajad() {
           <input type="email" value="${w.email||''}" id="we-${w.id}" placeholder="email" style="width:160px">
           <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:5px">
             <input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"> Aktiivne
+          </label>
+          <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:5px">
+            <input type="checkbox" ${onXs?'checked':''} onchange="toggleXseeriaLuba(${w.id}, this.checked)"> 🥏 X-seeria
           </label>
           <button class="nupp hall" style="font-size:12px;padding:6px 14px" onclick="uuendaTootaja(${w.id})">Salvesta</button>
           <button class="nupp kustuta-tootaja" onclick="kustutaTootaja(${w.id}, '${w.nimi}')">🗑 Kustuta</button>
@@ -1588,6 +1595,13 @@ function toggleTootajaDetail(id) {
   const nhtav = detail.style.display !== 'none';
   detail.style.display = nhtav ? 'none' : 'block';
   nool.textContent = nhtav ? '▼' : '▲';
+}
+
+// Sama lubatud/keelatud lipp, mida kasutab ka X-seeria tabi "Töötajate ligipääs" — hallatav nüüd
+// mugavalt ka siit, üldisest Töötajad vaatest, ilma X-seeria tabi vahetamata.
+async function toggleXseeriaLuba(workerId, lubatud) {
+  await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  laadiTootajad();
 }
 
 async function lisaTootaja() {
@@ -2248,6 +2262,7 @@ let xsAktiivneEventId = null;
 
 async function xsLaadiTab() {
   xsTaidaNumbriDropdownid();
+  xsTootajad = []; // värskenda vastutaja-valikut iga kord, kui tab avatakse (kui vahepeal keegi Töötajad tabis lubasid muutis)
   await xsLaadiEvents();
   await xsLaadiLubatud();
 }
@@ -2710,9 +2725,11 @@ async function xsToggleLubatud(workerId, lubatud) {
 let xsTootajad = [];
 
 async function xsLaadiTootajaValikud() {
-  if (xsTootajad.length) return; // laadi töötajad ainult üks kord tabi kohta
-  const workers = await api('/api/admin/tootajad');
-  xsTootajad = Array.isArray(workers) ? workers.filter(w => w.aktiivne) : [];
+  if (xsTootajad.length) return; // laadi ainult üks kord tabi avamise kohta (xsLaadiTab tühjendab selle iga avamisel)
+  // Näita Vastutaja valikus AINULT töötajaid, kellel on X-seeria ligipääs lubatud (Töötajad tabi "🥏 X-seeria" linnuke) —
+  // nii ei sega valikut pooled inimesed, kes X-seeriaga tegelikult üldse tegemist ei tee.
+  const d = await api('/api/xseeria/admin/lubatud');
+  xsTootajad = Array.isArray(d) ? d.filter(w => w.lubatud) : [];
   const sel = document.getElementById('xs-ul-vastutaja');
   sel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
 }
