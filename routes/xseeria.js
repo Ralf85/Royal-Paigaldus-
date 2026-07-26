@@ -154,6 +154,20 @@ router.post('/korvid/:id/rajakaart', noudaLubatud, upload.single('foto'), async 
   }
 });
 
+router.delete('/korvid/:id/rajakaart', noudaLubatud, async (req, res) => {
+  try {
+    const vana = await pool.query('SELECT foto_public_id FROM xseeria_korvid WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Rada ei leitud' });
+    if (vana.rows[0].foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
+    }
+    await pool.query('UPDATE xseeria_korvid SET foto_url=NULL, foto_public_id=NULL WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ---------- ADMIN: võistlused ----------
 
 router.get('/admin/events', noudaAdmin, async (req, res) => {
