@@ -1142,6 +1142,46 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
+    <div class="kaart" id="xs-ulesanded-kaart" style="display:none">
+      <div class="kaart-hdr">✅ Ülesanded — <span id="xs-ul-event-nimi"></span></div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Organisatoorne checklist selle võistluse jaoks (bännerid, sponsoritooted, transport jne). Nähtav ainult adminnile.</div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp" style="grid-column:span 2"><label>Ülesanne</label><input id="xs-ul-tekst" placeholder="Too Sportlandist bännerid"></div>
+          <div class="vorm-grupp"><label>Kategooria</label><input id="xs-ul-kategooria" placeholder="Sportland"></div>
+          <div class="vorm-grupp"><label>Tähtaeg</label><input id="xs-ul-tahtaeg" type="date"></div>
+        </div>
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Vastutaja (valikuline)</label><select id="xs-ul-vastutaja"><option value="">— Vastutaja pole —</option></select></div>
+          <div class="vorm-grupp" style="justify-content:flex-end;flex-direction:row;gap:8px">
+            <button class="nupp kull" id="xs-ul-nupp" onclick="xsLisaUlesanne()">+ Lisa ülesanne</button>
+            <button class="nupp hall" id="xs-ul-tyhista" style="display:none" onclick="xsTyhistaUlesandeEdit()">Tühista</button>
+          </div>
+        </div>
+        <div class="teade" id="xs-ul-teade"></div>
+        <div id="xs-ul-nimekiri" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <div class="kaart" id="xs-sponsorid-kaart" style="display:none">
+      <div class="kaart-hdr">🎁 Sponsorid</div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Sponsorid on üks ühine nimekiri kõigi võistluste peale (nad ei kao etapiga, vaid lisanduvad) — uue sponsori lisamisel ilmub see kohe kõigi (ka juba loodud) võistluste alla. Pickup/tagastuse staatus ja kuupäevad märgid iga võistluse jaoks eraldi allpool tabelis.</div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp"><label>Sponsori nimi</label><input id="xs-sp-nimi" placeholder="Sportland"></div>
+          <div class="vorm-grupp"><label>Kontakt</label><input id="xs-sp-kontakt" placeholder="info@sportland.ee"></div>
+          <div class="vorm-grupp" style="grid-column:span 2"><label>Tavapärased tooted</label><input id="xs-sp-tooted" placeholder="Bännerid, SUVI prillid"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="nupp kull" id="xs-sp-nupp" onclick="xsLisaSponsor()">+ Lisa sponsor üldnimekirja</button>
+          <button class="nupp hall" id="xs-sp-tyhista" style="display:none" onclick="xsTyhistaSponsorEdit()">Tühista</button>
+        </div>
+        <div class="teade" id="xs-sp-teade"></div>
+        <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.8px;margin:16px 0 8px" id="xs-sp-tabel-pealkiri">Staatus — <span id="xs-sp-event-nimi"></span></div>
+        <div id="xs-sp-tabel"></div>
+      </div>
+    </div>
+
     <div class="kaart">
       <div class="kaart-hdr">👷 X-seeria — Töötajate ligipääs</div>
       <div class="kaart-body">
@@ -2228,14 +2268,20 @@ async function xsLaadiEvents() {
 
   const asKaart = document.getElementById('xs-asukohad-kaart');
   const editKaart = document.getElementById('xs-event-edit');
+  const ulKaart = document.getElementById('xs-ulesanded-kaart');
+  const spKaart = document.getElementById('xs-sponsorid-kaart');
   if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
     const aktiivne = xsEvents.find(e => e.aktiivne);
     xsAktiivneEventId = aktiivne ? aktiivne.id : (xsEvents.length ? xsEvents[0].id : null);
   }
   if (xsAktiivneEventId) {
     asKaart.style.display = 'block';
+    ulKaart.style.display = 'block';
+    spKaart.style.display = 'block';
     const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
     document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-ul-event-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-sp-event-nimi').textContent = ev ? ev.nimi : '';
     if (ev) {
       editKaart.style.display = 'block';
       document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
@@ -2243,15 +2289,22 @@ async function xsLaadiEvents() {
       document.getElementById('xs-ev-edit-hooaeg').value = ev.hooaeg;
     }
     await xsLaadiAsukohad();
+    await xsLaadiTootajaValikud();
+    await xsLaadiUlesanded();
+    await xsLaadiSponsoridTabel();
   } else {
     asKaart.style.display = 'none';
     editKaart.style.display = 'none';
+    ulKaart.style.display = 'none';
+    spKaart.style.display = 'none';
   }
 }
 
 async function xsVahetaEvent(id) {
   xsAktiivneEventId = id;
   xsTyhistaParkEdit();
+  xsTyhistaUlesandeEdit();
+  xsTyhistaSponsorEdit();
   await xsLaadiEvents();
 }
 
@@ -2440,6 +2493,7 @@ function xsJoonistaFotoGrid() {
         <div style="position:relative;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);border:0.5px solid ${uus ? '#c9a84c' : 'var(--sisend-piir)'};cursor:pointer" onclick="xsVahetaUksPilt(${i})">
           ${pilt ? `<img src="${pilt}" style="width:100%;height:100%;object-fit:cover">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--hall);font-size:11px">tühi</div>`}
           ${uus ? `<div style="position:absolute;top:2px;right:2px;background:#c9a84c;color:#0d0f13;font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px">uus</div>` : ''}
+          ${pilt ? `<button onclick="event.stopPropagation();xsKustutaFotoSlot(${i})" title="Eemalda pilt" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(15,17,22,0.85);color:#f87171;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">✕</button>` : ''}
         </div>
         <div style="font-size:11px;color:var(--hall);margin-top:4px">nr ${s.number}</div>
       </div>`;
@@ -2459,6 +2513,31 @@ function xsVahetaUksPilt(index) {
     xsUuendaFotoSalvestaNupp();
   };
   input.click();
+}
+
+// Eemalda üks pilt raja kohalt otse pildivõrgustikust (nt kui pilt sattus vale numbri alla).
+// Kui pilt on alles valitud, aga veel salvestamata (uusFail), eemaldatakse see lihtsalt valikust.
+// Kui pilt on juba serverisse üles laetud (olemasolevUrl), kustutatakse see kohe ka Cloudinarysest/andmebaasist.
+async function xsKustutaFotoSlot(index) {
+  const s = xsFotoSlotid[index];
+  if (!s) return;
+
+  if (s.uusFail) {
+    if (s.eelvaadeUrl) URL.revokeObjectURL(s.eelvaadeUrl);
+    s.uusFail = null;
+    s.eelvaadeUrl = null;
+    xsJoonistaFotoGrid();
+    xsUuendaFotoSalvestaNupp();
+    return;
+  }
+
+  if (s.olemasolevUrl) {
+    if (!confirm(`Kustutada raja nr ${s.number} pilt?`)) return;
+    const r = await api('/api/xseeria/korvid/' + s.korvId + '/rajakaart', { method: 'DELETE' });
+    if (!r.ok) { alert('Kustutamine ebaõnnestus: ' + (r.veateade || 'tundmatu viga')); return; }
+    s.olemasolevUrl = null;
+    xsJoonistaFotoGrid();
+  }
 }
 
 function xsUuendaFotoSalvestaNupp() {
@@ -2614,6 +2693,192 @@ async function xsLaadiLubatud() {
 async function xsToggleLubatud(workerId, lubatud) {
   await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   await xsLaadiLubatud();
+}
+
+// ── X-SEERIA: ÜLESANDED (checklist) ───────────────────────────
+let xsTootajad = [];
+
+async function xsLaadiTootajaValikud() {
+  if (xsTootajad.length) return; // laadi töötajad ainult üks kord tabi kohta
+  const workers = await api('/api/admin/tootajad');
+  xsTootajad = Array.isArray(workers) ? workers.filter(w => w.aktiivne) : [];
+  const sel = document.getElementById('xs-ul-vastutaja');
+  sel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+}
+
+let xsMuudetavUlesanneId = null;
+
+async function xsLaadiUlesanded() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/ulesanded');
+  const div = document.getElementById('xs-ul-nimekiri');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.ulesanded.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Ülesandeid pole veel lisatud.</div>'; return; }
+  div.innerHTML = d.ulesanded.map(u => {
+    const tahtaeg = u.tahtaeg ? String(u.tahtaeg).slice(0,10) : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--piir3)${u.tehtud ? ';opacity:0.55' : ''}">
+      <input type="checkbox" ${u.tehtud ? 'checked' : ''} onchange="xsToggleUlesanne(${u.id})" style="width:auto;accent-color:#16a34a;cursor:pointer">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;${u.tehtud ? 'text-decoration:line-through;color:var(--hall)' : 'color:var(--tekst)'}">${escapeHtmlXs(u.tekst)}</div>
+        <div style="font-size:11px;color:var(--hall);margin-top:2px">
+          ${u.kategooria ? `<span style="background:var(--bg3);border-radius:4px;padding:1px 6px;margin-right:6px">${escapeHtmlXs(u.kategooria)}</span>` : ''}
+          ${tahtaeg ? `📅 ${tahtaeg} ` : ''}${u.vastutaja_nimi ? `· 👷 ${escapeHtmlXs(u.vastutaja_nimi)}` : ''}
+        </div>
+      </div>
+      <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaUlesandeEdit(${JSON.stringify(u).replace(/'/g, "&apos;")})'>✎</button>
+      <button class="nupp punane" onclick="xsKustutaUlesanne(${u.id})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtmlXs(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function xsToggleUlesanne(id) {
+  await api('/api/xseeria/admin/ulesanded/' + id + '/toggle', { method: 'POST' });
+  await xsLaadiUlesanded();
+}
+
+async function xsKustutaUlesanne(id) {
+  if (!confirm('Kustutada see ülesanne?')) return;
+  await api('/api/xseeria/admin/ulesanded/' + id, { method: 'DELETE' });
+  if (xsMuudetavUlesanneId === id) xsTyhistaUlesandeEdit();
+  await xsLaadiUlesanded();
+}
+
+function xsAlustaUlesandeEdit(u) {
+  xsMuudetavUlesanneId = u.id;
+  document.getElementById('xs-ul-tekst').value = u.tekst;
+  document.getElementById('xs-ul-kategooria').value = u.kategooria || '';
+  document.getElementById('xs-ul-tahtaeg').value = u.tahtaeg ? String(u.tahtaeg).slice(0,10) : '';
+  document.getElementById('xs-ul-vastutaja').value = u.vastutaja_id || '';
+  document.getElementById('xs-ul-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-ul-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-ul-teade').style.display = 'none';
+}
+
+function xsTyhistaUlesandeEdit() {
+  xsMuudetavUlesanneId = null;
+  document.getElementById('xs-ul-tekst').value = '';
+  document.getElementById('xs-ul-kategooria').value = '';
+  document.getElementById('xs-ul-tahtaeg').value = '';
+  document.getElementById('xs-ul-vastutaja').value = '';
+  document.getElementById('xs-ul-nupp').textContent = '+ Lisa ülesanne';
+  document.getElementById('xs-ul-tyhista').style.display = 'none';
+}
+
+async function xsLisaUlesanne() {
+  if (!xsAktiivneEventId) return;
+  const tekst = document.getElementById('xs-ul-tekst').value.trim();
+  const kategooria = document.getElementById('xs-ul-kategooria').value.trim();
+  const tahtaeg = document.getElementById('xs-ul-tahtaeg').value;
+  const vastutaja_id = document.getElementById('xs-ul-vastutaja').value;
+  const teade = document.getElementById('xs-ul-teade');
+  if (!tekst) {
+    teade.className = 'teade viga'; teade.textContent = 'Kirjuta ülesande tekst'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ tekst, kategooria, tahtaeg, vastutaja_id });
+  const d = xsMuudetavUlesanneId
+    ? await api('/api/xseeria/admin/ulesanded/' + xsMuudetavUlesanneId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/ulesanded', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaUlesandeEdit();
+  await xsLaadiUlesanded();
+}
+
+// ── X-SEERIA: SPONSORID (globaalne nimekiri + per-event staatus) ──
+let xsMuudetavSponsorId = null;
+
+async function xsLaadiSponsoridTabel() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid');
+  const div = document.getElementById('xs-sp-tabel');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud.</div>'; return; }
+  const staatused = { ootel: 'Ootel', kaes: 'Käes', tagastatud: 'Tagastatud' };
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Tooted</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th></th></tr></thead><tbody>` +
+    d.sponsorid.map(s => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}${s.kontakt ? `<div style="font-size:11px;color:var(--hall);font-weight:400">${escapeHtmlXs(s.kontakt)}</div>` : ''}</td>
+      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.tooted || '—')}</td>
+      <td><select id="xs-sp-staatus-${s.sponsor_id}" style="width:auto;font-size:12px">
+        ${Object.entries(staatused).map(([v,l]) => `<option value="${v}" ${s.staatus===v?'selected':''}>${l}</option>`).join('')}
+      </select></td>
+      <td><input type="date" id="xs-sp-jargi-${s.sponsor_id}" value="${s.jargi_kp ? String(s.jargi_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
+      <td><input type="date" id="xs-sp-tagastatud-${s.sponsor_id}" value="${s.tagastatud_kp ? String(s.tagastatud_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾</button>
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp punane" onclick="xsKustutaSponsor(${s.sponsor_id}, ${JSON.stringify(s.nimi)})">🗑</button>
+      </td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+async function xsUuendaSponsorStaatus(sponsorId) {
+  if (!xsAktiivneEventId) return;
+  const staatus = document.getElementById('xs-sp-staatus-' + sponsorId).value;
+  const jargi_kp = document.getElementById('xs-sp-jargi-' + sponsorId).value;
+  const tagastatud_kp = document.getElementById('xs-sp-tagastatud-' + sponsorId).value;
+  await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid/' + sponsorId, {
+    method: 'PUT', body: JSON.stringify({ staatus, jargi_kp, tagastatud_kp })
+  });
+  await xsLaadiSponsoridTabel();
+}
+
+function xsAlustaSponsorEdit(s) {
+  xsMuudetavSponsorId = s.sponsor_id;
+  document.getElementById('xs-sp-nimi').value = s.nimi;
+  document.getElementById('xs-sp-kontakt').value = s.kontakt || '';
+  document.getElementById('xs-sp-tooted').value = s.tooted || '';
+  document.getElementById('xs-sp-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-sp-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-sp-teade').style.display = 'none';
+  document.getElementById('xs-sp-nimi').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function xsTyhistaSponsorEdit() {
+  xsMuudetavSponsorId = null;
+  document.getElementById('xs-sp-nimi').value = '';
+  document.getElementById('xs-sp-kontakt').value = '';
+  document.getElementById('xs-sp-tooted').value = '';
+  document.getElementById('xs-sp-nupp').textContent = '+ Lisa sponsor üldnimekirja';
+  document.getElementById('xs-sp-tyhista').style.display = 'none';
+}
+
+async function xsLisaSponsor() {
+  const nimi = document.getElementById('xs-sp-nimi').value.trim();
+  const kontakt = document.getElementById('xs-sp-kontakt').value.trim();
+  const tooted = document.getElementById('xs-sp-tooted').value.trim();
+  const teade = document.getElementById('xs-sp-teade');
+  if (!nimi) {
+    teade.className = 'teade viga'; teade.textContent = 'Sponsori nimi on kohustuslik'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ nimi, kontakt, tooted });
+  const d = xsMuudetavSponsorId
+    ? await api('/api/xseeria/admin/sponsorid/' + xsMuudetavSponsorId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/sponsorid', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaSponsorEdit();
+  await xsLaadiSponsoridTabel();
+}
+
+async function xsKustutaSponsor(sponsorId, nimi) {
+  if (!confirm(`Kustutada sponsor "${nimi}" TÄIELIKULT üldnimekirjast (kõigi võistluste alt)?`)) return;
+  await api('/api/xseeria/admin/sponsorid/' + sponsorId, { method: 'DELETE' });
+  if (xsMuudetavSponsorId === sponsorId) xsTyhistaSponsorEdit();
+  await xsLaadiSponsoridTabel();
 }
 
 init();
