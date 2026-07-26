@@ -2927,7 +2927,7 @@ async function xsLaadiSponsoriStaatusTabel() {
   if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
   if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud — lisa need pealehel "🎁 Sponsorid" alt.</div>'; return; }
   const staatused = { ootel: 'Ootel', kaes: 'Käes', tagastatud: 'Tagastatud' };
-  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th></th></tr></thead><tbody>` +
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th>Kommentaar</th><th>Vastutaja</th><th></th></tr></thead><tbody>` +
     d.sponsorid.map(s => `<tr>
       <td style="font-weight:600">${escapeHtmlXs(s.nimi)}</td>
       <td><select id="xs-sp-staatus-${s.sponsor_id}" style="width:auto;font-size:12px">
@@ -2935,6 +2935,11 @@ async function xsLaadiSponsoriStaatusTabel() {
       </select></td>
       <td><input type="date" id="xs-sp-jargi-${s.sponsor_id}" value="${s.jargi_kp ? String(s.jargi_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
       <td><input type="date" id="xs-sp-tagastatud-${s.sponsor_id}" value="${s.tagastatud_kp ? String(s.tagastatud_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
+      <td><input type="text" id="xs-sp-markused-${s.sponsor_id}" value="${escapeHtmlXs(s.markused || '')}" placeholder="nt too bännerid kontorist" style="font-size:12px;min-width:140px"></td>
+      <td><select id="xs-sp-vastutaja-${s.sponsor_id}" style="width:auto;font-size:12px">
+        <option value="">— Vastutaja pole —</option>
+        ${xsTootajad.map(w => `<option value="${w.id}" ${s.vastutaja_id===w.id?'selected':''}>${w.nimi}</option>`).join('')}
+      </select></td>
       <td><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾 Salvesta</button></td>
     </tr>`).join('') + '</tbody></table>';
 }
@@ -2944,8 +2949,10 @@ async function xsUuendaSponsorStaatus(sponsorId) {
   const staatus = document.getElementById('xs-sp-staatus-' + sponsorId).value;
   const jargi_kp = document.getElementById('xs-sp-jargi-' + sponsorId).value;
   const tagastatud_kp = document.getElementById('xs-sp-tagastatud-' + sponsorId).value;
+  const markused = document.getElementById('xs-sp-markused-' + sponsorId).value;
+  const vastutaja_id = document.getElementById('xs-sp-vastutaja-' + sponsorId).value;
   await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid/' + sponsorId, {
-    method: 'PUT', body: JSON.stringify({ staatus, jargi_kp, tagastatud_kp })
+    method: 'PUT', body: JSON.stringify({ staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id })
   });
   await xsLaadiSponsoriStaatusTabel();
 }
