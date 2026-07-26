@@ -56,8 +56,6 @@
 
 <script>
 let token = localStorage.getItem('workerToken');
-let aktiivneEvent = null;
-let vaade = { tase: 'start' }; // start | kategooriad | rajad | asukohad | korvid
 
 if (!token) {
   document.getElementById('sisu').innerHTML = '<div class="empty">Sa pole sisse logitud.<br><br>Ava esmalt <a href="/tootaja">Töötaja rakendus</a> ja logi oma PIN-koodiga sisse, seejärel ava see leht uuesti.</div>';
@@ -75,7 +73,7 @@ async function algatus() {
     }
     document.getElementById('kes').textContent = 'Tere, ' + s.nimi;
   } catch (e) {}
-  naitaAlgus();
+  naitaVoistlused();
 }
 
 async function api(path, opts = {}) {
@@ -92,10 +90,11 @@ function breadcrumb(parts) {
   ).join(' ');
 }
 
-// ── TASE 0: laadi aktiivne etapp ──────────────────────────────
-async function naitaAlgus() {
-  const kontroll = await api('/kontroll');
+// ── TASE 1: kõik võistlused ──────────────────────────────────
+async function naitaVoistlused() {
+  breadcrumb([]);
   const sisu = document.getElementById('sisu');
+  const kontroll = await api('/kontroll');
   if (kontroll.ok === false && kontroll.veateade === 'Palun logi sisse') {
     sisu.innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja">Töötaja rakendus</a> ja logi uuesti sisse.</div>';
     return;
@@ -104,81 +103,55 @@ async function naitaAlgus() {
     sisu.innerHTML = '<div class="empty">Sul pole veel X-seeria ligipääsu.<br>Palu adminil see lubada.</div>';
     return;
   }
-  const d = await api('/aktiivne');
-  if (!d.ok || !d.event) {
-    sisu.innerHTML = '<div class="empty">Hetkel pole aktiivset etappi.<br>Küsi adminilt.</div>';
+  const d = await api('/events');
+  if (!d.ok || !d.events.length) {
+    sisu.innerHTML = '<div class="empty">Ühtegi võistlust pole veel lisatud.<br>Küsi adminilt.</div>';
     return;
   }
-  aktiivneEvent = d.event;
-  breadcrumb([{ tekst: aktiivneEvent.nimi }]);
-  naitaKategooriad();
-}
-
-// ── TASE 1: kategooriad (esialgu ainult RADA) ─────────────────
-function naitaKategooriad() {
-  breadcrumb([{ tekst: aktiivneEvent.nimi }]);
-  const sisu = document.getElementById('sisu');
-  sisu.innerHTML = `
-    <div class="tile" onclick="naitaRajad()">
-      <div class="ikoon">🗺️</div>
-      <div class="info"><div class="nimi">RADA</div><div class="sub">Korvide paigaldus ja puhastus</div></div>
-    </div>`;
-}
-
-// ── TASE 2: rajad ──────────────────────────────────────────────
-async function naitaRajad() {
-  breadcrumb([
-    { tekst: aktiivneEvent.nimi, onclick: 'naitaKategooriad()' },
-    { tekst: 'RADA' }
-  ]);
-  const sisu = document.getElementById('sisu');
-  sisu.innerHTML = 'Laadimine...';
-  const d = await api('/event/' + aktiivneEvent.id + '/rajad');
-  if (!d.ok || !d.rajad.length) { sisu.innerHTML = '<div class="empty">Radu pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
-  sisu.innerHTML = d.rajad.map(r => `
-    <div class="tile" onclick="naitaAsukohad(${r.id}, '${escapeAttr(r.nimi)}')">
-      <div class="ikoon">🛣️</div>
-      <div class="info"><div class="nimi">${escapeHtml(r.nimi)}</div><div class="sub">${r.punktide_arv} punkti</div></div>
+  sisu.innerHTML = d.events.map(e => `
+    <div class="tile" onclick="naitaAsukohad(${e.id}, '${escapeAttr(e.nimi)}')">
+      <div class="ikoon">🏆</div>
+      <div class="info">
+        <div class="nimi">${escapeHtml(e.nimi)}</div>
+        <div class="sub">${fmtKp(e.kuupaev)}${e.aktiivne ? ' · praegu aktiivne' : ''}</div>
+      </div>
     </div>`).join('');
 }
 
-// ── TASE 3: asukohad (punktid) ─────────────────────────────────
-async function naitaAsukohad(radaId, radaNimi) {
+// ── TASE 2: pargid (asukohad) otse võistluse all ──────────────
+async function naitaAsukohad(eventId, eventNimi) {
   breadcrumb([
-    { tekst: aktiivneEvent.nimi, onclick: 'naitaKategooriad()' },
-    { tekst: 'RADA', onclick: 'naitaRajad()' },
-    { tekst: radaNimi }
+    { tekst: eventNimi }
   ]);
   const sisu = document.getElementById('sisu');
   sisu.innerHTML = 'Laadimine...';
-  const d = await api('/rada/' + radaId + '/asukohad');
+  const d = await api('/event/' + eventId + '/asukohad');
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
-  if (!d.asukohad.length) { sisu.innerHTML = '<div class="empty">Punkte pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
+  if (!d.asukohad.length) { sisu.innerHTML = '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
   sisu.innerHTML = d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
+    const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
     return `
-    <div class="tile" onclick="naitaKorvid(${a.id}, '${escapeAttr(a.nimi)}', ${radaId}, '${escapeAttr(radaNimi)}')">
+    <div class="tile" onclick="naitaKorvid(${a.id}, '${escapeAttr(a.nimi)}', ${eventId}, '${escapeAttr(eventNimi)}')">
       <div class="ikoon">${a.foto_url ? '🖼️' : '📍'}</div>
       <div class="info">
         <div class="nimi">${escapeHtml(a.nimi)}</div>
-        <div class="sub">${a.korvide_koguarv} korvi${a.viskekohtade_arv ? ' · ' + a.viskekohtade_arv + ' viskekohta' : ''}</div>
+        <div class="sub">${a.korvide_koguarv} korvi${vahemik}${a.viskekohtade_arv ? ' · ' + a.viskekohtade_arv + ' viskekohta' : ''}</div>
       </div>
       <div class="progress ${valmis ? 'ok' : ''}">${a.paigaldatud_arv}/${a.korvide_koguarv}</div>
     </div>`;
   }).join('');
 }
 
-// ── TASE 4: korvid (üksikud, + rajakaart) ───────────────────────
+// ── TASE 3: korvid (üksikud, + rajakaart) ───────────────────────
 let praeguneAsukoht = null;
 
-async function naitaKorvid(asukohtId, asukohtNimi, radaId, radaNimi) {
+async function naitaKorvid(asukohtId, asukohtNimi, eventId, eventNimi) {
   breadcrumb([
-    { tekst: aktiivneEvent.nimi, onclick: 'naitaKategooriad()' },
-    { tekst: 'RADA', onclick: 'naitaRajad()' },
-    { tekst: radaNimi, onclick: `naitaAsukohad(${radaId}, '${escapeAttr(radaNimi)}')` },
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
     { tekst: asukohtNimi }
   ]);
-  praeguneAsukoht = { id: asukohtId, radaId, radaNimi };
+  praeguneAsukoht = { id: asukohtId, eventId, eventNimi };
   await laadiKorvid();
 }
 
@@ -212,7 +185,7 @@ function kaart(k) {
   const clean = k.puhastus_staatus === 'tehtud';
   return `
     <div class="card">
-      <div class="rida1"><div class="nimi">Korv nr ${escapeHtml(k.number)}</div></div>
+      <div class="rida1"><div class="nimi">Rada nr ${escapeHtml(k.number)}</div></div>
       <div class="staatused">
         <button class="stbtn ${done ? 'done' : ''}" onclick="toggleKorv(${k.id}, 'paigaldatud', ${done})">
           ${done ? '✅ Paigaldatud' : '⬜ Märgi paigaldatuks'}
@@ -247,6 +220,12 @@ function fmtAeg(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('et-EE') + ' ' + d.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtKp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('et-EE');
 }
 
 function escapeHtml(s) {
