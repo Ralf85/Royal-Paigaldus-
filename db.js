@@ -157,6 +157,59 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_workers (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(100) NOT NULL,
+        pin VARCHAR(10) NOT NULL UNIQUE,
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_admin (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(100) NOT NULL,
+        pin VARCHAR(10) NOT NULL UNIQUE,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_sessions (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(100) NOT NULL UNIQUE,
+        worker_id INTEGER REFERENCES xseeria_workers(id),
+        is_admin BOOLEAN DEFAULT false,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_events (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL,
+        kuupaev DATE NOT NULL,
+        hooaeg VARCHAR(20) DEFAULT 'suvi',
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS xseeria_asukohad (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        nimi VARCHAR(200) NOT NULL,
+        korvide_arv INTEGER NOT NULL DEFAULT 0,
+        viskekohtade_arv INTEGER DEFAULT 0,
+        jrk_nr INTEGER DEFAULT 0,
+        paigaldus_staatus VARCHAR(20) DEFAULT 'ootel',
+        paigaldas_id INTEGER REFERENCES xseeria_workers(id),
+        paigaldas_nimi VARCHAR(100),
+        paigaldatud_kell TIMESTAMP,
+        puhastus_staatus VARCHAR(20) DEFAULT 'ootel',
+        puhastas_id INTEGER REFERENCES xseeria_workers(id),
+        puhastas_nimi VARCHAR(100),
+        puhastatud_kell TIMESTAMP,
+        markused TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      INSERT INTO xseeria_admin (nimi, pin) VALUES ('Ralf', '2606')
+      ON CONFLICT (pin) DO NOTHING;
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
