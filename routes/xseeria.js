@@ -571,4 +571,95 @@ router.post('/event/:eventId/sponsorid/:sponsorId/staatus', noudaLubatud, async 
   }
 });
 
+// ---------- TEGEVUSED: logistika (korvide pealelaadimine, bussi toomine, tankimine jne) ----------
+// Kuupäev + kellaaeg + mitu inimest korraga. Ilma valmis/pooleli märkimiseta — puhas ajakava.
+// Kombineerib tegevused + neile määratud inimesed ilma json_agg/ANY() kasutamata (lihtsam, kindlam SQL).
+
+async function laadiTegevusedJaInimesed(eventId) {
+  const tegevused = await pool.query(
+    'SELECT id, tegevus, kuupaev, kellaaeg FROM xseeria_tegevused WHERE event_id=$1 ORDER BY kuupaev, kellaaeg, id',
+    [eventId]
+  );
+  const inimesed = await pool.query(
+    `SELECT ti.tegevus_id, w.id AS worker_id, w.nimi
+     FROM xseeria_tegevuse_inimesed ti
+     JOIN workers w ON w.id = ti.worker_id
+     JOIN xseeria_tegevused t ON t.id = ti.tegevus_id
+     WHERE t.event_id = $1`,
+    [eventId]
+  );
+  const map = {};
+  inimesed.rows.forEach(r => {
+    (map[r.tegevus_id] = map[r.tegevus_id] || []).push({ id: r.worker_id, nimi: r.nimi });
+  });
+  return tegevused.rows.map(t => ({ ...t, inimesed: map[t.id] || [] }));
+}
+
+router.get('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => {
+  try {
+    const tegevused = await laadiTegevusedJaInimesed(req.params.eventId);
+    res.json({ ok: true, tegevused });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => {
+  const { tegevus, kuupaev, kellaaeg, inimesed } = req.body;
+  if (!tegevus || !tegevus.trim()) return res.json({ ok: false, veateade: 'Tegevuse nimetus on kohustuslik' });
+  try {
+    const r = await pool.query(
+      'INSERT INTO xseeria_tegevused (event_id, tegevus, kuupaev, kellaaeg) VALUES ($1,$2,$3,$4) RETURNING id',
+      [req.params.eventId, tegevus.trim(), kuupaev || null, kellaaeg || null]
+    );
+    const tegevusId = r.rows[0].id;
+    const valitud = Array.isArray(inimesed) ? inimesed : [];
+    for (const workerId of valitud) {
+      await pool.query('INSERT INTO xseeria_tegevuse_inimesed (tegevus_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [tegevusId, workerId]);
+    }
+    res.json({ ok: true, id: tegevusId });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
+  const { tegevus, kuupaev, kellaaeg, inimesed } = req.body;
+  if (!tegevus || !tegevus.trim()) return res.json({ ok: false, veateade: 'Tegevuse nimetus on kohustuslik' });
+  try {
+    await pool.query(
+      'UPDATE xseeria_tegevused SET tegevus=$1, kuupaev=$2, kellaaeg=$3 WHERE id=$4',
+      [tegevus.trim(), kuupaev || null, kellaaeg || null, req.params.id]
+    );
+    await pool.query('DELETE FROM xseeria_tegevuse_inimesed WHERE tegevus_id=$1', [req.params.id]);
+    const valitud = Array.isArray(inimesed) ? inimesed : [];
+    for (const workerId of valitud) {
+      await pool.query('INSERT INTO xseeria_tegevuse_inimesed (tegevus_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, workerId]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM xseeria_tegevused WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// Töötaja näeb ainult neid tegevusi, kuhu ta ise on määratud (võib olla ka mitu inimest samal tegevusel —
+// siis näidatakse ka kaastöötajate nimesid, et oleks selge, kellega koos see tegevus tehakse).
+router.get('/event/:eventId/tegevused', noudaLubatud, async (req, res) => {
+  try {
+    const workerId = req.session.workerId || null;
+    const koik = await laadiTegevusedJaInimesed(req.params.eventId);
+    const tegevused = workerId
+      ? koik.filter(t => t.inimesed.some(p => p.id === workerId))
+      : koik;
+    res.json({ ok: true, tegevused });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 module.exports = router;
