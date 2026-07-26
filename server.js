@@ -63,7 +63,6 @@ app.get('/graafik-admin', (req, res) => res.sendFile(path.join(__dirname, 'publi
 app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin-login.html')));
 app.get('/kristo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kristo.html')));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
-app.get('/xseeria-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria-admin.html')));
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
