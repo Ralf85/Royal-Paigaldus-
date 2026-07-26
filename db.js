@@ -167,6 +167,13 @@ async function initDB() {
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS xseeria_rajad (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        nimi VARCHAR(200) NOT NULL DEFAULT 'Rada',
+        jrk_nr INTEGER DEFAULT 0,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS xseeria_asukohad (
         id SERIAL PRIMARY KEY,
         event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
@@ -190,6 +197,45 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
+    // X-seeria: rada tase + korvide (üksikute) tase + rajakaardi foto — lisatud olemasolevale skeemile
+    await client.query(`ALTER TABLE xseeria_asukohad ADD COLUMN IF NOT EXISTS rada_id INTEGER REFERENCES xseeria_rajad(id) ON DELETE CASCADE;`);
+    await client.query(`ALTER TABLE xseeria_asukohad ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+    await client.query(`ALTER TABLE xseeria_asukohad ADD COLUMN IF NOT EXISTS foto_public_id TEXT;`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_korvid (
+        id SERIAL PRIMARY KEY,
+        asukoht_id INTEGER REFERENCES xseeria_asukohad(id) ON DELETE CASCADE,
+        number VARCHAR(20) NOT NULL,
+        jrk_nr INTEGER DEFAULT 0,
+        paigaldus_staatus VARCHAR(20) DEFAULT 'ootel',
+        paigaldas_id INTEGER REFERENCES workers(id),
+        paigaldas_nimi VARCHAR(100),
+        paigaldatud_kell TIMESTAMP,
+        puhastus_staatus VARCHAR(20) DEFAULT 'ootel',
+        puhastas_id INTEGER REFERENCES workers(id),
+        puhastas_nimi VARCHAR(100),
+        puhastatud_kell TIMESTAMP,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    // Ühekordne migratsioon: varem loodud asukohad (enne rada-taset) said default "Rada" külge
+    const orbud = await client.query(`SELECT DISTINCT event_id FROM xseeria_asukohad WHERE rada_id IS NULL AND event_id IS NOT NULL`);
+    for (const row of orbud.rows) {
+      const uusRada = await client.query(`INSERT INTO xseeria_rajad (event_id, nimi) VALUES ($1, 'Rada') RETURNING id`, [row.event_id]);
+      await client.query(`UPDATE xseeria_asukohad SET rada_id=$1 WHERE event_id=$2 AND rada_id IS NULL`, [uusRada.rows[0].id, row.event_id]);
+    }
+    // Ühekordne migratsioon: asukohtadele, millel on korvide_arv aga veel ühtki korvi-kirjet, luuakse numbritatud korvid (1..N)
+    const tyhjad = await client.query(`
+      SELECT a.id, a.korvide_arv
+      FROM xseeria_asukohad a
+      LEFT JOIN xseeria_korvid k ON k.asukoht_id = a.id
+      WHERE a.korvide_arv > 0 AND k.id IS NULL
+    `);
+    for (const a of tyhjad.rows) {
+      for (let n = 1; n <= a.korvide_arv; n++) {
+        await client.query(`INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1, $2, $3)`, [a.id, String(n), n]);
+      }
+    }
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
