@@ -708,4 +708,54 @@ router.get('/event/:eventId/tegevused', noudaLubatud, async (req, res) => {
   }
 });
 
+// ---------- ADMIN: KULUDE RAPORT (toode, kogus, hind) ----------
+// Ainult adminnile — päris kulude ülevaade selle võistluse kohta, et pärast üritust näha, mis maksma läks.
+
+router.get('/admin/events/:eventId/kulud', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT id, toode, kogus, hind FROM xseeria_kulud WHERE event_id=$1 ORDER BY loodud',
+      [req.params.eventId]
+    );
+    const kulud = r.rows.map(k => ({ ...k, kokku: Number(k.kogus) * Number(k.hind) }));
+    const kokkuSumma = kulud.reduce((sum, k) => sum + k.kokku, 0);
+    res.json({ ok: true, kulud, kokkuSumma });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/admin/events/:eventId/kulud', noudaAdmin, async (req, res) => {
+  const { toode, kogus, hind } = req.body;
+  if (!toode || !toode.trim()) return res.json({ ok: false, veateade: 'Toote nimi on kohustuslik' });
+  try {
+    const r = await pool.query(
+      'INSERT INTO xseeria_kulud (event_id, toode, kogus, hind) VALUES ($1,$2,$3,$4) RETURNING id',
+      [req.params.eventId, toode.trim(), kogus || 1, hind || 0]
+    );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/admin/kulud/:id', noudaAdmin, async (req, res) => {
+  const { toode, kogus, hind } = req.body;
+  if (!toode || !toode.trim()) return res.json({ ok: false, veateade: 'Toote nimi on kohustuslik' });
+  try {
+    await pool.query(
+      'UPDATE xseeria_kulud SET toode=$1, kogus=$2, hind=$3 WHERE id=$4',
+      [toode.trim(), kogus || 1, hind || 0, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin/kulud/:id', noudaAdmin, async (req, res) => {
+  await pool.query('DELETE FROM xseeria_kulud WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 module.exports = router;
