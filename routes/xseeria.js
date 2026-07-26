@@ -479,9 +479,10 @@ router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
     const r = await pool.query(
       `SELECT s.id AS sponsor_id, s.nimi, s.kontakt, s.tooted,
          es.id AS staatuse_id, COALESCE(es.staatus, 'ootel') AS staatus,
-         es.jargi_kp, es.tagastatud_kp, es.markused
+         es.jargi_kp, es.tagastatud_kp, es.markused, es.vastutaja_id, w.nimi AS vastutaja_nimi
        FROM xseeria_sponsorid s
        LEFT JOIN xseeria_event_sponsorid es ON es.sponsor_id = s.id AND es.event_id = $1
+       LEFT JOIN workers w ON w.id = es.vastutaja_id
        ORDER BY s.nimi`,
       [req.params.eventId]
     );
@@ -491,17 +492,68 @@ router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
   }
 });
 
-// Uuenda/loo selle võistluse+sponsori staatuse rida (upsert)
+// Uuenda/loo selle võistluse+sponsori staatuse rida (upsert) — admin saab muuta kõike, sh vastutajat ja kommentaari
 router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req, res) => {
-  const { staatus, jargi_kp, tagastatud_kp, markused } = req.body;
+  const { staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id } = req.body;
   try {
     await pool.query(
-      `INSERT INTO xseeria_event_sponsorid (event_id, sponsor_id, staatus, jargi_kp, tagastatud_kp, markused, uuendatud)
-       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+      `INSERT INTO xseeria_event_sponsorid (event_id, sponsor_id, staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id, uuendatud)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
        ON CONFLICT (event_id, sponsor_id) DO UPDATE SET
          staatus=EXCLUDED.staatus, jargi_kp=EXCLUDED.jargi_kp, tagastatud_kp=EXCLUDED.tagastatud_kp,
-         markused=EXCLUDED.markused, uuendatud=NOW()`,
-      [req.params.eventId, req.params.sponsorId, staatus || 'ootel', jargi_kp || null, tagastatud_kp || null, markused || null]
+         markused=EXCLUDED.markused, vastutaja_id=EXCLUDED.vastutaja_id, uuendatud=NOW()`,
+      [req.params.eventId, req.params.sponsorId, staatus || 'ootel', jargi_kp || null, tagastatud_kp || null, markused || null, vastutaja_id || null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ---------- WORKER: sponsori "käsklus" (nimi, vastutaja, kommentaar) + kiire staatuse muutmine ----------
+// Nähtav igale X-seeria ligipääsuga töötajale (mitte ainult vastutajale) — nagu paigaldus/puhastus checklist.
+
+router.get('/event/:eventId/sponsorid', noudaLubatud, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT s.id AS sponsor_id, s.nimi, s.kontakt, s.tooted,
+         COALESCE(es.staatus, 'ootel') AS staatus, es.jargi_kp, es.tagastatud_kp, es.markused,
+         w.nimi AS vastutaja_nimi
+       FROM xseeria_sponsorid s
+       LEFT JOIN xseeria_event_sponsorid es ON es.sponsor_id = s.id AND es.event_id = $1
+       LEFT JOIN workers w ON w.id = es.vastutaja_id
+       ORDER BY s.nimi`,
+      [req.params.eventId]
+    );
+    res.json({ ok: true, sponsorid: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Töötaja saab kiirelt märkida staatuse (ootel/käes/tagastatud) — ei puuduta vastutajat ega kommentaari,
+// neid haldab ainult admin. Kuupäev täidetakse automaatselt, kui seda pole veel varem pandud.
+router.post('/event/:eventId/sponsorid/:sponsorId/staatus', noudaLubatud, async (req, res) => {
+  const { staatus } = req.body;
+  if (!['ootel', 'kaes', 'tagastatud'].includes(staatus)) {
+    return res.json({ ok: false, veateade: 'Vigane staatus' });
+  }
+  try {
+    const olemasolev = await pool.query(
+      'SELECT jargi_kp, tagastatud_kp FROM xseeria_event_sponsorid WHERE event_id=$1 AND sponsor_id=$2',
+      [req.params.eventId, req.params.sponsorId]
+    );
+    let jargi_kp = olemasolev.rows[0]?.jargi_kp || null;
+    let tagastatud_kp = olemasolev.rows[0]?.tagastatud_kp || null;
+    const tana = new Date().toISOString().slice(0, 10);
+    if (staatus === 'kaes' && !jargi_kp) jargi_kp = tana;
+    if (staatus === 'tagastatud' && !tagastatud_kp) tagastatud_kp = tana;
+    await pool.query(
+      `INSERT INTO xseeria_event_sponsorid (event_id, sponsor_id, staatus, jargi_kp, tagastatud_kp, uuendatud)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (event_id, sponsor_id) DO UPDATE SET
+         staatus=EXCLUDED.staatus, jargi_kp=EXCLUDED.jargi_kp, tagastatud_kp=EXCLUDED.tagastatud_kp, uuendatud=NOW()`,
+      [req.params.eventId, req.params.sponsorId, staatus, jargi_kp, tagastatud_kp]
     );
     res.json({ ok: true });
   } catch (err) {
