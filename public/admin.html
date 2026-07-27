@@ -1079,7 +1079,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart">
       <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
         <span>🥏 X-seeria — Võistlused</span>
-        <button class="nupp hall" style="padding:5px 12px;font-size:12px" onclick="xsMineePealehele()">🏠 Pealeht</button>
+        <span style="display:flex;gap:8px">
+          <button class="nupp kull" style="padding:5px 12px;font-size:12px" onclick="xsAvaKuluRaport()">💰 Kulude raport</button>
+          <button class="nupp hall" style="padding:5px 12px;font-size:12px" onclick="xsMineePealehele()">🏠 Pealeht</button>
+        </span>
       </div>
       <div class="kaart-body">
         <div id="xs-eventpick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
@@ -1252,6 +1255,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
       <div class="kaart-body" id="xs-kulu-body" style="display:none">
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Päris kulud selle võistluse jaoks — lisa iga ost (toode, kogus, hind), et pärast üritust näha kokkuvõtvat summat. Nähtav ainult adminnile.</div>
+        <div id="xs-kulu-kokku-box" style="background:var(--bg3);border:0.5px solid var(--sisend-piir);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--tekst3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Kokku kulud</span>
+          <span id="xs-kulu-kokku-summa" style="font-size:26px;font-weight:800;color:#c9a84c">0,00 €</span>
+        </div>
         <div class="vorm-rida col4">
           <div class="vorm-grupp" style="grid-column:span 2"><label>Toode</label><input id="xs-kulu-toode" placeholder="Bännerid"></div>
           <div class="vorm-grupp"><label>Kogus</label><input id="xs-kulu-kogus" type="number" step="0.01" min="0" value="1"></div>
@@ -2460,6 +2467,20 @@ async function xsVahetaEvent(id) {
   await xsLaadiEvents();
 }
 
+// Kiirnupp "💰 Kulude raport" pealehe päises — avab valitud ürituse Kulude raporti kaardi ja kerib sinna.
+function xsAvaKuluRaport() {
+  if (!xsAktiivneEventId) {
+    alert('Vali kõigepealt võistlus, mille kulusid soovid vaadata (või lisa uus võistlus).');
+    return;
+  }
+  const body = document.getElementById('xs-kulu-body');
+  const nool = document.getElementById('xs-kulu-nool');
+  if (body) body.style.display = 'block';
+  if (nool) nool.textContent = '▲';
+  const kaart = document.getElementById('xs-kulud-kaart');
+  if (kaart) kaart.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 // Tagasi puhtale pealehele: peida ürituse detail (Pargid/Ülesanded/Sponsorite staatus/muuda-vorm),
 // jäta nähtavaks ainult võistluste nimekiri, Sponsorid-nupp ja Töötajate ligipääs.
 async function xsMineePealehele() {
@@ -3073,7 +3094,13 @@ async function xsLaadiKulud() {
   if (!xsAktiivneEventId) return;
   const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/kulud');
   const div = document.getElementById('xs-kulu-tabel');
-  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  const kokkuEl = document.getElementById('xs-kulu-kokku-summa');
+  if (!d.ok) {
+    div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>';
+    if (kokkuEl) kokkuEl.textContent = xsFmtEur(0);
+    return;
+  }
+  if (kokkuEl) kokkuEl.textContent = xsFmtEur(d.kokkuSumma);
   if (!d.kulud.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Kulusid pole veel lisatud.</div>'; return; }
   div.innerHTML = `<table><thead><tr><th>Toode</th><th>Kogus</th><th>Hind/tk</th><th>Kokku</th><th></th></tr></thead><tbody>` +
     d.kulud.map(k => `<tr>
@@ -3085,8 +3112,7 @@ async function xsLaadiKulud() {
         <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaKuluEdit(${JSON.stringify(k).replace(/'/g, "&apos;")})'>✎</button>
         <button class="nupp punane" onclick="xsKustutaKulu(${k.id})">🗑</button>
       </td>
-    </tr>`).join('') +
-    `</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">Kokku kulud:</td><td colspan="2" style="font-weight:700;color:#c9a84c">${xsFmtEur(d.kokkuSumma)}</td></tr></tfoot></table>`;
+    </tr>`).join('') + '</tbody></table>';
 }
 
 function xsAlustaKuluEdit(k) {
