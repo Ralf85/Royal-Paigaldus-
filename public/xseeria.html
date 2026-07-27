@@ -10,7 +10,7 @@
   header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 14px 16px; }
   .hdr-top { display: flex; align-items: center; justify-content: space-between; }
   header h1 { margin: 0; font-size: 17px; }
-  header a.exit { color: #c9a84c; font-size: 12px; text-decoration: none; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; }
+  header a.exit, header button.exit { color: #c9a84c; font-size: 12px; text-decoration: none; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; background: none; font-family: inherit; cursor: pointer; }
   .rada { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; margin-top: 8px; flex-wrap: wrap; }
   .rada button { background: none; border: none; color: #c9a84c; font-size: 12px; cursor: pointer; padding: 0; }
   #app { padding: 12px; max-width: 640px; margin: 0 auto; }
@@ -51,7 +51,7 @@
 <header>
   <div class="hdr-top">
     <h1 id="hdr-title">🥏 X-seeria</h1>
-    <a class="exit" href="/tootaja">← Tagasi</a>
+    <button class="exit" onclick="tagasi()">← Tagasi</button>
   </div>
   <div class="rada" id="rada"></div>
 </header>
@@ -97,8 +97,18 @@ function breadcrumb(parts) {
   ).join(' ');
 }
 
+// "← Tagasi" nupp peab minema üks samm tagasi (mitte kohe töötaja rakendusse) — iga vaade
+// registreerib siia, kuhu "Tagasi" peaks minema, kui parasjagu SEE vaade on ekraanil.
+let tagasiSamm = null;
+function seaTagasiSamm(fn) { tagasiSamm = fn; }
+function tagasi() {
+  if (typeof tagasiSamm === 'function') tagasiSamm();
+  else window.location = '/tootaja';
+}
+
 // ── TASE 1: kõik võistlused ──────────────────────────────────
 async function naitaVoistlused() {
+  seaTagasiSamm(null); // esimene tase — "Tagasi" väljub töötaja rakendusse
   breadcrumb([]);
   const sisu = document.getElementById('sisu');
   const kontroll = await api('/kontroll');
@@ -129,6 +139,7 @@ async function naitaVoistlused() {
 let praeguneEvent = null;
 
 async function naitaAsukohad(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaVoistlused());
   breadcrumb([
     { tekst: eventNimi }
   ]);
@@ -209,6 +220,7 @@ async function muudaSponsorStaatus(eventId, sponsorId, staatus) {
 
 // ── ÜLESANDED: organisatoorne checklist, aga ainult need, kus mina olen vastutaja ──
 async function naitaUlesanded(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
   breadcrumb([
     { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
     { tekst: 'Ülesanded' }
@@ -248,6 +260,7 @@ async function lulitaUlesanne(eventId, eventNimi, id) {
 
 // ── TEGEVUSED: logistilised ülesanded (kuupäev+kellaaeg, võib olla mitu inimest) ──
 async function naitaTegevused(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
   breadcrumb([
     { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
     { tekst: 'Tegevused' }
@@ -276,6 +289,7 @@ function tegevusKaart(t) {
 let praeguneAsukoht = null;
 
 async function naitaKorvid(asukohtId, asukohtNimi, eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
   breadcrumb([
     { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
     { tekst: asukohtNimi }
