@@ -310,6 +310,17 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    // Pargi vastutajad — mitu töötajat saab korraga määrata ühe pargi eest vastutama
+    // (asendab admin.html üksiku pargi vormis endist "Viskekohti" välja, mida keegi ei kasutanud).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_asukoha_vastutajad (
+        id SERIAL PRIMARY KEY,
+        asukoht_id INTEGER REFERENCES xseeria_asukohad(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        UNIQUE(asukoht_id, worker_id)
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
