@@ -154,15 +154,21 @@ async function naitaAsukohad(eventId, eventNimi) {
   ]);
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
   const sponsorHtml = (sp && sp.ok && sp.sponsorid.length) ? sponsorKaardid(eventId, sp.sponsorid) : '';
-  const ulesandedHtml = (ul && ul.ok && ul.ulesanded.length)
-    ? `<div class="tile" onclick="naitaUlesanded(${eventId}, '${escapeAttr(eventNimi)}')">
-        <div class="ikoon">✅</div>
+  const ulesandedHtml = (ul && ul.ok && ul.ulesanded.length) ? (() => {
+    const tegemataArv = ul.ulesanded.filter(u => !u.tehtud).length;
+    const tekst = tegemataArv === 0
+      ? 'Kõik ülesanded tehtud'
+      : tegemataArv === 1
+        ? 'Sul on 1 ülesanne mis vajab tegemist'
+        : `Sul on ${tegemataArv} ülesannet mis vajavad tegemist`;
+    return `<div class="tile" onclick="naitaUlesanded(${eventId}, '${escapeAttr(eventNimi)}')">
+        <div class="ikoon">❗</div>
         <div class="info">
           <div class="nimi">ÜLESANDED</div>
-          <div class="sub">${ul.ulesanded.filter(u => !u.tehtud).length}/${ul.ulesanded.length} tegemata</div>
+          <div class="sub">${tekst}</div>
         </div>
-      </div>`
-    : '';
+      </div>`;
+  })() : '';
   const tegevusedHtml = (teg && teg.ok && teg.tegevused.length)
     ? `<div class="tile" onclick="naitaTegevused(${eventId}, '${escapeAttr(eventNimi)}')">
         <div class="ikoon">🚚</div>
