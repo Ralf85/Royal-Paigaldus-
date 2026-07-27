@@ -67,6 +67,24 @@ router.get('/events', noudaLubatud, async (req, res) => {
   res.json({ ok: true, events: r.rows });
 });
 
+// Pargi vastutajad selle ürituse kõigi parkide peale korraga — eraldi lihtne päring (mitte json_agg),
+// et see töötaks nii pg-mem'iga testimisel kui päris Postgres'es identselt.
+async function laadiAsukohaVastutajad(eventId) {
+  const r = await pool.query(
+    `SELECT av.asukoht_id, w.id AS worker_id, w.nimi
+     FROM xseeria_asukoha_vastutajad av
+     JOIN workers w ON w.id = av.worker_id
+     JOIN xseeria_asukohad a ON a.id = av.asukoht_id
+     WHERE a.event_id = $1`,
+    [eventId]
+  );
+  const map = {};
+  r.rows.forEach(row => {
+    (map[row.asukoht_id] = map[row.asukoht_id] || []).push({ id: row.worker_id, nimi: row.nimi });
+  });
+  return map;
+}
+
 router.get('/event/:eventId/asukohad', noudaLubatud, async (req, res) => {
   const ev = await pool.query('SELECT * FROM xseeria_events WHERE id=$1', [req.params.eventId]);
   if (!ev.rows.length) return res.json({ ok: false, veateade: 'Võistlust ei leitud' });
@@ -86,7 +104,9 @@ router.get('/event/:eventId/asukohad', noudaLubatud, async (req, res) => {
      ORDER BY a.jrk_nr, a.nimi`,
     [req.params.eventId]
   );
-  res.json({ ok: true, event: ev.rows[0], asukohad: asukohad.rows });
+  const vastutajaMap = await laadiAsukohaVastutajad(req.params.eventId);
+  const rows = asukohad.rows.map(a => ({ ...a, vastutajad: vastutajaMap[a.id] || [] }));
+  res.json({ ok: true, event: ev.rows[0], asukohad: rows });
 });
 
 router.get('/asukoht/:asukohtId/korvid', noudaLubatud, async (req, res) => {
@@ -269,9 +289,18 @@ async function leiaKattuvusedEventis(eventId, algus, lopp, valjaArvatudAsukohtId
   return r.rows;
 }
 
+// Kirjutab üle pargi vastutajate nimekirja (kustutab vanad, lisab uued) — kasutatakse nii loomisel kui muutmisel.
+async function salvestaAsukohaVastutajad(asukohtId, vastutajad) {
+  await pool.query('DELETE FROM xseeria_asukoha_vastutajad WHERE asukoht_id=$1', [asukohtId]);
+  const valitud = Array.isArray(vastutajad) ? vastutajad : [];
+  for (const workerId of valitud) {
+    await pool.query('INSERT INTO xseeria_asukoha_vastutajad (asukoht_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [asukohtId, workerId]);
+  }
+}
+
 // Lisa üks park käsitsi valitud rajanumbrite vahemikuga (dropdown 1-150)
 router.post('/admin/asukohad', noudaAdmin, async (req, res) => {
-  const { event_id, nimi, algus_nr, lopp_nr, viskekohtade_arv } = req.body;
+  const { event_id, nimi, algus_nr, lopp_nr, viskekohtade_arv, vastutajad } = req.body;
   const algus = parseInt(algus_nr, 10);
   const lopp = parseInt(lopp_nr, 10);
   if (!event_id || !nimi || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
@@ -296,6 +325,7 @@ router.post('/admin/asukohad', noudaAdmin, async (req, res) => {
     await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [asukohtId, String(n), i]);
     i++;
   }
+  await salvestaAsukohaVastutajad(asukohtId, vastutajad);
   res.json({ ok: true, asukoht: r.rows[0] });
 });
 
@@ -305,9 +335,9 @@ router.put('/admin/asukohad/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// Muuda pargi nime ja/või rajanumbrite vahemikku (kirjutab üle olemasolevad korvid selle pargi all)
+// Muuda pargi nime ja/või rajanumbrite vahemikku (kirjutab üle olemasolevad korvid selle pargi all) + vastutajad
 router.put('/admin/asukohad/:id/tapsed', noudaAdmin, async (req, res) => {
-  const { nimi, algus_nr, lopp_nr, viskekohtade_arv } = req.body;
+  const { nimi, algus_nr, lopp_nr, viskekohtade_arv, vastutajad } = req.body;
   const algus = parseInt(algus_nr, 10);
   const lopp = parseInt(lopp_nr, 10);
   if (!nimi || !algus || !lopp) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
@@ -330,6 +360,7 @@ router.put('/admin/asukohad/:id/tapsed', noudaAdmin, async (req, res) => {
     await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [req.params.id, String(n), i]);
     i++;
   }
+  await salvestaAsukohaVastutajad(req.params.id, vastutajad);
   res.json({ ok: true });
 });
 
