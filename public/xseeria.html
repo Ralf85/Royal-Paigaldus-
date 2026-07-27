@@ -44,6 +44,8 @@
   .sp-staatused { display: flex; gap: 6px; margin-top: 10px; }
   .sp-stbtn { flex: 1; padding: 10px 4px; border-radius: 8px; border: 2px solid #252830; font-size: 12px; font-weight: 600; background: #0d0f13; color: #888; }
   .sp-stbtn.active { background: #c9a84c; border-color: #c9a84c; color: #0d0f13; }
+  .tile.minu-park { border-color: #3b82f6; background: rgba(59,130,246,0.12); }
+  .tile.minu-park .nimi { color: #60a5fa; }
 </style>
 </head>
 <body>
@@ -70,6 +72,8 @@ if (!token) {
   algatus();
 }
 
+let praeguneTootajaId = null;
+
 async function algatus() {
   try {
     const r = await fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } });
@@ -79,6 +83,7 @@ async function algatus() {
       return;
     }
     document.getElementById('kes').textContent = 'Tere, ' + s.nimi;
+    praeguneTootajaId = s.workerId || null;
   } catch (e) {}
   naitaVoistlused();
 }
@@ -186,12 +191,16 @@ async function naitaAsukohad(eventId, eventNimi) {
   sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
     const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
+    const vastutajad = (a.vastutajad || []);
+    const minuPark = praeguneTootajaId && vastutajad.some(v => String(v.id) === String(praeguneTootajaId));
+    const vastutajadTekst = vastutajad.length ? escapeHtml(vastutajad.map(v => v.nimi).join(', ')) : '';
     return `
-    <div class="tile" onclick="naitaKorvid(${a.id}, '${escapeAttr(a.nimi)}', ${eventId}, '${escapeAttr(eventNimi)}')">
+    <div class="tile ${minuPark ? 'minu-park' : ''}" onclick="naitaKorvid(${a.id}, '${escapeAttr(a.nimi)}', ${eventId}, '${escapeAttr(eventNimi)}')">
       <div class="ikoon">${a.foto_url ? '🖼️' : '📍'}</div>
       <div class="info">
         <div class="nimi">${escapeHtml(a.nimi)}</div>
-        <div class="sub">${a.korvide_koguarv} korvi${vahemik}${a.viskekohtade_arv ? ' · ' + a.viskekohtade_arv + ' viskekohta' : ''}</div>
+        <div class="sub">${a.korvide_koguarv} korvi${vahemik}</div>
+        ${vastutajadTekst ? `<div class="sub">👤 ${vastutajadTekst}</div>` : ''}
       </div>
       <div class="progress ${valmis ? 'ok' : ''}">${a.paigaldatud_arv}/${a.korvide_koguarv}</div>
     </div>`;
