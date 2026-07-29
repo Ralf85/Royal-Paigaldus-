@@ -485,7 +485,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
     const ws = wb.addWorksheet('Raport');
 
     const headers = ['Töötaja','Kuupäev','Objekt','Algus','Lõpp','Tunnid','Esitushind (km-ta)','KM 24%','Summa (km-ga)'];
-    if (tyyp === 'lidl') headers.push('Pildid ZIP');
+    if (tyyp === 'lidl') headers.push('Kommentaar');
     const ncols = headers.length;
 
     // Rida 1 - pealkiri
@@ -536,7 +536,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
       const rida = [k.worker_nimi||'', kp_str, k.objekt_nimi||'',
         (k.algus||'').slice(0,5), (k.lopp||'').slice(0,5),
         tunnid, summa_ilm, km, summa_km];
-      if (tyyp === 'lidl') rida.push(k.zip_url || '');
+      if (tyyp === 'lidl') rida.push(k.kommentaar || '');
 
       rida.forEach((val, j) => {
         const cell = row.getCell(j + 1);
@@ -544,11 +544,11 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
         cell.font = { name: 'Arial', size: 10, bold: j === 0 };
         cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
-        if (j >= 5) {
+        if (j >= 5 && j <= 8) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           if (typeof val === 'number') cell.numFmt = '#,##0.00';
         } else {
-          cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
         }
         row.height = 20;
       });
@@ -582,7 +582,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
       cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
       if (j === 0) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if (j >= 5) {
+      } else if (j >= 5 && j <= 8) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (typeof val === 'number') cell.numFmt = '#,##0.00';
       } else {
@@ -592,7 +592,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
 
     // Veeru laiused
     const colWidths = [16, 13, 30, 8, 8, 10, 22, 10, 16];
-    if (tyyp === 'lidl') colWidths.push(55);
+    if (tyyp === 'lidl') colWidths.push(40);
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     // AutoFilter
