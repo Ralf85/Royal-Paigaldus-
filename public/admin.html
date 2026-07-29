@@ -2325,6 +2325,50 @@ async function laadiRaportExcel() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+const AUDIT_TEGEVUSED = {
+  SISSELOGIMINE: 'Sisselogimine',
+  LISA_TOOKIRJE: 'Lisas töökirje',
+  KUSTUTA_TOOKIRJE: 'Kustutas töökirje',
+  MUUDA_TOOKIRJE: 'Muutis töökirjet',
+  ADMIN_MUUTIS_TOOKIRJET: 'Admin muutis töökirjet',
+  ADMIN_KUSTUTAS_TOOKIRJE: 'Admin kustutas töökirje'
+};
+
+async function laadiAuditLogi(){
+  const div = document.getElementById('auditLogiSisu');
+  div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div>';
+  const d = await api('/api/admin/audit-log');
+  if (!Array.isArray(d)) {
+    div.innerHTML = `<div style="padding:24px;text-align:center;color:var(--hall)">${escapeHtmlXs((d && d.veateade) || 'Logi ei õnnestunud laadida')}</div>`;
+    return;
+  }
+  if (!d.length) {
+    div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Logi on tühi</div>';
+    return;
+  }
+  div.innerHTML = `<table><thead><tr><th>Aeg</th><th>Töötaja</th><th>Tegevus</th><th>Detailid</th></tr></thead><tbody>` +
+    d.map(a => {
+      const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      const tegevusTekst = AUDIT_TEGEVUSED[a.tegevus] || a.tegevus || '—';
+      let detailid = '';
+      if (a.details) {
+        try {
+          const obj = typeof a.details === 'string' ? JSON.parse(a.details) : a.details;
+          detailid = Object.entries(obj).map(([k, v]) => `${escapeHtmlXs(k)}: ${escapeHtmlXs(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(', ');
+        } catch (e) {
+          detailid = escapeHtmlXs(a.details);
+        }
+      }
+      return `<tr>
+        <td style="white-space:nowrap">${aeg}</td>
+        <td>${escapeHtmlXs(a.worker_nimi || '—')}</td>
+        <td>${escapeHtmlXs(tegevusTekst)}</td>
+        <td style="font-size:12px;color:var(--hall)">${detailid}</td>
+      </tr>`;
+    }).join('') +
+    `</tbody></table>`;
+}
+
 async function laadiFotod(){
   const div=document.getElementById('fotodSisu');
   div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
