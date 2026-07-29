@@ -2236,17 +2236,9 @@ async function laadiRaportCSV() {
   const andmed = await api(`/api/admin/raport-filter?${params}`);
   if (!andmed.length) { teade.style.display='block'; teade.textContent='Kirjeid ei leitud'; return; }
 
-  // Grupeeri objekti järgi ZIP linkide jaoks (Lidl)
-  const objektMap = {};
-  andmed.forEach(k => {
-    if (k.objekt_nimi && !objektMap[k.objekt_nimi]) {
-      objektMap[k.objekt_nimi] = k.objekt_id || '';
-    }
-  });
-
   let kokku_tunnid = 0, kokku_esitus = 0;
   const header = tyyp === 'lidl'
-    ? 'Töötaja;Kuupäev;Objekt;Algus;Lõpp;Tunnid;Esitushind (käibemaksuta);KM 24%;Summa (km-ga);Pildid ZIP'
+    ? 'Töötaja;Kuupäev;Objekt;Algus;Lõpp;Tunnid;Esitushind (käibemaksuta);KM 24%;Summa (km-ga);Kommentaar'
     : 'Töötaja;Kuupäev;Objekt;Algus;Lõpp;Tunnid;Esitushind (käibemaksuta);KM 24%;Summa (km-ga)';
 
   const read = andmed.map(k => {
@@ -2256,9 +2248,6 @@ async function laadiRaportCSV() {
     const summaKm = tunnid * esitusKm;
     kokku_tunnid += tunnid; kokku_esitus += summaKm;
     const kp = new Date(k.kuupaev); const kpStr = `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
-    const zipUrl = tyyp === 'lidl' && k.objekt_id
-      ? `https://royal-paigaldus-production.up.railway.app/api/pildid/admin/zip/${k.objekt_id}?_token=${TOKEN}`
-      : '';
     const row = [
       k.worker_nimi, kpStr, k.objekt_nimi||'', k.algus?.slice(0,5)||'', k.lopp?.slice(0,5)||'',
       String(tunnid.toFixed(1)).replace('.',','),
@@ -2266,7 +2255,7 @@ async function laadiRaportCSV() {
       String(km.toFixed(2)).replace('.',','),
       String(summaKm.toFixed(2)).replace('.',',')
     ];
-    if (tyyp === 'lidl') row.push(zipUrl);
+    if (tyyp === 'lidl') row.push(String(k.kommentaar || '').replace(/;/g, ','));
     return row.join(';');
   });
 
@@ -2302,19 +2291,12 @@ async function laadiRaportExcel() {
   const andmed = await api(`/api/admin/raport-filter?${params}`);
   if (!andmed.length) { teade.style.display='block'; teade.textContent='Kirjeid ei leitud'; return; }
 
-  // Lisa ZIP URL-id Lidli puhul
   const esitusHind = ESITUSHIND[tyyp] || 0;
-  const andmedZip = andmed.map(k => ({
-    ...k,
-    zip_url: tyyp === 'lidl' && k.objekt_id
-      ? `https://royal-paigaldus-production.up.railway.app/api/pildid/admin/zip/${k.objekt_id}?_token=${TOKEN}`
-      : ''
-  }));
 
   const r = await fetch('/api/admin/raport-excel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
-    body: JSON.stringify({ andmed: andmedZip, tyyp, algus, lopp, esitus_hind: esitusHind })
+    body: JSON.stringify({ andmed, tyyp, algus, lopp, esitus_hind: esitusHind })
   });
 
   if (!r.ok) { teade.style.display='block'; teade.textContent='Viga Exceli genereerimisel'; return; }
