@@ -46,6 +46,8 @@
   .sp-stbtn.active { background: #c9a84c; border-color: #c9a84c; color: #0d0f13; }
   .tile.minu-park { border-color: #3b82f6; background: rgba(59,130,246,0.12); }
   .tile.minu-park .nimi { color: #60a5fa; }
+  .kulu-input { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 8px; color: #e2e8f0; font-size: 13px; }
+  .kulu-label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -183,12 +185,19 @@ async function naitaAsukohad(eventId, eventNimi) {
         </div>
       </div>`
     : '';
+  const kuludHtml = `<div class="tile" onclick="naitaKulud(${eventId}, '${escapeAttr(eventNimi)}')">
+      <div class="ikoon">💰</div>
+      <div class="info">
+        <div class="nimi">MINU KULUD</div>
+        <div class="sub">Kütus, toit, tööriistad...</div>
+      </div>
+    </div>`;
   const rajakaartUrl = d.event && d.event.rajakaart_url;
   const rajakaartHtml = rajakaartUrl
     ? `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank">🗺️ RAJAKAART</a>`
     : '';
-  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
-  sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + rajakaartHtml + d.asukohad.map(a => {
+  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
+  sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
     const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
     const vastutajad = (a.vastutajad || []);
@@ -298,6 +307,156 @@ function tegevusKaart(t) {
       ${(kp || kell) ? `<div class="meta">📅 ${kp}${kell ? ' kell ' + kell : ''}</div>` : ''}
       ${inimesed ? `<div class="meta">👷 ${inimesed}</div>` : ''}
     </div>`;
+}
+
+// ── MINU KULUD: isiklikud kulud (kütus, toit, tööriistad) selle konkreetse võistluse kohta ──
+let praegusedKuludEvent = null;
+let muudetavKuluId = null;
+let muudaAndmedPuhver = null;
+
+async function naitaKulud(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Minu kulud' }
+  ]);
+  praegusedKuludEvent = { id: eventId, nimi: eventNimi };
+  muudetavKuluId = null;
+  muudaAndmedPuhver = null;
+  await laadiKulud();
+}
+
+async function laadiKulud() {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + praegusedKuludEvent.id + '/minu-kulud');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  const kokku = d.kulud.reduce((sum, k) => sum + parseFloat(k.summa), 0);
+  let html = kuluVorm();
+  html += `<div class="summary"><b>Kokku</b><span>${kokku.toFixed(2)} €</span></div>`;
+  html += d.kulud.length ? d.kulud.map(k => kuluKaart(k)).join('') : '<div class="empty">Kulusid pole veel lisatud.</div>';
+  sisu.innerHTML = html;
+  seadistaKuluFotoValjad();
+  if (muudaAndmedPuhver) {
+    document.getElementById('kulu-kuupaev').value = muudaAndmedPuhver.kuupaev;
+    document.getElementById('kulu-summa').value = muudaAndmedPuhver.summa;
+    document.getElementById('kulu-selgitus').value = muudaAndmedPuhver.selgitus;
+  } else {
+    document.getElementById('kulu-kuupaev').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function kuluVorm() {
+  const muutmisel = !!muudetavKuluId;
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">${muutmisel ? '✏️ Muuda kulu' : '➕ Lisa kulu'}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <div><label class="kulu-label">Kuupäev</label>
+          <input type="date" id="kulu-kuupaev" class="kulu-input" style="color-scheme:dark"></div>
+        <div><label class="kulu-label">Summa (€)</label>
+          <input type="number" id="kulu-summa" class="kulu-input" placeholder="0.00" step="0.01" min="0"></div>
+      </div>
+      <div style="margin-top:8px"><label class="kulu-label">Selgitus</label>
+        <input type="text" id="kulu-selgitus" class="kulu-input" placeholder="nt. kütus, toit, tööriistad..."></div>
+      <div style="margin-top:10px">
+        <label class="kulu-label">Pilt (tšekk, vabatahtlik)</label>
+        <div style="display:flex;gap:8px">
+          <label class="foto-nupp" style="flex:1;text-align:center;margin:0">📷 Kaamera<input type="file" id="kulu-foto" accept="image/*" capture="environment" style="display:none"></label>
+          <label class="foto-nupp" style="flex:1;text-align:center;margin:0">🖼️ Album<input type="file" id="kulu-foto-album" accept="image/*" style="display:none"></label>
+        </div>
+        <div id="kulu-foto-eelvaade" style="display:none;margin-top:8px"><img id="kulu-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="foto-nupp" style="flex:1;background:#16a34a;color:#fff;border:none;text-align:center" onclick="salvestaKulu()">${muutmisel ? 'Salvesta muudatus' : 'Salvesta'}</button>
+        ${muutmisel ? `<button class="foto-nupp" style="background:#1e2128;text-align:center" onclick="tuhistaKuluMuutmine()">Tühista</button>` : ''}
+      </div>
+      <div id="kulu-teade" style="display:none;margin-top:8px;font-size:12px"></div>
+    </div>`;
+}
+
+function seadistaKuluFotoValjad() {
+  ['kulu-foto', 'kulu-foto-album'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.onchange = function() {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('kulu-foto-img').src = e.target.result;
+        document.getElementById('kulu-foto-eelvaade').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+      window._kuluFotoInput = id;
+    };
+  });
+}
+
+function kuluKaart(k) {
+  const kp = fmtKp(k.kuupaev);
+  const kuupaevIso = (k.kuupaev || '').toString().substring(0, 10);
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">${parseFloat(k.summa).toFixed(2)} €</div><div class="meta">${kp}</div></div>
+      <div class="meta" style="margin-top:4px">${escapeHtml(k.selgitus)}</div>
+      ${k.foto_url ? `<div style="margin-top:6px"><a href="${k.foto_url}" target="_blank" style="font-size:12px;color:#4ade80">📷 vaata tšekki</a></div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="foto-nupp" style="flex:1;text-align:center" onclick="muudaKulu(${k.id}, '${kuupaevIso}', ${parseFloat(k.summa)}, '${escapeAttr(k.selgitus)}')">✏️ Muuda</button>
+        <button class="foto-nupp" style="flex:1;text-align:center;color:#f87171" onclick="kustutaKulu(${k.id})">🗑 Kustuta</button>
+      </div>
+    </div>`;
+}
+
+function muudaKulu(id, kuupaev, summa, selgitus) {
+  muudetavKuluId = id;
+  muudaAndmedPuhver = { kuupaev, summa, selgitus };
+  laadiKulud();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function tuhistaKuluMuutmine() {
+  muudetavKuluId = null;
+  muudaAndmedPuhver = null;
+  laadiKulud();
+}
+
+async function salvestaKulu() {
+  const kuupaev = document.getElementById('kulu-kuupaev').value;
+  const summa = document.getElementById('kulu-summa').value;
+  const selgitus = document.getElementById('kulu-selgitus').value;
+  const teade = document.getElementById('kulu-teade');
+  if (!kuupaev || !summa || !selgitus) {
+    teade.style.display = 'block'; teade.style.color = '#f87171'; teade.textContent = 'Täida kõik väljad';
+    return;
+  }
+  const fotoInput = window._kuluFotoInput;
+  const foto = fotoInput ? document.getElementById(fotoInput).files[0] : null;
+  const fd = new FormData();
+  fd.append('kuupaev', kuupaev);
+  fd.append('summa', summa);
+  fd.append('selgitus', selgitus);
+  if (foto) fd.append('foto', foto);
+  let r;
+  if (muudetavKuluId) {
+    r = await api('/minu-kulud/' + muudetavKuluId + '/uuenda', { method: 'POST', body: fd });
+  } else {
+    r = await api('/event/' + praegusedKuludEvent.id + '/minu-kulud', { method: 'POST', body: fd });
+  }
+  if (r.ok) {
+    window._kuluFotoInput = null;
+    muudetavKuluId = null;
+    muudaAndmedPuhver = null;
+    await laadiKulud();
+  } else {
+    teade.style.display = 'block'; teade.style.color = '#f87171'; teade.textContent = r.veateade || 'Viga';
+  }
+}
+
+async function kustutaKulu(id) {
+  if (!confirm('Kustutad selle kulu?')) return;
+  await api('/minu-kulud/' + id, { method: 'DELETE' });
+  await laadiKulud();
 }
 
 // ── TASE 3: korvid (üksikud, + rajakaart) ───────────────────────
