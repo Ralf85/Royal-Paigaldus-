@@ -4,9 +4,9 @@ const { pool } = require('../db');
 const { Parser } = require('json2csv');
 const { saadaTeavitus } = require('./push');
 const { Resend } = require('resend');
-function getResend() { 
+function getResend() {
   console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'OK' : 'PUUDUB');
-  return new Resend(process.env.RESEND_API_KEY); 
+  return new Resend(process.env.RESEND_API_KEY);
 }
 
 function noudaAdmin(req, res, next) {
@@ -336,6 +336,14 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     );
     const edgf_kokku = parseFloat(edgfKulud.rows[0].kokku);
 
+    // Jooksva kuu X-seeria töötaja isiklikud kulud (Minu kulud — kütus, toit, tööriistad jne)
+    const xseeriaKulud = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM xseeria_omakulud
+       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
+      [w.id, aasta, kuu]
+    );
+    const xseeria_kokku = parseFloat(xseeriaKulud.rows[0].kokku);
+
     // Jooksva kuu vabad lisakulud
     const lisakulud = await pool.query(
       `SELECT COALESCE(SUM(summa),0) as kokku FROM lisakulud
@@ -344,7 +352,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     );
     const vabad_lisakulud = parseFloat(lisakulud.rows[0].kokku);
 
-    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + vabad_lisakulud;
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + xseeria_kokku + vabad_lisakulud;
 
     // Jooksva kuu maksed (kuvamiseks)
     const maksed = await pool.query(
@@ -362,7 +370,8 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
          COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
        AS kokku
        FROM tookirjed tk
        LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
@@ -387,6 +396,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
       km_raha: km_raha_kokku.toFixed(2),
       lisakulu: lisakulu_kokku.toFixed(2),
       edgf: edgf_kokku.toFixed(2),
+      xseeria: xseeria_kokku.toFixed(2),
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
       saadaVeel: (kogTeenitud - kogMakstud).toFixed(2),
@@ -463,14 +473,14 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
 
   if (!koikRead.length) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.send('\uFEFF' + header + '\r\n');
+    res.send('﻿' + header + '\r\n');
     return;
   }
 
   const kuu2 = `${aasta}-${String(kuu).padStart(2,'0')}`;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="raport-${kuu2}.csv"`);
-  res.send('\uFEFF' + header + '\r\n' + koikRead.join('\r\n'));
+  res.send('﻿' + header + '\r\n' + koikRead.join('\r\n'));
 });
 
 
@@ -629,7 +639,7 @@ router.get('/audit-log', noudaAdmin, async (req, res) => {
 async function filterPäring(req) {
   const { ettevote_id, objekt_id, algus, lopp, workers } = req.query;
   const workerList = workers ? workers.split(',').filter(Boolean) : [];
-  
+
   let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
             t.kilomeetrid, t.km_raha, t.lisakulu_summa, t.lisakulu_selgitus,
             t.objekt_id,
@@ -642,7 +652,7 @@ async function filterPäring(req) {
      LEFT JOIN objektid o ON t.objekt_id=o.id
      LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
      WHERE 1=1`;
-  
+
   const params = [];
   if (ettevote_id) { params.push(ettevote_id); q += ` AND t.ettevote_id=$${params.length}`; }
   if (objekt_id) { params.push(objekt_id); q += ` AND t.objekt_id=$${params.length}`; }
@@ -650,7 +660,7 @@ async function filterPäring(req) {
   if (lopp) { params.push(lopp); q += ` AND t.kuupaev<=$${params.length}`; }
   if (workerList.length) { q += ` AND t.worker_id = ANY($${params.length+1}::int[])`; params.push(workerList); }
   q += ' ORDER BY w.nimi, t.kuupaev, t.algus';
-  
+
   const pool2 = require('../db').pool;
   const r = await pool2.query(q, params);
   return r.rows;
@@ -669,9 +679,9 @@ router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
   try {
     const rows = await filterPäring(req);
     const { algus, lopp } = req.query;
-    
+
     const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
-    
+
     let kokku_tunnid = 0, kokku_summa = 0, kokku_km = 0, kokku_lisakulu = 0;
     const dataRows = rows.map(k => {
       const tunnid = parseFloat(k.tunnid);
@@ -702,7 +712,7 @@ router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
     const failiNimi = `raport_${algus||''}${lopp?'_'+lopp:''}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
-    res.send('\uFEFF' + header + '\r\n' + dataRows.join('\r\n'));
+    res.send('﻿' + header + '\r\n' + dataRows.join('\r\n'));
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
