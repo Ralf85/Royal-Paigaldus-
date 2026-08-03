@@ -321,10 +321,27 @@ async function initDB() {
         UNIQUE(asukoht_id, worker_id)
       );
     `);
+
+    // Töötaja ISIKLIKUD kulud (kütus, toit, tööriistad jne) konkreetse X-seeria võistluse kohta —
+    // sama põhimõte mis Rally Estonia/EDGF "Minu kulud", aga siin veel eraldi iga võistluse (event) kaupa.
+    // Eraldi adminni "xseeria_kulud" (toode/kogus/hind) raportist, mis on adminni enda kuluarvestus.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS xseeria_omakulud (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES xseeria_events(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        foto_url TEXT,
+        foto_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
   }
 }
 
-module.exports = { pool, initDB };
+module.exports = { pool, initDB };'
