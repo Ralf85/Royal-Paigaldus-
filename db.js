@@ -344,4 +344,4 @@ async function initDB() {
   }
 }
 
-module.exports = { pool, initDB };'
+module.exports = { pool, initDB };
