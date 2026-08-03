@@ -739,6 +739,106 @@ router.get('/event/:eventId/tegevused', noudaLubatud, async (req, res) => {
   }
 });
 
+// ---------- WORKER: MINU KULUD (isiklikud kulud selle konkreetse võistluse kohta — kütus, toit, tööriistad jne) ----------
+// Sama põhimõte, mis Rally Estonia / EDGF "Minu kulud", aga siia lisandub event_id, kuna X-seerias
+// on mitu eraldi võistlust ja iga võistluse kulud tahetakse eraldi hoida.
+
+router.get('/event/:eventId/minu-kulud', noudaLubatud, async (req, res) => {
+  try {
+    const workerId = req.session.workerId || null;
+    if (!workerId) return res.json({ ok: true, kulud: [] });
+    const r = await pool.query(
+      'SELECT * FROM xseeria_omakulud WHERE event_id=$1 AND worker_id=$2 ORDER BY kuupaev DESC',
+      [req.params.eventId, workerId]
+    );
+    res.json({ ok: true, kulud: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/event/:eventId/minu-kulud', noudaLubatud, upload.single('foto'), async (req, res) => {
+  const { kuupaev, summa, selgitus } = req.body;
+  if (!req.session.workerId) return res.json({ ok: false, veateade: 'Ainult töötaja saab kulu lisada' });
+  if (!kuupaev || !summa || !selgitus) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  const s = parseFloat(summa);
+  if (isNaN(s) || s <= 0) return res.json({ ok: false, veateade: 'Summa peab olema positiivne arv' });
+  try {
+    let foto_url = null, foto_public_id = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          { folder: 'royal-paigaldus/xseeria-kulud', resource_type: 'image', quality: 'auto' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      foto_url = result.secure_url;
+      foto_public_id = result.public_id;
+    }
+    const r = await pool.query(
+      `INSERT INTO xseeria_omakulud (event_id, worker_id, kuupaev, summa, selgitus, foto_url, foto_public_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [req.params.eventId, req.session.workerId, kuupaev, s, selgitus, foto_url, foto_public_id]
+    );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/minu-kulud/:id/uuenda', noudaLubatud, upload.single('foto'), async (req, res) => {
+  const { kuupaev, summa, selgitus } = req.body;
+  if (!kuupaev || !summa || !selgitus) return res.json({ ok: false, veateade: 'Täida kõik väljad' });
+  const s = parseFloat(summa);
+  if (isNaN(s) || s <= 0) return res.json({ ok: false, veateade: 'Summa peab olema positiivne arv' });
+  try {
+    const omanikTingimus = req.session.isAdmin ? '' : ' AND worker_id=$2';
+    const params = req.session.isAdmin ? [req.params.id] : [req.params.id, req.session.workerId];
+    const vana = await pool.query(`SELECT * FROM xseeria_omakulud WHERE id=$1${omanikTingimus}`, params);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    let foto_url = vana.rows[0].foto_url;
+    let foto_public_id = vana.rows[0].foto_public_id;
+    if (req.file) {
+      if (foto_public_id) {
+        try { await getCloudinary().uploader.destroy(foto_public_id); } catch(e) {}
+      }
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          { folder: 'royal-paigaldus/xseeria-kulud', resource_type: 'image', quality: 'auto' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      foto_url = result.secure_url;
+      foto_public_id = result.public_id;
+    }
+    await pool.query(
+      'UPDATE xseeria_omakulud SET kuupaev=$1, summa=$2, selgitus=$3, foto_url=$4, foto_public_id=$5 WHERE id=$6',
+      [kuupaev, s, selgitus, foto_url, foto_public_id, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/minu-kulud/:id', noudaLubatud, async (req, res) => {
+  try {
+    const omanikTingimus = req.session.isAdmin ? '' : ' AND worker_id=$2';
+    const params = req.session.isAdmin ? [req.params.id] : [req.params.id, req.session.workerId];
+    const kulu = await pool.query(`SELECT * FROM xseeria_omakulud WHERE id=$1${omanikTingimus}`, params);
+    if (!kulu.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    if (kulu.rows[0].foto_public_id) {
+      try { await getCloudinary().uploader.destroy(kulu.rows[0].foto_public_id); } catch(e) {}
+    }
+    await pool.query('DELETE FROM xseeria_omakulud WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ---------- ADMIN: KULUDE RAPORT (toode, kogus, hind) ----------
 // Ainult adminnile — päris kulude ülevaade selle võistluse kohta, et pärast üritust näha, mis maksma läks.
 
@@ -787,6 +887,23 @@ router.put('/admin/kulud/:id', noudaAdmin, async (req, res) => {
 router.delete('/admin/kulud/:id', noudaAdmin, async (req, res) => {
   await pool.query('DELETE FROM xseeria_kulud WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
+});
+
+// Admin: ülevaade KÕIGI töötajate isiklikest "Minu kulud" kirjetest selle võistluse kohta
+router.get('/admin/events/:eventId/minu-kulud', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT ok.*, w.nimi AS worker_nimi
+       FROM xseeria_omakulud ok
+       JOIN workers w ON w.id = ok.worker_id
+       WHERE ok.event_id=$1
+       ORDER BY ok.kuupaev DESC`,
+      [req.params.eventId]
+    );
+    res.json({ ok: true, kulud: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
 });
 
 module.exports = router;
