@@ -563,7 +563,7 @@
         var logoHtml = tyyp === 'lidl'
           ? '<img src="/logos/lidl.png" alt="LIDL" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
           : tyyp === 'cramo'
-            ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:82%;height:82%;object-fit:contain">'
+            ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:100%;height:100%;object-fit:cover;border-radius:9px">'
             : '<span>' + logo + '</span>';
         if (tyyp === 'edgf') {
           return '<div class="emp-card edgf" onclick="toggleEdgfModal()">'
@@ -585,7 +585,7 @@
         + '<div class="emp-tunnid">' + (reSumma > 0 ? reSumma.toFixed(0) + ' €' : '0 €') + '</div>'
         + '<div class="emp-tunnid-sub">kulud sellel kuul</div></div>' : '')
       + (onXseeria ? '<a class="emp-card xseeria" href="/xseeria">'
-        + '<div class="emp-logo xseeria"><span style="font-size:18px">🥏</span></div>'
+        + '<div class="emp-logo xseeria"><img src="/logos/xseeria.png" alt="X-seeria" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px;padding:4px;box-sizing:border-box"></div>'
         + '<div class="emp-label xseeria">X-SEERIA</div>'
         + '<div class="emp-tunnid">✓</div>'
         + '<div class="emp-tunnid-sub">rajapaigaldus</div></a>' : '');
