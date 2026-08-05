@@ -153,8 +153,8 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <div class="brand-logo">&#128081;</div>
-      <div><div class="brand-name">ROYAL PAIGALDUS</div><div class="brand-sub">Tööpäevik</div></div>
+      <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:24px;width:auto">
+      <div class="brand-sub" style="margin-left:2px">Tööpäevik</div>
     </div>
     <div class="topbar-right">
       <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:#aaa">&#9728;&#65039;</button>
@@ -517,7 +517,7 @@
             + '<div class="emp-tunnid">0 €</div>'
             + '<div class="emp-tunnid-sub">kulud sellel kuul</div></div>' : '')
           + (onXseeria ? '<a class="emp-card xseeria" href="/xseeria" style="grid-column:1">'
-            + '<div class="emp-logo xseeria"><span style="font-size:18px">🥏</span></div>'
+            + '<div class="emp-logo xseeria"><img src="/logos/xseeria.png" alt="X-seeria" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px;padding:4px;box-sizing:border-box"></div>'
             + '<div class="emp-label xseeria">X-SEERIA</div>'
             + '<div class="emp-tunnid">✓</div>'
             + '<div class="emp-tunnid-sub">rajapaigaldus</div></a>' : '');
@@ -560,6 +560,11 @@
         var tyyp = e.tyyp || 'muu';
         var tunnid = tunnidFirma[e.id] || 0;
         var logo = tyyp === 'lidl' ? 'LIDL' : tyyp === 'cramo' ? 'CR' : e.nimi.slice(0,2);
+        var logoHtml = tyyp === 'lidl'
+          ? '<img src="/logos/lidl.png" alt="LIDL" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+          : tyyp === 'cramo'
+            ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:82%;height:82%;object-fit:contain">'
+            : '<span>' + logo + '</span>';
         if (tyyp === 'edgf') {
           return '<div class="emp-card edgf" onclick="toggleEdgfModal()">'
             + '<div class="emp-logo edgf"><span style="font-size:18px">🏆</span></div>'
@@ -568,7 +573,7 @@
             + '<div class="emp-tunnid-sub">kulud sellel kuul</div></div>';
         }
         return '<a class="emp-card ' + tyyp + '" href="/tootaja-tood?ettevote=' + e.id + '">'
-          + '<div class="emp-logo ' + tyyp + '"><span>' + logo + '</span></div>'
+          + '<div class="emp-logo ' + tyyp + '">' + logoHtml + '</div>'
           + '<div class="emp-label ' + tyyp + '">' + e.nimi + '</div>'
           + '<div class="emp-tunnid">' + (tunnid > 0 ? tunnid.toFixed(1) + 'h' : '0 h') + '</div>'
           + '<div class="emp-tunnid-sub">sellel kuul</div></a>';
