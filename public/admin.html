@@ -182,6 +182,20 @@
       <a class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ CSV raport</a>
     </div>
     <div id="kokkuvoteKast"></div>
+    <div class="kaart" style="margin-top:16px">
+      <div class="kaart-hdr">🔎 Töötaja detailraport (Excel)</div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Vali töötaja ja periood — saad Exceli kõigi tema töötundide (koos tunnitasu ja summaga iga kirje kohta), EDGF/Rally Estonia/X-seeria/vabade kulude ning maksetega, pluss kogu perioodi ja kogu aja saldo (palju veel võlgu). Töökirjete lehel on ka hoiatusveerg, kui sama päeva kirjed eri objektidel ajaliselt kattuvad.</div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp"><label>Töötaja</label><select id="tr-worker"></select></div>
+          <div class="vorm-grupp"><label>Alates</label><input type="date" id="tr-algus"></div>
+          <div class="vorm-grupp"><label>Kuni</label><input type="date" id="tr-lopp"></div>
+          <div class="vorm-grupp" style="display:flex;align-items:flex-end">
+            <button class="nupp roheline" style="width:100%" onclick="laadiTootajaRaportExcel()">⬇ Lae Excel</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="sektsioon" id="tab1">
     <div class="kaart">
@@ -1495,7 +1509,32 @@ async function init() {
   if (gAasta) { for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; gAasta.appendChild(o); } }
   const objEttevote = document.getElementById('obj-ettevote');
   kõikEttevotted.forEach(e => { objEttevote.innerHTML += `<option value="${e.id}">${e.nimi}</option>`; });
+  taidaTootajaRaportWorkerSelect();
+  const trAlgus = document.getElementById('tr-algus');
+  const trLopp = document.getElementById('tr-lopp');
+  if (trAlgus && trLopp) {
+    trAlgus.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
+    trLopp.value = t.toISOString().split('T')[0];
+  }
   laadiKokkuvote();
+}
+
+// ── TÖÖTAJA DETAILRAPORT (Excel) ────────────────────────────────
+async function taidaTootajaRaportWorkerSelect() {
+  const sel = document.getElementById('tr-worker');
+  if (!sel) return;
+  const workers = await api('/api/admin/tootajad');
+  sel.innerHTML = '';
+  workers.filter(w => w.aktiivne).forEach(w => sel.innerHTML += `<option value="${w.id}">${w.nimi}</option>`);
+}
+
+function laadiTootajaRaportExcel() {
+  const workerId = document.getElementById('tr-worker').value;
+  const algus = document.getElementById('tr-algus').value;
+  const lopp = document.getElementById('tr-lopp').value;
+  if (!workerId || !algus || !lopp) { alert('Vali töötaja ja periood'); return; }
+  if (algus > lopp) { alert('Alguskuupäev peab olema enne lõppkuupäeva'); return; }
+  window.location = `/api/admin/tootaja-raport-excel?worker_id=${workerId}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
 }
 
 async function laadiKokkuvote() {
