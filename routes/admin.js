@@ -491,17 +491,24 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
   try {
     const ExcelJS = require('exceljs');
     const km_maar = 0.24;
+    const km_hind = 0.5; // €/km, käibemaksuta — Lidli arve kilometraaži hind
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Raport');
 
     const headers = ['Töötaja','Kuupäev','Objekt','Algus','Lõpp','Tunnid','Esitushind (km-ta)','KM 24%','Summa (km-ga)'];
-    if (tyyp === 'lidl') headers.push('Kommentaar');
+    if (tyyp === 'lidl') {
+      headers.push('Km','Km hind (km-ta)','KM 24%','Km summa (km-ga)','Lisakulu (km-ta)','KM 24%','Lisakulu summa (km-ga)','Selgitus','Rea KOKKU (km-ga)','Kommentaar');
+    }
     const ncols = headers.length;
+    // Numbriveerud (0-indeksiga, vastavalt rida-massiivile) — paremjoondus + numFmt
+    const numCols = tyyp === 'lidl'
+      ? [5,6,7,8,9,10,11,12,13,14,15,17]
+      : [5,6,7,8];
 
     // Rida 1 - pealkiri
     ws.mergeCells(1, 1, 1, ncols);
     const titleCell = ws.getCell('A1');
-    titleCell.value = `${tyyp.toUpperCase()} RAPORT  |  ${algus} - ${lopp}  |  ${esitus_hind}€/h + KM`;
+    titleCell.value = `${tyyp.toUpperCase()} RAPORT  |  ${algus} - ${lopp}  |  ${esitus_hind}€/h + KM${tyyp === 'lidl' ? `  |  Km ${km_hind}€/km + KM` : ''}`;
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
     titleCell.font = { name: 'Arial', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -516,8 +523,12 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
     subCell.alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(2).height = 22;
 
-    // Rida 3 - päis
-    const hdrRow = ws.getRow(3);
+    // Lidli puhul jätame rea 3 arve kokkuvõtte jaoks (täidetakse pärast andmete läbimist)
+    const hdrRowIdx = tyyp === 'lidl' ? 4 : 3;
+    const dataStartIdx = hdrRowIdx + 1;
+
+    // Päis
+    const hdrRow = ws.getRow(hdrRowIdx);
     hdrRow.height = 55;
     headers.forEach((h, i) => {
       const cell = hdrRow.getCell(i + 1);
@@ -530,12 +541,14 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
 
     // Andmed
     let kokku_tunnid = 0;
+    let kokku_km_vahemaa = 0, kokku_km_ilm = 0, kokku_km_km = 0, kokku_km_kogu = 0;
+    let kokku_lisakulu_ilm = 0, kokku_lisakulu_km = 0, kokku_lisakulu_kogu = 0;
     andmed.forEach((k, i) => {
-      const row = ws.getRow(4 + i);
+      const row = ws.getRow(dataStartIdx + i);
       const tunnid = parseFloat(k.tunnid || 0);
       const summa_ilm = Math.round(tunnid * esitus_hind * 100) / 100;
-      const km = Math.round(summa_ilm * km_maar * 100) / 100;
-      const summa_km = Math.round((summa_ilm + km) * 100) / 100;
+      const tunni_km = Math.round(summa_ilm * km_maar * 100) / 100;
+      const summa_km = Math.round((summa_ilm + tunni_km) * 100) / 100;
       kokku_tunnid += tunnid;
 
       const kp = String(k.kuupaev || '').split('T')[0];
@@ -545,8 +558,26 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
       const bgColor = i % 2 === 0 ? 'FFFFFFFF' : 'FFDCE6F1';
       const rida = [k.worker_nimi||'', kp_str, k.objekt_nimi||'',
         (k.algus||'').slice(0,5), (k.lopp||'').slice(0,5),
-        tunnid, summa_ilm, km, summa_km];
-      if (tyyp === 'lidl') rida.push(k.kommentaar || '');
+        tunnid, summa_ilm, tunni_km, summa_km];
+
+      if (tyyp === 'lidl') {
+        const kmVahemaa = parseFloat(k.kilomeetrid || 0);
+        const km_ilm = Math.round(kmVahemaa * km_hind * 100) / 100;
+        const km_km = Math.round(km_ilm * km_maar * 100) / 100;
+        const km_kogu = Math.round((km_ilm + km_km) * 100) / 100;
+
+        const lisakulu_ilm = parseFloat(k.lisakulu_summa || 0);
+        const lisakulu_km = Math.round(lisakulu_ilm * km_maar * 100) / 100;
+        const lisakulu_kogu = Math.round((lisakulu_ilm + lisakulu_km) * 100) / 100;
+
+        const rea_kokku = Math.round((summa_km + km_kogu + lisakulu_kogu) * 100) / 100;
+
+        kokku_km_vahemaa += kmVahemaa;
+        kokku_km_ilm += km_ilm; kokku_km_km += km_km; kokku_km_kogu += km_kogu;
+        kokku_lisakulu_ilm += lisakulu_ilm; kokku_lisakulu_km += lisakulu_km; kokku_lisakulu_kogu += lisakulu_kogu;
+
+        rida.push(kmVahemaa, km_ilm, km_km, km_kogu, lisakulu_ilm, lisakulu_km, lisakulu_kogu, k.lisakulu_selgitus || '', rea_kokku, k.kommentaar || '');
+      }
 
       rida.forEach((val, j) => {
         const cell = row.getCell(j + 1);
@@ -554,7 +585,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgColor } };
         cell.font = { name: 'Arial', size: 10, bold: j === 0 };
         cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
-        if (j >= 5 && j <= 8) {
+        if (numCols.includes(j)) {
           cell.alignment = { horizontal: 'right', vertical: 'middle' };
           if (typeof val === 'number') cell.numFmt = '#,##0.00';
         } else {
@@ -565,12 +596,21 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
     });
 
     // KOKKU rida
-    const kokku_row_idx = 4 + andmed.length;
+    const kokku_row_idx = dataStartIdx + andmed.length;
     const kokku_ilm = Math.round(kokku_tunnid * esitus_hind * 100) / 100;
-    const kokku_km = Math.round(kokku_ilm * km_maar * 100) / 100;
-    const kokku_km_ga = Math.round((kokku_ilm + kokku_km) * 100) / 100;
-    const kokku_vals = ['KOKKU','','','','', kokku_tunnid, kokku_ilm, kokku_km, kokku_km_ga];
-    if (tyyp === 'lidl') kokku_vals.push('');
+    const kokku_km24_tunnid = Math.round(kokku_ilm * km_maar * 100) / 100;
+    const kokku_tunnid_kogu = Math.round((kokku_ilm + kokku_km24_tunnid) * 100) / 100;
+    const kokku_vals = ['KOKKU','','','','', kokku_tunnid, kokku_ilm, kokku_km24_tunnid, kokku_tunnid_kogu];
+
+    let arve_kokku = kokku_tunnid_kogu;
+    if (tyyp === 'lidl') {
+      arve_kokku = Math.round((kokku_tunnid_kogu + kokku_km_kogu + kokku_lisakulu_kogu) * 100) / 100;
+      kokku_vals.push(
+        Math.round(kokku_km_vahemaa * 10) / 10, kokku_km_ilm, kokku_km_km, kokku_km_kogu,
+        kokku_lisakulu_ilm, kokku_lisakulu_km, kokku_lisakulu_kogu, '',
+        arve_kokku, ''
+      );
+    }
 
     const kokku_row = ws.getRow(kokku_row_idx);
     kokku_row.height = 26;
@@ -592,7 +632,7 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
       cell.border = { top: {style:'thin',color:{argb:'FFB8CCE4'}}, bottom: {style:'thin',color:{argb:'FFB8CCE4'}}, left: {style:'thin',color:{argb:'FFB8CCE4'}}, right: {style:'thin',color:{argb:'FFB8CCE4'}} };
       if (j === 0) {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      } else if (j >= 5 && j <= 8) {
+      } else if (numCols.includes(j)) {
         cell.alignment = { horizontal: 'right', vertical: 'middle' };
         if (typeof val === 'number') cell.numFmt = '#,##0.00';
       } else {
@@ -600,14 +640,25 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
       }
     });
 
+    // Rida 3 - arve kokkuvõte (ainult Lidl)
+    if (tyyp === 'lidl') {
+      ws.mergeCells(3, 1, 3, ncols);
+      const summaryCell = ws.getCell('A3');
+      summaryCell.value = `ARVE KOKKU:  Tööd ${kokku_tunnid_kogu.toFixed(2)}€  +  Kilometraaž ${kokku_km_kogu.toFixed(2)}€  +  Lisakulud ${kokku_lisakulu_kogu.toFixed(2)}€  =  ${arve_kokku.toFixed(2)}€ (km-ga)`;
+      summaryCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A7431' } };
+      summaryCell.font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+      summaryCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getRow(3).height = 26;
+    }
+
     // Veeru laiused
     const colWidths = [16, 13, 30, 8, 8, 10, 22, 10, 16];
-    if (tyyp === 'lidl') colWidths.push(40);
+    if (tyyp === 'lidl') colWidths.push(9, 14, 10, 14, 14, 10, 16, 26, 14, 40);
     colWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     // AutoFilter
-    ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: ncols } };
-    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+    ws.autoFilter = { from: { row: hdrRowIdx, column: 1 }, to: { row: hdrRowIdx, column: ncols } };
+    ws.views = [{ state: 'frozen', xSplit: 0, ySplit: hdrRowIdx }];
 
     const failiNimi = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
