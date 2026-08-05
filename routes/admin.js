@@ -620,6 +620,244 @@ router.post('/raport-excel', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── TÖÖTAJA DETAILRAPORT (Excel) ────────────────────────────────
+// Üks töötaja, vabalt valitav periood — kõik töötunnid (koos tunnitasu ja summaga), kõik kululiigid
+// (EDGF/Rally Estonia/X-seeria/vabad lisakulud), maksed ning perioodi + kogu aja saldo ("palju veel võlgu").
+// Töökirjete lehel hoiatatakse, kui sama päeva kirjed eri objektidel ajaliselt kattuvad (võimalik viga/pettus).
+
+router.get('/tootaja-raport-excel', noudaAdmin, async (req, res) => {
+  const { worker_id, algus, lopp } = req.query;
+  if (!worker_id || !algus || !lopp) {
+    return res.status(400).json({ ok: false, veateade: 'worker_id, algus ja lopp on kohustuslikud' });
+  }
+  try {
+    const ExcelJS = require('exceljs');
+
+    const workerRes = await pool.query('SELECT * FROM workers WHERE id=$1', [worker_id]);
+    if (!workerRes.rows.length) return res.status(404).json({ ok: false, veateade: 'Töötajat ei leitud' });
+    const worker = workerRes.rows[0];
+
+    const tookirjedRes = await pool.query(
+      `SELECT t.id, t.kuupaev, t.algus, t.lopp, t.tunnid, t.kommentaar,
+              COALESCE(t.kilomeetrid,0) AS kilomeetrid, COALESCE(t.km_raha,0) AS km_raha,
+              COALESCE(t.lisakulu_summa,0) AS lisakulu_summa, COALESCE(t.lisakulu_selgitus,'') AS lisakulu_selgitus,
+              e.nimi AS ettevote_nimi, COALESCE(o.nimi,'') AS objekt_nimi,
+              COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) AS tunnitasu
+       FROM tookirjed t
+       JOIN ettevotted e ON t.ettevote_id=e.id
+       LEFT JOIN objektid o ON t.objekt_id=o.id
+       LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+       WHERE t.worker_id=$1 AND t.kuupaev BETWEEN $2 AND $3
+       ORDER BY t.kuupaev, t.algus`,
+      [worker_id, algus, lopp]
+    );
+
+    const edgfRes = await pool.query(
+      `SELECT kuupaev, summa, selgitus FROM edgf_kulud WHERE worker_id=$1 AND kuupaev BETWEEN $2 AND $3 ORDER BY kuupaev`,
+      [worker_id, algus, lopp]
+    );
+    const reRes = await pool.query(
+      `SELECT kuupaev, summa, selgitus FROM re_kulud WHERE worker_id=$1 AND kuupaev BETWEEN $2 AND $3 ORDER BY kuupaev`,
+      [worker_id, algus, lopp]
+    );
+    const xseeriaRes = await pool.query(
+      `SELECT ok.kuupaev, ok.summa, ok.selgitus, ev.nimi AS event_nimi
+       FROM xseeria_omakulud ok
+       LEFT JOIN xseeria_events ev ON ev.id = ok.event_id
+       WHERE ok.worker_id=$1 AND ok.kuupaev BETWEEN $2 AND $3 ORDER BY ok.kuupaev`,
+      [worker_id, algus, lopp]
+    );
+    const lisakuludRes = await pool.query(
+      `SELECT kuupaev, summa, selgitus FROM lisakulud WHERE worker_id=$1 AND kuupaev BETWEEN $2 AND $3 ORDER BY kuupaev`,
+      [worker_id, algus, lopp]
+    );
+    const maksedRes = await pool.query(
+      `SELECT kuupaev, summa, kommentaar FROM maksed WHERE worker_id=$1 AND kuupaev BETWEEN $2 AND $3 ORDER BY kuupaev`,
+      [worker_id, algus, lopp]
+    );
+
+    // Kogu aja seis kuni lõppkuupäevani (sama loogika, mis /kokkuvote kasutab kumulatiivse saldo jaoks)
+    const kogTeenitudRes = await pool.query(
+      `SELECT
+         COALESCE((SELECT SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0))
+                    FROM tookirjed tk LEFT JOIN worker_ettevotted we ON (we.worker_id=tk.worker_id AND we.ettevote_id=tk.ettevote_id)
+                    WHERE tk.worker_id=$1 AND tk.kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev <= $2), 0)
+       AS kokku`,
+      [worker_id, lopp]
+    );
+    const kogMakstudRes = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) AS kokku FROM maksed WHERE worker_id=$1 AND kuupaev <= $2`,
+      [worker_id, lopp]
+    );
+    const kogTeenitud = parseFloat(kogTeenitudRes.rows[0].kokku) || 0;
+    const kogMakstud = parseFloat(kogMakstudRes.rows[0].kokku) || 0;
+    const kogSaldo = kogTeenitud - kogMakstud;
+
+    // ── Kattuvate tööaegade tuvastamine (sama päev, kattuvad kellaajad, erinevad kirjed) ──
+    function toMin(t) { const p = String(t).slice(0,5).split(':').map(Number); return p[0]*60+(p[1]||0); }
+    function kpStr(v) { return v && v.toISOString ? v.toISOString().slice(0,10) : String(v).slice(0,10); }
+    const paevaGrupid = {};
+    tookirjedRes.rows.forEach(r => {
+      const kp = kpStr(r.kuupaev);
+      (paevaGrupid[kp] = paevaGrupid[kp] || []).push(r);
+    });
+    const kattuvad = new Set();
+    Object.values(paevaGrupid).forEach(grupp => {
+      for (let i = 0; i < grupp.length; i++) {
+        for (let j = i + 1; j < grupp.length; j++) {
+          const a = grupp[i], b = grupp[j];
+          const a1 = toMin(a.algus); let a2 = toMin(a.lopp); if (a2 <= a1) a2 += 1440;
+          const b1 = toMin(b.algus); let b2 = toMin(b.lopp); if (b2 <= b1) b2 += 1440;
+          if (a1 < b2 && b1 < a2) { kattuvad.add(a.id); kattuvad.add(b.id); }
+        }
+      }
+    });
+
+    // ── EXCEL ──
+    const wb = new ExcelJS.Workbook();
+
+    // Sheet 1: Kokkuvõte
+    const wsK = wb.addWorksheet('Kokkuvõte');
+    wsK.mergeCells('A1:B1');
+    wsK.getCell('A1').value = `Töötaja detailraport — ${worker.nimi}`;
+    wsK.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+    wsK.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+    wsK.getCell('A1').alignment = { vertical: 'middle' };
+    wsK.getRow(1).height = 28;
+    wsK.mergeCells('A2:B2');
+    wsK.getCell('A2').value = `Periood: ${algus} — ${lopp}`;
+    wsK.getCell('A2').font = { italic: true, color: { argb: 'FF666666' } };
+
+    let row = 4;
+    function kvRidaText(label, val, opts) {
+      opts = opts || {};
+      wsK.getCell('A' + row).value = label;
+      wsK.getCell('A' + row).font = { bold: !!opts.bold };
+      wsK.getCell('B' + row).value = val;
+      wsK.getCell('B' + row).font = { bold: !!opts.bold, color: opts.color ? { argb: opts.color } : undefined };
+      row++;
+    }
+    function kvRida(label, val, opts) {
+      opts = opts || {};
+      wsK.getCell('A' + row).value = label;
+      wsK.getCell('A' + row).font = { bold: !!opts.bold };
+      const cell = wsK.getCell('B' + row);
+      cell.value = val;
+      cell.numFmt = '#,##0.00 "€"';
+      cell.font = { bold: !!opts.bold, color: opts.color ? { argb: opts.color } : undefined };
+      row++;
+    }
+
+    const kokkuTunnid = tookirjedRes.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
+    const kokkuTeenitud = tookirjedRes.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
+    const kokkuKmRaha = tookirjedRes.rows.reduce((s, r) => s + parseFloat(r.km_raha), 0);
+    const kokkuLisakuluTookirjetel = tookirjedRes.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa), 0);
+    const kokkuEdgf = edgfRes.rows.reduce((s, r) => s + parseFloat(r.summa), 0);
+    const kokkuRe = reRes.rows.reduce((s, r) => s + parseFloat(r.summa), 0);
+    const kokkuXseeria = xseeriaRes.rows.reduce((s, r) => s + parseFloat(r.summa), 0);
+    const kokkuVabadLisakulud = lisakuludRes.rows.reduce((s, r) => s + parseFloat(r.summa), 0);
+    const kokkuKulud = kokkuKmRaha + kokkuLisakuluTookirjetel + kokkuEdgf + kokkuRe + kokkuXseeria + kokkuVabadLisakulud;
+    const kokkuKohustus = kokkuTeenitud + kokkuKulud;
+    const kokkuMakstudPerioodis = maksedRes.rows.reduce((s, r) => s + parseFloat(r.summa), 0);
+    const perioodiSaldo = kokkuKohustus - kokkuMakstudPerioodis;
+
+    wsK.getCell('A' + row).value = 'SELLE PERIOODI KOHTA'; wsK.getCell('A' + row).font = { bold: true, color: { argb: 'FFC0504D' } }; row++;
+    kvRidaText('Kokku tunnid', kokkuTunnid.toFixed(2) + ' h');
+    kvRida('Teenitud tunnitööst', kokkuTeenitud);
+    kvRida('Km/sõidukulu', kokkuKmRaha);
+    kvRida('Lisakulud (töökirje juures)', kokkuLisakuluTookirjetel);
+    kvRida('EDGF 2026 kulud', kokkuEdgf);
+    kvRida('Rally Estonia kulud', kokkuRe);
+    kvRida('X-seeria kulud', kokkuXseeria);
+    kvRida('Vabad lisakulud', kokkuVabadLisakulud);
+    kvRida('KOKKU KOHUSTUS selles perioodis', kokkuKohustus, { bold: true });
+    kvRida('Makstud selles perioodis', kokkuMakstudPerioodis);
+    kvRida('Perioodi saldo (kohustus − makstud)', perioodiSaldo, { bold: true, color: perioodiSaldo > 0 ? 'FFEF4444' : 'FF16A34A' });
+    row++;
+    wsK.getCell('A' + row).value = `KOGU AJA SEIS (kuni ${lopp})`; wsK.getCell('A' + row).font = { bold: true, color: { argb: 'FFC0504D' } }; row++;
+    kvRida('Kokku teenitud + kulud ajaloos', kogTeenitud);
+    kvRida('Kokku makstud ajaloos', kogMakstud);
+    kvRida('VÕLGU TÖÖTAJALE (+) / ETTEMAKSTUD (−)', kogSaldo, { bold: true, color: kogSaldo > 0 ? 'FFEF4444' : 'FF16A34A' });
+    wsK.getColumn('A').width = 40;
+    wsK.getColumn('B').width = 18;
+
+    // Sheet 2: Töökirjed
+    const wsT = wb.addWorksheet('Töökirjed');
+    const tHeaders = ['Kuupäev', 'Ettevõte', 'Objekt', 'Algus', 'Lõpp', 'Tunnid', 'Tunnitasu €/h', 'Summa €', 'Km', 'Km-raha €', 'Lisakulu €', 'Lisakulu selgitus', 'Kommentaar', '⚠ Kattub teise kirjega'];
+    const tHdrRow = wsT.addRow(tHeaders);
+    tHdrRow.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0504D' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
+    tHdrRow.height = 32;
+    let trTunnid = 0, trSumma = 0;
+    tookirjedRes.rows.forEach((r, i) => {
+      const summa = parseFloat(r.tunnid) * parseFloat(r.tunnitasu);
+      trTunnid += parseFloat(r.tunnid); trSumma += summa;
+      const rr = wsT.addRow([
+        kpStr(r.kuupaev), r.ettevote_nimi, r.objekt_nimi, String(r.algus).slice(0, 5), String(r.lopp).slice(0, 5),
+        parseFloat(r.tunnid), parseFloat(r.tunnitasu), summa,
+        parseFloat(r.kilomeetrid), parseFloat(r.km_raha), parseFloat(r.lisakulu_summa), r.lisakulu_selgitus, r.kommentaar || '',
+        kattuvad.has(r.id) ? '⚠ JAH' : ''
+      ]);
+      if (i % 2 === 1) rr.eachCell(c => { if (!c.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } }; });
+      if (kattuvad.has(r.id)) {
+        rr.getCell(14).font = { bold: true, color: { argb: 'FFEF4444' } };
+        rr.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE8E8' } }; });
+      }
+    });
+    const tTot = wsT.addRow(['KOKKU', '', '', '', '', trTunnid, '', trSumma, '', '', '', '', '', '']);
+    tTot.font = { bold: true };
+    wsT.columns.forEach((c, i) => { c.width = [12, 16, 20, 8, 8, 9, 12, 11, 7, 10, 10, 22, 24, 18][i] || 14; });
+    wsT.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: tHeaders.length } };
+    wsT.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // Sheet 3: Kulud
+    const wsKu = wb.addWorksheet('Kulud');
+    const kuHdr = wsKu.addRow(['Tüüp', 'Kuupäev', 'Summa €', 'Selgitus', 'Sündmus']);
+    kuHdr.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0504D' } }; });
+    const kuluRead = [
+      ...edgfRes.rows.map(r => ['EDGF 2026', r.kuupaev, parseFloat(r.summa), r.selgitus, '']),
+      ...reRes.rows.map(r => ['Rally Estonia', r.kuupaev, parseFloat(r.summa), r.selgitus, '']),
+      ...xseeriaRes.rows.map(r => ['X-seeria', r.kuupaev, parseFloat(r.summa), r.selgitus, r.event_nimi || '']),
+      ...lisakuludRes.rows.map(r => ['Vaba lisakulu', r.kuupaev, parseFloat(r.summa), r.selgitus, ''])
+    ].sort((a, b) => new Date(a[1]) - new Date(b[1]));
+    let kuluKokku = 0;
+    kuluRead.forEach(r => {
+      kuluKokku += r[2];
+      wsKu.addRow([r[0], kpStr(r[1]), r[2], r[3], r[4]]);
+    });
+    const kuTot = wsKu.addRow(['KOKKU', '', kuluKokku, '', '']); kuTot.font = { bold: true };
+    wsKu.getColumn(3).numFmt = '#,##0.00 "€"';
+    wsKu.columns.forEach((c, i) => { c.width = [16, 12, 12, 32, 20][i] || 14; });
+
+    // Sheet 4: Maksed
+    const wsM = wb.addWorksheet('Maksed');
+    const mHdr = wsM.addRow(['Kuupäev', 'Summa €', 'Kommentaar']);
+    mHdr.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0504D' } }; });
+    let maksedKokku = 0;
+    maksedRes.rows.forEach(r => {
+      maksedKokku += parseFloat(r.summa);
+      wsM.addRow([kpStr(r.kuupaev), parseFloat(r.summa), r.kommentaar || '']);
+    });
+    const mTot = wsM.addRow(['KOKKU', maksedKokku, '']); mTot.font = { bold: true };
+    wsM.getColumn(2).numFmt = '#,##0.00 "€"';
+    wsM.columns.forEach((c, i) => { c.width = [12, 12, 32][i] || 14; });
+
+    const failiNimi = `tootaja_raport_${worker.nimi.replace(/\s+/g, '_')}_${algus}_${lopp}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Töötaja raporti viga:', err.message);
+    res.status(500).json({ ok: false, veateade: 'Viga: ' + err.message });
+  }
+});
+
 module.exports = router;
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────
