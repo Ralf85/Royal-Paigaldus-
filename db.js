@@ -50,6 +50,7 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
       ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS kilomeetrid DECIMAL(8,1) DEFAULT 0;
+      ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS muudetud_tootaja TIMESTAMP;
       ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS km_raha DECIMAL(8,2) DEFAULT 0;
       CREATE TABLE IF NOT EXISTS tulevased_tood (
         id SERIAL PRIMARY KEY,
