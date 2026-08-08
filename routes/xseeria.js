@@ -227,6 +227,44 @@ router.delete('/admin/events/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Võistluse kaanepilt (suur ruuduline pilt valiku juures) — üleslaadimine/asendamine
+router.post('/admin/events/:id/kaas-foto', noudaAdmin, upload.single('foto'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
+  try {
+    const vana = await pool.query('SELECT kaas_foto_public_id FROM xseeria_events WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Võistlust ei leitud' });
+    if (vana.rows[0].kaas_foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].kaas_foto_public_id); } catch (e) {}
+    }
+    const result = await new Promise((resolve, reject) => {
+      const stream = getCloudinary().uploader.upload_stream(
+        { folder: 'royal-paigaldus/xseeria-kaanepildid', resource_type: 'image', quality: 'auto',
+          transformation: [{ width: 500, height: 500, crop: 'fill', gravity: 'auto' }] },
+        (err, result) => err ? reject(err) : resolve(result)
+      );
+      stream.end(req.file.buffer);
+    });
+    await pool.query('UPDATE xseeria_events SET kaas_foto_url=$1, kaas_foto_public_id=$2 WHERE id=$3', [result.secure_url, result.public_id, req.params.id]);
+    res.json({ ok: true, kaas_foto_url: result.secure_url });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin/events/:id/kaas-foto', noudaAdmin, async (req, res) => {
+  try {
+    const vana = await pool.query('SELECT kaas_foto_public_id FROM xseeria_events WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Võistlust ei leitud' });
+    if (vana.rows[0].kaas_foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].kaas_foto_public_id); } catch (e) {}
+    }
+    await pool.query('UPDATE xseeria_events SET kaas_foto_url=NULL, kaas_foto_public_id=NULL WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ---------- ADMIN: pargid (asukohad) — otse võistluse alla, ilma vahetasemeta ----------
 
 // Kiirlisamine: "Nimi, korvide arv, viskekohtade arv" — korvide numbrid jätkuvad
