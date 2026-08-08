@@ -98,6 +98,10 @@
     .tab { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); transition: all 0.15s; border: none; background: none; text-align: left; width: 100%; }
     .tab.ak { background: #a855f7; color: #ffffff; font-weight: 700; }
     .tab:hover:not(.ak) { background: var(--bg3); color: var(--tekst); }
+    .tab-passiivne:not(.ak) { opacity: 0.6; }
+    .sidebar-nav-label { padding: 14px 14px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); display: flex; align-items: baseline; gap: 6px; }
+    .sidebar-nav-label-sub { font-size: 9px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--hall); opacity: 0.7; }
+    .sidebar-nav-divider { height: 0.5px; background: var(--piir2); margin: 8px 10px; }
     .sektsioon { display: none; }
     .sektsioon.nhtav { display: block; }
     @media (max-width: 860px) {
@@ -186,8 +190,10 @@
       <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
       <button class="tab" onclick="avatTab(7)">📄 Raport</button>
       <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
-      <button class="tab" onclick="avatTab(9)">🏆 EDGF 2026</button>
-      <button class="tab" onclick="avatTab(10)">🏁 Rally Estonia</button>
+      <div class="sidebar-nav-label">Projektid <span class="sidebar-nav-label-sub">passiivsed</span></div>
+      <button class="tab tab-passiivne" onclick="avatTab(9)">🏆 EDGF 2026</button>
+      <button class="tab tab-passiivne" onclick="avatTab(10)">🏁 Rally Estonia</button>
+      <div class="sidebar-nav-divider"></div>
       <button class="tab" onclick="avatTab(11)">🥏 X-seeria</button>
     </div>
     <div class="sidebar-footer">
