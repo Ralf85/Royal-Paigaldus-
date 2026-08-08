@@ -109,6 +109,20 @@
     .sidebar-projektid-chevron.avatud { transform: rotate(180deg); }
     .sidebar-projektid-sisu { display: none; flex-direction: column; gap: 2px; padding-left: 10px; margin-top: 2px; }
     .sidebar-projektid-sisu.avatud { display: flex; }
+
+    /* X-seeria võistluste valik — suured ruudulised pildikaardid pelga nupu asemel */
+    .xs-event-grid { display: flex; gap: 14px; flex-wrap: wrap; }
+    .xs-event-tile { position: relative; width: 150px; height: 150px; border-radius: 14px; overflow: hidden; cursor: pointer; background: linear-gradient(135deg, #2a1a45, #1a1030); border: 2px solid var(--piir); flex-shrink: 0; }
+    .xs-event-tile.ak { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168,85,247,0.35); }
+    .xs-event-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .xs-event-tile-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 40px; opacity: 0.5; }
+    .xs-event-tile-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 10px 8px; background: linear-gradient(to top, rgba(0,0,0,0.85), transparent); }
+    .xs-event-tile-nimi { font-size: 12px; font-weight: 700; color: #fff; line-height: 1.25; }
+    .xs-event-tile-kp { font-size: 10px; color: rgba(255,255,255,0.75); margin-top: 2px; }
+    .xs-event-tile-foto-nupp { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(13,15,19,0.75); border: none; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; color: #fff; }
+    .xs-event-tile-foto-nupp:hover { background: rgba(168,85,247,0.85); }
+    .xs-event-tile-uus { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: var(--bg3); border: 2px dashed var(--sisend-piir); color: var(--hall); font-size: 12px; font-weight: 600; }
+    .xs-event-tile-uus:hover { border-color: #a855f7; color: #a855f7; }
     .sektsioon { display: none; }
     .sektsioon.nhtav { display: block; }
     @media (max-width: 860px) {
@@ -1174,7 +1188,8 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         </span>
       </div>
       <div class="kaart-body">
-        <div id="xs-eventpick" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <div id="xs-eventpick" class="xs-event-grid" style="margin-bottom:14px"></div>
+        <input type="file" id="xs-kaas-foto-input" accept="image/*" style="display:none" onchange="xsLaeKaasFoto(this)">
 
         <button class="nupp kull" id="xs-ev-uus-nupp" onclick="xsToggleUusVoistlusVorm()">+ Uus võistlus</button>
 
@@ -2620,8 +2635,17 @@ async function xsLaadiEvents() {
   const d = await api('/api/xseeria/admin/events');
   xsEvents = d.events || [];
   const box = document.getElementById('xs-eventpick');
-  box.innerHTML = xsEvents.map(e =>
-    `<span class="nupp ${e.id === xsAktiivneEventId ? 'kull' : 'hall'}" style="cursor:pointer" onclick="xsVahetaEvent(${e.id})">${e.nimi} (${String(e.kuupaev).slice(0,10)})</span>`
+  box.innerHTML = xsEvents.map(e => `
+    <div class="xs-event-tile ${e.id === xsAktiivneEventId ? 'ak' : ''}" onclick="xsVahetaEvent(${e.id})">
+      ${e.kaas_foto_url
+        ? `<img src="${e.kaas_foto_url}" alt="${e.nimi.replace(/"/g,'&quot;')}">`
+        : `<div class="xs-event-tile-placeholder">🥏</div>`}
+      <button class="xs-event-tile-foto-nupp" title="Vaheta pilt" onclick="event.stopPropagation();xsAvaKaasFotoValija(${e.id})">📷</button>
+      <div class="xs-event-tile-caption">
+        <div class="xs-event-tile-nimi">${e.nimi}</div>
+        <div class="xs-event-tile-kp">${String(e.kuupaev).slice(0,10)}</div>
+      </div>
+    </div>`
   ).join('') || '<span style="font-size:12px;color:var(--hall)">Võistlusi pole veel.</span>';
 
   const asKaart = document.getElementById('xs-asukohad-kaart');
@@ -2676,6 +2700,23 @@ async function xsVahetaEvent(id) {
   xsTyhistaUlesandeEdit();
   xsTyhistaSponsorEdit();
   await xsLaadiEvents();
+}
+
+let xsKaasFotoEventId = null;
+function xsAvaKaasFotoValija(eventId) {
+  xsKaasFotoEventId = eventId;
+  document.getElementById('xs-kaas-foto-input').click();
+}
+async function xsLaeKaasFoto(inputEl) {
+  const fail = inputEl.files[0];
+  inputEl.value = '';
+  if (!fail || !xsKaasFotoEventId) return;
+  const fd = new FormData();
+  fd.append('foto', fail);
+  const r = await api(`/api/xseeria/admin/events/${xsKaasFotoEventId}/kaas-foto`, { method: 'POST', body: fd });
+  xsKaasFotoEventId = null;
+  if (r.ok) await xsLaadiEvents();
+  else alert(r.veateade || 'Pildi üleslaadimine ebaõnnestus');
 }
 
 // Kiirnupp "💰 Kulude raport" pealehe päises — avab valitud ürituse Kulude raporti kaardi ja kerib sinna.
