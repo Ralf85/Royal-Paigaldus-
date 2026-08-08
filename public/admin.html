@@ -93,6 +93,13 @@
     .stat-kaart-sub { font-size: 11px; color: var(--hall); margin-top: 4px; }
     @media (max-width: 720px) { .stat-kaardid { grid-template-columns: repeat(2, 1fr); } }
 
+    .tootaja-ulevaade-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .tootaja-ulevaade-kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-left: 3px solid transparent; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.15s; }
+    .tootaja-ulevaade-kaart:hover { background: var(--bg3); }
+    .tootaja-ulevaade-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
+    .tootaja-ulevaade-nimi { font-size: 12px; font-weight: 600; color: var(--tekst2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tootaja-ulevaade-info { font-size: 11px; color: var(--hall); margin-top: 2px; }
+
     .konteiner { max-width: 1100px; margin: 0; padding: 20px 24px 40px; }
     .tabid { display: flex; flex-direction: column; gap: 2px; padding: 10px; flex: 1; overflow-y: auto; }
     .tab { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); transition: all 0.15s; border: none; background: none; text-align: left; width: 100%; }
@@ -305,6 +312,7 @@
       <button class="nupp kull" onclick="laadiKokkuvote()">Näita</button>
       <a class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ CSV raport</a>
     </div>
+    <div id="kokkuvote-tootajad-kaardid"></div>
     <div id="kokkuvoteKast"></div>
     <div class="kaart" style="margin-top:16px">
       <div class="kaart-hdr">🔎 Töötaja detailraport (Excel)</div>
@@ -842,10 +850,10 @@ function kuvaLohistatavadTootajad() {
 
   div.innerHTML = merekohvikTootajad.map(w => {
     const info = tunniMap[w.id] || { tunnid: 0, vahetused: 0 };
-    return `<div class="tootaja-kaart" 
+    return `<div class="tootaja-kaart"
       draggable="true"
       ondragstart="algaLohistamine(event, ${w.id}, '${w.nimi.replace(/'/g, "\\'")}')">
-      <div class="tootaja-kaart-avatar">${w.nimi[0]}</div>
+      <div class="tootaja-kaart-avatar" style="background:${tootajaVarv(w.id)}">${w.nimi[0]}</div>
       <div style="min-width:0">
         <div class="tootaja-kaart-nimi">${w.nimi}</div>
         <div class="tootaja-kaart-tunnid">${info.tunnid > 0 ? info.tunnid.toFixed(1) + 'h · ' + info.vahetused + ' vahetust' : 'pole planeeritud'}</div>
@@ -1004,13 +1012,16 @@ function kuvaKalender(andmed, aasta, kuu) {
     if (staatusKlass[staatus]) klassid.push(staatusKlass[staatus]);
     if (info?.lukustatud) klassid.push('lukustatud');
     
-    const vahetusedHtml = vahetused.map(v => `
-      <div class="rakk-vahetus" onclick="avaaMuudaVahetus2(${v.id}, ${v.worker_id}, '${v.algus.slice(0,5)}', '${v.lopp.slice(0,5)}', '${(v['märkus']||'').replace(/'/g,"\\'")}')">
+    const vahetusedHtml = vahetused.map(v => {
+      const vc = tootajaVarv(v.worker_id), vcRgb = tootajaVarvRgb(v.worker_id);
+      return `
+      <div class="rakk-vahetus" style="background:rgba(${vcRgb},0.18);border-color:rgba(${vcRgb},0.45);color:${vc}" onclick="avaaMuudaVahetus2(${v.id}, ${v.worker_id}, '${v.algus.slice(0,5)}', '${v.lopp.slice(0,5)}', '${(v['märkus']||'').replace(/'/g,"\\'")}')">
         <span class="rakk-vahetus-nimi">${v.worker_nimi.split(' ')[0]}</span>
-        <span class="rakk-vahetus-aeg">${v.algus.slice(0,5)}–${v.lopp.slice(0,5)}</span>
+        <span class="rakk-vahetus-aeg" style="color:rgba(${vcRgb},0.8)">${v.algus.slice(0,5)}–${v.lopp.slice(0,5)}</span>
         <span class="rakk-vahetus-kustuta" onclick="event.stopPropagation();kustutaVahetus2(${v.id})">✕</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
     
     const staatusMark = staatus === 'suletud' ? '🔴' : staatus === 'suuryritus' ? '🔵' : staatus === 'kohvik' ? '🟢' : '';
     
@@ -1040,17 +1051,17 @@ function kuvaKokkuvote(andmed) {
   
   const tunniMap = {};
   andmed.vahetused.forEach(v => {
-    if (!tunniMap[v.worker_id]) tunniMap[v.worker_id] = { nimi: v.worker_nimi, tunnid: 0, vahetused: 0 };
+    if (!tunniMap[v.worker_id]) tunniMap[v.worker_id] = { id: v.worker_id, nimi: v.worker_nimi, tunnid: 0, vahetused: 0 };
     tunniMap[v.worker_id].tunnid += arvutaTunnid(v.algus, v.lopp);
     tunniMap[v.worker_id].vahetused++;
   });
-  
+
   const sorted = Object.values(tunniMap).sort((a,b) => b.tunnid - a.tunnid);
-  
+
   grid.innerHTML = sorted.map(w => `
-    <div class="kokkuvote-kaart">
+    <div class="kokkuvote-kaart" style="border-left:3px solid ${tootajaVarv(w.id)}">
       <div class="kokkuvote-nimi">${w.nimi}</div>
-      <div class="kokkuvote-tunnid">${w.tunnid.toFixed(1)}h</div>
+      <div class="kokkuvote-tunnid" style="color:${tootajaVarv(w.id)}">${w.tunnid.toFixed(1)}h</div>
       <div class="kokkuvote-vahetused">${w.vahetused} vahetust</div>
     </div>
   `).join('');
@@ -1564,6 +1575,18 @@ let kõikEttevotted = [];
 let TOKEN = localStorage.getItem('adminToken') || '';
 setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
 
+// ── TÖÖTAJATE VÄRVID (konsistentne värv iga töötaja jaoks, kasutusel graafikus + Kokkuvõttes) ──
+const TOOTAJA_VARVID = ['#f97316','#22c55e','#3b82f6','#ec4899','#eab308','#14b8a6','#f43f5e','#a855f7','#06b6d4','#84cc16','#fb7185','#38bdf8'];
+function tootajaVarv(id) {
+  const n = parseInt(id, 10);
+  const i = Number.isFinite(n) ? Math.abs(n) : 0;
+  return TOOTAJA_VARVID[i % TOOTAJA_VARVID.length];
+}
+function tootajaVarvRgb(id) {
+  const hex = tootajaVarv(id).replace('#','');
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)].join(',');
+}
+
 // ── TEEMA ────────────────────────────────────────────────────────
 function setTeema(teema) {
   document.body.className = 'teema-' + teema;
@@ -1717,6 +1740,7 @@ async function laadiKokkuvote() {
   const aasta = document.getElementById('kv-aasta').value;
   const andmed = await api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`);
   const div = document.getElementById('kokkuvoteKast');
+  kuvaTootajaKaardid(andmed);
   if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:var(--hall)">Selle kuu kirjeid pole</div>'; uuendaStatKaardid([], kuu, aasta, 0, 0, 0); return; }
   let kokku_tunnid=0, kokku_teenitud=0, kokku_makstud=0;
   let html = `<div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:12px;overflow:hidden;margin-bottom:16px">
@@ -1776,6 +1800,28 @@ async function laadiKokkuvote() {
   </tr></tbody></table></div>`;
   div.innerHTML = html;
   uuendaStatKaardid(andmed, kuu, aasta, kokku_tunnid, kokku_teenitud, kokku_makstud);
+}
+
+function kuvaTootajaKaardid(andmed) {
+  const div = document.getElementById('kokkuvote-tootajad-kaardid');
+  if (!div) return;
+  const aktiivsed = (andmed || []).filter(w => {
+    const kulud = parseFloat(w.edgf||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
+    return parseFloat(w.tunnid) > 0 || kulud > 0;
+  }).sort((a,b) => parseFloat(b.tunnid) - parseFloat(a.tunnid));
+  if (!aktiivsed.length) { div.innerHTML = ''; return; }
+  div.innerHTML = `<div class="tootaja-ulevaade-grid">` + aktiivsed.map(w => {
+    const vc = tootajaVarv(w.id || w.nimi);
+    const tunnid = parseFloat(w.tunnid);
+    const teenitud = parseFloat(w.kogusumma || w.teenitud);
+    return `<div class="tootaja-ulevaade-kaart" style="border-left-color:${vc}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
+      <div class="tootaja-ulevaade-avatar" style="background:${vc}">${w.nimi[0]}</div>
+      <div style="min-width:0">
+        <div class="tootaja-ulevaade-nimi">${w.nimi}</div>
+        <div class="tootaja-ulevaade-info">${tunnid.toFixed(1)}h · ${teenitud.toFixed(0)}€</div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
 }
 
 function uuendaStatKaardid(andmed, kuu, aasta, kokkuTunnid, kokkuTeenitud, kokkuMakstud) {
