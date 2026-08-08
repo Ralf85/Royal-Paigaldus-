@@ -109,6 +109,7 @@
     .sidebar-projektid-chevron.avatud { transform: rotate(180deg); }
     .sidebar-projektid-sisu { display: none; flex-direction: column; gap: 2px; padding-left: 10px; margin-top: 2px; }
     .sidebar-projektid-sisu.avatud { display: flex; }
+    .sidebar-ettevote-logo { height: 20px; width: auto; max-width: 92px; object-fit: contain; border-radius: 4px; vertical-align: middle; }
 
     /* X-seeria võistluste valik — suured ruudulised pildikaardid pelga nupu asemel */
     .xs-event-grid { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -209,7 +210,7 @@
 
       <div class="sidebar-grupp">
         <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-merekohvik')">
-          <span>🍹 Merekohvik</span>
+          <span><img src="/img/logo-merekohvik.png" alt="Merekohvik" class="sidebar-ettevote-logo"></span>
           <span class="sidebar-projektid-chevron" id="chevron-grupp-merekohvik">▾</span>
         </button>
         <div class="sidebar-projektid-sisu" id="grupp-merekohvik">
@@ -218,7 +219,7 @@
       </div>
       <div class="sidebar-grupp">
         <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-cramo')">
-          <span>🏗️ Cramo</span>
+          <span><img src="/img/logo-cramo.png" alt="Cramo" class="sidebar-ettevote-logo"></span>
           <span class="sidebar-projektid-chevron" id="chevron-grupp-cramo">▾</span>
         </button>
         <div class="sidebar-projektid-sisu" id="grupp-cramo">
@@ -228,7 +229,7 @@
       </div>
       <div class="sidebar-grupp">
         <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-lidl')">
-          <span>🛒 Lidl</span>
+          <span><img src="/img/logo-lidl.png" alt="Lidl" class="sidebar-ettevote-logo"></span>
           <span class="sidebar-projektid-chevron" id="chevron-grupp-lidl">▾</span>
         </button>
         <div class="sidebar-projektid-sisu" id="grupp-lidl">
