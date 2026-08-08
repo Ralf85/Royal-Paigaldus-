@@ -102,6 +102,13 @@
     .sidebar-nav-label { padding: 14px 14px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); display: flex; align-items: baseline; gap: 6px; }
     .sidebar-nav-label-sub { font-size: 9px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--hall); opacity: 0.7; }
     .sidebar-nav-divider { height: 0.5px; background: var(--piir2); margin: 8px 10px; }
+    .sidebar-projektid { margin-top: 4px; }
+    .sidebar-projektid-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); background: none; border: none; text-align: left; transition: all 0.15s; }
+    .sidebar-projektid-toggle:hover { background: var(--bg3); color: var(--tekst); }
+    .sidebar-projektid-chevron { transition: transform 0.2s; font-size: 10px; color: var(--hall); }
+    .sidebar-projektid-chevron.avatud { transform: rotate(180deg); }
+    .sidebar-projektid-sisu { display: none; flex-direction: column; gap: 2px; padding-left: 10px; margin-top: 2px; }
+    .sidebar-projektid-sisu.avatud { display: flex; }
     .sektsioon { display: none; }
     .sektsioon.nhtav { display: block; }
     @media (max-width: 860px) {
@@ -181,20 +188,26 @@
       <div class="sidebar-brand-sub">Admin paneel</div>
     </div>
     <div class="tabid">
-      <button class="tab ak" onclick="avatTab(0)">📊 Kokkuvõte</button>
-      <button class="tab" onclick="avatTab(1)">💳 Maksed</button>
-      <button class="tab" onclick="avatTab(2)">👷 Töötajad</button>
-      <button class="tab" onclick="avatTab(3)">🏗️ Objektid</button>
-      <button class="tab" onclick="avatTab(4)">📅 Tulevased tööd</button>
-      <button class="tab" onclick="avatTab(5)">📸 Fotod</button>
-      <button class="tab" onclick="avatTab(6)">🔍 Logi</button>
-      <button class="tab" onclick="avatTab(7)">📄 Raport</button>
-      <button class="tab" onclick="avatTab(8)">☕ Graafik</button>
-      <div class="sidebar-nav-label">Projektid <span class="sidebar-nav-label-sub">passiivsed</span></div>
-      <button class="tab tab-passiivne" onclick="avatTab(9)">🏆 EDGF 2026</button>
-      <button class="tab tab-passiivne" onclick="avatTab(10)">🏁 Rally Estonia</button>
-      <div class="sidebar-nav-divider"></div>
-      <button class="tab" onclick="avatTab(11)">🥏 X-seeria</button>
+      <button class="tab ak" data-tab="0" onclick="avatTab(0)">📊 Kokkuvõte</button>
+      <button class="tab" data-tab="11" onclick="avatTab(11)">🥏 X-seeria</button>
+      <button class="tab" data-tab="1" onclick="avatTab(1)">💳 Maksed</button>
+      <button class="tab" data-tab="2" onclick="avatTab(2)">👷 Töötajad</button>
+      <button class="tab" data-tab="3" onclick="avatTab(3)">🏗️ Objektid</button>
+      <button class="tab" data-tab="4" onclick="avatTab(4)">📅 Tulevased tööd</button>
+      <button class="tab" data-tab="5" onclick="avatTab(5)">📸 Fotod</button>
+      <button class="tab" data-tab="6" onclick="avatTab(6)">🔍 Logi</button>
+      <button class="tab" data-tab="7" onclick="avatTab(7)">📄 Raport</button>
+      <button class="tab" data-tab="8" onclick="avatTab(8)">☕ Graafik</button>
+      <div class="sidebar-projektid">
+        <button class="sidebar-projektid-toggle" onclick="toggleProjektidMenu()">
+          <span>📁 Projektid</span>
+          <span class="sidebar-projektid-chevron" id="projektid-chevron">▾</span>
+        </button>
+        <div class="sidebar-projektid-sisu" id="projektid-sisu">
+          <button class="tab tab-passiivne" data-tab="9" onclick="avatTab(9)">🏆 EDGF 2026</button>
+          <button class="tab tab-passiivne" data-tab="10" onclick="avatTab(10)">🏁 Rally Estonia</button>
+        </div>
+      </div>
     </div>
     <div class="sidebar-footer">
       <div class="teema-nupud">
@@ -1534,9 +1547,23 @@ async function api(url, opts = {}) {
 const tabid = document.querySelectorAll('.tab');
 const sektsioonid = document.querySelectorAll('.sektsioon');
 const TAB_PEALKIRJAD = ['📊 Kokkuvõte','💳 Maksed','👷 Töötajad','🏗️ Objektid','📅 Tulevased tööd','📸 Fotod','🔍 Logi','📄 Raport','☕ Graafik','🏆 EDGF 2026','🏁 Rally Estonia','🥏 X-seeria'];
+function toggleProjektidMenu() {
+  const sisu = document.getElementById('projektid-sisu');
+  const chevron = document.getElementById('projektid-chevron');
+  if (sisu) sisu.classList.toggle('avatud');
+  if (chevron) chevron.classList.toggle('avatud');
+}
+
 function avatTab(i) {
-  tabid.forEach((t,j) => t.classList.toggle('ak', i===j));
+  // Nupud vastavad sektsioonile data-tab atribuudi kaudu (mitte DOM-järjekorra järgi),
+  // et külgmenüüs saaks nuppe vabalt ümber järjestada/rühmitada ilma tab-vahetust katki tegemata.
+  tabid.forEach(t => t.classList.toggle('ak', parseInt(t.dataset.tab, 10) === i));
   sektsioonid.forEach((s,j) => s.classList.toggle('nhtav', i===j));
+  if (i === 9 || i === 10) {
+    const sisu = document.getElementById('projektid-sisu');
+    const chevron = document.getElementById('projektid-chevron');
+    if (sisu && !sisu.classList.contains('avatud')) { sisu.classList.add('avatud'); chevron.classList.add('avatud'); }
+  }
   const pealkiriEl = document.getElementById('topbar-title');
   if (pealkiriEl) pealkiriEl.textContent = TAB_PEALKIRJAD[i] || '';
   if(i===0) laadiKokkuvote();
