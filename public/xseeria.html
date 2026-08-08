@@ -18,6 +18,8 @@
   .tile { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 14px; }
   .tile:active { background: #1a1d24; }
   .tile .ikoon { font-size: 26px; width: 44px; text-align: center; }
+  .tile .ikoon.foto { width: 52px; height: 52px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .tile .ikoon.foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .tile .info { flex: 1; }
   .tile .nimi { font-size: 16px; font-weight: 700; }
   .tile .sub { font-size: 12px; color: #888; margin-top: 2px; }
@@ -134,7 +136,9 @@ async function naitaVoistlused() {
   }
   sisu.innerHTML = d.events.map(e => `
     <div class="tile" onclick="naitaAsukohad(${e.id}, '${escapeAttr(e.nimi)}')">
-      <div class="ikoon">🏆</div>
+      ${e.kaas_foto_url
+        ? `<div class="ikoon foto"><img src="${e.kaas_foto_url}" alt=""></div>`
+        : `<div class="ikoon">🏆</div>`}
       <div class="info">
         <div class="nimi">${escapeHtml(e.nimi)}</div>
         <div class="sub">${fmtKp(e.kuupaev)}${e.aktiivne ? ' · praegu aktiivne' : ''}</div>
