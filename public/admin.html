@@ -102,7 +102,7 @@
     .sidebar-nav-label { padding: 14px 14px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); display: flex; align-items: baseline; gap: 6px; }
     .sidebar-nav-label-sub { font-size: 9px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--hall); opacity: 0.7; }
     .sidebar-nav-divider { height: 0.5px; background: var(--piir2); margin: 8px 10px; }
-    .sidebar-projektid { margin-top: 4px; }
+    .sidebar-projektid, .sidebar-grupp { margin-top: 4px; }
     .sidebar-projektid-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); background: none; border: none; text-align: left; transition: all 0.15s; }
     .sidebar-projektid-toggle:hover { background: var(--bg3); color: var(--tekst); }
     .sidebar-projektid-chevron { transition: transform 0.2s; font-size: 10px; color: var(--hall); }
@@ -205,19 +205,57 @@
       <button class="tab ak" data-tab="0" onclick="avatTab(0)">📊 Kokkuvõte</button>
       <button class="tab" data-tab="11" onclick="avatTab(11)">🥏 X-seeria</button>
       <button class="tab" data-tab="1" onclick="avatTab(1)">💳 Maksed</button>
-      <button class="tab" data-tab="2" onclick="avatTab(2)">👷 Töötajad</button>
-      <button class="tab" data-tab="3" onclick="avatTab(3)">🏗️ Objektid</button>
-      <button class="tab" data-tab="4" onclick="avatTab(4)">📅 Tulevased tööd</button>
+      <button class="tab" data-tab="2" onclick="avatTab(2)">👷 Personal</button>
+
+      <div class="sidebar-grupp">
+        <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-merekohvik')">
+          <span>🍹 Merekohvik</span>
+          <span class="sidebar-projektid-chevron" id="chevron-grupp-merekohvik">▾</span>
+        </button>
+        <div class="sidebar-projektid-sisu" id="grupp-merekohvik">
+          <button class="tab" data-tab="8" onclick="avatTab(8)">☕ Graafik</button>
+        </div>
+      </div>
+      <div class="sidebar-grupp">
+        <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-cramo')">
+          <span>🏗️ Cramo</span>
+          <span class="sidebar-projektid-chevron" id="chevron-grupp-cramo">▾</span>
+        </button>
+        <div class="sidebar-projektid-sisu" id="grupp-cramo">
+          <button class="tab" onclick="avaFiltreeritudTab(3,'CRAMO')">🏗️ Objektid</button>
+          <button class="tab" onclick="avaFiltreeritudTab(4,'CRAMO')">📅 Tulevased tööd</button>
+        </div>
+      </div>
+      <div class="sidebar-grupp">
+        <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-lidl')">
+          <span>🛒 Lidl</span>
+          <span class="sidebar-projektid-chevron" id="chevron-grupp-lidl">▾</span>
+        </button>
+        <div class="sidebar-projektid-sisu" id="grupp-lidl">
+          <button class="tab" onclick="avaFiltreeritudTab(3,'LIDL')">🏗️ Objektid</button>
+          <button class="tab" onclick="avaFiltreeritudTab(4,'LIDL')">📅 Tulevased tööd</button>
+        </div>
+      </div>
+      <div class="sidebar-grupp">
+        <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-muu')">
+          <span>📦 Muu</span>
+          <span class="sidebar-projektid-chevron" id="chevron-grupp-muu">▾</span>
+        </button>
+        <div class="sidebar-projektid-sisu" id="grupp-muu">
+          <button class="tab" onclick="avaFiltreeritudTab(3,'MUU')">🏗️ Objektid</button>
+          <button class="tab" onclick="avaFiltreeritudTab(4,'MUU')">📅 Tulevased tööd</button>
+        </div>
+      </div>
+
       <button class="tab" data-tab="5" onclick="avatTab(5)">📸 Fotod</button>
       <button class="tab" data-tab="6" onclick="avatTab(6)">🔍 Logi</button>
       <button class="tab" data-tab="7" onclick="avatTab(7)">📄 Raport</button>
-      <button class="tab" data-tab="8" onclick="avatTab(8)">☕ Graafik</button>
-      <div class="sidebar-projektid">
-        <button class="sidebar-projektid-toggle" onclick="toggleProjektidMenu()">
+      <div class="sidebar-grupp">
+        <button class="sidebar-projektid-toggle" onclick="toggleSidebarGrupp('grupp-projektid')">
           <span>📁 Projektid</span>
-          <span class="sidebar-projektid-chevron" id="projektid-chevron">▾</span>
+          <span class="sidebar-projektid-chevron" id="chevron-grupp-projektid">▾</span>
         </button>
-        <div class="sidebar-projektid-sisu" id="projektid-sisu">
+        <div class="sidebar-projektid-sisu" id="grupp-projektid">
           <button class="tab tab-passiivne" data-tab="9" onclick="avatTab(9)">🏆 EDGF 2026</button>
           <button class="tab tab-passiivne" data-tab="10" onclick="avatTab(10)">🏁 Rally Estonia</button>
         </div>
@@ -326,11 +364,12 @@
     </div>
   </div>
   <div class="sektsioon" id="tab3">
+    <div id="obj-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(168,85,247,0.12);border:0.5px solid rgba(168,85,247,0.3);border-radius:8px;font-size:12px;color:#a855f7;font-weight:600"></div>
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa objekt</div>
       <div class="kaart-body">
         <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="obj-ettevote"></select></div>
+          <div class="vorm-grupp" id="obj-ettevote-grupp"><label>Ettevõte</label><select id="obj-ettevote"></select></div>
           <div class="vorm-grupp"><label>Objekti nimi</label><input type="text" id="obj-nimi" placeholder="LIDL Tartu Annelinn"></div>
         </div>
         <button class="nupp roheline" onclick="lisaObjekt()">➕ Lisa objekt</button>
@@ -343,11 +382,12 @@
     </div>
   </div>
   <div class="sektsioon" id="tab4">
+    <div id="tt-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(168,85,247,0.12);border:0.5px solid rgba(168,85,247,0.3);border-radius:8px;font-size:12px;color:#a855f7;font-weight:600"></div>
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa tulevane töö</div>
       <div class="kaart-body">
         <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Ettevõte</label><select id="tt-ettevote" onchange="laadiTTObjektid()"></select></div>
+          <div class="vorm-grupp" id="tt-ettevote-grupp"><label>Ettevõte</label><select id="tt-ettevote" onchange="laadiTTObjektid()"></select></div>
           <div class="vorm-grupp"><label>Objekt (vabatahtlik)</label><select id="tt-objekt"><option value="">— Pole määratud —</option></select></div>
         </div>
         <div class="vorm-rida col3">
@@ -1561,31 +1601,48 @@ async function api(url, opts = {}) {
 
 const tabid = document.querySelectorAll('.tab');
 const sektsioonid = document.querySelectorAll('.sektsioon');
-const TAB_PEALKIRJAD = ['📊 Kokkuvõte','💳 Maksed','👷 Töötajad','🏗️ Objektid','📅 Tulevased tööd','📸 Fotod','🔍 Logi','📄 Raport','☕ Graafik','🏆 EDGF 2026','🏁 Rally Estonia','🥏 X-seeria'];
-function toggleProjektidMenu() {
-  const sisu = document.getElementById('projektid-sisu');
-  const chevron = document.getElementById('projektid-chevron');
+const TAB_PEALKIRJAD = ['📊 Kokkuvõte','💳 Maksed','👷 Personal','🏗️ Objektid','📅 Tulevased tööd','📸 Fotod','🔍 Logi','📄 Raport','☕ Graafik','🏆 EDGF 2026','🏁 Rally Estonia','🥏 X-seeria'];
+const ETTEVOTE_GRUPP_ID = { CRAMO: 'grupp-cramo', LIDL: 'grupp-lidl', MUU: 'grupp-muu' };
+
+function toggleSidebarGrupp(id) {
+  const sisu = document.getElementById(id);
+  const chevron = document.getElementById('chevron-' + id);
   if (sisu) sisu.classList.toggle('avatud');
   if (chevron) chevron.classList.toggle('avatud');
 }
+function avaSidebarGrupp(id) {
+  const sisu = document.getElementById(id);
+  const chevron = document.getElementById('chevron-' + id);
+  if (sisu && !sisu.classList.contains('avatud')) { sisu.classList.add('avatud'); chevron.classList.add('avatud'); }
+}
+function ettevoteIdByNimi(nimi) {
+  const e = (kõikEttevotted || []).find(x => (x.nimi || '').toUpperCase() === (nimi || '').toUpperCase());
+  return e ? e.id : null;
+}
+function avaFiltreeritudTab(tabIdx, ettevoteNimi) {
+  avatTab(tabIdx, ettevoteNimi);
+}
 
-function avatTab(i) {
+function avatTab(i, ettevoteFilter) {
   // Nupud vastavad sektsioonile data-tab atribuudi kaudu (mitte DOM-järjekorra järgi),
   // et külgmenüüs saaks nuppe vabalt ümber järjestada/rühmitada ilma tab-vahetust katki tegemata.
+  const filter = (i === 3 || i === 4) ? (ettevoteFilter || null) : null;
   tabid.forEach(t => t.classList.toggle('ak', parseInt(t.dataset.tab, 10) === i));
   sektsioonid.forEach((s,j) => s.classList.toggle('nhtav', i===j));
-  if (i === 9 || i === 10) {
-    const sisu = document.getElementById('projektid-sisu');
-    const chevron = document.getElementById('projektid-chevron');
-    if (sisu && !sisu.classList.contains('avatud')) { sisu.classList.add('avatud'); chevron.classList.add('avatud'); }
-  }
+  if (i === 9 || i === 10) avaSidebarGrupp('grupp-projektid');
+  if ((i === 3 || i === 4) && filter && ETTEVOTE_GRUPP_ID[filter.toUpperCase()]) avaSidebarGrupp(ETTEVOTE_GRUPP_ID[filter.toUpperCase()]);
+  if (i === 8) avaSidebarGrupp('grupp-merekohvik');
   const pealkiriEl = document.getElementById('topbar-title');
-  if (pealkiriEl) pealkiriEl.textContent = TAB_PEALKIRJAD[i] || '';
+  if (pealkiriEl) {
+    if (i === 3) pealkiriEl.textContent = filter ? `🏗️ ${filter} — Objektid` : TAB_PEALKIRJAD[3];
+    else if (i === 4) pealkiriEl.textContent = filter ? `📅 ${filter} — Tulevased tööd` : TAB_PEALKIRJAD[4];
+    else pealkiriEl.textContent = TAB_PEALKIRJAD[i] || '';
+  }
   if(i===0) laadiKokkuvote();
   if(i===1) { laadiWorkerSelect(); laadiMaksed(); }
   if(i===2) laadiTootajad();
-  if(i===3) laadiObjektid();
-  if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(); else setTimeout(()=>{laadiTTWorkers();},500); laadiTulevasteToodTabel(); }
+  if(i===3) laadiObjektid(filter);
+  if(i===4) { if(kõikEttevotted.length) laadiTTWorkers(filter); else setTimeout(()=>{laadiTTWorkers(filter);},500); laadiTulevasteToodTabel(filter); }
   if(i===5) laadiFotod();
   if(i===6) laadiAuditLogi();
   if(i===7) laadiRaportTab();
@@ -1941,15 +1998,30 @@ async function uuendaEttevoteTasu(workerId,ettevoteId) {
   await api('/api/admin/tootaja-ettevotted',{method:'POST',body:JSON.stringify({worker_id:workerId,ettevote_id:ettevoteId,tunnitasu:tasu})});
 }
 
-async function laadiObjektid() {
-  const r=await api('/api/admin/objektid');
-  let html='<table><thead><tr><th>Ettevõte</th><th>Nimi</th><th>Aktiivne</th><th>Salvesta</th></tr></thead><tbody>';
-  if(Array.isArray(r)) r.forEach(o=>{html+=`<tr><td style="color:var(--hall)">${o.ettevote_nimi}</td><td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td><button class="nupp hall" style="font-size:12px;padding:5px 12px" onclick="uuendaObjekt(${o.id})">Salvesta</button></td></tr>`;});
+let objAktiivneFilter=null, objLukustatudEttevoteId=null;
+
+async function laadiObjektid(filter) {
+  if(filter!==undefined) objAktiivneFilter=filter||null;
+  const ettevoteId=objAktiivneFilter?ettevoteIdByNimi(objAktiivneFilter):null;
+  objLukustatudEttevoteId=ettevoteId;
+  const teadeEl=document.getElementById('obj-kontekst-teade'), grupp=document.getElementById('obj-ettevote-grupp');
+  if(objAktiivneFilter&&ettevoteId){
+    if(teadeEl){teadeEl.style.display='block';teadeEl.textContent=`📌 Näitad ${objAktiivneFilter} objekte. Uus objekt lisatakse automaatselt ${objAktiivneFilter} alla.`;}
+    if(grupp) grupp.style.display='none';
+  } else {
+    if(teadeEl) teadeEl.style.display='none';
+    if(grupp) grupp.style.display='';
+  }
+  const url=ettevoteId?`/api/admin/objektid?ettevote_id=${ettevoteId}`:'/api/admin/objektid';
+  const r=await api(url);
+  let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Aktiivne</th><th>Salvesta</th></tr></thead><tbody>';
+  if(Array.isArray(r)) r.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td><button class="nupp hall" style="font-size:12px;padding:5px 12px" onclick="uuendaObjekt(${o.id})">Salvesta</button></td></tr>`;});
   document.getElementById('objektidTabel').innerHTML=html+'</tbody></table>';
 }
 
 async function lisaObjekt() {
-  const nimi=document.getElementById('obj-nimi').value, ettevote_id=document.getElementById('obj-ettevote').value;
+  const nimi=document.getElementById('obj-nimi').value;
+  const ettevote_id=objLukustatudEttevoteId||document.getElementById('obj-ettevote').value;
   if(!nimi) return naitaTeade('objekt-teade','viga','Sisesta objekti nimi!');
   const r=await api('/api/admin/objektid',{method:'POST',body:JSON.stringify({nimi,ettevote_id})});
   if(r.ok){naitaTeade('objekt-teade','ok','✅ Lisatud!');document.getElementById('obj-nimi').value='';laadiObjektid();}
@@ -1990,11 +2062,24 @@ async function kustutaMakse(id) {
   laadiMaksed();
 }
 
-async function laadiTTWorkers() {
+let ttAktiivneFilter=null;
+
+async function laadiTTWorkers(filter) {
+  if(filter!==undefined) ttAktiivneFilter=filter||null;
+  const ettevoteId=ttAktiivneFilter?ettevoteIdByNimi(ttAktiivneFilter):null;
   const workers=await api('/api/admin/tootajad');
   const ettSel=document.getElementById('tt-ettevote');
+  const teadeEl=document.getElementById('tt-kontekst-teade'), grupp=document.getElementById('tt-ettevote-grupp');
   ettSel.innerHTML='';
-  kõikEttevotted.forEach(e=>ettSel.innerHTML+=`<option value="${e.id}">${e.nimi}</option>`);
+  if(ttAktiivneFilter&&ettevoteId){
+    ettSel.innerHTML=`<option value="${ettevoteId}">${ttAktiivneFilter}</option>`;
+    if(teadeEl){teadeEl.style.display='block';teadeEl.textContent=`📌 Uus töö lisatakse automaatselt ${ttAktiivneFilter} alla.`;}
+    if(grupp) grupp.style.display='none';
+  } else {
+    kõikEttevotted.forEach(e=>ettSel.innerHTML+=`<option value="${e.id}">${e.nimi}</option>`);
+    if(teadeEl) teadeEl.style.display='none';
+    if(grupp) grupp.style.display='';
+  }
   laadiTTObjektid();
   const div=document.getElementById('tt-workers-valik');
   if(!workers||!Array.isArray(workers)||!workers.length){div.innerHTML='<span style="color:var(--hall);font-size:13px">Töötajaid pole</span>';return;}
@@ -2029,8 +2114,11 @@ async function lisaTulevaneToo() {
   else naitaTeade('tt-teade','viga','Viga lisamisel');
 }
 
-async function laadiTulevasteToodTabel() {
-  const r=await api('/api/admin/tulevased');
+async function laadiTulevasteToodTabel(filter) {
+  if(filter!==undefined) ttAktiivneFilter=filter||null;
+  const ettevoteId=ttAktiivneFilter?ettevoteIdByNimi(ttAktiivneFilter):null;
+  const url=ettevoteId?`/api/admin/tulevased?ettevote_id=${ettevoteId}`:'/api/admin/tulevased';
+  const r=await api(url);
   let html='<table><thead><tr><th><input type="checkbox" id="tt-kõik" onchange="valiKõikTulevased(this)" style="cursor:pointer"></th><th>Töötaja</th><th>Ettevõte</th><th>Objekt</th><th>Kuupäev</th><th>Kellaaeg</th><th>Kirjeldus</th><th></th></tr></thead><tbody>';
   if(Array.isArray(r)) r.forEach(t=>{
     const kp=new Date(t.kuupaev), kuupaevTekst=`${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`;
