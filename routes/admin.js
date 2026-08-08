@@ -105,10 +105,13 @@ router.get('/ettevotted', noudaAdmin, async (req, res) => {
 
 router.get('/objektid', async (req, res) => {
   try {
-    const r = await pool.query(
-      `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o
-       JOIN ettevotted e ON o.ettevote_id = e.id ORDER BY e.id, o.nimi`
-    );
+    const { ettevote_id } = req.query;
+    let q = `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o
+       JOIN ettevotted e ON o.ettevote_id = e.id`;
+    const params = [];
+    if (ettevote_id) { params.push(ettevote_id); q += ` WHERE o.ettevote_id = $${params.length}`; }
+    q += ` ORDER BY e.id, o.nimi`;
+    const r = await pool.query(q, params);
     res.json(r.rows);
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -169,15 +172,18 @@ router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
 // ── TULEVASED TÖÖD ────────────────────────────────────────────────
 
 router.get('/tulevased', noudaAdmin, async (req, res) => {
-  const r = await pool.query(
-    `SELECT t.*, w.nimi as worker_nimi, w.email as worker_email, e.nimi as ettevote_nimi,
+  const { ettevote_id } = req.query;
+  let q = `SELECT t.*, w.nimi as worker_nimi, w.email as worker_email, e.nimi as ettevote_nimi,
             COALESCE(o.nimi,'') as objekt_nimi
      FROM tulevased_tood t
      JOIN workers w ON t.worker_id=w.id
      JOIN ettevotted e ON t.ettevote_id=e.id
      LEFT JOIN objektid o ON t.objekt_id=o.id
-     WHERE t.kuupaev >= CURRENT_DATE ORDER BY t.kuupaev, t.algus_kell`
-  );
+     WHERE t.kuupaev >= CURRENT_DATE`;
+  const params = [];
+  if (ettevote_id) { params.push(ettevote_id); q += ` AND t.ettevote_id = $${params.length}`; }
+  q += ` ORDER BY t.kuupaev, t.algus_kell`;
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 
