@@ -415,7 +415,7 @@
   </div>
   <div class="sektsioon" id="tab5">
     <div class="kaart">
-      <div class="kaart-hdr">📸 Fotod objektide kaupa</div>
+      <div class="kaart-hdr">📸 Fotod</div>
       <div id="fotodSisu" style="padding:16px"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
     </div>
   </div>
@@ -2636,12 +2636,43 @@ async function laadiAuditLogi(){
     `</tbody></table>`;
 }
 
+const FOTOD_ETTEVOTTED=[
+  {nimi:'LIDL',emoji:'🛒'},
+  {nimi:'CRAMO',emoji:'🏗️'},
+  {nimi:'MEREKOHVIK',emoji:'🍹'},
+  {nimi:'X-SEERIA',emoji:'🥏'}
+];
+
 async function laadiFotod(){
+  await naitaFotodEttevotted();
+}
+
+async function naitaFotodEttevotted(){
   const div=document.getElementById('fotodSisu');
   div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
-  const objektid=await api('/api/pildid/admin/objektid');
-  if(!Array.isArray(objektid)||!objektid.length){div.innerHTML='<div style="padding:24px;text-align:center;color:var(--hall)">Fotosid pole üles laaditud</div>';return;}
-  div.innerHTML=objektid.map(o=>`
+  const kokkuvote=await api('/api/pildid/admin/ettevotted-kokkuvote');
+  const arvud={};
+  if(Array.isArray(kokkuvote)) kokkuvote.forEach(r=>{arvud[(r.nimi||'').toUpperCase()]=parseInt(r.piltide_arv)||0;});
+  div.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">`+
+    FOTOD_ETTEVOTTED.map(e=>{
+      const arv=arvud[e.nimi]||0;
+      return `<div onclick="avaFotodEttevote('${e.nimi}')" style="cursor:pointer;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:12px;padding:20px;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">${e.emoji}</div>
+        <div style="font-weight:600;font-size:14px;color:var(--tekst)">${e.nimi}</div>
+        <div style="font-size:12px;color:var(--hall);margin-top:4px">${arv} fotot</div>
+      </div>`;
+    }).join('')+`</div>`;
+}
+
+async function avaFotodEttevote(nimi){
+  const div=document.getElementById('fotodSisu');
+  div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
+  const tagasi=`<button onclick="naitaFotodEttevotted()" style="background:none;border:none;color:#a855f7;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:0">← Tagasi ettevõtete juurde</button>`;
+  const ettevoteId=ettevoteIdByNimi(nimi);
+  if(!ettevoteId){div.innerHTML=tagasi+`<div style="padding:24px;text-align:center;color:var(--hall)">${nimi} kohta pole veel fotosid.</div>`;return;}
+  const objektid=await api(`/api/pildid/admin/objektid?ettevote_id=${ettevoteId}`);
+  if(!Array.isArray(objektid)||!objektid.length){div.innerHTML=tagasi+'<div style="padding:24px;text-align:center;color:var(--hall)">Fotosid pole üles laaditud</div>';return;}
+  div.innerHTML=tagasi+objektid.map(o=>`
     <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:0.5px solid var(--piir2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div><span style="font-size:11px;color:var(--hall)">${o.ettevote_nimi}</span><div style="font-size:15px;font-weight:600;color:var(--tekst)">${o.nimi}</div><span style="font-size:12px;color:var(--hall)">${o.piltide_arv} fotot</span></div>
