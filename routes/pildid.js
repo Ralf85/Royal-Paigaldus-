@@ -103,17 +103,32 @@ router.delete('/:piltId', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Admin: kõik pildid objekti kaupa
-router.get('/admin/objektid', noudaAdmin, async (req, res) => {
+// Admin: fotode kokkuvõte ettevõtete kaupa (Fotod tabi esimene vaade)
+router.get('/admin/ettevotted-kokkuvote', noudaAdmin, async (req, res) => {
   const r = await pool.query(
-    `SELECT o.id, o.nimi, e.nimi as ettevote_nimi, COUNT(p.id) as piltide_arv
+    `SELECT e.id, e.nimi, COUNT(p.id) as piltide_arv
+     FROM ettevotted e
+     LEFT JOIN objektid o ON o.ettevote_id = e.id
+     LEFT JOIN tookirjed t ON t.objekt_id = o.id
+     LEFT JOIN tookirje_pildid p ON p.tookirje_id = t.id
+     GROUP BY e.id, e.nimi
+     ORDER BY e.nimi`
+  );
+  res.json(r.rows);
+});
+
+// Admin: kõik pildid objekti kaupa (valikuliselt filtreeritud ühe ettevõtte peale)
+router.get('/admin/objektid', noudaAdmin, async (req, res) => {
+  const { ettevote_id } = req.query;
+  let q = `SELECT o.id, o.nimi, e.nimi as ettevote_nimi, COUNT(p.id) as piltide_arv
      FROM objektid o
      JOIN ettevotted e ON o.ettevote_id = e.id
      LEFT JOIN tookirjed t ON t.objekt_id = o.id
-     LEFT JOIN tookirje_pildid p ON p.tookirje_id = t.id
-     GROUP BY o.id, o.nimi, e.nimi HAVING COUNT(p.id) > 0
-     ORDER BY e.nimi, o.nimi`
-  );
+     LEFT JOIN tookirje_pildid p ON p.tookirje_id = t.id`;
+  const params = [];
+  if (ettevote_id) { params.push(ettevote_id); q += ` WHERE o.ettevote_id = $${params.length}`; }
+  q += ` GROUP BY o.id, o.nimi, e.nimi HAVING COUNT(p.id) > 0 ORDER BY e.nimi, o.nimi`;
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 
