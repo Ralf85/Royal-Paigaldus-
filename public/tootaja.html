@@ -99,6 +99,12 @@
     .v-roheline { color: #4ade80; }
     .v-hall { color: #666; }
     .v-kollane { color: #fbbf24; }
+    .laek-firma-rida { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); font-size: 12px; }
+    .laek-firma-rida:last-child { border-bottom: none; }
+    .laek-firma-vasak { display: flex; align-items: center; gap: 8px; }
+    .laek-firma-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .laek-firma-nimi { color: #999; }
+    .laek-firma-summa { font-weight: 700; color: #4ade80; }
     .laekumine-rida { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
     .laekumine-rida:last-child { border-bottom: none; }
     .lr-vasak { display: flex; align-items: center; gap: 10px; }
@@ -332,33 +338,6 @@
     </div>
   </div>
 
-  <!-- Töökirje muutmise modal -->
-  <div id="kirjeMuutaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:250;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto">
-    <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px;padding:16px 20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <span style="font-size:15px;font-weight:700;color:#60a5fa">✏️ Muuda töökirjet</span>
-        <button onclick="sulgeKirjeMuuta()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">✕</button>
-      </div>
-      <input type="hidden" id="kirje-muuta-id">
-      <div style="margin-bottom:8px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="kirje-muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Algus</label><input type="time" id="kirje-muuta-algus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lõpp</label><input type="time" id="kirje-muuta-lopp" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-      </div>
-      <div style="margin-bottom:8px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kommentaar</label><input type="text" id="kirje-muuta-kommentaar" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kilomeetrid</label><input type="number" step="0.1" min="0" id="kirje-muuta-km" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu (€)</label><input type="number" step="0.01" min="0" id="kirje-muuta-lisakulu" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
-      </div>
-      <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Lisakulu selgitus</label><input type="text" id="kirje-muuta-lisakulu-selgitus" placeholder="nt. kütus, tööriistad..." style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button onclick="salvestaKirjeMuutus()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
-        <button onclick="kustutaKirje()" style="background:none;border:0.5px solid #7f1d1d;color:#ef4444;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer">🗑 Kustuta</button>
-      </div>
-      <div id="kirje-muuta-teade" style="margin-top:8px;font-size:12px;display:none"></div>
-    </div>
-  </div>
-
   <!-- Merekohviku kalender modal -->
   <div class="modal-overlay" id="kalenderModal">
     <div class="modal-sisu">
@@ -412,6 +391,7 @@
           <div class="laek-kv-item"><div class="laek-kv-label">Makstud</div><div class="laek-kv-val v-hall" id="kv-makstud">—</div></div>
           <div class="laek-kv-item"><div class="laek-kv-label">Ootel</div><div class="laek-kv-val v-kollane" id="kv-ootel">—</div></div>
         </div>
+        <div id="laek-firmad"></div>
         <div id="laekumisteSisuList"><div class="tyhi-olek">Laekumisi pole</div></div>
       </div>
     </div>
@@ -590,7 +570,7 @@
         var logoHtml = tyyp === 'lidl'
           ? '<img src="/logos/lidl.png" alt="LIDL" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
           : tyyp === 'cramo'
-            ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:100%;height:100%;object-fit:cover;border-radius:9px">'
+            ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:82%;height:82%;object-fit:contain">'
             : '<span>' + logo + '</span>';
         if (tyyp === 'edgf') {
           return '<div class="emp-card edgf" onclick="toggleEdgfModal()">'
@@ -612,7 +592,7 @@
         + '<div class="emp-tunnid">' + (reSumma > 0 ? reSumma.toFixed(0) + ' €' : '0 €') + '</div>'
         + '<div class="emp-tunnid-sub">kulud sellel kuul</div></div>' : '')
       + (onXseeria ? '<a class="emp-card xseeria" href="/xseeria">'
-        + '<div class="emp-logo xseeria"><img src="/logos/xseeria.png" alt="X-seeria" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px;padding:4px;box-sizing:border-box"></div>'
+        + '<div class="emp-logo xseeria"><span style="font-size:18px">🥏</span></div>'
         + '<div class="emp-label xseeria">X-SEERIA</div>'
         + '<div class="emp-tunnid">✓</div>'
         + '<div class="emp-tunnid-sub">rajapaigaldus</div></a>' : '');
@@ -668,7 +648,7 @@
           + '<div class="tp-aeg">'+k.algus.slice(0,5)+' – '+k.lopp.slice(0,5)+kmInfo+lisakuluInfo+'</div>'
           + (k.kommentaar?'<div class="tp-komm">'+k.kommentaar+'</div>':'')
           + '</div><div class="tp-tunnid">'+parseFloat(k.tunnid).toFixed(1)+'h</div>'
-          + '<button onclick="avaKirjeMuuta('+k.id+',\''+k.kuupaev.substring(0,10)+'\',\''+k.algus.slice(0,5)+'\',\''+k.lopp.slice(0,5)+'\',\''+String(k.kommentaar||'').replace(/\'/g,"\\\'").replace(/"/g,'&quot;')+'\','+parseFloat(k.kilomeetrid||0)+','+parseFloat(k.lisakulu_summa||0)+',\''+String(k.lisakulu_selgitus||'').replace(/\'/g,"\\\'").replace(/"/g,'&quot;')+'\')" style="color:#444;font-size:18px;padding:4px;background:none;border:none;cursor:pointer" title="Muuda/kustuta">✏️</button>'
+          + '<a href="/tootaja-tood?ettevote='+k.ettevote_id+'" style="color:#444;font-size:18px;padding:4px;text-decoration:none" title="Muuda/kustuta">✏️</a>'
           + '</div>';
       }).join('');
     }
@@ -864,43 +844,6 @@
       else{teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga';}
     }
 
-    // ── TÖÖKIRJE MUUTMINE ────────────────────────────────────────
-    function avaKirjeMuuta(id,kuupaev,algus,lopp,kommentaar,km,lisakulu,lisakuluSelgitus) {
-      document.getElementById('kirje-muuta-id').value=id;
-      document.getElementById('kirje-muuta-kuupaev').value=kuupaev;
-      document.getElementById('kirje-muuta-algus').value=algus;
-      document.getElementById('kirje-muuta-lopp').value=lopp;
-      document.getElementById('kirje-muuta-kommentaar').value=kommentaar||'';
-      document.getElementById('kirje-muuta-km').value=km||0;
-      document.getElementById('kirje-muuta-lisakulu').value=lisakulu||0;
-      document.getElementById('kirje-muuta-lisakulu-selgitus').value=lisakuluSelgitus||'';
-      document.getElementById('kirje-muuta-teade').style.display='none';
-      document.getElementById('kirjeMuutaModal').style.display='flex';
-    }
-    function sulgeKirjeMuuta(){document.getElementById('kirjeMuutaModal').style.display='none';}
-    async function salvestaKirjeMuutus(){
-      var id=document.getElementById('kirje-muuta-id').value;
-      var kuupaev=document.getElementById('kirje-muuta-kuupaev').value;
-      var algus=document.getElementById('kirje-muuta-algus').value;
-      var lopp=document.getElementById('kirje-muuta-lopp').value;
-      var kommentaar=document.getElementById('kirje-muuta-kommentaar').value;
-      var kilomeetrid=document.getElementById('kirje-muuta-km').value;
-      var lisakulu_summa=document.getElementById('kirje-muuta-lisakulu').value;
-      var lisakulu_selgitus=document.getElementById('kirje-muuta-lisakulu-selgitus').value;
-      var teade=document.getElementById('kirje-muuta-teade');
-      if(!kuupaev||!algus||!lopp){teade.style.display='block';teade.style.color='#ef4444';teade.textContent='Täida kuupäev ja kellaajad';return;}
-      var r=await api('/api/tood/kirje/'+id,{method:'PUT',body:JSON.stringify({kuupaev,algus,lopp,kommentaar,kilomeetrid,lisakulu_summa,lisakulu_selgitus})});
-      if(r.ok){sulgeKirjeMuuta();await laadiToopaevik();await laadiEttevotted();}
-      else{teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga';}
-    }
-    async function kustutaKirje(){
-      var id=document.getElementById('kirje-muuta-id').value;
-      if(!confirm('Kustutad selle töökirje?'))return;
-      var r=await api('/api/tood/kustuta/'+id,{method:'DELETE'});
-      if(r.ok){sulgeKirjeMuuta();await laadiToopaevik();await laadiEttevotted();}
-      else{var teade=document.getElementById('kirje-muuta-teade');teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga';}
-    }
-
     // ── LAEKUMISED ─────────────────────────────────────────────
     var laekumisedNahtav = false;
     function toggleLaekumised() {
@@ -910,10 +853,34 @@
       document.getElementById('laekumiste-silm').textContent=laekumisedNahtav?'🙈':'👁';
     }
 
+    var FIRMA_VARV = { lidl: '#FFF200', cramo: '#CD2200', muu: '#38bdf8', merekohvik: '#4ade80', edgf: '#a78bfa' };
+    async function laadiLaekumisedFirmad() {
+      var div = document.getElementById('laek-firmad');
+      if (!div) return;
+      try {
+        var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
+        if (!kokkuvote.ok || !kokkuvote.kirjed || !kokkuvote.kirjed.length) { div.innerHTML = ''; return; }
+        var summaFirma = {}, nimiFirma = {}, tyypFirma = {};
+        kokkuvote.kirjed.forEach(function(k) {
+          var summa = parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0) + parseFloat(k.km_raha || 0) + parseFloat(k.lisakulu_summa || 0);
+          summaFirma[k.ettevote_id] = (summaFirma[k.ettevote_id] || 0) + summa;
+          nimiFirma[k.ettevote_id] = k.ettevote_nimi;
+          tyypFirma[k.ettevote_id] = k.ettevote_tyyp || 'muu';
+        });
+        var ids = Object.keys(summaFirma).filter(function(id) { return summaFirma[id] > 0; }).sort(function(a,b) { return summaFirma[b] - summaFirma[a]; });
+        if (!ids.length) { div.innerHTML = ''; return; }
+        div.innerHTML = ids.map(function(id) {
+          var varv = FIRMA_VARV[tyypFirma[id]] || '#888';
+          return '<div class="laek-firma-rida"><div class="laek-firma-vasak"><span class="laek-firma-dot" style="background:' + varv + '"></span><span class="laek-firma-nimi">Teenitud ' + nimiFirma[id] + '</span></div><span class="laek-firma-summa">' + summaFirma[id].toFixed(0) + ' €</span></div>';
+        }).join('');
+      } catch (e) { div.innerHTML = ''; }
+    }
+
     async function laadiLaekumised() {
       var andmed=await api('/api/admin/maksed?worker_id=self&aasta='+aktiivsAasta+'&kuu='+aktiivsKuu);
       if(Array.isArray(andmed)&&andmed.length){var kokku=andmed.reduce(function(s,m){return s+parseFloat(m.summa);},0);document.getElementById('kv-makstud').textContent=kokku.toFixed(0)+' €';}
       else{document.getElementById('kv-makstud').textContent='0 €';}
+      laadiLaekumisedFirmad();
       var div=document.getElementById('laekumisteSisuList');
       if(!Array.isArray(andmed)||!andmed.length){div.innerHTML='<div class="tyhi-olek">Selle kuu laekumisi pole</div>';return;}
       div.innerHTML=andmed.map(function(m){var d=new Date(m.kuupaev);return '<div class="laekumine-rida"><div class="lr-vasak"><div class="lr-ikoon">⬇️</div><div><div class="lr-kuupaev">'+d.getDate()+'. '+KUUD[d.getMonth()]+' '+d.getFullYear()+'</div>'+(m.kommentaar?'<div class="lr-komm">'+m.kommentaar+'</div>':'')+'</div></div><div class="lr-summa">+'+parseFloat(m.summa).toFixed(0)+' €</div></div>';}).join('');
