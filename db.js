@@ -343,6 +343,74 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    // ── ARVED (invoice-moodul) ──────────────────────────────────────────
+    // Ettevõtete (Lidl/Cramo/...) arvele minevad püsiandmed — aadress, registrikood, KMKR, maksetähtaeg.
+    // Ad-hoc (kolmanda osapoole) arvete puhul jäävad need ostja väljad arve enda peal (ettevote_id on siis null).
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_aadress TEXT;`);
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_rg_kood VARCHAR(20);`);
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_kmkr VARCHAR(20);`);
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_maksetahtaeg_paevad INTEGER DEFAULT 14;`);
+    // Vabas vormis mall kontaktisiku/lisainfo rea jaoks (nt Lidl: "Kristo Allikas - GK Projekt ...",
+    // Cramo: "Osakond: 5002 Tellija - Andres Rammo") — täidetakse arve loomisel käsitsi, siin ainult viimati kasutatud väärtus.
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_kontakt_viimane TEXT;`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS arved (
+        id SERIAL PRIMARY KEY,
+        number VARCHAR(20) NOT NULL UNIQUE,
+        kuupaev DATE NOT NULL,
+        maksetahtaeg DATE NOT NULL,
+        viitenumber VARCHAR(20) NOT NULL,
+        ettevote_id INTEGER REFERENCES ettevotted(id),
+        ostja_nimi VARCHAR(200) NOT NULL,
+        ostja_aadress TEXT,
+        ostja_rg_kood VARCHAR(20),
+        ostja_kmkr VARCHAR(20),
+        kontaktisik TEXT,
+        po_number VARCHAR(100),
+        algus DATE,
+        lopp DATE,
+        summa_km_ta DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kaibemaks_protsent DECIMAL(5,2) NOT NULL DEFAULT 24,
+        kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kokku DECIMAL(10,2) NOT NULL DEFAULT 0,
+        staatus VARCHAR(20) NOT NULL DEFAULT 'maksmata',
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS arve_read (
+        id SERIAL PRIMARY KEY,
+        arve_id INTEGER REFERENCES arved(id) ON DELETE CASCADE,
+        jrk_nr INTEGER DEFAULT 0,
+        kirjeldus TEXT NOT NULL,
+        kogus DECIMAL(10,2) NOT NULL DEFAULT 1,
+        uhik VARCHAR(20) DEFAULT '',
+        hind DECIMAL(10,2) NOT NULL DEFAULT 0,
+        summa DECIMAL(10,2) NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS arve_paeva_loendur (
+        paev VARCHAR(6) PRIMARY KEY,
+        jargmine_jrk INTEGER NOT NULL DEFAULT 1
+      );
+    `);
+    // Lidl ja Cramo arve baasandmed (registrikoodid/aadressid varasematelt arvetelt) — täidame ainult siis,
+    // kui pole veel käsitsi/administ seadistatud (ei kirjuta hiljem tehtud muudatusi üle).
+    await client.query(`
+      UPDATE ettevotted SET
+        arve_aadress = 'A. H. Tammsaare tee 47, Kristiine linnaosa, Tallinn, 11316 Harju maakond',
+        arve_rg_kood = '14131773',
+        arve_kmkr = 'EE101924962',
+        arve_maksetahtaeg_paevad = 21
+      WHERE nimi = 'LIDL' AND arve_rg_kood IS NULL;
+    `);
+    await client.query(`
+      UPDATE ettevotted SET
+        arve_aadress = 'Kadaka tee 131/4, Mustamäe linnaosa, Tallinn, 12915 Harju maakond',
+        arve_rg_kood = '10166658',
+        arve_kmkr = 'EE100244326',
+        arve_maksetahtaeg_paevad = 14
+      WHERE nimi = 'CRAMO' AND arve_rg_kood IS NULL;
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
