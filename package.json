@@ -20,6 +20,7 @@
 		"archiver": "^6.0.1",
 		"web-push": "^3.6.7",
 		"resend": "^3.2.0",
-		"exceljs": "^4.4.0"
+		"exceljs": "^4.4.0",
+		"pdfkit": "^0.15.0"
 	}
 }
