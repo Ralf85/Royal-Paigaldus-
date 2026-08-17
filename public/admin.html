@@ -1462,31 +1462,6 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
   </div>
 
-</div>
-<!-- X-seeria rajakaartide modal -->
-<div class="tootaja-modal-overlay" id="xsFotoModal">
-  <div class="tootaja-modal-sisu" style="max-width:640px">
-    <div class="tm-hdr">
-      <div>
-        <div style="font-size:16px;font-weight:700;color:var(--tekst)">🖼️ Rajakaardid</div>
-        <div style="font-size:12px;color:var(--hall);margin-top:2px" id="xsFotoParkNimi">—</div>
-      </div>
-      <button class="tm-sulge" onclick="xsSuljeFotoModal()">✕</button>
-    </div>
-    <div class="tm-sektsioon">
-      <div id="xsFotoDropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer">
-        📷 Lohista siia pildid (mitu korraga) või kliki valimiseks
-        <div style="font-size:11px;margin-top:6px">Pildid jagatakse radadele automaatselt — kui failinimes on number (nt "56.jpg"), kasutatakse seda; muidu järjekord, milles pildid valisid.</div>
-        <input type="file" id="xsFotoInput" accept="image/*" multiple style="display:none">
-      </div>
-      <div id="xsFotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:16px"></div>
-      <div class="teade" id="xsFotoTeade" style="margin-top:10px"></div>
-      <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">
-        <button class="nupp hall" onclick="xsSuljeFotoModal()">Sulge</button>
-        <button class="nupp kull" id="xsFotoSalvestaNupp" style="display:none" onclick="xsSalvestaFotod()">Salvesta pildid</button>
-      </div>
-    </div>
-  </div>
   <div class="sektsioon" id="tab12">
     <div class="kaart">
       <div class="kaart-hdr">➕ Uus arve <span id="arve-jargmine-nr" style="margin-left:auto;font-size:11px;color:var(--hall)"></span></div>
@@ -1556,6 +1531,32 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart">
       <div class="kaart-hdr">📋 Arvete ajalugu</div>
       <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+    </div>
+  </div>
+
+</div>
+<!-- X-seeria rajakaartide modal -->
+<div class="tootaja-modal-overlay" id="xsFotoModal">
+  <div class="tootaja-modal-sisu" style="max-width:640px">
+    <div class="tm-hdr">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--tekst)">🖼️ Rajakaardid</div>
+        <div style="font-size:12px;color:var(--hall);margin-top:2px" id="xsFotoParkNimi">—</div>
+      </div>
+      <button class="tm-sulge" onclick="xsSuljeFotoModal()">✕</button>
+    </div>
+    <div class="tm-sektsioon">
+      <div id="xsFotoDropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer">
+        📷 Lohista siia pildid (mitu korraga) või kliki valimiseks
+        <div style="font-size:11px;margin-top:6px">Pildid jagatakse radadele automaatselt — kui failinimes on number (nt "56.jpg"), kasutatakse seda; muidu järjekord, milles pildid valisid.</div>
+        <input type="file" id="xsFotoInput" accept="image/*" multiple style="display:none">
+      </div>
+      <div id="xsFotoGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:16px"></div>
+      <div class="teade" id="xsFotoTeade" style="margin-top:10px"></div>
+      <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="nupp hall" onclick="xsSuljeFotoModal()">Sulge</button>
+        <button class="nupp kull" id="xsFotoSalvestaNupp" style="display:none" onclick="xsSalvestaFotod()">Salvesta pildid</button>
+      </div>
     </div>
   </div>
 </div><!-- /.konteiner (tab11 lõpp + konteiner lõpp) -->
