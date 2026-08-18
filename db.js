@@ -404,10 +404,12 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS arve_sisse (
         id SERIAL PRIMARY KEY,
         kuupaev DATE NOT NULL,
+        tahtaeg DATE,
         ettevote_id INTEGER REFERENCES ettevotted(id),
         kirjeldus TEXT,
         summa DECIMAL(10,2) NOT NULL DEFAULT 0,
         kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
+        staatus VARCHAR(20) NOT NULL DEFAULT 'makstud',
         fail_url TEXT,
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
@@ -417,8 +419,24 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
-    // Vana deploy võis arve_sisse juba luua ilma käibemaksu veeruta — lisame eraldi, et see kindlasti tekiks.
+    // Vana deploy võis arve_sisse juba luua ilma nende veergudeta — lisame eraldi, et need kindlasti tekiks.
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS staatus VARCHAR(20) NOT NULL DEFAULT 'makstud';`);
+    // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
+    // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS arve_kliendid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL UNIQUE,
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        maksetahtaeg_paevad INTEGER DEFAULT 14,
+        kontaktisik TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
     // Lidl ja Cramo arve baasandmed (registrikoodid/aadressid varasematelt arvetelt) — täidame ainult siis,
     // kui pole veel käsitsi/administ seadistatud (ei kirjuta hiljem tehtud muudatusi üle).
     await client.query(`
