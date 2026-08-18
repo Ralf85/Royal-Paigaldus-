@@ -353,6 +353,8 @@ async function initDB() {
     // Vabas vormis mall kontaktisiku/lisainfo rea jaoks (nt Lidl: "Kristo Allikas - GK Projekt ...",
     // Cramo: "Osakond: 5002 Tellija - Andres Rammo") — täidetakse arve loomisel käsitsi, siin ainult viimati kasutatud väärtus.
     await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_kontakt_viimane TEXT;`);
+    // Ostja täisnimi arvel (nt "Cramo Estonia AS"), eristub külgmenüü lühinimest ("CRAMO").
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_nimi VARCHAR(200);`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS arved (
@@ -391,6 +393,28 @@ async function initDB() {
         paev VARCHAR(6) PRIMARY KEY,
         jargmine_jrk INTEGER NOT NULL DEFAULT 1
       );
+      CREATE TABLE IF NOT EXISTS arve_valikud (
+        id SERIAL PRIMARY KEY,
+        ettevote_id INTEGER REFERENCES ettevotted(id),
+        tyyp VARCHAR(20) NOT NULL,
+        vaartus VARCHAR(300) NOT NULL,
+        silt VARCHAR(200),
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS arve_sisse (
+        id SERIAL PRIMARY KEY,
+        kuupaev DATE NOT NULL,
+        ettevote_id INTEGER REFERENCES ettevotted(id),
+        kirjeldus TEXT,
+        summa DECIMAL(10,2) NOT NULL DEFAULT 0,
+        fail_url TEXT,
+        fail_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS arve_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
     `);
     // Lidl ja Cramo arve baasandmed (registrikoodid/aadressid varasematelt arvetelt) — täidame ainult siis,
     // kui pole veel käsitsi/administ seadistatud (ei kirjuta hiljem tehtud muudatusi üle).
@@ -410,6 +434,9 @@ async function initDB() {
         arve_maksetahtaeg_paevad = 14
       WHERE nimi = 'CRAMO' AND arve_rg_kood IS NULL;
     `);
+    // Ostja täisnimi (eraldi guard arve_nimi järgi, sest arve_rg_kood võib eelmisest deploy'st juba täidetud olla).
+    await client.query(`UPDATE ettevotted SET arve_nimi = 'Lidl Eesti OÜ' WHERE nimi = 'LIDL' AND (arve_nimi IS NULL OR arve_nimi = '');`);
+    await client.query(`UPDATE ettevotted SET arve_nimi = 'Cramo Estonia AS' WHERE nimi = 'CRAMO' AND (arve_nimi IS NULL OR arve_nimi = '');`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
