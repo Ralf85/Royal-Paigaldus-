@@ -4,6 +4,9 @@ const { pool } = require('../db');
 const PDFDocument = require('pdfkit');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const archiver = require('archiver');
+const https = require('https');
+const http = require('http');
 
 function getCloudinary() {
   cloudinary.config({
@@ -211,6 +214,16 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
 
 // ── LIGIPÄÄS (kes näeb Arved raamatupidaja-vaadet) ────────────────────────
 // Töötaja: kas mul on Arved ligipääs?
+// ── KOLMANDATE OSAPOOLTE KLIENDID (meelde jäetud, mitte Lidl/Cramo/Merekohvik/Muu) ──
+router.get('/kliendid', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM arve_kliendid ORDER BY nimi');
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query('SELECT 1 FROM arve_lubatud WHERE worker_id=$1', [req.session.workerId]);
@@ -267,7 +280,7 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
   }
 });
 router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
-  const { kuupaev, ettevote_id, kirjeldus, summa, kaibemaks } = req.body;
+  const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   try {
     let fail_url = null, fail_public_id = null;
@@ -283,11 +296,94 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
       fail_public_id = result.public_id;
     }
     const r = await pool.query(
-      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, fail_url, fail_public_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [kuupaev, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, fail_url, fail_public_id]
+      `INSERT INTO arve_sisse (kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'makstud', fail_url, fail_public_id]
     );
     res.json({ ok: true, kirje: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── SISSE MUUTMINE (nt kui AI luges valesti) — valikuline faili asendamine ──
+router.put('/sisse/:id', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks } = req.body;
+  if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
+  try {
+    const vana = await pool.query('SELECT fail_public_id FROM arve_sisse WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    let fail_url, fail_public_id;
+    if (req.file) {
+      if (vana.rows[0].fail_public_id) {
+        try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: 'auto' }); } catch (e) {}
+      }
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          { folder: 'royal-paigaldus/arved-sisse', resource_type: 'auto' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      fail_url = result.secure_url;
+      fail_public_id = result.public_id;
+      await pool.query(
+        `UPDATE arve_sisse SET kuupaev=$1, tahtaeg=$2, ettevote_id=$3, kirjeldus=$4, summa=$5, kaibemaks=$6, fail_url=$7, fail_public_id=$8 WHERE id=$9`,
+        [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, fail_url, fail_public_id, req.params.id]
+      );
+    } else {
+      await pool.query(
+        `UPDATE arve_sisse SET kuupaev=$1, tahtaeg=$2, ettevote_id=$3, kirjeldus=$4, summa=$5, kaibemaks=$6 WHERE id=$7`,
+        [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, req.params.id]
+      );
+    }
+    const uuendatud = await pool.query('SELECT * FROM arve_sisse WHERE id=$1', [req.params.id]);
+    res.json({ ok: true, kirje: uuendatud.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── SISSE STAATUS (makstud/ootel) ─────────────────────────────────────────
+router.put('/sisse/:id/staatus', noudaAdmin, async (req, res) => {
+  const { staatus } = req.body;
+  if (!['makstud', 'ootel'].includes(staatus)) return res.json({ ok: false, veateade: 'Vale staatus' });
+  try {
+    await pool.query('UPDATE arve_sisse SET staatus=$1 WHERE id=$2', [staatus, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── SISSE VALITUD FAILIDE ZIP (admin + lubatud raamatupidaja) ────────────
+router.get('/sisse/zip', noudaArvedLubatud, async (req, res) => {
+  const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
+  if (!idid.length) return res.status(400).json({ ok: false, veateade: 'Vali vähemalt üks kirje' });
+  try {
+    const r = await pool.query(
+      `SELECT s.*, e.nimi as ettevote_nimi FROM arve_sisse s LEFT JOIN ettevotted e ON s.ettevote_id = e.id
+       WHERE s.id = ANY($1) AND s.fail_url IS NOT NULL`,
+      [idid]
+    );
+    if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud kirjetel pole faile' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_sisse_arved.zip"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+    for (const rida of r.rows) {
+      const kuupaev = String(rida.kuupaev).split('T')[0];
+      const laiend = (rida.fail_url.match(/\.(\w+)(\?|$)/) || [,'jpg'])[1];
+      const nimi = `${kuupaev}_${(rida.ettevote_nimi || 'muu')}_${rida.id}.${laiend}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
+      await new Promise((resolve, reject) => {
+        const url = new URL(rida.fail_url);
+        const proto = url.protocol === 'https:' ? https : http;
+        proto.get(rida.fail_url, imgRes => { archive.append(imgRes, { name: nimi }); imgRes.on('end', resolve); imgRes.on('error', reject); }).on('error', reject);
+      });
+    }
+    archive.finalize();
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
@@ -308,8 +404,8 @@ router.post('/sisse/loe', noudaAdmin, uploadSisse.single('fail'), async (req, re
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
       : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
     const juhis = `Sa vaatad ühte ostuarvet või kuluchekki. Loe sellelt välja järgmised väljad ja vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"ettevote": "müüja/ettevõtte nimi dokumendil", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD"}
-Kui mõnda välja ei leia, kasuta ettevote jaoks tühja stringi ja summa/kaibemaks jaoks 0.`;
+{"ettevote": "müüja/ettevõtte nimi dokumendil", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)"}
+Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi ja summa/kaibemaks jaoks 0.`;
     const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -351,6 +447,7 @@ Kui mõnda välja ei leia, kasuta ettevote jaoks tühja stringi ja summa/kaibema
       summa: parseFloat(väljad.summa) || 0,
       kaibemaks: parseFloat(väljad.kaibemaks) || 0,
       kuupaev: väljad.kuupaev || '',
+      tahtaeg: väljad.tahtaeg || '',
       ettevote_id: ettevoteId
     });
   } catch (err) {
@@ -471,6 +568,17 @@ router.post('/', noudaAdmin, async (req, res) => {
     }
     if (ettevote_id && kontaktisik) {
       await client.query('UPDATE ettevotted SET arve_kontakt_viimane=$1 WHERE id=$2', [kontaktisik, ettevote_id]);
+    }
+    // Kolmas osapool (pole Lidl/Cramo/Merekohvik/Muu) — jäta ta andmed meelde, et Klient rippmenüüst
+    // saaks ta tulevikus kiirelt uuesti valida (uuendame andmeid ka siis, kui nimi juba olemas).
+    if (!ettevote_id && ostja_nimi) {
+      await client.query(
+        `INSERT INTO arve_kliendid (nimi, aadress, rg_kood, kmkr, maksetahtaeg_paevad, kontaktisik)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (nimi) DO UPDATE SET aadress=EXCLUDED.aadress, rg_kood=EXCLUDED.rg_kood, kmkr=EXCLUDED.kmkr,
+           maksetahtaeg_paevad=EXCLUDED.maksetahtaeg_paevad, kontaktisik=EXCLUDED.kontaktisik`,
+        [ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', paevi, kontaktisik || '']
+      );
     }
     await client.query('COMMIT');
     res.json({ ok: true, id: arveId, number, viitenumber });
