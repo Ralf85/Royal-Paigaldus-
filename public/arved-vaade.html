@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Arved</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #555; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .topbar h1 { font-size: 18px; font-weight: 800; }
+  .topbar h1 span { color: #4ade80; }
+  select, input { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+  .kaart-hdr { padding: 14px 18px; font-size: 14px; font-weight: 700; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 18px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 0.5px solid var(--border); }
+  td { padding: 10px 18px; border-bottom: 0.5px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  a.laadi { color: #5b9cf6; text-decoration: none; font-weight: 600; }
+  .tyhi { padding: 24px 18px; text-align: center; color: var(--text3); }
+  .staatus { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .laadimine { padding: 24px; text-align: center; color: var(--text3); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>💶 <span>Arved</span> — raamatupidaja vaade</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="av-kuu"></select>
+      <select id="av-aasta"></select>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <div class="kaart-hdr">📤 Väljaminevad (esitatud arved)</div>
+    <div id="valjaTabel"><div class="laadimine">Laadimine...</div></div>
+  </div>
+
+  <div class="kaart">
+    <div class="kaart-hdr">📥 Sissetulevad (tasutud tšekid/arved)</div>
+    <div id="sisseTabel"><div class="laadimine">Laadimine...</div></div>
+  </div>
+
+<script>
+var TOKEN = localStorage.getItem('workerToken') || localStorage.getItem('adminToken') || '';
+var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+
+if (!TOKEN) window.location.replace('/');
+
+function api(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-session-token': TOKEN }, opts.headers || {});
+  return fetch(url, opts).then(function(r) { return r.json(); });
+}
+function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function fmtKp(d) { var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
+
+function taidaValikud() {
+  var t = new Date();
+  var kuuSel = document.getElementById('av-kuu');
+  KUUD.forEach(function(k, i) {
+    var o = document.createElement('option'); o.value = i + 1; o.textContent = k;
+    if (i === t.getMonth()) o.selected = true;
+    kuuSel.appendChild(o);
+  });
+  var aastaSel = document.getElementById('av-aasta');
+  for (var y = t.getFullYear(); y >= t.getFullYear() - 2; y--) {
+    var o2 = document.createElement('option'); o2.value = y; o2.textContent = y;
+    if (y === t.getFullYear()) o2.selected = true;
+    aastaSel.appendChild(o2);
+  }
+  kuuSel.onchange = laadi;
+  aastaSel.onchange = laadi;
+}
+
+async function laadi() {
+  var kuu = document.getElementById('av-kuu').value;
+  var aasta = document.getElementById('av-aasta').value;
+  var r = await api('/api/arved/vaade?kuu=' + kuu + '&aasta=' + aasta);
+  if (!r.ok) {
+    document.getElementById('valjaTabel').innerHTML = '<div class="tyhi">Ligipääs puudub või viga laadimisel.</div>';
+    document.getElementById('sisseTabel').innerHTML = '';
+    return;
+  }
+  var valjaDiv = document.getElementById('valjaTabel');
+  if (!r.valja.length) {
+    valjaDiv.innerHTML = '<div class="tyhi">Selles kuus arveid pole.</div>';
+  } else {
+    valjaDiv.innerHTML = '<table><thead><tr><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th>Summa</th><th>Staatus</th><th></th></tr></thead><tbody>' +
+      r.valja.map(function(a) {
+        return '<tr><td style="font-weight:600">' + a.number + '</td><td>' + fmtKp(a.kuupaev) + '</td>' +
+          '<td>' + a.ostja_nimi + (a.ettevote_nimi ? ' <span style="color:var(--text3);font-size:11px">(' + a.ettevote_nimi + ')</span>' : '') + '</td>' +
+          '<td style="font-weight:600">' + fmtEur(a.kokku) + '</td>' +
+          '<td><span class="staatus" style="' + (a.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (a.staatus === 'makstud' ? '✅ Makstud' : '⏳ Maksmata') + '</span></td>' +
+          '<td><a class="laadi" href="/api/arved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 PDF</a></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  var sisseDiv = document.getElementById('sisseTabel');
+  if (!r.sisse.length) {
+    sisseDiv.innerHTML = '<div class="tyhi">Selles kuus üleslaetud tšekke/arveid pole.</div>';
+  } else {
+    sisseDiv.innerHTML = '<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th>Summa</th><th></th></tr></thead><tbody>' +
+      r.sisse.map(function(s) {
+        return '<tr><td>' + fmtKp(s.kuupaev) + '</td><td>' + (s.ettevote_nimi || '—') + '</td><td>' + (s.kirjeldus || '') + '</td>' +
+          '<td style="font-weight:600">' + fmtEur(s.summa) + '</td>' +
+          '<td>' + (s.fail_url ? '<a class="laadi" href="' + s.fail_url + '" target="_blank">📎 Fail</a>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+}
+
+taidaValikud();
+laadi();
+</script>
+</body>
+</html>
