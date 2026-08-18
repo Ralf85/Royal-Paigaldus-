@@ -101,9 +101,10 @@ async function laadi() {
   if (!r.sisse.length) {
     sisseDiv.innerHTML = '<div class="tyhi">Selles kuus üleslaetud tšekke/arveid pole.</div>';
   } else {
-    sisseDiv.innerHTML = '<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th>Summa</th><th></th></tr></thead><tbody>' +
+    sisseDiv.innerHTML = '<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th>Käibemaks</th><th>Summa</th><th></th></tr></thead><tbody>' +
       r.sisse.map(function(s) {
         return '<tr><td>' + fmtKp(s.kuupaev) + '</td><td>' + (s.ettevote_nimi || '—') + '</td><td>' + (s.kirjeldus || '') + '</td>' +
+          '<td>' + fmtEur(s.kaibemaks) + '</td>' +
           '<td style="font-weight:600">' + fmtEur(s.summa) + '</td>' +
           '<td>' + (s.fail_url ? '<a class="laadi" href="' + s.fail_url + '" target="_blank">📎 Fail</a>' : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
