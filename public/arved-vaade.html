@@ -39,7 +39,10 @@
   </div>
 
   <div class="kaart">
-    <div class="kaart-hdr">📥 Sissetulevad (tasutud tšekid/arved)</div>
+    <div class="kaart-hdr" style="justify-content:flex-start;gap:16px">
+      <span>📥 Sissetulevad (tšekid/arved)</span>
+      <button type="button" id="av-zip-nupp" onclick="laadiValitudZip()" style="display:none;background:var(--bg3);color:var(--text);border:0.5px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">⬇️ Laadi valitud alla (ZIP)</button>
+    </div>
     <div id="sisseTabel"><div class="laadimine">Laadimine...</div></div>
   </div>
 
@@ -97,18 +100,44 @@ async function laadi() {
           '<td><a class="laadi" href="/api/arved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 PDF</a></td></tr>';
       }).join('') + '</tbody></table>';
   }
+  sisseValitud = {};
   var sisseDiv = document.getElementById('sisseTabel');
   if (!r.sisse.length) {
     sisseDiv.innerHTML = '<div class="tyhi">Selles kuus üleslaetud tšekke/arveid pole.</div>';
+    document.getElementById('av-zip-nupp').style.display = 'none';
   } else {
-    sisseDiv.innerHTML = '<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th>Käibemaks</th><th>Summa</th><th></th></tr></thead><tbody>' +
+    sisseDiv.innerHTML = '<table><thead><tr><th><input type="checkbox" onchange="valiKoikSisse(this.checked)"></th><th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th><th>Käibemaks</th><th>Kokku</th><th>Staatus</th><th></th></tr></thead><tbody>' +
       r.sisse.map(function(s) {
-        return '<tr><td>' + fmtKp(s.kuupaev) + '</td><td>' + (s.ettevote_nimi || '—') + '</td><td>' + (s.kirjeldus || '') + '</td>' +
+        return '<tr><td><input type="checkbox" onchange="valiSisse(' + s.id + ', this.checked)"></td>' +
+          '<td>' + fmtKp(s.kuupaev) + '</td><td>' + (s.tahtaeg ? fmtKp(s.tahtaeg) : '—') + '</td><td>' + (s.ettevote_nimi || '—') + '</td><td>' + (s.kirjeldus || '') + '</td>' +
           '<td>' + fmtEur(s.kaibemaks) + '</td>' +
           '<td style="font-weight:600">' + fmtEur(s.summa) + '</td>' +
+          '<td><span class="staatus" style="' + (s.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (s.staatus === 'makstud' ? '✅ Makstud' : '⏳ Ootel') + '</span></td>' +
           '<td>' + (s.fail_url ? '<a class="laadi" href="' + s.fail_url + '" target="_blank">📎 Fail</a>' : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
+}
+
+var sisseValitud = {};
+function valiSisse(id, checked) {
+  if (checked) sisseValitud[id] = true; else delete sisseValitud[id];
+  var nupp = document.getElementById('av-zip-nupp');
+  var arv = Object.keys(sisseValitud).length;
+  nupp.style.display = arv ? 'inline-block' : 'none';
+  nupp.textContent = '⬇️ Laadi valitud alla (' + arv + ' ZIP-ina)';
+}
+function valiKoikSisse(checked) {
+  document.querySelectorAll('#sisseTabel tbody input[type=checkbox]').forEach(function(cb) {
+    cb.checked = checked;
+    var id = cb.getAttribute('onchange').match(/valiSisse\((\d+)/)[1];
+    if (checked) sisseValitud[id] = true; else delete sisseValitud[id];
+  });
+  valiSisse(null, false);
+}
+function laadiValitudZip() {
+  var ids = Object.keys(sisseValitud);
+  if (!ids.length) return;
+  window.open('/api/arved/sisse/zip?ids=' + ids.join(',') + '&_token=' + TOKEN, '_blank');
 }
 
 taidaValikud();
