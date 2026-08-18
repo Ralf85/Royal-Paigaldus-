@@ -267,7 +267,7 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
   }
 });
 router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
-  const { kuupaev, ettevote_id, kirjeldus, summa } = req.body;
+  const { kuupaev, ettevote_id, kirjeldus, summa, kaibemaks } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   try {
     let fail_url = null, fail_public_id = null;
@@ -283,14 +283,79 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
       fail_public_id = result.public_id;
     }
     const r = await pool.query(
-      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, fail_url, fail_public_id)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [kuupaev, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, fail_url, fail_public_id]
+      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, fail_url, fail_public_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [kuupaev, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, fail_url, fail_public_id]
     );
     res.json({ ok: true, kirje: r.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── AI ARVE LUGEJA (Claude vision — loeb pildilt/PDF-ilt ettevõtte/summa/käibemaksu/kuupäeva) ──
+// Ainult eelvaade — ei salvesta midagi, admin vaatab tulemuse üle ja vajutab ise "Salvesta".
+router.post('/sisse/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
+  }
+  try {
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const base64 = req.file.buffer.toString('base64');
+    const sisuBlokk = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
+    const juhis = `Sa vaatad ühte ostuarvet või kuluchekki. Loe sellelt välja järgmised väljad ja vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"ettevote": "müüja/ettevõtte nimi dokumendil", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD"}
+Kui mõnda välja ei leia, kasuta ettevote jaoks tühja stringi ja summa/kaibemaks jaoks 0.`;
+    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
+      })
+    });
+    const data = await apiResp.json();
+    if (!apiResp.ok) {
+      console.error('Anthropic API viga:', data);
+      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
+    }
+    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
+    let väljad;
+    try {
+      const vaste = tekst.match(/\{[\s\S]*\}/);
+      väljad = JSON.parse(vaste ? vaste[0] : tekst);
+    } catch (e) {
+      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
+    }
+    // Proovi meie oma ettevõtete nimekirjast (Cramo/Lidl/Merekohvik/Muu) sobivat automaatselt valida,
+    // kui loetud müüja nimi sisaldab mõnda meie ettevõtte lühinime (nt "Cramo Estonia AS" → CRAMO).
+    let ettevoteId = null;
+    if (väljad.ettevote) {
+      const en = String(väljad.ettevote).toUpperCase();
+      const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
+      const leitud = kandidaadid.rows.find(e => en.includes((e.nimi || '').toUpperCase()));
+      if (leitud) ettevoteId = leitud.id;
+    }
+    res.json({
+      ok: true,
+      ettevote: väljad.ettevote || '',
+      summa: parseFloat(väljad.summa) || 0,
+      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
+      kuupaev: väljad.kuupaev || '',
+      ettevote_id: ettevoteId
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
   }
 });
 router.delete('/sisse/:id', noudaAdmin, async (req, res) => {
