@@ -407,6 +407,7 @@ async function initDB() {
         ettevote_id INTEGER REFERENCES ettevotted(id),
         kirjeldus TEXT,
         summa DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
         fail_url TEXT,
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
@@ -416,6 +417,8 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
+    // Vana deploy võis arve_sisse juba luua ilma käibemaksu veeruta — lisame eraldi, et see kindlasti tekiks.
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
     // Lidl ja Cramo arve baasandmed (registrikoodid/aadressid varasematelt arvetelt) — täidame ainult siis,
     // kui pole veel käsitsi/administ seadistatud (ei kirjuta hiljem tehtud muudatusi üle).
     await client.query(`
