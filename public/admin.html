@@ -1589,6 +1589,9 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
               </select>
             </div>
             <div class="vorm-grupp"><label>Summa (€)</label><input type="number" step="0.01" id="as-summa" placeholder="0.00"></div>
+            <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="as-kaibemaks" placeholder="0.00"></div>
+          </div>
+          <div class="vorm-rida col2">
             <div class="vorm-grupp"><label>Kirjeldus</label><input type="text" id="as-kirjeldus" placeholder="nt Kütus, tööriistad..."></div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:10px">
@@ -4259,6 +4262,21 @@ function avSisseDropzoneSeadista() {
 function avSisseValiFail(file) {
   avSisseFail = file;
   document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeSisseFail(file);
+}
+
+async function avLoeSisseFail(file) {
+  naitaTeade('as-teade', 'ok', '🤖 Loen arvet...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/sisse/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('as-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
+  if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
+  if (r.summa) document.getElementById('as-summa').value = r.summa;
+  if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+  if (r.ettevote) document.getElementById('as-kirjeldus').value = r.ettevote;
+  if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle ja vajuta Salvesta!');
 }
 
 async function laadiSisseTabel() {
@@ -4275,12 +4293,13 @@ function avJoonistaSisseTabel() {
   const div = document.getElementById('sisseTabel');
   if (!avSisseList.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selles kuus üleslaetud tšekke/arveid pole</div>'; return; }
   const kokkuSumma = avSisseList.reduce((s, x) => s + (parseFloat(x.summa) || 0), 0);
-  div.innerHTML = `<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th style="text-align:right">Summa</th><th></th><th></th></tr></thead><tbody>` +
+  div.innerHTML = `<table><thead><tr><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th style="text-align:right">Käibemaks</th><th style="text-align:right">Summa</th><th></th><th></th></tr></thead><tbody>` +
     avSisseList.map(s => `
       <tr>
         <td>${formatKp(s.kuupaev)}</td>
         <td>${s.ettevote_nimi || '<span style="color:var(--hall)">—</span>'}</td>
         <td>${s.kirjeldus || ''}</td>
+        <td style="text-align:right">${avFmtEur(s.kaibemaks)}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
         <td>${s.fail_url ? `<a href="${s.fail_url}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📎 Fail</a>` : ''}</td>
         <td><button onclick="avKustutaSisse(${s.id})" style="background:#3d0a0a;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🗑</button></td>
@@ -4296,6 +4315,7 @@ async function avSalvestaSisse() {
   fd.append('ettevote_id', document.getElementById('as-ettevote').value);
   fd.append('kirjeldus', document.getElementById('as-kirjeldus').value);
   fd.append('summa', document.getElementById('as-summa').value || 0);
+  fd.append('kaibemaks', document.getElementById('as-kaibemaks').value || 0);
   if (avSisseFail) fd.append('fail', avSisseFail);
   const r = await api('/api/arved/sisse', { method: 'POST', body: fd });
   if (!r.ok) return naitaTeade('as-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
@@ -4305,6 +4325,8 @@ async function avSalvestaSisse() {
   document.getElementById('av-sisse-fail').value = '';
   document.getElementById('as-kirjeldus').value = '';
   document.getElementById('as-summa').value = '';
+  document.getElementById('as-kaibemaks').value = '';
+  document.getElementById('as-ettevote').value = '';
   await laadiSisseTabel();
 }
 
