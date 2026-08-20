@@ -4431,6 +4431,27 @@ async function avSalvestaLaadi() {
   document.getElementById('al-ettevote').value = '';
   document.getElementById('al-staatus').value = 'maksmata';
   avToggleLaadiVorm();
+
+  // Vii "Arvete ajaloo" kuu/aasta ja staatuse filter üleslaaditud arve kuupäevale vastavaks —
+  // muidu jääb äsja lisatud arve nähtamatuks (nt kui üleslaaditi eelmise kuu/aasta arve või see on "Maksmata"
+  // ajal, mil "Makstud" filter on aktiivne).
+  const [aasta, kuu] = kuupaev.split('-');
+  const kuuSel = document.getElementById('av-kuu-valik');
+  const aastaSel = document.getElementById('av-aasta-valik');
+  if (kuuSel) kuuSel.value = String(parseInt(kuu, 10));
+  if (aastaSel) {
+    if (![...aastaSel.options].some(o => o.value === aasta)) {
+      const o = document.createElement('option');
+      o.value = aasta; o.textContent = aasta;
+      aastaSel.appendChild(o);
+    }
+    aastaSel.value = aasta;
+  }
+  avStaatusFilter = 'koik';
+  ['koik', 'maksmata', 'makstud'].forEach(k => {
+    const btn = document.getElementById('av-filt-' + k);
+    if (btn) { btn.classList.toggle('kull', k === 'koik'); btn.classList.toggle('hall', k !== 'koik'); }
+  });
   await laadiArvedTabel();
 }
 
@@ -4639,3 +4660,4 @@ init();
 </script>
 </body>
 </html>
+  
