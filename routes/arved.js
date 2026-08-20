@@ -174,19 +174,23 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
   try {
     if (viis === 'tootajad') {
       const r = await pool.query(
-        `SELECT w.nimi as worker_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
+        `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
          FROM tookirjed t
          JOIN workers w ON t.worker_id = w.id
+         LEFT JOIN objektid o ON t.objekt_id = o.id
          LEFT JOIN worker_ettevotted we ON we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
-         GROUP BY w.nimi, we.tunnitasu
-         ORDER BY w.nimi`,
+         GROUP BY w.nimi, o.nimi, we.tunnitasu
+         ORDER BY w.nimi, o.nimi`,
         [ettevote_id, algus, lopp]
       );
+      // Töökirjelduseks kasutatakse objekti kirjeldust (nt Cramo puhul "Soojakute hooldus ja paigaldus"),
+      // mitte üldsõnalist "Tööd" — nii nagu päris arvetel. Kui objekti pole (harv juhus), jääb "Tööd" varuvariandiks.
       const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
         const kogus = parseFloat(row.tunnid);
         const hind = parseFloat(row.tunnitasu || 0);
-        return { kirjeldus: `Tööd (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
+        const alusKirjeldus = row.objekt_nimi || 'Tööd';
+        return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
       });
       return res.json({ ok: true, read });
     }
@@ -298,7 +302,7 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
     const r = await pool.query(
       `INSERT INTO arve_sisse (kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'makstud', fail_url, fail_public_id]
+      [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'ootel', fail_url, fail_public_id]
     );
     res.json({ ok: true, kirje: r.rows[0] });
   } catch (err) {
@@ -403,8 +407,10 @@ router.post('/sisse/loe', noudaAdmin, uploadSisse.single('fail'), async (req, re
     const sisuBlokk = isPdf
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
       : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
-    const juhis = `Sa vaatad ühte ostuarvet või kuluchekki. Loe sellelt välja järgmised väljad ja vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"ettevote": "müüja/ettevõtte nimi dokumendil", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)"}
+    const juhis = `Sa vaatad ühte OSTUARVET või kuluchekki. See dokument on väljastatud MEIE ettevõttele "Royal Paigaldus OÜ" (registrikood 16256983) — MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
+Loe dokumendilt välja MÜÜJA andmed — see on teine osapool, kellele me maksame (tavaliselt dokumendi ülaosas logo juures, või väljadel "Müüja", "Väljastaja", "Saatja", "Teenusepakkuja", või kelle pangakontole makse tehakse). ÄRA KUNAGI kirjuta väljale "ettevote" sõnu "Royal Paigaldus" — see oleme meie ise, ostja, mitte müüja!
+Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI Royal Paigaldus)", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)"}
 Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi ja summa/kaibemaks jaoks 0.`;
     const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -431,6 +437,11 @@ Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi 
       väljad = JSON.parse(vaste ? vaste[0] : tekst);
     } catch (e) {
       return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
+    }
+    // Turvavõrk: kui AI eksis ja tagastas meie enda ettevõtte nime (ostja, mitte müüja), tühjenda see väli —
+    // parem tühi väli, mida käsitsi täita, kui vale/eksitav "müüja" nimi.
+    if (väljad.ettevote && /royal[\s-]*paigaldus/i.test(väljad.ettevote)) {
+      väljad.ettevote = '';
     }
     // Proovi meie oma ettevõtete nimekirjast (Cramo/Lidl/Merekohvik/Muu) sobivat automaatselt valida,
     // kui loetud müüja nimi sisaldab mõnda meie ettevõtte lühinime (nt "Cramo Estonia AS" → CRAMO).
@@ -591,6 +602,111 @@ router.post('/', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── VANADE ARVETE ÜLESLAADIMINE (tagantjärele, nt raamatupidamise ajaloo jaoks) ──
+// AI loeb faili ja proovib täita numbri, ostja, kuupäevad ja summad — kasutaja vaatab üle ja salvestab.
+router.post('/laadi/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
+  }
+  try {
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const base64 = req.file.buffer.toString('base64');
+    const sisuBlokk = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
+    const juhis = `Sa vaatad ühte MEIE ENDA väljastatud MÜÜGIARVET. Sellel dokumendil on müüja/väljastaja "Royal Paigaldus OÜ" (registrikood 16256983) — see oleme meie. Loe välja OSTJA ehk kliendi andmed (kellele arve on esitatud) ja arve enda andmed.
+Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"number": "arve number dokumendil (nt 170826003 vms), tühi string kui pole", "ostja_nimi": "ostja/kliendi ettevõtte nimi", "kuupaev": "YYYY-MM-DD (arve väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas)", "summa_km_ta": <summa käibemaksuta, number>, "kaibemaks": <käibemaksu summa eurodes, number>, "kokku": <arve lõppsumma käibemaksuga, number>}
+Kui mõnda välja ei leia, kasuta tekstiväljade jaoks tühja stringi ja summaväljade jaoks 0.`;
+    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
+      })
+    });
+    const data = await apiResp.json();
+    if (!apiResp.ok) {
+      console.error('Anthropic API viga:', data);
+      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
+    }
+    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
+    let väljad;
+    try {
+      const vaste = tekst.match(/\{[\s\S]*\}/);
+      väljad = JSON.parse(vaste ? vaste[0] : tekst);
+    } catch (e) {
+      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
+    }
+    let ettevoteId = null;
+    if (väljad.ostja_nimi) {
+      const on = String(väljad.ostja_nimi).toUpperCase();
+      const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
+      const leitud = kandidaadid.rows.find(e => on.includes((e.nimi || '').toUpperCase()));
+      if (leitud) ettevoteId = leitud.id;
+    }
+    res.json({
+      ok: true,
+      number: väljad.number || '',
+      ostja_nimi: väljad.ostja_nimi || '',
+      kuupaev: väljad.kuupaev || '',
+      tahtaeg: väljad.tahtaeg || '',
+      summa_km_ta: parseFloat(väljad.summa_km_ta) || 0,
+      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
+      kokku: parseFloat(väljad.kokku) || 0,
+      ettevote_id: ettevoteId
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
+  }
+});
+
+router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  const { number, kuupaev, tahtaeg, ettevote_id, ostja_nimi, summa_km_ta, kaibemaks, kokku, staatus } = req.body;
+  if (!number || !kuupaev || !ostja_nimi) {
+    return res.json({ ok: false, veateade: 'Täida arve number, kuupäev ja ostja nimi' });
+  }
+  try {
+    let fail_url = null, fail_public_id = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          { folder: 'royal-paigaldus/arved-valja', resource_type: 'auto' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      fail_url = result.secure_url;
+      fail_public_id = result.public_id;
+    }
+    const kokkuNum = parseFloat(kokku) || 0;
+    const kmNum = parseFloat(kaibemaks) || 0;
+    const kmTaNum = summa_km_ta !== undefined && summa_km_ta !== '' ? parseFloat(summa_km_ta) || 0 : +(kokkuNum - kmNum).toFixed(2);
+    const kaibemaksProtsent = kmTaNum > 0 ? +((kmNum / kmTaNum) * 100).toFixed(2) : 24;
+    // Vanadel arvetel võib number sisaldada tähti/kriipse — viitenumbri kontrollsumma nõuab ainult numbreid,
+    // muul juhul kasutame numbrit ennast (viitenumber pole tagantjärele lisatud arvetel niikuinii kriitiline).
+    const viitenumber = /^\d+$/.test(number) ? arveViitenumber(number) : number;
+    const r = await pool.query(
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, staatus, fail_url, fail_public_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [number, kuupaev, tahtaeg || kuupaev, viitenumber, ettevote_id || null, ostja_nimi, kmTaNum, kaibemaksProtsent, kmNum, kokkuNum, ['makstud','maksmata'].includes(staatus) ? staatus : 'maksmata', fail_url, fail_public_id]
+    );
+    res.json({ ok: true, arve: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    if (err.code === '23505') return res.json({ ok: false, veateade: 'Selle numbriga arve on juba olemas' });
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ── STAATUS (maksmata/makstud) ───────────────────────────────────────────
 router.put('/:id/staatus', noudaAdmin, async (req, res) => {
   const { staatus } = req.body;
@@ -606,6 +722,10 @@ router.put('/:id/staatus', noudaAdmin, async (req, res) => {
 // ── KUSTUTAMINE ──────────────────────────────────────────────────────────
 router.delete('/:id', noudaAdmin, async (req, res) => {
   try {
+    const vana = await pool.query('SELECT fail_public_id FROM arved WHERE id=$1', [req.params.id]);
+    if (vana.rows.length && vana.rows[0].fail_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: 'auto' }); } catch (e) {}
+    }
     await pool.query('DELETE FROM arved WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
