@@ -377,6 +377,8 @@ async function initDB() {
         kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
         kokku DECIMAL(10,2) NOT NULL DEFAULT 0,
         staatus VARCHAR(20) NOT NULL DEFAULT 'maksmata',
+        fail_url TEXT,
+        fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS arve_read (
@@ -409,7 +411,7 @@ async function initDB() {
         kirjeldus TEXT,
         summa DECIMAL(10,2) NOT NULL DEFAULT 0,
         kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
-        staatus VARCHAR(20) NOT NULL DEFAULT 'makstud',
+        staatus VARCHAR(20) NOT NULL DEFAULT 'ootel',
         fail_url TEXT,
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
@@ -422,7 +424,11 @@ async function initDB() {
     // Vana deploy võis arve_sisse juba luua ilma nende veergudeta — lisame eraldi, et need kindlasti tekiks.
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
-    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS staatus VARCHAR(20) NOT NULL DEFAULT 'makstud';`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS staatus VARCHAR(20) NOT NULL DEFAULT 'ootel';`);
+    // Vanad kirjed, mis loodi enne vaikeväärtuse muutmist, jäävad 'makstud' juurde — see puudutab ainult UUSI kirjeid.
+    // Väljaminevate arvete jaoks (tagantjärele üleslaaditud vanad arved, millel pole meie enda arveridu).
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_url TEXT;`);
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_public_id TEXT;`);
     // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
     // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
     await client.query(`
