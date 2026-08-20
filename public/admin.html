@@ -1570,11 +1570,43 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart">
       <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span>📋 Arvete ajalugu</span>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button type="button" class="nupp hall" id="av-filt-koik" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('koik')">Kõik</button>
           <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
           <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
+          <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
         </div>
+      </div>
+      <div id="av-laadi-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
+        <div id="av-laadi-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
+          <span id="av-laadi-dropzone-tekst">📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks</span>
+          <input type="file" id="av-laadi-fail" accept="image/*,application/pdf" style="display:none">
+        </div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp"><label>Arve number</label><input type="text" id="al-number" placeholder="nt vana süsteemi number"></div>
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="al-kuupaev"></div>
+          <div class="vorm-grupp"><label>Maksetähtaeg</label><input type="date" id="al-tahtaeg"></div>
+          <div class="vorm-grupp"><label>Ostja nimi</label><input type="text" id="al-ostja" placeholder="nt Cramo Estonia AS"></div>
+        </div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp">
+            <label>Ettevõte (valikuline)</label>
+            <select id="al-ettevote"><option value="">— vali —</option></select>
+          </div>
+          <div class="vorm-grupp"><label>Summa km-ta (€)</label><input type="number" step="0.01" id="al-summa-km-ta" placeholder="0.00"></div>
+          <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="al-kaibemaks" placeholder="0.00"></div>
+          <div class="vorm-grupp"><label>Kokku (€)</label><input type="number" step="0.01" id="al-kokku" placeholder="0.00"></div>
+        </div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp">
+            <label>Staatus</label>
+            <select id="al-staatus"><option value="maksmata">⏳ Maksmata</option><option value="makstud">✅ Makstud</option></select>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px">
+          <button type="button" class="nupp roheline" onclick="avSalvestaLaadi()">💾 Salvesta arve</button>
+        </div>
+        <div class="teade" id="al-teade"></div>
       </div>
       <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
     </div>
@@ -3999,6 +4031,11 @@ async function laadiArved() {
     asSel.innerHTML = '<option value="">— Muu / üldkulu —</option>' +
       kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
   }
+  const alSel = document.getElementById('al-ettevote');
+  if (alSel) {
+    alSel.innerHTML = '<option value="">— vali —</option>' +
+      kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
+  }
   const kpEl = document.getElementById('av-kuupaev');
   if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
   const asKpEl = document.getElementById('as-kuupaev');
@@ -4014,6 +4051,7 @@ async function laadiArved() {
 
   avVaataAlamtab(avAktiivneAlamtab);
   avSisseDropzoneSeadista();
+  avLaadiDropzoneSeadista();
   await avPreviewNumber();
   if (!avRead.length) avLisaRida();
   avJoonistaRead();
@@ -4297,7 +4335,9 @@ function avJoonistaArvedTabel() {
         <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
         <td><span onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')" style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;${a.staatus==='makstud'?'background:rgba(74,222,128,0.15);color:#4ade80':'background:rgba(251,191,36,0.15);color:#fbbf24'}">${a.staatus==='makstud'?'✅ Makstud':'⏳ Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
-          <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📄 PDF</a>
+          ${a.fail_url
+            ? `<a href="${a.fail_url}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📎 Fail</a>`
+            : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📄 PDF</a>`}
           <button onclick="avKustutaArve(${a.id})" style="background:#3d0a0a;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🗑</button>
         </td>
       </tr>`).join('') + '</tbody></table>';
@@ -4311,6 +4351,86 @@ async function avMuudaStaatus(id, uusStaatus) {
 async function avKustutaArve(id) {
   if (!confirm('Kustutad selle arve jäädavalt?')) return;
   await api(`/api/arved/${id}`, { method: 'DELETE' });
+  await laadiArvedTabel();
+}
+
+// ── VANADE ARVETE ÜLESLAADIMINE (tagantjärele, ajaloo/raamatupidaja jaoks) ──
+let avLaadiFail = null;
+
+function avToggleLaadiVorm() {
+  const vorm = document.getElementById('av-laadi-vorm');
+  const nahtaval = vorm.style.display !== 'none';
+  vorm.style.display = nahtaval ? 'none' : 'block';
+  if (!nahtaval) {
+    const kpEl = document.getElementById('al-kuupaev');
+    if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function avLaadiDropzoneSeadista() {
+  const zone = document.getElementById('av-laadi-dropzone');
+  const input = document.getElementById('av-laadi-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avLaadiValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avLaadiValiFail(e.dataTransfer.files[0]);
+  });
+}
+function avLaadiValiFail(file) {
+  avLaadiFail = file;
+  document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeLaadiFail(file);
+}
+
+async function avLoeLaadiFail(file) {
+  naitaTeade('al-teade', 'ok', '🤖 Loen arvet...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/laadi/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('al-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
+  if (r.number) document.getElementById('al-number').value = r.number;
+  if (r.ostja_nimi) document.getElementById('al-ostja').value = r.ostja_nimi;
+  if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
+  if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
+  if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
+  if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+  if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
+  if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
+  naitaTeade('al-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle (eriti arve number!) ja vajuta Salvesta!');
+}
+
+async function avSalvestaLaadi() {
+  const number = document.getElementById('al-number').value.trim();
+  const kuupaev = document.getElementById('al-kuupaev').value;
+  const ostja = document.getElementById('al-ostja').value.trim();
+  if (!number || !kuupaev || !ostja) return naitaTeade('al-teade', 'viga', 'Täida arve number, kuupäev ja ostja nimi!');
+  const fd = new FormData();
+  fd.append('number', number);
+  fd.append('kuupaev', kuupaev);
+  fd.append('tahtaeg', document.getElementById('al-tahtaeg').value || '');
+  fd.append('ostja_nimi', ostja);
+  fd.append('ettevote_id', document.getElementById('al-ettevote').value);
+  fd.append('summa_km_ta', document.getElementById('al-summa-km-ta').value || 0);
+  fd.append('kaibemaks', document.getElementById('al-kaibemaks').value || 0);
+  fd.append('kokku', document.getElementById('al-kokku').value || 0);
+  fd.append('staatus', document.getElementById('al-staatus').value);
+  if (avLaadiFail) fd.append('fail', avLaadiFail);
+  const r = await api('/api/arved/laadi', { method: 'POST', body: fd });
+  if (!r.ok) return naitaTeade('al-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('al-teade', 'ok', '✅ Arve lisatud ajalukku!');
+  avLaadiFail = null;
+  document.getElementById('av-laadi-fail').value = '';
+  document.getElementById('av-laadi-dropzone-tekst').textContent = '📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks';
+  ['al-number','al-tahtaeg','al-ostja','al-summa-km-ta','al-kaibemaks','al-kokku'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('al-ettevote').value = '';
+  document.getElementById('al-staatus').value = 'maksmata';
+  avToggleLaadiVorm();
   await laadiArvedTabel();
 }
 
