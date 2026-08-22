@@ -1475,6 +1475,26 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
+    <div class="kaart" style="margin-bottom:16px">
+      <div class="kaart-hdr">📊 Käibemaksu analüüs <span style="margin-left:auto;font-size:11px;color:var(--hall);font-weight:400">valitud kuu kohta</span></div>
+      <div class="kaart-body">
+        <div class="vorm-rida col3">
+          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks väljas (müük)</div>
+            <div id="km-valjas" style="font-size:20px;font-weight:800;color:#4ade80">0,00 €</div>
+          </div>
+          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks sisse (ost)</div>
+            <div id="km-sisse" style="font-size:20px;font-weight:800;color:#fb923c">0,00 €</div>
+          </div>
+          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
+            <div id="km-vahe-silt" style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Vahe</div>
+            <div id="km-vahe" style="font-size:20px;font-weight:800">0,00 €</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="av-alamvaade-valja">
     <div class="kaart">
       <div class="kaart-hdr">➕ Uus arve <span id="arve-jargmine-nr" style="margin-left:auto;font-size:11px;color:var(--hall)"></span></div>
@@ -4074,6 +4094,33 @@ function avKuuMuutus() {
   else laadiSisseTabel();
 }
 
+// ── KÄIBEMAKSU ANALÜÜS (väljas vs sisse, valitud kuu kohta) ──────────────
+async function avUuendaKmAnalyys() {
+  const { kuu, aasta } = avValitudKuuAasta();
+  try {
+    const [valja, sisse] = await Promise.all([
+      api('/api/arved'),
+      api('/api/arved/sisse' + (kuu && aasta ? `?kuu=${kuu}&aasta=${aasta}` : ''))
+    ]);
+    const valjaList = avKuuFiltreeri(Array.isArray(valja) ? valja : [], 'kuupaev');
+    const sisseList = Array.isArray(sisse) ? sisse : [];
+    const kmValjas = valjaList.reduce((s, a) => s + (parseFloat(a.kaibemaks) || 0), 0);
+    const kmSisse = sisseList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
+    const vahe = kmValjas - kmSisse;
+    const vEl = document.getElementById('km-valjas');
+    const sEl = document.getElementById('km-sisse');
+    const dEl = document.getElementById('km-vahe');
+    const dSiltEl = document.getElementById('km-vahe-silt');
+    if (vEl) vEl.textContent = avFmtEur(kmValjas);
+    if (sEl) sEl.textContent = avFmtEur(kmSisse);
+    if (dEl) {
+      dEl.textContent = avFmtEur(vahe);
+      dEl.style.color = vahe >= 0 ? '#fbbf24' : '#4ade80';
+    }
+    if (dSiltEl) dSiltEl.textContent = vahe >= 0 ? 'Vahe — tasumisele Maksuametile' : 'Vahe — mahaarvamisele/tagasi';
+  } catch (e) { /* vaikimisi kaardil jäävad nullid, pole kriitiline viga */ }
+}
+
 async function avPreviewNumber() {
   // Arve number lähtub genereerimise (tänase) päevast, mitte "Arve kuupäev" väljast, seega ei sõltu kuupäevast.
   const njr = await api('/api/arved/jargmine-number');
@@ -4294,6 +4341,7 @@ async function laadiArvedTabel() {
   const arved = await api('/api/arved');
   avArvedList = Array.isArray(arved) ? arved : [];
   avFiltreeriStaatus(avStaatusFilter);
+  avUuendaKmAnalyys();
 }
 
 function avFiltreeriStaatus(s) {
@@ -4507,6 +4555,7 @@ async function laadiSisseTabel() {
   avSisseList = Array.isArray(sisse) ? sisse : [];
   avSisseValitud.clear();
   avJoonistaSisseTabel();
+  avUuendaKmAnalyys();
 }
 
 function avJoonistaSisseTabel() {
@@ -4660,4 +4709,3 @@ init();
 </script>
 </body>
 </html>
-  
