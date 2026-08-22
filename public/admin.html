@@ -1476,7 +1476,16 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" style="margin-bottom:16px">
-      <div class="kaart-hdr">📊 Käibemaksu analüüs <span style="margin-left:auto;font-size:11px;color:var(--hall);font-weight:400">valitud kuu kohta</span></div>
+      <div class="kaart-hdr" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px">
+        <span>📊 Käibemaksu analüüs</span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Algus</span>
+          <input type="date" id="km-algus" onchange="avUuendaKmAnalyys()">
+          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Lõpp</span>
+          <input type="date" id="km-lopp" onchange="avUuendaKmAnalyys()">
+          <button type="button" class="nupp hall" style="font-size:11px;padding:5px 10px" onclick="avKmAnalyysKaesolevKuu()">↺ Käesolev kuu</button>
+        </div>
+      </div>
       <div class="kaart-body">
         <div class="vorm-rida col3">
           <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
@@ -4056,6 +4065,13 @@ async function laadiArved() {
     alSel.innerHTML = '<option value="">— vali —</option>' +
       kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
   }
+  const kmAlgusEl = document.getElementById('km-algus');
+  const kmLoppEl = document.getElementById('km-lopp');
+  if (kmAlgusEl && !kmAlgusEl.value) {
+    const t = new Date();
+    kmAlgusEl.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
+    kmLoppEl.value = new Date(t.getFullYear(), t.getMonth() + 1, 0).toISOString().split('T')[0];
+  }
   const kpEl = document.getElementById('av-kuupaev');
   if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
   const asKpEl = document.getElementById('as-kuupaev');
@@ -4094,16 +4110,32 @@ function avKuuMuutus() {
   else laadiSisseTabel();
 }
 
-// ── KÄIBEMAKSU ANALÜÜS (väljas vs sisse, valitud kuu kohta) ──────────────
+// ── KÄIBEMAKSU ANALÜÜS (väljas vs sisse, vabalt valitud perioodi kohta) ───
+function avKmAnalyysKaesolevKuu() {
+  const t = new Date();
+  const algus = new Date(t.getFullYear(), t.getMonth(), 1);
+  const lopp = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+  document.getElementById('km-algus').value = algus.toISOString().split('T')[0];
+  document.getElementById('km-lopp').value = lopp.toISOString().split('T')[0];
+  avUuendaKmAnalyys();
+}
+function avVahemikuFiltreeri(list, kpVali, algus, lopp) {
+  if (!algus || !lopp) return list;
+  return list.filter(x => {
+    const kp = String(x[kpVali]).split('T')[0];
+    return kp >= algus && kp <= lopp;
+  });
+}
 async function avUuendaKmAnalyys() {
-  const { kuu, aasta } = avValitudKuuAasta();
+  const algus = document.getElementById('km-algus').value;
+  const lopp = document.getElementById('km-lopp').value;
   try {
     const [valja, sisse] = await Promise.all([
       api('/api/arved'),
-      api('/api/arved/sisse' + (kuu && aasta ? `?kuu=${kuu}&aasta=${aasta}` : ''))
+      api('/api/arved/sisse')
     ]);
-    const valjaList = avKuuFiltreeri(Array.isArray(valja) ? valja : [], 'kuupaev');
-    const sisseList = Array.isArray(sisse) ? sisse : [];
+    const valjaList = avVahemikuFiltreeri(Array.isArray(valja) ? valja : [], 'kuupaev', algus, lopp);
+    const sisseList = avVahemikuFiltreeri(Array.isArray(sisse) ? sisse : [], 'kuupaev', algus, lopp);
     const kmValjas = valjaList.reduce((s, a) => s + (parseFloat(a.kaibemaks) || 0), 0);
     const kmSisse = sisseList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
     const vahe = kmValjas - kmSisse;
