@@ -1463,6 +1463,17 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
   </div>
 
   <div class="sektsioon" id="tab12">
+    <div class="kaart" style="margin-bottom:16px">
+      <div class="kaart-hdr">🤖 Kiirlaadi arve/tšekk <span style="margin-left:auto;font-size:11px;color:var(--hall);font-weight:400">AI tuvastab ise, kas see on välja- või sissetulev</span></div>
+      <div class="kaart-body">
+        <div id="av-kiir-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer">
+          <span id="av-kiir-dropzone-tekst">📎 Lohista siia arve või tšekk (pilt või PDF), või kliki valimiseks — ei pea ise valima, kas Sisse või Välja</span>
+          <input type="file" id="av-kiir-fail" accept="image/*,application/pdf" style="display:none">
+        </div>
+        <div class="teade" id="av-kiir-teade"></div>
+      </div>
+    </div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
       <div style="display:flex;gap:8px">
         <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')">📤 Väljaminevad</button>
@@ -1484,9 +1495,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Lõpp</span>
           <input type="date" id="km-lopp" onchange="avUuendaKmAnalyys()">
           <button type="button" class="nupp hall" style="font-size:11px;padding:5px 10px" onclick="avKmAnalyysKaesolevKuu()">↺ Käesolev kuu</button>
+          <span id="av-km-nool" onclick="avToggleKaart('av-km-body','av-km-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
       </div>
-      <div class="kaart-body">
+      <div class="kaart-body" id="av-km-body">
         <div class="vorm-rida col3">
           <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
             <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks väljas (müük)</div>
@@ -1506,8 +1518,12 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 
     <div id="av-alamvaade-valja">
     <div class="kaart">
-      <div class="kaart-hdr">➕ Uus arve <span id="arve-jargmine-nr" style="margin-left:auto;font-size:11px;color:var(--hall)"></span></div>
-      <div class="kaart-body">
+      <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
+        <span>➕ Uus arve</span>
+        <span id="arve-jargmine-nr" style="margin-left:auto;font-size:11px;color:var(--hall)"></span>
+        <span id="av-uusarve-nool" onclick="avToggleKaart('av-uusarve-body','av-uusarve-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
+      </div>
+      <div class="kaart-body" id="av-uusarve-body">
         <div class="vorm-rida col3">
           <div class="vorm-grupp">
             <label>Klient</label>
@@ -1604,8 +1620,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
           <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
           <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
+          <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
+          <span id="av-ajalugu-nool" onclick="avToggleKaart('av-ajalugu-body','av-ajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
       </div>
+      <div id="av-ajalugu-body">
       <div id="av-laadi-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
         <div id="av-laadi-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
           <span id="av-laadi-dropzone-tekst">📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks</span>
@@ -1638,16 +1657,18 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div class="teade" id="al-teade"></div>
       </div>
       <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+      </div><!-- /av-ajalugu-body -->
     </div>
     </div><!-- /av-alamvaade-valja -->
 
     <div id="av-alamvaade-sisse" style="display:none">
       <div class="kaart">
-        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <span id="as-vormi-pealkiri">📥 Lisa tšekk/arve</span>
           <button type="button" class="nupp hall" id="as-tuhista-nupp" style="display:none;font-size:12px;padding:5px 12px" onclick="avTuhistaSisseMuutmine()">✕ Tühista muutmine</button>
+          <span id="av-lisasisse-nool" onclick="avToggleKaart('av-lisasisse-body','av-lisasisse-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
-        <div class="kaart-body">
+        <div class="kaart-body" id="av-lisasisse-body">
           <div id="av-sisse-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
             <span id="av-sisse-dropzone-tekst">📎 Lohista siia pilt või PDF, või kliki valimiseks</span>
             <input type="file" id="av-sisse-fail" accept="image/*,application/pdf" style="display:none">
@@ -1677,8 +1698,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <span>📋 Sissetulevate ajalugu</span>
           <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
+          <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
+        <div id="av-sisseajalugu-body">
         <div id="sisseTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+        </div>
       </div>
     </div><!-- /av-alamvaade-sisse -->
 
@@ -4088,6 +4112,7 @@ async function laadiArved() {
   avVaataAlamtab(avAktiivneAlamtab);
   avSisseDropzoneSeadista();
   avLaadiDropzoneSeadista();
+  avKiirDropzoneSeadista();
   await avPreviewNumber();
   if (!avRead.length) avLisaRida();
   avJoonistaRead();
@@ -4368,12 +4393,34 @@ async function avSalvestaArve() {
 
 let avArvedList = [];
 let avStaatusFilter = 'koik';
+let avArvedValitud = new Set();
 
 async function laadiArvedTabel() {
   const arved = await api('/api/arved');
   avArvedList = Array.isArray(arved) ? arved : [];
+  avArvedValitud.clear();
   avFiltreeriStaatus(avStaatusFilter);
   avUuendaKmAnalyys();
+}
+
+function avVaataArve(id, valitud) {
+  if (valitud) avArvedValitud.add(id); else avArvedValitud.delete(id);
+  avUuendaArvedZipNupp();
+}
+function avVaataKoikArved(koik) {
+  avArvedValitud.clear();
+  if (koik) avKuuFiltreeri(avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter), 'kuupaev').forEach(a => avArvedValitud.add(a.id));
+  avJoonistaArvedTabel();
+}
+function avUuendaArvedZipNupp() {
+  const nupp = document.getElementById('av-zip-nupp');
+  if (!nupp) return;
+  nupp.style.display = avArvedValitud.size ? 'inline-block' : 'none';
+  nupp.textContent = `⬇️ Laadi valitud alla (${avArvedValitud.size} ZIP-ina)`;
+}
+function avLaadiArvedZip() {
+  if (!avArvedValitud.size) return;
+  window.open(`/api/arved/zip?ids=${[...avArvedValitud].join(',')}&_token=${TOKEN}`, '_blank');
 }
 
 function avFiltreeriStaatus(s) {
@@ -4405,10 +4452,11 @@ function avJoonistaArvedTabel() {
   const div = document.getElementById('arvedTabel');
   let arved = avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter);
   arved = avKuuFiltreeri(arved, 'kuupaev');
-  if (!arved.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid ei leitud</div>'; return; }
-  div.innerHTML = `<table><thead><tr><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th></th></tr></thead><tbody>` +
+  if (!arved.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid ei leitud</div>'; avUuendaArvedZipNupp(); return; }
+  div.innerHTML = `<table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th></th></tr></thead><tbody>` +
     arved.map(a => `
       <tr>
+        <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
         <td style="font-weight:600">${a.number}</td>
         <td>${formatKp(a.kuupaev)}</td>
         <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
@@ -4421,6 +4469,7 @@ function avJoonistaArvedTabel() {
           <button onclick="avKustutaArve(${a.id})" style="background:#3d0a0a;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🗑</button>
         </td>
       </tr>`).join('') + '</tbody></table>';
+  avUuendaArvedZipNupp();
 }
 
 async function avMuudaStaatus(id, uusStaatus) {
@@ -4533,6 +4582,70 @@ async function avSalvestaLaadi() {
     if (btn) { btn.classList.toggle('kull', k === 'koik'); btn.classList.toggle('hall', k !== 'koik'); }
   });
   await laadiArvedTabel();
+}
+
+// ── ÜHINE KIIRLAADIMINE (AI tuvastab ise, kas Sisse või Välja) ────────────
+function avKiirDropzoneSeadista() {
+  const zone = document.getElementById('av-kiir-dropzone');
+  const input = document.getElementById('av-kiir-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avKiirValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avKiirValiFail(e.dataTransfer.files[0]);
+  });
+}
+
+function avAvatudNaita(kehaId, noolId) {
+  const keha = document.getElementById(kehaId);
+  if (keha && keha.style.display === 'none') avToggleKaart(kehaId, noolId);
+}
+
+async function avKiirValiFail(file) {
+  document.getElementById('av-kiir-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — tuvastan...`;
+  naitaTeade('av-kiir-teade', 'ok', '🤖 Loen faili ja tuvastan, kas see on sisse- või väljaminev...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/loe-suund', { method: 'POST', body: fd });
+  document.getElementById('av-kiir-dropzone-tekst').textContent = '📎 Lohista siia arve või tšekk (pilt või PDF), või kliki valimiseks — ei pea ise valima, kas Sisse või Välja';
+  document.getElementById('av-kiir-fail').value = '';
+  if (!r.ok) { naitaTeade('av-kiir-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — lisa käsitsi õigesse alamvaatesse.'); return; }
+
+  if (r.suund === 'valja') {
+    naitaTeade('av-kiir-teade', 'ok', '📤 Tuvastasin: VÄLJAMINEV arve — täidan vormi allpool, kontrolli üle!');
+    avVaataAlamtab('valja');
+    avAvatudNaita('av-ajalugu-body', 'av-ajalugu-nool');
+    if (document.getElementById('av-laadi-vorm').style.display === 'none') avToggleLaadiVorm();
+    if (r.number) document.getElementById('al-number').value = r.number;
+    if (r.vastaspool) document.getElementById('al-ostja').value = r.vastaspool;
+    if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
+    if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
+    if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
+    if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+    if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
+    if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
+    avLaadiFail = file;
+    document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+    document.getElementById('av-laadi-vorm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    naitaTeade('av-kiir-teade', 'ok', '📥 Tuvastasin: SISSETULEV tšekk/arve — täidan vormi allpool, kontrolli üle!');
+    avVaataAlamtab('sisse');
+    avAvatudNaita('av-lisasisse-body', 'av-lisasisse-nool');
+    if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
+    if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
+    if (r.kokku) document.getElementById('as-summa').value = r.kokku;
+    if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+    if (r.vastaspool) document.getElementById('as-kirjeldus').value = r.vastaspool;
+    if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+    avSisseFail = file;
+    document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+    document.getElementById('av-sisse-dropzone').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // ── SISSETULEVAD (tšekid/arved, mida ise maksnud) ─────────────────────────
@@ -4709,6 +4822,16 @@ async function avKustutaSisse(id) {
   if (!confirm('Kustutad selle kirje jäädavalt?')) return;
   await api(`/api/arved/sisse/${id}`, { method: 'DELETE' });
   await laadiSisseTabel();
+}
+
+// ── ARVED-KAARTIDE KOKKUKLAPPIMINE (nagu allolev ligipääsu paneel) ────────
+function avToggleKaart(kehaId, noolId) {
+  const keha = document.getElementById(kehaId);
+  const nool = document.getElementById(noolId);
+  if (!keha) return;
+  const nahtav = keha.style.display !== 'none';
+  keha.style.display = nahtav ? 'none' : 'block';
+  if (nool) nool.textContent = nahtav ? '▼' : '▲';
 }
 
 // ── LIGIPÄÄS (raamatupidaja vaade — kes näeb Arved) ───────────────────────
