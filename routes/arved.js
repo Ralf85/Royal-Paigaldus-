@@ -16,6 +16,12 @@ function getCloudinary() {
   });
   return cloudinary;
 }
+// Cloudinary blokeerib vaikimisi PDF/ZIP-failide avaliku vaatamise "image/upload" tee kaudu (turvapiirang) —
+// see põhjustas "tühi valge leht" viga faili avamisel. Lahendus: laadi PDF-id üles resource_type='raw' all
+// (mitte 'image'/'auto'), mille peale sama piirang ei kehti. Pildid jäävad 'image' alla nagu enne.
+function cloudinaryResourceType(mimetype) {
+  return mimetype === 'application/pdf' ? 'raw' : 'image';
+}
 // Sissetulevate arvete/tšekkide üleslaadimine — nii pildid kui PDF-id (erinevalt teistest üleslaadimistest,
 // mis lubavad ainult pilte, sest tšekk võib olla ka valmis PDF-arve).
 const uploadSisse = multer({
@@ -287,11 +293,12 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   try {
-    let fail_url = null, fail_public_id = null;
+    let fail_url = null, fail_public_id = null, fail_resource_type = null;
     if (req.file) {
+      fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-sisse', resource_type: 'auto' },
+          { folder: 'royal-paigaldus/arved-sisse', resource_type: fail_resource_type },
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
@@ -300,9 +307,9 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
       fail_public_id = result.public_id;
     }
     const r = await pool.query(
-      `INSERT INTO arve_sisse (kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'ootel', fail_url, fail_public_id]
+      `INSERT INTO arve_sisse (kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id, fail_resource_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'ootel', fail_url, fail_public_id, fail_resource_type]
     );
     res.json({ ok: true, kirje: r.rows[0] });
   } catch (err) {
@@ -316,16 +323,17 @@ router.put('/sisse/:id', noudaAdmin, uploadSisse.single('fail'), async (req, res
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   try {
-    const vana = await pool.query('SELECT fail_public_id FROM arve_sisse WHERE id=$1', [req.params.id]);
+    const vana = await pool.query('SELECT fail_public_id, fail_resource_type FROM arve_sisse WHERE id=$1', [req.params.id]);
     if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
-    let fail_url, fail_public_id;
+    let fail_url, fail_public_id, fail_resource_type;
     if (req.file) {
       if (vana.rows[0].fail_public_id) {
-        try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: 'auto' }); } catch (e) {}
+        try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: vana.rows[0].fail_resource_type || 'image' }); } catch (e) {}
       }
+      fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-sisse', resource_type: 'auto' },
+          { folder: 'royal-paigaldus/arved-sisse', resource_type: fail_resource_type },
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
@@ -333,8 +341,8 @@ router.put('/sisse/:id', noudaAdmin, uploadSisse.single('fail'), async (req, res
       fail_url = result.secure_url;
       fail_public_id = result.public_id;
       await pool.query(
-        `UPDATE arve_sisse SET kuupaev=$1, tahtaeg=$2, ettevote_id=$3, kirjeldus=$4, summa=$5, kaibemaks=$6, fail_url=$7, fail_public_id=$8 WHERE id=$9`,
-        [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, fail_url, fail_public_id, req.params.id]
+        `UPDATE arve_sisse SET kuupaev=$1, tahtaeg=$2, ettevote_id=$3, kirjeldus=$4, summa=$5, kaibemaks=$6, fail_url=$7, fail_public_id=$8, fail_resource_type=$9 WHERE id=$10`,
+        [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, fail_url, fail_public_id, fail_resource_type, req.params.id]
       );
     } else {
       await pool.query(
@@ -466,11 +474,89 @@ Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi 
     res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
   }
 });
+
+// ── ÜHINE ÜLESLAADIMINE: AI tuvastab ise, kas dokument on VÄLJAMINEV (meie väljastatud arve,
+// Royal Paigaldus on müüja) või SISSETULEV (meie ostetud kaup/teenus, Royal Paigaldus on ostja) ──
+router.post('/loe-suund', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
+  }
+  try {
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const base64 = req.file.buffer.toString('base64');
+    const sisuBlokk = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
+    const juhis = `Sa vaatad üht arvet, tšekki või kuluchekki, mis puudutab ettevõtet "Royal Paigaldus OÜ" (registrikood 16256983).
+Esimene ja kõige tähtsam samm: tuvasta, KUMB POOL Royal Paigaldus OÜ sellel dokumendil on:
+- Kui Royal Paigaldus OÜ ise VÄLJASTAS/ESITAS selle arve kellelegi teisele (Royal Paigaldus on MÜÜJA) → "suund"="valja".
+- Kui dokument on väljastatud Royal Paigaldusele mõne TEISE ettevõtte poolt, st Royal Paigaldus OSTIS/MAKSIS (Royal Paigaldus on OSTJA) → "suund"="sisse".
+Seejärel:
+- kui suund="valja": väljale "vastaspool" kirjuta OSTJA (kliendi) nimi, kellele arve esitati; proovi lugeda ka arve number väljale "number".
+- kui suund="sisse": väljale "vastaspool" kirjuta MÜÜJA nimi, kellelt me ostsime. ÄRA KUNAGI kirjuta väljale "vastaspool" sõnu "Royal Paigaldus" — see oleme meie ise!
+Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)", "summa_km_ta": <summa käibemaksuta, number>, "kaibemaks": <käibemaksu summa eurodes, number>, "kokku": <lõppsumma käibemaksuga, number>}
+Kui mõnda välja ei leia, kasuta tekstiväljade jaoks tühja stringi ja summaväljade jaoks 0.`;
+    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
+      })
+    });
+    const data = await apiResp.json();
+    if (!apiResp.ok) {
+      console.error('Anthropic API viga:', data);
+      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
+    }
+    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
+    let väljad;
+    try {
+      const vaste = tekst.match(/\{[\s\S]*\}/);
+      väljad = JSON.parse(vaste ? vaste[0] : tekst);
+    } catch (e) {
+      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
+    }
+    if (väljad.vastaspool && /royal[\s-]*paigaldus/i.test(väljad.vastaspool)) {
+      väljad.vastaspool = '';
+    }
+    let ettevoteId = null;
+    if (väljad.vastaspool) {
+      const vn = String(väljad.vastaspool).toUpperCase();
+      const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
+      const leitud = kandidaadid.rows.find(e => vn.includes((e.nimi || '').toUpperCase()));
+      if (leitud) ettevoteId = leitud.id;
+    }
+    res.json({
+      ok: true,
+      suund: väljad.suund === 'valja' ? 'valja' : 'sisse',
+      vastaspool: väljad.vastaspool || '',
+      number: väljad.number || '',
+      kuupaev: väljad.kuupaev || '',
+      tahtaeg: väljad.tahtaeg || '',
+      summa_km_ta: parseFloat(väljad.summa_km_ta) || 0,
+      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
+      kokku: parseFloat(väljad.kokku) || 0,
+      ettevote_id: ettevoteId
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
+  }
+});
+
 router.delete('/sisse/:id', noudaAdmin, async (req, res) => {
   try {
-    const vana = await pool.query('SELECT fail_public_id FROM arve_sisse WHERE id=$1', [req.params.id]);
+    const vana = await pool.query('SELECT fail_public_id, fail_resource_type FROM arve_sisse WHERE id=$1', [req.params.id]);
     if (vana.rows.length && vana.rows[0].fail_public_id) {
-      try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: 'auto' }); } catch (e) {}
+      try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: vana.rows[0].fail_resource_type || 'image' }); } catch (e) {}
     }
     await pool.query('DELETE FROM arve_sisse WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
@@ -515,6 +601,46 @@ router.get('/', noudaAdmin, async (req, res) => {
     );
     res.json(r.rows);
   } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── ZIP-ina KORRAGA ALLALAADIMINE (valitud arved — uploaditud fail kui on, muidu genereeritud PDF) ──
+// NB: peab olema registreeritud ENNE "/:id" (allpool), muidu Express käsitleks "/zip" kui id="zip".
+router.get('/zip', noudaArvedLubatud, async (req, res) => {
+  const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
+  if (!idid.length) return res.status(400).json({ ok: false, veateade: 'Vali vähemalt üks arve' });
+  try {
+    const r = await pool.query(
+      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id = ANY($1)`,
+      [idid]
+    );
+    if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_arved.zip"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.pipe(res);
+    for (const arve of r.rows) {
+      const kuupaev = String(arve.kuupaev).split('T')[0];
+      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
+      if (arve.fail_url) {
+        // Üleslaaditud/tagantjärele lisatud arve — tõmba originaalfail
+        const laiend = (arve.fail_url.match(/\.(\w+)(\?|$)/) || [, 'pdf'])[1];
+        await new Promise((resolve, reject) => {
+          const url = new URL(arve.fail_url);
+          const proto = url.protocol === 'https:' ? https : http;
+          proto.get(arve.fail_url, fileRes => { archive.append(fileRes, { name: `${nimiAlus}.${laiend}` }); fileRes.on('end', resolve); fileRes.on('error', reject); }).on('error', reject);
+        });
+      } else {
+        // Süsteemis loodud arve — genereeri PDF samast mootorist, mida kasutab üksiku arve vaade
+        const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
+        const doc = renderArvePdf(arve, readR.rows);
+        archive.append(doc, { name: `${nimiAlus}.pdf` });
+      }
+    }
+    archive.finalize();
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
@@ -675,11 +801,12 @@ router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
     return res.json({ ok: false, veateade: 'Täida arve number, kuupäev ja ostja nimi' });
   }
   try {
-    let fail_url = null, fail_public_id = null;
+    let fail_url = null, fail_public_id = null, fail_resource_type = null;
     if (req.file) {
+      fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-valja', resource_type: 'auto' },
+          { folder: 'royal-paigaldus/arved-valja', resource_type: fail_resource_type },
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
@@ -695,9 +822,9 @@ router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
     // muul juhul kasutame numbrit ennast (viitenumber pole tagantjärele lisatud arvetel niikuinii kriitiline).
     const viitenumber = /^\d+$/.test(number) ? arveViitenumber(number) : number;
     const r = await pool.query(
-      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, staatus, fail_url, fail_public_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [number, kuupaev, tahtaeg || kuupaev, viitenumber, ettevote_id || null, ostja_nimi, kmTaNum, kaibemaksProtsent, kmNum, kokkuNum, ['makstud','maksmata'].includes(staatus) ? staatus : 'maksmata', fail_url, fail_public_id]
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, staatus, fail_url, fail_public_id, fail_resource_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [number, kuupaev, tahtaeg || kuupaev, viitenumber, ettevote_id || null, ostja_nimi, kmTaNum, kaibemaksProtsent, kmNum, kokkuNum, ['makstud','maksmata'].includes(staatus) ? staatus : 'maksmata', fail_url, fail_public_id, fail_resource_type]
     );
     res.json({ ok: true, arve: r.rows[0] });
   } catch (err) {
@@ -722,9 +849,9 @@ router.put('/:id/staatus', noudaAdmin, async (req, res) => {
 // ── KUSTUTAMINE ──────────────────────────────────────────────────────────
 router.delete('/:id', noudaAdmin, async (req, res) => {
   try {
-    const vana = await pool.query('SELECT fail_public_id FROM arved WHERE id=$1', [req.params.id]);
+    const vana = await pool.query('SELECT fail_public_id, fail_resource_type FROM arved WHERE id=$1', [req.params.id]);
     if (vana.rows.length && vana.rows[0].fail_public_id) {
-      try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: 'auto' }); } catch (e) {}
+      try { await getCloudinary().uploader.destroy(vana.rows[0].fail_public_id, { resource_type: vana.rows[0].fail_resource_type || 'image' }); } catch (e) {}
     }
     await pool.query('DELETE FROM arved WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
@@ -733,20 +860,9 @@ router.delete('/:id', noudaAdmin, async (req, res) => {
   }
 });
 
-// ── PDF GENEREERIMINE (admin + lubatud raamatupidaja) ────────────────────
-router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
-  try {
-    const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
-    const arve = a.rows[0];
-    if (!arve) return res.status(404).send('Arvet ei leitud');
-    const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
-    const read = readR.rows;
-
+// ── PDF GENEREERIMINE (jagatud abifunktsioon — kasutab nii üksiku PDF-i vaade kui ZIP-ina allalaadimine) ──
+function renderArvePdf(arve, read) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="Royal paigaldus OU Arve nr ${arve.number}.pdf"`);
-    doc.pipe(res);
-
     const MARGIN = 40, PAGE_W = 595.28, CONTENT_W = PAGE_W - MARGIN * 2;
     const leftX = MARGIN, rightColX = MARGIN + 300, rightColW = CONTENT_W - 300;
 
@@ -856,6 +972,20 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     doc.text('IBAN ' + MUUJA.iban, leftX, footY + 11, { width: CONTENT_W, align: 'right' });
 
     doc.end();
+    return doc;
+}
+
+// ── PDF GENEREERIMINE (admin + lubatud raamatupidaja) ────────────────────
+router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
+  try {
+    const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
+    const arve = a.rows[0];
+    if (!arve) return res.status(404).send('Arvet ei leitud');
+    const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
+    const doc = renderArvePdf(arve, readR.rows);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="Royal paigaldus OU Arve nr ${arve.number}.pdf"`);
+    doc.pipe(res);
   } catch (err) {
     console.error(err);
     res.status(500).send('Viga PDF genereerimisel: ' + err.message);
