@@ -429,6 +429,10 @@ async function initDB() {
     // Väljaminevate arvete jaoks (tagantjärele üleslaaditud vanad arved, millel pole meie enda arveridu).
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_url TEXT;`);
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_public_id TEXT;`);
+    // Cloudinay resource_type ('raw' PDF-idele, 'image' piltidele) — vajalik õigeks kustutamiseks
+    // ning selleks, et vältida Cloudinary vaikimisi PDF-delivery piirangut ("tühi leht" viga).
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
     // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
     // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
     await client.query(`
