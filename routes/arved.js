@@ -304,6 +304,10 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
 router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
+  // Väldi täiesti tühjade kirjete tekkimist (nt kogemata Salvesta vajutamine ilma faili/summata).
+  if (!req.file && !(parseFloat(summa) || 0) && !(kirjeldus || '').trim()) {
+    return res.json({ ok: false, veateade: 'Lisa vähemalt fail, summa või kirjeldus' });
+  }
   try {
     let fail_url = null, fail_public_id = null, fail_resource_type = null;
     if (req.file) {
@@ -561,6 +565,26 @@ Kui mõnda välja ei leia, kasuta tekstiväljade jaoks tühja stringi ja summav�
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
+  }
+});
+
+// ── VALITUD KIRJETE MASSKUSTUTAMINE (nt kogemata loodud tühjade kirjete koristamiseks) ──
+// NB: registreeritud enne "/sisse/:id" — mõlemad on siiski erineva kujuga teed ("/sisse" vs "/sisse/:id"),
+// nii et Express ei aja neid segi olenemata järjekorrast, kuid hoiame konsistentsuse mõttes samas kohas.
+router.delete('/sisse', noudaAdmin, async (req, res) => {
+  const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
+  if (!idid.length) return res.json({ ok: false, veateade: 'Vali vähemalt üks kirje' });
+  try {
+    const vana = await pool.query('SELECT fail_public_id, fail_resource_type FROM arve_sisse WHERE id = ANY($1)', [idid]);
+    for (const row of vana.rows) {
+      if (row.fail_public_id) {
+        try { await getCloudinary().uploader.destroy(row.fail_public_id, { resource_type: row.fail_resource_type || 'image' }); } catch (e) {}
+      }
+    }
+    await pool.query('DELETE FROM arve_sisse WHERE id = ANY($1)', [idid]);
+    res.json({ ok: true, kustutatud: idid.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
 });
 
