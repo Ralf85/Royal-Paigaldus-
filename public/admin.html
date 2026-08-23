@@ -277,8 +277,7 @@
           <span class="sidebar-projektid-chevron" id="chevron-grupp-projektid">▾</span>
         </button>
         <div class="sidebar-projektid-sisu" id="grupp-projektid">
-          <button class="tab tab-passiivne" data-tab="9" onclick="avatTab(9)">🏆 EDGF 2026</button>
-          <button class="tab tab-passiivne" data-tab="10" onclick="avatTab(10)">🏁 Rally Estonia</button>
+          <button class="tab tab-passiivne" data-tab="9" onclick="avatTab(9)">📁 Projektid</button>
         </div>
       </div>
     </div>
@@ -1195,53 +1194,55 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 
     <div class="sektsioon" id="tab9">
     <div class="kaart">
-      <div class="kaart-hdr">👷 EDGF 2026 — Töötajate ligipääs</div>
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📁 Projektid</span>
+        <button class="nupp kull" style="padding:5px 12px;font-size:12px" onclick="pkToggleUusVorm()">+ Uus projekt</button>
+      </div>
       <div class="kaart-body">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Luba töötajatele EDGF 2026 kaart — neil tekib tööpäevikusse võimalus kulusid sisestada.</div>
-        <div id="edgfLubatudSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Üritusepõhine kuluarvestus (EDGF, Rally Estonia, ja edaspidi iga uus sarnane üritus). Vali projekt, et näha selle ligipääsu, kulusid ja CSV-eksporti. Uue projekti loomiseks pole koodi vaja — kõik uued projektid saavad automaatselt ka AI tšekilugemise.</div>
+        <div id="pk-uus-vorm" style="display:none;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--piir2)">
+          <div class="vorm-rida col3">
+            <div class="vorm-grupp"><label>Projekti nimi</label><input id="pk-uus-nimi" placeholder="Nt. Rally Estonia 2027"></div>
+            <div class="vorm-grupp"><label>Ikoon (emoji)</label><input id="pk-uus-ikoon" placeholder="🏁" value="📁"></div>
+            <div class="vorm-grupp"><label>Värv</label><input id="pk-uus-varv" type="color" value="#7c3aed" style="height:38px;padding:2px"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="nupp kull" onclick="pkLooProjekt()">Loo projekt</button>
+            <button class="nupp hall" onclick="pkToggleUusVorm()">Tühista</button>
+          </div>
+          <div class="teade" id="pk-uus-teade"></div>
+        </div>
+        <div id="pk-valik" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
     </div>
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
-        <span>📋 EDGF 2026 kulud</span>
-        <a href="#" onclick="laadiEdgfCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
-      </div>
-      <div class="kaart-body" style="padding-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="edgf-filter-kuu" style="width:auto"></select>
-          <select id="edgf-filter-aasta" style="width:auto"></select>
-          <button class="nupp kull" onclick="laadiEdgfKulud()" style="padding:7px 16px">Näita</button>
-          <button onclick="laadiEdgfKoik()" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
+
+    <div id="pk-sisu" style="display:none">
+      <div class="kaart">
+        <div class="kaart-hdr">👷 <span id="pk-nimi-1"></span> — Töötajate ligipääs</div>
+        <div class="kaart-body">
+          <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Luba töötajatele see projekt — neil tekib tööpäevikusse võimalus kulusid sisestada (koos AI tšekilugemisega).</div>
+          <div id="pkLubatudSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
         </div>
       </div>
-      <div id="edgfKuludSisu"><div style="padding:24px;text-align:center;color:var(--hall)">Vali kuu ja vajuta Näita</div></div>
+      <div class="kaart">
+        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
+          <span>📋 <span id="pk-nimi-2"></span> kulud</span>
+          <a href="#" onclick="pkLaadiCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
+        </div>
+        <div class="kaart-body" style="padding-bottom:8px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="pk-filter-kuu" style="width:auto"></select>
+            <select id="pk-filter-aasta" style="width:auto"></select>
+            <button class="nupp kull" onclick="pkLaadiKulud()" style="padding:7px 16px">Näita</button>
+            <button onclick="pkLaadiKoik()" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
+          </div>
+        </div>
+        <div id="pkKuludSisu"><div style="padding:24px;text-align:center;color:var(--hall)">Vali kuu ja vajuta Näita</div></div>
+      </div>
     </div>
   </div>
 
-  <div class="sektsioon" id="tab10">
-    <div class="kaart">
-      <div class="kaart-hdr">👷 Rally Estonia — Töötajate ligipääs</div>
-      <div class="kaart-body">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Luba töötajatele Rally Estonia kaart — neil tekib tööpäevikusse võimalus kulusid sisestada.</div>
-        <div id="reLubatudSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
-      </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
-        <span>📋 Rally Estonia kulud</span>
-        <a href="#" onclick="laadiReCSV(event)" class="raport-nupp" style="font-size:12px;padding:6px 14px">⬇ CSV</a>
-      </div>
-      <div class="kaart-body" style="padding-bottom:8px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="re-filter-kuu" style="width:auto"></select>
-          <select id="re-filter-aasta" style="width:auto"></select>
-          <button class="nupp kull" onclick="laadiReKuludAdmin()" style="padding:7px 16px">Näita</button>
-          <button onclick="laadiReKoik()" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Kõik kuud</button>
-        </div>
-      </div>
-      <div id="reKuludSisu"><div style="padding:24px;text-align:center;color:var(--hall)">Vali kuu ja vajuta Näita</div></div>
-    </div>
-  </div>
+  <div class="sektsioon" id="tab10" style="display:none"></div>
 
   <div class="sektsioon" id="tab11">
     <div class="kaart">
@@ -1895,7 +1896,7 @@ async function api(url, opts = {}) {
 
 const tabid = document.querySelectorAll('.tab');
 const sektsioonid = document.querySelectorAll('.sektsioon');
-const TAB_PEALKIRJAD = ['📊 Kokkuvõte','💳 Maksed','👷 Personal','🏗️ Objektid','📅 Tulevased tööd','📸 Fotod','🔍 Logi','📄 Raport','☕ Graafik','🏆 EDGF 2026','🏁 Rally Estonia','🥏 X-seeria','💶 Arved'];
+const TAB_PEALKIRJAD = ['📊 Kokkuvõte','💳 Maksed','👷 Personal','🏗️ Objektid','📅 Tulevased tööd','📸 Fotod','🔍 Logi','📄 Raport','☕ Graafik','📁 Projektid','','🥏 X-seeria','💶 Arved'];
 const ETTEVOTE_GRUPP_ID = { CRAMO: 'grupp-cramo', LIDL: 'grupp-lidl', MUU: 'grupp-muu' };
 
 function toggleSidebarGrupp(id) {
@@ -1923,7 +1924,7 @@ function avatTab(i, ettevoteFilter) {
   const filter = (i === 3 || i === 4) ? (ettevoteFilter || null) : null;
   tabid.forEach(t => t.classList.toggle('ak', parseInt(t.dataset.tab, 10) === i));
   sektsioonid.forEach((s,j) => s.classList.toggle('nhtav', i===j));
-  if (i === 9 || i === 10) avaSidebarGrupp('grupp-projektid');
+  if (i === 9) avaSidebarGrupp('grupp-projektid');
   if ((i === 3 || i === 4) && filter && ETTEVOTE_GRUPP_ID[filter.toUpperCase()]) avaSidebarGrupp(ETTEVOTE_GRUPP_ID[filter.toUpperCase()]);
   if (i === 8) avaSidebarGrupp('grupp-merekohvik');
   const pealkiriEl = document.getElementById('topbar-title');
@@ -1947,8 +1948,7 @@ function avatTab(i, ettevoteFilter) {
     const el = document.getElementById('g-lisa-kuupaev');
     if (el) el.value = t.toISOString().split('T')[0];
   }
-  if(i===9) laadiEdgfTab();
-  if(i===10) laadiReTab();
+  if(i===9) pkLaadiTab();
   if(i===11) xsLaadiTab();
   if(i===12) laadiArved();
 }
@@ -2595,138 +2595,126 @@ async function salvestaMuuTasu(kirjeId){
 }
 
 
-// ── EDGF 2026 ──────────────────────────────────────────────────
+// ── PROJEKTID (üldistatud EDGF/Rally Estonia + tulevased üritused) ──────
 
-async function laadiEdgfTab() {
-  const t = new Date();
-  const kuu = document.getElementById('edgf-filter-kuu');
-  const aasta = document.getElementById('edgf-filter-aasta');
-  if (kuu && !kuu.options.length) {
-    KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuu.appendChild(o); });
+let pkProjektid = [];
+let pkAktiivneId = null;
+
+async function pkLaadiTab() {
+  const r = await api('/api/projektid/admin/projektid');
+  pkProjektid = (r && r.ok && Array.isArray(r.projektid)) ? r.projektid : [];
+  const valikDiv = document.getElementById('pk-valik');
+  if (!pkProjektid.length) {
+    valikDiv.innerHTML = '<div style="color:var(--hall);font-size:13px">Projekte pole veel loodud</div>';
+    document.getElementById('pk-sisu').style.display = 'none';
+    return;
   }
-  if (aasta && !aasta.options.length) {
-    for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
+  valikDiv.innerHTML = pkProjektid.map(p => `
+    <button onclick="pkValiProjekt(${p.id})" id="pk-nupp-${p.id}" style="background:${p.id===pkAktiivneId?p.varv:'var(--sisend-piir)'};color:${p.id===pkAktiivneId?'#fff':'var(--tekst3)'};border:none;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;opacity:${p.aktiivne?'1':'0.5'}">${p.ikoon} ${p.nimi}${p.aktiivne?'':' (peidetud)'}</button>
+  `).join('');
+  if (!pkAktiivneId || !pkProjektid.find(p => p.id === pkAktiivneId)) {
+    pkAktiivneId = pkProjektid[0].id;
   }
-  await laadiEdgfLubatud();
-  await laadiEdgfKulud();
+  await pkValiProjekt(pkAktiivneId);
 }
 
-async function laadiEdgfLubatud() {
-  const r = await api('/api/edgf/admin/lubatud');
-  const div = document.getElementById('edgfLubatudSisu');
-  if (!Array.isArray(r)) { div.innerHTML = '<div style="color:var(--hall)">Viga laadimisel</div>'; return; }
-  div.innerHTML = r.map(w => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
-      <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
-        <span style="color:${w.lubatud?'#4ade80':'var(--hall)'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
-        <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleEdgfLuba(${w.id}, this.checked)" style="width:auto;accent-color:#818cf8">
-      </label>
-    </div>`).join('');
+function pkToggleUusVorm() {
+  const el = document.getElementById('pk-uus-vorm');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
-async function toggleEdgfLuba(workerId, lubatud) {
-  await api(`/api/edgf/admin/lubatud/${workerId}`, {method:'POST', body: JSON.stringify({lubatud})});
-  await laadiEdgfLubatud();
+async function pkLooProjekt() {
+  const nimi = document.getElementById('pk-uus-nimi').value.trim();
+  const ikoon = document.getElementById('pk-uus-ikoon').value.trim() || '📁';
+  const varv = document.getElementById('pk-uus-varv').value || '#7c3aed';
+  const teade = document.getElementById('pk-uus-teade');
+  if (!nimi) { teade.style.display='block'; teade.textContent='Sisesta projekti nimi'; return; }
+  const r = await api('/api/projektid/admin/projektid', {method:'POST', body: JSON.stringify({nimi, ikoon, varv})});
+  if (r.ok) {
+    document.getElementById('pk-uus-nimi').value = '';
+    document.getElementById('pk-uus-teade').style.display = 'none';
+    pkToggleUusVorm();
+    pkAktiivneId = r.id;
+    await pkLaadiTab();
+  } else {
+    teade.style.display='block'; teade.textContent = r.veateade || 'Viga';
+  }
 }
 
-async function laadiEdgfKulud() {
-  const kuu = document.getElementById('edgf-filter-kuu')?.value;
-  const aasta = document.getElementById('edgf-filter-aasta')?.value;
-  const r = await api(`/api/edgf/admin/kulud?aasta=${aasta}&kuu=${kuu}`);
-  kuvaEdgfTabel(r);
-}
-
-async function laadiEdgfKoik() {
-  const r = await api('/api/edgf/admin/kulud');
-  kuvaEdgfTabel(r);
-}
-
-function kuvaEdgfTabel(andmed) {
-  const div = document.getElementById('edgfKuludSisu');
-  if (!Array.isArray(andmed) || !andmed.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Kulusid pole</div>'; return; }
-  let kokku = 0;
-  let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Tehtud tööd</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
-  andmed.forEach(k => {
-    const summa = parseFloat(k.summa); kokku += summa;
-    html += `<tr><td style="color:var(--hall)">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:var(--tekst3)">${k.selgitus}</td><td style="text-align:right;color:#818cf8;font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:#818cf8;font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
+async function pkValiProjekt(id) {
+  pkAktiivneId = id;
+  const projekt = pkProjektid.find(p => p.id === id);
+  if (!projekt) return;
+  pkProjektid.forEach(p => {
+    const btn = document.getElementById(`pk-nupp-${p.id}`);
+    if (btn) { btn.style.background = p.id===id ? p.varv : 'var(--sisend-piir)'; btn.style.color = p.id===id ? '#fff' : 'var(--tekst3)'; }
   });
-  html += `<tr style="font-weight:700;border-top:1px solid var(--piir)"><td colspan="3">KOKKU</td><td style="text-align:right;color:#818cf8">${kokku.toFixed(2)} €</td><td></td></tr></tbody></table>`;
-  div.innerHTML = html;
-}
+  document.getElementById('pk-nimi-1').textContent = projekt.nimi;
+  document.getElementById('pk-nimi-2').textContent = projekt.nimi;
+  document.getElementById('pk-sisu').style.display = 'block';
 
-function laadiEdgfCSV(e) {
-  e.preventDefault();
-  const kuu = document.getElementById('edgf-filter-kuu')?.value || '';
-  const aasta = document.getElementById('edgf-filter-aasta')?.value || '';
-  window.location = `/api/edgf/admin/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
-}
-
-// ── RALLY ESTONIA ──────────────────────────────────────────────
-
-async function laadiReTab() {
   const t = new Date();
-  const kuu = document.getElementById('re-filter-kuu');
-  const aasta = document.getElementById('re-filter-aasta');
-  if (kuu && !kuu.options.length) {
-    KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuu.appendChild(o); });
-  }
-  if (aasta && !aasta.options.length) {
-    for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
-  }
-  await laadiReLubatud();
-  await laadiReKuludAdmin();
+  const kuu = document.getElementById('pk-filter-kuu');
+  const aasta = document.getElementById('pk-filter-aasta');
+  kuu.innerHTML = ''; aasta.innerHTML = '';
+  KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kuu.appendChild(o); });
+  for(let y=t.getFullYear(); y>=t.getFullYear()-1; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; aasta.appendChild(o); }
+
+  await pkLaadiLubatud();
+  await pkLaadiKulud();
 }
 
-async function laadiReLubatud() {
-  const r = await api('/api/re/admin/lubatud');
-  const div = document.getElementById('reLubatudSisu');
+async function pkLaadiLubatud() {
+  const r = await api(`/api/projektid/admin/${pkAktiivneId}/lubatud`);
+  const div = document.getElementById('pkLubatudSisu');
   if (!Array.isArray(r)) { div.innerHTML = '<div style="color:var(--hall)">Viga laadimisel</div>'; return; }
+  const varv = (pkProjektid.find(p=>p.id===pkAktiivneId)||{}).varv || '#818cf8';
   div.innerHTML = r.map(w => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
       <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
         <span style="color:${w.lubatud?'#4ade80':'var(--hall)'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
-        <input type="checkbox" ${w.lubatud?'checked':''} onchange="toggleReLuba(${w.id}, this.checked)" style="width:auto;accent-color:#4ade80">
+        <input type="checkbox" ${w.lubatud?'checked':''} onchange="pkToggleLuba(${w.id}, this.checked)" style="width:auto;accent-color:${varv}">
       </label>
     </div>`).join('');
 }
 
-async function toggleReLuba(workerId, lubatud) {
-  await api(`/api/re/admin/lubatud/${workerId}`, {method:'POST', body: JSON.stringify({lubatud})});
-  await laadiReLubatud();
+async function pkToggleLuba(workerId, lubatud) {
+  await api(`/api/projektid/admin/${pkAktiivneId}/lubatud/${workerId}`, {method:'POST', body: JSON.stringify({lubatud})});
+  await pkLaadiLubatud();
 }
 
-async function laadiReKuludAdmin() {
-  const kuu = document.getElementById('re-filter-kuu')?.value;
-  const aasta = document.getElementById('re-filter-aasta')?.value;
-  const r = await api(`/api/re/admin/kulud?aasta=${aasta}&kuu=${kuu}`);
-  kuvaReTabel(r);
+async function pkLaadiKulud() {
+  const kuu = document.getElementById('pk-filter-kuu')?.value;
+  const aasta = document.getElementById('pk-filter-aasta')?.value;
+  const r = await api(`/api/projektid/admin/${pkAktiivneId}/kulud?aasta=${aasta}&kuu=${kuu}`);
+  pkKuvaTabel(r);
 }
 
-async function laadiReKoik() {
-  const r = await api('/api/re/admin/kulud');
-  kuvaReTabel(r);
+async function pkLaadiKoik() {
+  const r = await api(`/api/projektid/admin/${pkAktiivneId}/kulud`);
+  pkKuvaTabel(r);
 }
 
-function kuvaReTabel(andmed) {
-  const div = document.getElementById('reKuludSisu');
+function pkKuvaTabel(andmed) {
+  const div = document.getElementById('pkKuludSisu');
+  const varv = (pkProjektid.find(p=>p.id===pkAktiivneId)||{}).varv || '#818cf8';
   if (!Array.isArray(andmed) || !andmed.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Kulusid pole</div>'; return; }
   let kokku = 0;
   let html = '<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Selgitus</th><th style="text-align:right">Summa</th><th>Foto</th></tr></thead><tbody>';
   andmed.forEach(k => {
     const summa = parseFloat(k.summa); kokku += summa;
-    html += `<tr><td style="color:var(--hall)">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:var(--tekst3)">${k.selgitus}</td><td style="text-align:right;color:#4ade80;font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:#4ade80;font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
+    html += `<tr><td style="color:var(--hall)">${formatKp(k.kuupaev)}</td><td style="font-weight:600">${k.worker_nimi}</td><td style="color:var(--tekst3)">${k.selgitus}</td><td style="text-align:right;color:${varv};font-weight:600">${summa.toFixed(2)} €</td><td>${k.foto_url?`<a href="${k.foto_url}" target="_blank" style="color:${varv};font-size:12px">📷 vaata</a>`:'—'}</td></tr>`;
   });
-  html += `<tr style="font-weight:700;border-top:1px solid var(--piir)"><td colspan="3">KOKKU</td><td style="text-align:right;color:#4ade80">${kokku.toFixed(2)} €</td><td></td></tr></tbody></table>`;
+  html += `<tr style="font-weight:700;border-top:1px solid var(--piir)"><td colspan="3">KOKKU</td><td style="text-align:right;color:${varv}">${kokku.toFixed(2)} €</td><td></td></tr></tbody></table>`;
   div.innerHTML = html;
 }
 
-function laadiReCSV(e) {
+function pkLaadiCSV(e) {
   e.preventDefault();
-  const kuu = document.getElementById('re-filter-kuu')?.value || '';
-  const aasta = document.getElementById('re-filter-aasta')?.value || '';
-  window.location = `/api/re/admin/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
+  const kuu = document.getElementById('pk-filter-kuu')?.value || '';
+  const aasta = document.getElementById('pk-filter-aasta')?.value || '';
+  window.location = `/api/projektid/admin/${pkAktiivneId}/csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
 }
 
 
@@ -4884,3 +4872,4 @@ init();
 </script>
 </body>
 </html>
+  
