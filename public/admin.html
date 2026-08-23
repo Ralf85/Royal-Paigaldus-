@@ -1698,6 +1698,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <span>📋 Sissetulevate ajalugu</span>
           <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
+          <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
           <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
         <div id="av-sisseajalugu-body">
@@ -4752,13 +4753,25 @@ function avVaataKoikSisse(koik) {
 }
 function avUuendaZipNupp() {
   const nupp = document.getElementById('as-zip-nupp');
-  if (!nupp) return;
-  nupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
-  nupp.textContent = `⬇️ Laadi valitud alla (${avSisseValitud.size} ZIP-ina)`;
+  const kustNupp = document.getElementById('as-kustuta-nupp');
+  if (nupp) {
+    nupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    nupp.textContent = `⬇️ Laadi valitud alla (${avSisseValitud.size} ZIP-ina)`;
+  }
+  if (kustNupp) {
+    kustNupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    kustNupp.textContent = `🗑 Kustuta valitud (${avSisseValitud.size})`;
+  }
 }
 function avLaadiValitudZip() {
   if (!avSisseValitud.size) return;
   window.open(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}&_token=${TOKEN}`, '_blank');
+}
+async function avKustutaValitudSisse() {
+  if (!avSisseValitud.size) return;
+  if (!confirm(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
+  await api(`/api/arved/sisse?ids=${[...avSisseValitud].join(',')}`, { method: 'DELETE' });
+  await laadiSisseTabel();
 }
 
 function avMuudaSisse(id) {
@@ -4796,6 +4809,13 @@ function avTuhistaSisseMuutmine() {
 async function avSalvestaSisse() {
   const kuupaev = document.getElementById('as-kuupaev').value;
   if (!kuupaev) return naitaTeade('as-teade', 'viga', 'Vali kuupäev!');
+  const kirjeldusVaartus = document.getElementById('as-kirjeldus').value.trim();
+  const summaVaartus = parseFloat(document.getElementById('as-summa').value) || 0;
+  // Väldi täiesti tühjade kirjete tekkimist (nt kogemata Salvesta vajutamine ilma faili/summata) —
+  // muidu koguneb ajalukku hulk sisutühje ridu.
+  if (!avSisseFail && !summaVaartus && !kirjeldusVaartus) {
+    return naitaTeade('as-teade', 'viga', 'Lisa vähemalt fail, summa või kirjeldus enne salvestamist!');
+  }
   const fd = new FormData();
   fd.append('kuupaev', kuupaev);
   fd.append('tahtaeg', document.getElementById('as-tahtaeg').value || '');
