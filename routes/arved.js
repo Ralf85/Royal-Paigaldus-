@@ -870,6 +870,133 @@ router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
   }
 });
 
+// ── SUMUP VÄLJAMAKSE ARUANNE (Merekohvik) ─────────────────────────────────
+// SumUp "Payout Report" PDF EI OLE arve — see on kokkuvõte kaardimüügist ja väljamaksetest.
+// Loeb sealt AI-ga kaks eraldi fakti (käive brutos + SumUp teenustasu) ja lubab admin need
+// enne salvestamist üle vaadata, seejärel luuakse KORRAGA kaks kirjet: käive (Väljaminevad,
+// ostja=MEREKOHVIK) ja teenustasu (Sisse, kulu) — ilma milleta üksik-arve AI-lugeja need segi ajaks.
+router.post('/sumup/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
+  }
+  try {
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const base64 = req.file.buffer.toString('base64');
+    const sisuBlokk = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
+    const juhis = `Sa vaatad SumUp väljamaksete (Payout Report) aruannet. See EI OLE tavaline arve, vaid kokkuvõte kaardimüügist ja väljamaksetest ühe perioodi kohta.
+Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"periood_algus": "YYYY-MM-DD (aruande perioodi algus)", "periood_lopp": "YYYY-MM-DD (aruande perioodi lõpp)", "kaive_bruto": <number, väli "SumUp processed card payments" / "Total of all gross card payments" — kogu kaardimüük enne tasusid>, "tasud": <number, väli "SumUp processing fees" — kogu SumUp teenustasu perioodi eest>}
+Kui mõnda välja ei leia, kasuta kuupäevade jaoks tühja stringi ja numbrite jaoks 0.`;
+    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
+      })
+    });
+    const data = await apiResp.json();
+    if (!apiResp.ok) {
+      console.error('Anthropic API viga:', data);
+      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
+    }
+    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
+    let väljad;
+    try {
+      const vaste = tekst.match(/\{[\s\S]*\}/);
+      väljad = JSON.parse(vaste ? vaste[0] : tekst);
+    } catch (e) {
+      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
+    }
+    res.json({
+      ok: true,
+      periood_algus: väljad.periood_algus || '',
+      periood_lopp: väljad.periood_lopp || '',
+      kaive_bruto: parseFloat(väljad.kaive_bruto) || 0,
+      tasud: parseFloat(väljad.tasud) || 0
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'AI lugemine ebaõnnestus: ' + err.message });
+  }
+});
+
+// Salvestab admin poolt üle vaadatud/kohendatud numbrid. Fail laetakse Cloudinarysse ainult
+// käibekirje (arved) külge — kulukirje (arve_sisse) jääb ilma otselingita, et kahe kirje
+// hilisem eraldi kustutamine ei rikuks teineteise faililinki (mõlemad viitaksid samale asjale).
+router.post('/sumup/salvesta', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  const { periood_algus, periood_lopp, kaive_bruto, kaibemaks_protsent, tasud } = req.body;
+  if (!periood_algus || !periood_lopp) {
+    return res.json({ ok: false, veateade: 'Täida perioodi algus ja lõpp' });
+  }
+  const kaiveBrutoNum = parseFloat(kaive_bruto) || 0;
+  const tasudNum = parseFloat(tasud) || 0;
+  const kmProtsent = parseFloat(kaibemaks_protsent) || 24;
+  if (kaiveBrutoNum <= 0 && tasudNum <= 0) {
+    return res.json({ ok: false, veateade: 'Käive ja tasu ei saa mõlemad olla 0' });
+  }
+  try {
+    let fail_url = null, fail_public_id = null, fail_resource_type = null;
+    if (req.file) {
+      fail_resource_type = cloudinaryResourceType(req.file.mimetype);
+      const result = await new Promise((resolve, reject) => {
+        const stream = getCloudinary().uploader.upload_stream(
+          cloudinaryUploadOpts('royal-paigaldus/arved-sumup', req.file.mimetype, req.file.originalname),
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      fail_url = result.secure_url;
+      fail_public_id = result.public_id;
+    }
+
+    const merekohvik = await pool.query(`SELECT id FROM ettevotted WHERE nimi='MEREKOHVIK'`);
+    const merekohvikId = merekohvik.rows.length ? merekohvik.rows[0].id : null;
+
+    let arveTulemus = null;
+    if (kaiveBrutoNum > 0) {
+      const kmSumma = +(kaiveBrutoNum - kaiveBrutoNum / (1 + kmProtsent / 100)).toFixed(2);
+      const kmTa = +(kaiveBrutoNum - kmSumma).toFixed(2);
+      const number = `SUMUP-${periood_lopp.replace(/-/g, '').slice(0, 6)}`;
+      const viitenumber = /^\d+$/.test(number) ? arveViitenumber(number) : number;
+      try {
+        const r = await pool.query(
+          `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, staatus, fail_url, fail_public_id, fail_resource_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+          [number, periood_lopp, periood_lopp, viitenumber, merekohvikId, 'MEREKOHVIK', periood_algus, periood_lopp, kmTa, kmProtsent, kmSumma, kaiveBrutoNum, 'makstud', fail_url, fail_public_id, fail_resource_type]
+        );
+        arveTulemus = r.rows[0];
+      } catch (err) {
+        if (err.code === '23505') return res.json({ ok: false, veateade: `Selle perioodi SumUp käibekirje on juba lisatud (number ${number})` });
+        throw err;
+      }
+    }
+
+    let sisseTulemus = null;
+    if (tasudNum > 0) {
+      const r = await pool.query(
+        `INSERT INTO arve_sisse (kuupaev, tahtaeg, kirjeldus, summa, kaibemaks, staatus)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [periood_lopp, periood_lopp, `SumUp teenustasu (${periood_algus} – ${periood_lopp})`, tasudNum, 0, 'makstud']
+      );
+      sisseTulemus = r.rows[0];
+    }
+
+    res.json({ ok: true, arve: arveTulemus, sisse: sisseTulemus });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ── STAATUS (maksmata/makstud) ───────────────────────────────────────────
 router.put('/:id/staatus', noudaAdmin, async (req, res) => {
   const { staatus } = req.body;
