@@ -469,6 +469,96 @@ async function initDB() {
     await client.query(`UPDATE ettevotted SET arve_nimi = 'Lidl Eesti OÜ' WHERE nimi = 'LIDL' AND (arve_nimi IS NULL OR arve_nimi = '');`);
     await client.query(`UPDATE ettevotted SET arve_nimi = 'Cramo Estonia AS' WHERE nimi = 'CRAMO' AND (arve_nimi IS NULL OR arve_nimi = '');`);
 
+    // re_kulud/re_lubatud olid varem ainult käsitsi Railway andmebaasis loodud (mitte siin skeemis) —
+    // deklareerime need nüüd ka siin, et uus/puhas deploy ei jookseks kokku allpool oleva migratsiooni peale.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS re_kulud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        foto_url TEXT,
+        foto_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS re_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
+    `);
+    // ── PROJEKTID (üldistatud EDGF/Rally Estonia kulude moodul) ─────────
+    // Üldine "üritusepõhine kuluarvestus" — vanad edgf_kulud/re_kulud tabelid jäävad puutumata
+    // (ajalooline varukoopia), aga edaspidised kirjed käivad ainult uute geneeriliste tabelite kaudu.
+    // Uue projekti saab luua adminnist ilma koodi kirjutamata (nt tulevane üritus nr 3).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS projektid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL,
+        kood VARCHAR(50) UNIQUE,
+        ikoon VARCHAR(10) DEFAULT '📁',
+        varv VARCHAR(20) DEFAULT '#7c3aed',
+        aktiivne BOOLEAN DEFAULT true,
+        jrk_nr INTEGER DEFAULT 0,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS projekti_kulud (
+        id SERIAL PRIMARY KEY,
+        projekt_id INTEGER REFERENCES projektid(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        foto_url TEXT,
+        foto_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS projekti_lubatud (
+        id SERIAL PRIMARY KEY,
+        projekt_id INTEGER REFERENCES projektid(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        UNIQUE(projekt_id, worker_id)
+      );
+    `);
+    // Ühekordne migratsioon: loo EDGF 2026 ja Rally Estonia esimeste projektidena ning too nende
+    // vanad kulud/ligipääsud üldistesse tabelitesse üle (vanad tabelid jäävad puutumata, alles ajaloos).
+    await client.query(`
+      INSERT INTO projektid (nimi, kood, ikoon, varv, jrk_nr) VALUES
+        ('EDGF 2026', 'edgf', '🏆', '#7c3aed', 1),
+        ('Rally Estonia', 're', '🏁', '#16a34a', 2)
+      ON CONFLICT (kood) DO NOTHING;
+    `);
+    const edgfProjekt = await client.query(`SELECT id FROM projektid WHERE kood='edgf'`);
+    const reProjekt = await client.query(`SELECT id FROM projektid WHERE kood='re'`);
+    if (edgfProjekt.rows.length) {
+      const edgfId = edgfProjekt.rows[0].id;
+      const juba = await client.query(`SELECT COUNT(*) FROM projekti_kulud WHERE projekt_id=$1`, [edgfId]);
+      if (parseInt(juba.rows[0].count) === 0) {
+        await client.query(`
+          INSERT INTO projekti_kulud (projekt_id, worker_id, kuupaev, summa, selgitus, foto_url, foto_public_id, loodud)
+          SELECT $1, worker_id, kuupaev, summa, selgitus, foto_url, foto_public_id, loodud FROM edgf_kulud
+        `, [edgfId]);
+        await client.query(`
+          INSERT INTO projekti_lubatud (projekt_id, worker_id)
+          SELECT $1, worker_id FROM edgf_lubatud ON CONFLICT DO NOTHING
+        `, [edgfId]);
+      }
+    }
+    if (reProjekt.rows.length) {
+      const reId = reProjekt.rows[0].id;
+      const juba = await client.query(`SELECT COUNT(*) FROM projekti_kulud WHERE projekt_id=$1`, [reId]);
+      if (parseInt(juba.rows[0].count) === 0) {
+        await client.query(`
+          INSERT INTO projekti_kulud (projekt_id, worker_id, kuupaev, summa, selgitus, foto_url, foto_public_id, loodud)
+          SELECT $1, worker_id, kuupaev, summa, selgitus, foto_url, foto_public_id, loodud FROM re_kulud
+        `, [reId]);
+        await client.query(`
+          INSERT INTO projekti_lubatud (projekt_id, worker_id)
+          SELECT $1, worker_id FROM re_lubatud ON CONFLICT DO NOTHING
+        `, [reId]);
+      }
+    }
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
