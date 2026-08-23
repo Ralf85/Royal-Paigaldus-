@@ -1621,6 +1621,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
           <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
           <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
+          <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
           <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
           <span id="av-ajalugu-nool" onclick="avToggleKaart('av-ajalugu-body','av-ajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
@@ -1656,6 +1657,31 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button type="button" class="nupp roheline" onclick="avSalvestaLaadi()">💾 Salvesta arve</button>
         </div>
         <div class="teade" id="al-teade"></div>
+      </div>
+      <div id="av-sumup-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">SumUp väljamakse (Payout Report) aruanne EI OLE arve — see loob korraga <b>kaks</b> kirjet: Merekohviku kaardikäibe (siia, Väljaminevatesse, ostja "MEREKOHVIK") ja SumUp teenustasu (Sisse alla, kuluna).</div>
+        <div id="av-sumup-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
+          <span id="av-sumup-dropzone-tekst">📎 Lohista siia SumUp Payout Report PDF, või kliki valimiseks</span>
+          <input type="file" id="av-sumup-fail" accept="image/*,application/pdf" style="display:none">
+        </div>
+        <div class="teade" id="su-loe-teade"></div>
+        <div id="av-sumup-tulemus" style="display:none">
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>Perioodi algus</label><input type="date" id="su-algus"></div>
+            <div class="vorm-grupp"><label>Perioodi lõpp</label><input type="date" id="su-lopp"></div>
+            <div class="vorm-grupp"><label>Käive brutos (€)</label><input type="number" step="0.01" id="su-kaive" oninput="avSumupArvutaKm()"></div>
+            <div class="vorm-grupp"><label>Käibemaksumäär (%)</label><input type="number" step="0.01" id="su-km-protsent" value="24" oninput="avSumupArvutaKm()"></div>
+          </div>
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>SumUp teenustasu (€)</label><input type="number" step="0.01" id="su-tasu"></div>
+            <div class="vorm-grupp"><label>Arvutatud käibemaks (€)</label><input type="text" id="su-km-arvutatud" readonly style="opacity:0.7"></div>
+          </div>
+          <div style="font-size:11px;color:var(--hall);margin:8px 0">Käibemaks arvutatakse brutokäibest tagurpidi valitud määraga — kontrolli üle, kas kogu Merekohviku müük on tõesti sellel määral, ja SumUp tasu käibemaksukäsitlus (pöördmaksustamine?) raamatupidajaga.</div>
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="nupp roheline" onclick="avSalvestaSumup()">💾 Salvesta käive + kulu</button>
+          </div>
+        </div>
+        <div class="teade" id="su-teade"></div>
       </div>
       <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
       </div><!-- /av-ajalugu-body -->
@@ -4101,6 +4127,7 @@ async function laadiArved() {
   avVaataAlamtab(avAktiivneAlamtab);
   avSisseDropzoneSeadista();
   avLaadiDropzoneSeadista();
+  avSumupDropzoneSeadista();
   avKiirDropzoneSeadista();
   await avPreviewNumber();
   if (!avRead.length) avLisaRida();
@@ -4483,6 +4510,101 @@ function avToggleLaadiVorm() {
     const kpEl = document.getElementById('al-kuupaev');
     if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
   }
+}
+
+// ── SUMUP VÄLJAMAKSE ARUANNE (Merekohvik) ─────────────────────────────────
+let avSumupFail = null;
+
+function avToggleSumupVorm() {
+  const vorm = document.getElementById('av-sumup-vorm');
+  vorm.style.display = vorm.style.display !== 'none' ? 'none' : 'block';
+}
+
+function avSumupDropzoneSeadista() {
+  const zone = document.getElementById('av-sumup-dropzone');
+  const input = document.getElementById('av-sumup-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avSumupValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avSumupValiFail(e.dataTransfer.files[0]);
+  });
+}
+
+function avSumupValiFail(file) {
+  avSumupFail = file;
+  document.getElementById('av-sumup-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeSumupFail(file);
+}
+
+async function avLoeSumupFail(file) {
+  naitaTeade('su-loe-teade', 'ok', '🤖 Loen SumUp aruannet...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/sumup/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('su-loe-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); document.getElementById('av-sumup-tulemus').style.display = 'block'; return; }
+  if (r.periood_algus) document.getElementById('su-algus').value = r.periood_algus;
+  if (r.periood_lopp) document.getElementById('su-lopp').value = r.periood_lopp;
+  if (r.kaive_bruto) document.getElementById('su-kaive').value = r.kaive_bruto;
+  if (r.tasud) document.getElementById('su-tasu').value = r.tasud;
+  document.getElementById('av-sumup-tulemus').style.display = 'block';
+  avSumupArvutaKm();
+  naitaTeade('su-loe-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle enne salvestamist!');
+}
+
+function avSumupArvutaKm() {
+  const kaive = parseFloat(document.getElementById('su-kaive').value) || 0;
+  const protsent = parseFloat(document.getElementById('su-km-protsent').value) || 24;
+  const km = kaive - kaive / (1 + protsent / 100);
+  document.getElementById('su-km-arvutatud').value = km.toFixed(2) + ' €';
+}
+
+async function avSalvestaSumup() {
+  const algus = document.getElementById('su-algus').value;
+  const lopp = document.getElementById('su-lopp').value;
+  if (!algus || !lopp) return naitaTeade('su-teade', 'viga', 'Täida perioodi algus ja lõpp!');
+  const fd = new FormData();
+  fd.append('periood_algus', algus);
+  fd.append('periood_lopp', lopp);
+  fd.append('kaive_bruto', document.getElementById('su-kaive').value || 0);
+  fd.append('kaibemaks_protsent', document.getElementById('su-km-protsent').value || 24);
+  fd.append('tasud', document.getElementById('su-tasu').value || 0);
+  if (avSumupFail) fd.append('fail', avSumupFail);
+  const r = await api('/api/arved/sumup/salvesta', { method: 'POST', body: fd });
+  if (!r.ok) return naitaTeade('su-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('su-teade', 'ok', '✅ Käive ja/või kulu lisatud!');
+  avSumupFail = null;
+  document.getElementById('av-sumup-fail').value = '';
+  document.getElementById('av-sumup-dropzone-tekst').textContent = '📎 Lohista siia SumUp Payout Report PDF, või kliki valimiseks';
+  ['su-algus','su-lopp','su-kaive','su-tasu','su-km-arvutatud'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('su-km-protsent').value = 24;
+  document.getElementById('av-sumup-tulemus').style.display = 'none';
+  avToggleSumupVorm();
+
+  // Vii filtrid äsja lisatud käibekirje kuupäevale vastavaks, muidu jääb see nähtamatuks.
+  const [aasta, kuu] = lopp.split('-');
+  const kuuSel = document.getElementById('av-kuu-valik');
+  const aastaSel = document.getElementById('av-aasta-valik');
+  if (kuuSel) kuuSel.value = String(parseInt(kuu, 10));
+  if (aastaSel) {
+    if (![...aastaSel.options].some(o => o.value === aasta)) {
+      const o = document.createElement('option');
+      o.value = aasta; o.textContent = aasta;
+      aastaSel.appendChild(o);
+    }
+    aastaSel.value = aasta;
+  }
+  avStaatusFilter = 'koik';
+  ['koik', 'maksmata', 'makstud'].forEach(k => {
+    const btn = document.getElementById('av-filt-' + k);
+    if (btn) { btn.classList.toggle('kull', k === 'koik'); btn.classList.toggle('hall', k !== 'koik'); }
+  });
+  await laadiArvedTabel();
 }
 
 function avLaadiDropzoneSeadista() {
@@ -4872,4 +4994,3 @@ init();
 </script>
 </body>
 </html>
-  
