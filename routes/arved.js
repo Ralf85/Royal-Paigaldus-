@@ -22,6 +22,18 @@ function getCloudinary() {
 function cloudinaryResourceType(mimetype) {
   return mimetype === 'application/pdf' ? 'raw' : 'image';
 }
+// 'raw' tüüpi failidele EI lisa Cloudinary automaatselt laiendit URL-i (erinevalt 'image' tüübist) —
+// ilma laiendita URL-il puudub brauserile korrektne Content-Type ja PDF kuvatakse tühja/valge lehena.
+// Seepärast paneme PDF-idele laiendi (.pdf) käsitsi public_id sisse, nii saab lõplik URL kindlasti "....pdf".
+function cloudinaryUploadOpts(folder, mimetype, originalname) {
+  const resourceType = cloudinaryResourceType(mimetype);
+  const opts = { folder, resource_type: resourceType };
+  if (resourceType === 'raw') {
+    const laiend = ((originalname || '').match(/\.(\w+)$/) || [, 'pdf'])[1].toLowerCase();
+    opts.public_id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${laiend}`;
+  }
+  return opts;
+}
 // Sissetulevate arvete/tšekkide üleslaadimine — nii pildid kui PDF-id (erinevalt teistest üleslaadimistest,
 // mis lubavad ainult pilte, sest tšekk võib olla ka valmis PDF-arve).
 const uploadSisse = multer({
@@ -298,7 +310,7 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
       fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-sisse', resource_type: fail_resource_type },
+          cloudinaryUploadOpts('royal-paigaldus/arved-sisse', req.file.mimetype, req.file.originalname),
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
@@ -333,7 +345,7 @@ router.put('/sisse/:id', noudaAdmin, uploadSisse.single('fail'), async (req, res
       fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-sisse', resource_type: fail_resource_type },
+          cloudinaryUploadOpts('royal-paigaldus/arved-sisse', req.file.mimetype, req.file.originalname),
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
@@ -806,7 +818,7 @@ router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
       fail_resource_type = cloudinaryResourceType(req.file.mimetype);
       const result = await new Promise((resolve, reject) => {
         const stream = getCloudinary().uploader.upload_stream(
-          { folder: 'royal-paigaldus/arved-valja', resource_type: fail_resource_type },
+          cloudinaryUploadOpts('royal-paigaldus/arved-valja', req.file.mimetype, req.file.originalname),
           (err, result) => err ? reject(err) : resolve(result)
         );
         stream.end(req.file.buffer);
