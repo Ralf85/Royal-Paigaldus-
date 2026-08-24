@@ -1477,8 +1477,8 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
       <div style="display:flex;gap:8px">
-        <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')">📤 Väljaminevad</button>
-        <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avVaataAlamtab('sisse')">📥 Sissetulevad</button>
+        <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')" title="Meie väljastatud arved — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">📤 Väljaminevad (müük — raha tuleb sisse)</button>
+        <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avVaataAlamtab('sisse')" title="Meie saadud arved/tšekid — raha läheb Royalilt VÄLJA, käibemaksu saab tagasi">📥 Sissetulevad (ostud — raha läheb välja)</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:1px">Kuu</span>
@@ -1502,11 +1502,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <div class="kaart-body" id="av-km-body">
         <div class="vorm-rida col3">
           <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks väljas (müük)</div>
+            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks väljas (müük — riigile maksta)</div>
             <div id="km-valjas" style="font-size:20px;font-weight:800;color:#4ade80">0,00 €</div>
           </div>
           <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks sisse (ost)</div>
+            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks sisse (ost — tagasi saab)</div>
             <div id="km-sisse" style="font-size:20px;font-weight:800;color:#fb923c">0,00 €</div>
           </div>
           <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
@@ -1543,27 +1543,33 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Ostja nimi</label><input type="text" id="av-ostja-nimi" placeholder="Ettevõtte OÜ"></div>
           <div class="vorm-grupp">
-            <label>PO number (valikuline)</label>
+            <label id="av-viide-label">PO number (valikuline)</label>
+            <select id="av-viide-tyyp" onchange="avViideTyypMuutus()" style="margin-bottom:6px">
+              <option value="po">PO number</option>
+              <option value="projekt">Projektinumber</option>
+            </select>
             <select id="av-po-valik" onchange="avPoValikMuutus()" style="margin-bottom:6px">
               <option value="">— Vali salvestatud —</option>
             </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="av-po" placeholder="nt 4501439102" style="flex:1">
-              <button type="button" class="nupp hall" title="Salvesta see PO number valikusse" style="padding:6px 10px" onclick="avSalvestaPoValik()">💾</button>
+              <button type="button" class="nupp hall" title="Salvesta see viide valikusse" style="padding:6px 10px" onclick="avSalvestaPoValik()">💾</button>
             </div>
+            <div style="font-size:10px;color:var(--hall);margin-top:4px">Arve loomisel salvestub see automaatselt ka selle ostja valikute alla.</div>
           </div>
         </div>
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Ostja aadress</label><input type="text" id="av-ostja-aadress" placeholder="Tänav, linn, maakond"></div>
           <div class="vorm-grupp">
-            <label>Kontaktisik / lisainfo</label>
+            <label>Kontaktisik (ainult nimi)</label>
             <select id="av-kontakt-valik" onchange="avKontaktValikMuutus()" style="margin-bottom:6px">
               <option value="">— Vali salvestatud —</option>
             </select>
             <div style="display:flex;gap:6px">
-              <input type="text" id="av-kontaktisik" placeholder="nt Kristo Allikas - GK Projekt 42544003" style="flex:1">
+              <input type="text" id="av-kontaktisik" placeholder="nt Kristo Allikas" style="flex:1">
               <button type="button" class="nupp hall" title="Salvesta see kontaktisik valikusse" style="padding:6px 10px" onclick="avSalvestaKontaktValik()">💾</button>
             </div>
+            <div style="font-size:10px;color:var(--hall);margin-top:4px">PO/Projektinumbrit siia ÄRA kirjuta — selleks on kõrval eraldi väli.</div>
           </div>
         </div>
         <div class="vorm-rida col2">
@@ -4204,10 +4210,22 @@ async function avPreviewNumber() {
 let avPoList = [];
 let avKontaktList = [];
 
+function avViideTyyp() {
+  return document.getElementById('av-viide-tyyp').value === 'projekt' ? 'projekt' : 'po';
+}
+
+function avViideTyypMuutus() {
+  const tyyp = avViideTyyp();
+  document.getElementById('av-viide-label').textContent = tyyp === 'projekt' ? 'Projektinumber (valikuline)' : 'PO number (valikuline)';
+  document.getElementById('av-po').placeholder = tyyp === 'projekt' ? 'nt PRJ-2026-014' : 'nt 4501439102';
+  const { tyyp: klienditüüp, id } = avKlientValik();
+  avLaadiPoValikud(klienditüüp === 'ettevote' ? id : null);
+}
+
 async function avLaadiPoValikud(ettevoteId) {
   const sel = document.getElementById('av-po-valik');
   if (!ettevoteId) { avPoList = []; sel.innerHTML = '<option value="">— Vali salvestatud —</option>'; return; }
-  const r = await api(`/api/arved/valikud?ettevote_id=${ettevoteId}&tyyp=po`);
+  const r = await api(`/api/arved/valikud?ettevote_id=${ettevoteId}&tyyp=${avViideTyyp()}`);
   avPoList = Array.isArray(r) ? r : [];
   sel.innerHTML = '<option value="">— Vali salvestatud —</option>' +
     avPoList.map(x => `<option value="${x.id}">${x.vaartus}${x.silt ? ' — ' + x.silt : ''}</option>`).join('');
@@ -4220,11 +4238,13 @@ function avPoValikMuutus() {
 async function avSalvestaPoValik() {
   const ettevoteId = document.getElementById('av-klient').value;
   const vaartus = document.getElementById('av-po').value.trim();
-  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Vali enne klient (ettevõte) — PO numbrid salvestuvad ettevõtte kaupa.');
-  if (!vaartus) return naitaTeade('arve-teade', 'viga', 'PO number on tühi.');
-  const silt = (prompt('Kellele see PO number kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
-  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: 'po', vaartus, silt }) });
-  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', '✅ PO number salvestatud valikusse.'); }
+  const tyyp = avViideTyyp();
+  const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', `Vali enne klient (ettevõte) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
+  if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
+  const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
+  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp, vaartus, silt }) });
+  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', `✅ ${siltNimi} salvestatud valikusse.`); }
   else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
 
@@ -4382,6 +4402,7 @@ async function avSalvestaArve() {
     ostja_kmkr: document.getElementById('av-ostja-kmkr').value,
     kontaktisik: document.getElementById('av-kontaktisik').value,
     po_number: document.getElementById('av-po').value,
+    viide_tyyp: avViideTyyp(),
     kuupaev: document.getElementById('av-kuupaev').value,
     maksetahtaeg_paevad: document.getElementById('av-maksetahtaeg-paevad').value,
     algus: document.getElementById('av-algus').value || null,
@@ -4395,6 +4416,8 @@ async function avSalvestaArve() {
   avRead = [];
   avLisaRida();
   document.getElementById('av-po').value = '';
+  document.getElementById('av-viide-tyyp').value = 'po';
+  avViideTyypMuutus();
   document.getElementById('av-ostja-nimi').value = '';
   document.getElementById('av-ostja-aadress').value = '';
   document.getElementById('av-ostja-rgkood').value = '';
