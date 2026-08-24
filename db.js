@@ -370,6 +370,7 @@ async function initDB() {
         ostja_kmkr VARCHAR(20),
         kontaktisik TEXT,
         po_number VARCHAR(100),
+        viide_tyyp VARCHAR(20) NOT NULL DEFAULT 'po',
         algus DATE,
         lopp DATE,
         summa_km_ta DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -433,6 +434,9 @@ async function initDB() {
     // ning selleks, et vältida Cloudinary vaikimisi PDF-delivery piirangut ("tühi leht" viga).
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
+    // Kas "po_number" väljal olev viide on tegelikult PO number või Projektinumber — mõjutab, mis
+    // silt arve PDF-il selle numbri ees seisab ("PO" vs "Projekt nr"), et klient ei saaks vale infoga arvet.
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS viide_tyyp VARCHAR(20) NOT NULL DEFAULT 'po';`);
     // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
     // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
     await client.query(`
