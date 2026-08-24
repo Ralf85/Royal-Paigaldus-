@@ -702,11 +702,12 @@ router.post('/', noudaAdmin, async (req, res) => {
   try {
     const {
       ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr,
-      kontaktisik, po_number, kuupaev, maksetahtaeg_paevad, algus, lopp, read
+      kontaktisik, po_number, viide_tyyp, kuupaev, maksetahtaeg_paevad, algus, lopp, read
     } = req.body;
     if (!ostja_nimi || !Array.isArray(read) || !read.length) {
       return res.json({ ok: false, veateade: 'Täida ostja nimi ja vähemalt üks arve rida' });
     }
+    const viideTyyp = ['po', 'projekt'].includes(viide_tyyp) ? viide_tyyp : 'po';
 
     await client.query('BEGIN');
     const kp = kuupaev ? new Date(kuupaev) : new Date();
@@ -725,9 +726,9 @@ router.post('/', noudaAdmin, async (req, res) => {
     const kokku = +(summaKmTa + kaibemaks).toFixed(2);
 
     const arveR = await client.query(
-      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
-      [number, kp, tahtaeg, viitenumber, ettevote_id || null, ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', kontaktisik || '', po_number || '', algus || null, lopp || null, summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
+      [number, kp, tahtaeg, viitenumber, ettevote_id || null, ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', kontaktisik || '', po_number || '', viideTyyp, algus || null, lopp || null, summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
     );
     const arveId = arveR.rows[0].id;
 
@@ -739,8 +740,33 @@ router.post('/', noudaAdmin, async (req, res) => {
         [arveId, jrk, rida.kirjeldus, parseFloat(rida.kogus) || 0, rida.uhik || '', parseFloat(rida.hind) || 0, parseFloat(rida.summa) || 0]
       );
     }
+    // Jäta kontaktisik ja PO-number/projektinumber automaatselt meelde selle ettevõtte valikute
+    // nimekirja (arve_valikud) — varem salvestus kontaktisik ainult "viimane väärtus" kujul ja
+    // PO number ei salvestunud automaatselt üldse, mis raamatupidajale segaseks jäi.
     if (ettevote_id && kontaktisik) {
       await client.query('UPDATE ettevotted SET arve_kontakt_viimane=$1 WHERE id=$2', [kontaktisik, ettevote_id]);
+      const olemas = await client.query(
+        `SELECT 1 FROM arve_valikud WHERE ettevote_id=$1 AND tyyp='kontakt' AND vaartus=$2`,
+        [ettevote_id, kontaktisik]
+      );
+      if (!olemas.rows.length) {
+        await client.query(
+          `INSERT INTO arve_valikud (ettevote_id, tyyp, vaartus) VALUES ($1,'kontakt',$2)`,
+          [ettevote_id, kontaktisik]
+        );
+      }
+    }
+    if (ettevote_id && po_number) {
+      const olemas = await client.query(
+        `SELECT 1 FROM arve_valikud WHERE ettevote_id=$1 AND tyyp=$2 AND vaartus=$3`,
+        [ettevote_id, viideTyyp, po_number]
+      );
+      if (!olemas.rows.length) {
+        await client.query(
+          `INSERT INTO arve_valikud (ettevote_id, tyyp, vaartus) VALUES ($1,$2,$3)`,
+          [ettevote_id, viideTyyp, po_number]
+        );
+      }
     }
     // Kolmas osapool (pole Lidl/Cramo/Merekohvik/Muu) — jäta ta andmed meelde, et Klient rippmenüüst
     // saaks ta tulevikus kiirelt uuesti valida (uuendame andmeid ka siis, kui nimi juba olemas).
@@ -1122,7 +1148,8 @@ function renderArvePdf(arve, read) {
 
     if (arve.po_number) {
       y += 10;
-      doc.font('Helvetica').fontSize(9).text('PO ' + arve.po_number, leftX, y);
+      const viideSilt = arve.viide_tyyp === 'projekt' ? 'Projekt nr ' : 'PO ';
+      doc.font('Helvetica').fontSize(9).text(viideSilt + arve.po_number, leftX, y);
     }
 
     // Jalus
