@@ -2006,6 +2006,39 @@ async function laadiEttevoteLeht(nimi) {
         list.map(a => `<tr><td>${formatKp(a.algus || a.kuupaev)} – ${formatKp(a.lopp || a.kuupaev)}</td><td style="text-align:right">${parseFloat(a.kokku).toFixed(2)} €</td><td style="text-align:right;color:#4ade80">${parseFloat(a.kaibemaks).toFixed(2)} €</td></tr>`).join('') +
         '</tbody></table>'
       : '<div style="padding:16px;text-align:center;color:var(--hall)">SumUp käibekirjeid pole veel lisatud — vt Arved → SumUp aruanne</div>';
+  } else if (N === 'LIDL') {
+    // Lidl ei ole kuupõhine — arveid esitatakse ebaregulaarselt, seega DATA loeb alati
+    // alates viimasest esitatud arvest (selle arve arveldatud perioodi lõpust +1 päev), mitte
+    // kalendrikuust. Nii on kohe näha, kui palju on juba tehtud tööd, mis on veel arveldamata.
+    dataPealkiriEl.textContent = `📊 DATA — ${nimi} (alates viimasest arvest)`;
+    if (!e) {
+      dataSisuEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Ettevõtet ei leitud</div>';
+    } else {
+      const esitusHind = ESITUSHIND_ETTEVOTE[N] || 0;
+      const koikArvedLidl = await api('/api/arved');
+      const lidlArved = (Array.isArray(koikArvedLidl) ? koikArvedLidl : [])
+        .filter(a => a.ettevote_id === e.id || (a.ostja_nimi || '').toUpperCase() === N)
+        .sort((a, b) => new Date(b.kuupaev) - new Date(a.kuupaev));
+      const viimaneArve = lidlArved[0] || null;
+      let algusD;
+      if (viimaneArve) {
+        algusD = new Date(viimaneArve.lopp || viimaneArve.kuupaev);
+        algusD.setDate(algusD.getDate() + 1);
+      } else {
+        algusD = new Date(2020, 0, 1);
+      }
+      const algus = algusD.toISOString().split('T')[0];
+      const lopp = new Date().toISOString().split('T')[0];
+      const rows = await api(`/api/admin/raport-filter?ettevote_id=${e.id}&algus=${algus}&lopp=${lopp}`);
+      const tunnid = (Array.isArray(rows) ? rows : []).reduce((s, r) => s + (parseFloat(r.tunnid) || 0), 0);
+      const summa = esitusHind ? tunnid * esitusHind * 1.24 : 0;
+      dataSisuEl.innerHTML =
+        `<div style="padding:10px 16px;font-size:12px;color:var(--hall)">${viimaneArve ? `Loetud alates viimasest arvest — ${viimaneArve.number} (${formatKp(viimaneArve.kuupaev)})` : 'Arveid pole veel esitatud — loetud algusest peale'}</div>` +
+        '<table><tbody>' +
+        `<tr><td>Tunnid (veel arveldamata)</td><td style="text-align:right">${tunnid.toFixed(1)}h</td></tr>` +
+        (esitusHind ? `<tr><td>Summa (km-ga, veel saada)</td><td style="text-align:right;color:#4ade80;font-weight:600">${summa.toFixed(2)} €</td></tr>` : '') +
+        '</tbody></table>';
+    }
   } else {
     dataPealkiriEl.textContent = `📊 DATA — ${nimi} kuupõhine töö`;
     if (!e) {
@@ -2068,7 +2101,16 @@ async function laadiEttevoteLeht(nimi) {
     .sort((a, b) => new Date(b.kuupaev) - new Date(a.kuupaev))
     .slice(0, 6);
   arvedSisuEl.innerHTML = arvedList.length
-    ? arvedList.map(a => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3);font-size:13px"><span>${a.number} — ${formatKp(a.kuupaev)}</span><span style="color:${a.staatus==='makstud'?'#4ade80':'#fb923c'}">${parseFloat(a.kokku).toFixed(2)} €</span></div>`).join('')
+    ? arvedList.map(a => `<div style="padding:8px 0;border-bottom:0.5px solid var(--piir3);font-size:13px">
+        <div style="display:flex;justify-content:space-between">
+          <span>${a.number} — ${formatKp(a.kuupaev)}</span>
+          <span style="font-weight:600">${parseFloat(a.kokku).toFixed(2)} €</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:11px;color:var(--hall)">
+          <span>${a.maksetahtaeg ? ('Tähtaeg: ' + formatKp(a.maksetahtaeg)) : ''}</span>
+          <span style="color:${a.staatus==='makstud'?'#4ade80':'#fb923c'}">${a.staatus==='makstud' ? '✅ Makstud' : '⏳ Maksmata'}</span>
+        </div>
+      </div>`).join('')
     : '<div style="padding:16px;text-align:center;color:var(--hall)">Arveid pole veel</div>';
   arvedNuppudEl.innerHTML = '<button type="button" class="nupp hall" style="font-size:11px;padding:5px 12px" onclick="avatTab(12)">Ava Arved →</button>'
     + (N === 'MEREKOHVIK' ? '<button type="button" class="nupp kull" style="font-size:11px;padding:5px 12px" onclick="avatTab(12)">📥 SumUp aruanne</button>' : '');
@@ -5182,3 +5224,4 @@ init();
 </script>
 </body>
 </html>
+  
