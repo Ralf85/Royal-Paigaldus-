@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Minu arved</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #555; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 60px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .topbar h1 { font-size: 18px; font-weight: 800; }
+  .topbar h1 span { color: #4ade80; }
+  a.tagasi { color: var(--text2); text-decoration: none; font-size: 13px; }
+  select, input, textarea { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; width: 100%; font-family: inherit; }
+  label.f-label { display: block; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .f-grupp { margin-bottom: 12px; }
+  .f-rida { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+  .kaart-hdr { padding: 14px 18px; font-size: 14px; font-weight: 700; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .kaart-body { padding: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 18px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 0.5px solid var(--border); }
+  td { padding: 10px 18px; border-bottom: 0.5px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  a.laadi { color: #5b9cf6; text-decoration: none; font-weight: 600; }
+  .tyhi { padding: 24px 18px; text-align: center; color: var(--text3); }
+  .staatus { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .laadimine { padding: 24px; text-align: center; color: var(--text3); }
+  .nupp { background: #4ade80; color: #06240f; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .nupp.hall { background: var(--bg3); color: var(--text); border: 0.5px solid var(--border); }
+  .nupp.punane { background: #f87171; color: #3a0a0a; }
+  .rida-eemalda { background: none; border: none; color: #f87171; cursor: pointer; font-size: 16px; padding: 0 6px; }
+  .teade { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
+  .teade.ok { background: rgba(74,222,128,0.12); color: #4ade80; display: block; }
+  .teade.viga { background: rgba(248,113,113,0.12); color: #f87171; display: block; }
+  .rr-kirjeldus { min-width: 160px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>🧾 <span>Minu arved</span></h1>
+      <a class="tagasi" href="/tootaja">← Tagasi pealehele</a>
+    </div>
+  </div>
+
+  <div id="lubamatuTeade" style="display:none" class="tyhi">Sul pole Arved mooduli ligipääsu. Palun küsi adminilt.</div>
+
+  <div id="sisu" style="display:none">
+
+    <!-- MINU REKVISIIDID -->
+    <div class="kaart">
+      <div class="kaart-hdr" onclick="toggleKaart('rekv-body','rekv-nool')">
+        <span>🏢 Minu ettevõtte rekvisiidid</span>
+        <span id="rekv-nool" style="color:var(--text3);font-size:12px">▲</span>
+      </div>
+      <div id="rekv-body" class="kaart-body">
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">Ettevõtte/enda nimi *</label><input id="r-nimi" placeholder="nt Jaan Tamm FIE"></div>
+          <div><label class="f-label">Registrikood</label><input id="r-rgkood" placeholder=""></div>
+        </div>
+        <div class="f-grupp"><label class="f-label">Aadress</label><input id="r-aadress" placeholder="tänav, linn, maakond, sihtnumber"></div>
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">KMKR nr (kui käibemaksukohuslane)</label><input id="r-kmkr" placeholder=""></div>
+          <div><label class="f-label">Telefon</label><input id="r-telefon" placeholder=""></div>
+        </div>
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">E-post</label><input id="r-epost" placeholder=""></div>
+          <div><label class="f-label">Pank</label><input id="r-pank" placeholder="nt Swedbank"></div>
+        </div>
+        <div class="f-grupp"><label class="f-label">IBAN (pangakonto)</label><input id="r-iban" placeholder="EE..."></div>
+        <button class="nupp" onclick="salvestaRekvisiidid()">💾 Salvesta rekvisiidid</button>
+        <div id="rekv-teade" class="teade"></div>
+      </div>
+    </div>
+
+    <!-- UUS ARVE -->
+    <div class="kaart">
+      <div class="kaart-hdr" onclick="toggleKaart('uus-body','uus-nool')">
+        <span>➕ Uus arve</span>
+        <span id="uus-nool" style="color:var(--text3);font-size:12px">▲</span>
+      </div>
+      <div id="uus-body" class="kaart-body">
+        <div class="f-grupp">
+          <label class="f-label">Arve saaja</label>
+          <select id="saaja-valik" onchange="saajaValitud()"><option value="">— Uus saaja —</option></select>
+        </div>
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">Saaja nimi *</label><input id="s-nimi" placeholder=""></div>
+          <div><label class="f-label">Registrikood</label><input id="s-rgkood" placeholder=""></div>
+        </div>
+        <div class="f-grupp"><label class="f-label">Aadress</label><input id="s-aadress" placeholder=""></div>
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">KMKR nr</label><input id="s-kmkr" placeholder=""></div>
+          <div><label class="f-label">Kontaktisik</label><input id="s-kontakt" placeholder=""></div>
+        </div>
+        <div class="f-rida f-grupp">
+          <div><label class="f-label">Arve kuupäev</label><input id="s-kuupaev" type="date"></div>
+          <div><label class="f-label">Maksetähtaeg (päeva)</label><input id="s-tahtaeg" type="number" value="14"></div>
+        </div>
+
+        <div class="f-grupp">
+          <label class="f-label">Arve read</label>
+          <table id="read-tabel">
+            <thead><tr><th>Kirjeldus</th><th style="text-align:right">Kogus</th><th>Ühik</th><th style="text-align:right">Hind</th><th style="text-align:right">Summa</th><th></th></tr></thead>
+            <tbody id="read-body"></tbody>
+          </table>
+          <button type="button" class="nupp hall" style="margin-top:10px" onclick="lisaRida()">+ Lisa rida</button>
+        </div>
+
+        <div style="text-align:right;margin-top:14px;font-size:13px">
+          <div>Summa km-ta: <b id="tot-kmta">0,00 €</b></div>
+          <div>Käibemaks 24%: <b id="tot-km">0,00 €</b></div>
+          <div style="font-size:16px;margin-top:4px">Kokku: <b id="tot-kokku" style="color:#4ade80">0,00 €</b></div>
+        </div>
+
+        <button class="nupp" style="margin-top:14px" onclick="salvestaArve()">✅ Väljasta arve</button>
+        <div id="arve-teade" class="teade"></div>
+      </div>
+    </div>
+
+    <!-- AJALUGU -->
+    <div class="kaart">
+      <div class="kaart-hdr" style="justify-content:flex-start;gap:16px" onclick="toggleKaart('ajalugu-body','ajalugu-nool')">
+        <span style="flex:1">📜 Minu arvete ajalugu</span>
+        <button type="button" id="zip-nupp" onclick="event.stopPropagation();laadiValitudZip()" style="display:none;background:var(--bg3);color:var(--text);border:0.5px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">⬇️ ZIP</button>
+        <span id="ajalugu-nool" style="color:var(--text3);font-size:12px">▲</span>
+      </div>
+      <div id="ajalugu-body">
+        <div id="ajaluguTabel"><div class="laadimine">Laadimine...</div></div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+var TOKEN = localStorage.getItem('workerToken') || '';
+if (!TOKEN) window.location.replace('/');
+
+function api(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-session-token': TOKEN }, opts.headers || {});
+  return fetch(url, opts).then(function(r) { return r.json(); });
+}
+function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
+function toggleKaart(bodyId, noolId) {
+  var b = document.getElementById(bodyId), n = document.getElementById(noolId);
+  var nahtav = b.style.display !== 'none';
+  b.style.display = nahtav ? 'none' : (bodyId === 'ajalugu-body' ? 'block' : 'block');
+  n.textContent = nahtav ? '▼' : '▲';
+}
+
+var saajad = [];
+var reaId = 0;
+
+async function init() {
+  var kontroll = await api('/api/omaarved/kontroll');
+  if (!kontroll.lubatud) {
+    document.getElementById('lubamatuTeade').style.display = 'block';
+    return;
+  }
+  document.getElementById('sisu').style.display = 'block';
+  document.getElementById('s-kuupaev').value = new Date().toISOString().split('T')[0];
+  await Promise.all([laadiRekvisiidid(), laadiSaajad(), laadiAjalugu()]);
+  if (!document.getElementById('read-body').children.length) lisaRida();
+}
+
+// ── REKVISIIDID ──
+async function laadiRekvisiidid() {
+  var r = await api('/api/omaarved/seaded');
+  if (r.ok && r.seaded) {
+    var s = r.seaded;
+    document.getElementById('r-nimi').value = s.ettevote_nimi || '';
+    document.getElementById('r-aadress').value = s.aadress || '';
+    document.getElementById('r-rgkood').value = s.rg_kood || '';
+    document.getElementById('r-kmkr').value = s.kmkr || '';
+    document.getElementById('r-telefon').value = s.telefon || '';
+    document.getElementById('r-epost').value = s.epost || '';
+    document.getElementById('r-pank').value = s.pank || '';
+    document.getElementById('r-iban').value = s.pangakonto || '';
+    // Kui rekvisiidid juba täidetud, hoia see kaart vaikimisi kokku pandud, et fookus oleks arve loomisel.
+    toggleKaart('rekv-body', 'rekv-nool');
+  }
+}
+async function salvestaRekvisiidid() {
+  var nimi = document.getElementById('r-nimi').value.trim();
+  var teade = document.getElementById('rekv-teade');
+  if (!nimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta ettevõtte/enda nimi'; return; }
+  var r = await api('/api/omaarved/seaded', { method: 'POST', body: JSON.stringify({
+    ettevote_nimi: nimi,
+    aadress: document.getElementById('r-aadress').value.trim(),
+    rg_kood: document.getElementById('r-rgkood').value.trim(),
+    kmkr: document.getElementById('r-kmkr').value.trim(),
+    telefon: document.getElementById('r-telefon').value.trim(),
+    epost: document.getElementById('r-epost').value.trim(),
+    pank: document.getElementById('r-pank').value.trim(),
+    pangakonto: document.getElementById('r-iban').value.trim()
+  })});
+  teade.className = r.ok ? 'teade ok' : 'teade viga';
+  teade.textContent = r.ok ? '✅ Salvestatud' : ('Viga: ' + (r.veateade || ''));
+}
+
+// ── SAAJAD ──
+async function laadiSaajad() {
+  var r = await api('/api/omaarved/saajad');
+  saajad = Array.isArray(r) ? r : [];
+  var sel = document.getElementById('saaja-valik');
+  sel.innerHTML = '<option value="">— Uus saaja —</option>' + saajad.map(function(s) {
+    return '<option value="' + s.id + '">' + s.nimi + '</option>';
+  }).join('');
+}
+function saajaValitud() {
+  var id = parseInt(document.getElementById('saaja-valik').value, 10);
+  var s = saajad.find(function(x) { return x.id === id; });
+  if (!s) {
+    document.getElementById('s-nimi').value = '';
+    document.getElementById('s-aadress').value = '';
+    document.getElementById('s-rgkood').value = '';
+    document.getElementById('s-kmkr').value = '';
+    document.getElementById('s-kontakt').value = '';
+    document.getElementById('s-tahtaeg').value = 14;
+    return;
+  }
+  document.getElementById('s-nimi').value = s.nimi || '';
+  document.getElementById('s-aadress').value = s.aadress || '';
+  document.getElementById('s-rgkood').value = s.rg_kood || '';
+  document.getElementById('s-kmkr').value = s.kmkr || '';
+  document.getElementById('s-kontakt').value = s.kontaktisik || '';
+  document.getElementById('s-tahtaeg').value = s.maksetahtaeg_paevad || 14;
+}
+
+// ── ARVE READ ──
+function lisaRida() {
+  reaId++;
+  var tr = document.createElement('tr');
+  tr.id = 'rida-' + reaId;
+  tr.innerHTML =
+    '<td class="rr-kirjeldus"><input placeholder="Kirjeldus" oninput="uuendaTotal()" id="rk-' + reaId + '"></td>' +
+    '<td><input type="number" value="1" style="text-align:right" oninput="uuendaTotal()" id="rq-' + reaId + '"></td>' +
+    '<td><input placeholder="tk/h" id="ru-' + reaId + '"></td>' +
+    '<td><input type="number" value="0" style="text-align:right" oninput="uuendaTotal()" id="rh-' + reaId + '"></td>' +
+    '<td style="text-align:right" id="rs-' + reaId + '">0,00 €</td>' +
+    '<td><button type="button" class="rida-eemalda" onclick="eemaldaRida(' + reaId + ')">✕</button></td>';
+  document.getElementById('read-body').appendChild(tr);
+}
+function eemaldaRida(id) {
+  var el = document.getElementById('rida-' + id);
+  if (el) el.remove();
+  uuendaTotal();
+}
+function loeRead() {
+  var read = [];
+  document.querySelectorAll('#read-body tr').forEach(function(tr) {
+    var id = tr.id.replace('rida-', '');
+    var kirjeldus = (document.getElementById('rk-' + id).value || '').trim();
+    var kogus = parseFloat(document.getElementById('rq-' + id).value) || 0;
+    var uhik = document.getElementById('ru-' + id).value || '';
+    var hind = parseFloat(document.getElementById('rh-' + id).value) || 0;
+    var summa = +(kogus * hind).toFixed(2);
+    document.getElementById('rs-' + id).textContent = fmtEur(summa);
+    if (kirjeldus) read.push({ kirjeldus: kirjeldus, kogus: kogus, uhik: uhik, hind: hind, summa: summa });
+  });
+  return read;
+}
+function uuendaTotal() {
+  var read = loeRead();
+  var kmTa = read.reduce(function(s, r) { return s + r.summa; }, 0);
+  var km = +(kmTa * 0.24).toFixed(2);
+  var kokku = +(kmTa + km).toFixed(2);
+  document.getElementById('tot-kmta').textContent = fmtEur(kmTa);
+  document.getElementById('tot-km').textContent = fmtEur(km);
+  document.getElementById('tot-kokku').textContent = fmtEur(kokku);
+}
+
+async function salvestaArve() {
+  var teade = document.getElementById('arve-teade');
+  var saajaNimi = document.getElementById('s-nimi').value.trim();
+  var read = loeRead();
+  if (!saajaNimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta arve saaja nimi'; return; }
+  if (!read.length) { teade.className = 'teade viga'; teade.textContent = 'Lisa vähemalt üks arve rida'; return; }
+  var r = await api('/api/omaarved', { method: 'POST', body: JSON.stringify({
+    saaja_nimi: saajaNimi,
+    saaja_aadress: document.getElementById('s-aadress').value.trim(),
+    saaja_rg_kood: document.getElementById('s-rgkood').value.trim(),
+    saaja_kmkr: document.getElementById('s-kmkr').value.trim(),
+    saaja_kontaktisik: document.getElementById('s-kontakt').value.trim(),
+    kuupaev: document.getElementById('s-kuupaev').value,
+    maksetahtaeg_paevad: document.getElementById('s-tahtaeg').value,
+    read: read
+  })});
+  if (!r.ok) { teade.className = 'teade viga'; teade.textContent = 'Viga: ' + (r.veateade || 'salvestamine ebaõnnestus'); return; }
+  teade.className = 'teade ok';
+  teade.innerHTML = '✅ Arve nr ' + r.number + ' loodud — <a class="laadi" href="/api/omaarved/' + r.id + '/pdf?_token=' + TOKEN + '" target="_blank">ava PDF</a>';
+  document.getElementById('read-body').innerHTML = '';
+  lisaRida();
+  document.getElementById('saaja-valik').value = '';
+  saajaValitud();
+  uuendaTotal();
+  await Promise.all([laadiSaajad(), laadiAjalugu()]);
+}
+
+// ── AJALUGU + ZIP ──
+var valitud = {};
+async function laadiAjalugu() {
+  var r = await api('/api/omaarved');
+  var list = Array.isArray(r) ? r : [];
+  valitud = {};
+  var div = document.getElementById('ajaluguTabel');
+  if (!list.length) {
+    div.innerHTML = '<div class="tyhi">Arveid pole veel loodud.</div>';
+    document.getElementById('zip-nupp').style.display = 'none';
+    return;
+  }
+  div.innerHTML = '<table><thead><tr><th><input type="checkbox" onchange="valiKoik(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Saaja</th><th style="text-align:right">Summa</th><th>Staatus</th><th></th></tr></thead><tbody>' +
+    list.map(function(a) {
+      return '<tr><td><input type="checkbox" onchange="valiArve(' + a.id + ', this.checked)"></td>' +
+        '<td style="font-weight:600">' + a.number + '</td><td>' + fmtKp(a.kuupaev) + '</td>' +
+        '<td>' + a.saaja_nimi + '</td>' +
+        '<td style="text-align:right;font-weight:600">' + fmtEur(a.kokku) + '</td>' +
+        '<td><span class="staatus" style="' + (a.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (a.staatus === 'makstud' ? '✅ Makstud' : '⏳ Maksmata') + '</span></td>' +
+        '<td><a class="laadi" href="/api/omaarved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 PDF</a></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function valiArve(id, checked) {
+  if (checked) valitud[id] = true; else delete valitud[id];
+  var nupp = document.getElementById('zip-nupp');
+  var arv = Object.keys(valitud).length;
+  nupp.style.display = arv ? 'inline-block' : 'none';
+  nupp.textContent = '⬇️ ZIP (' + arv + ')';
+}
+function valiKoik(checked) {
+  document.querySelectorAll('#ajaluguTabel tbody input[type=checkbox]').forEach(function(cb) {
+    cb.checked = checked;
+    var id = cb.getAttribute('onchange').match(/valiArve\((\d+)/);
+    if (id) { if (checked) valitud[id[1]] = true; else delete valitud[id[1]]; }
+  });
+  valiArve(null, false);
+}
+function laadiValitudZip() {
+  var ids = Object.keys(valitud);
+  if (!ids.length) return;
+  window.open('/api/omaarved/zip?ids=' + ids.join(',') + '&_token=' + TOKEN, '_blank');
+}
+
+init();
+</script>
+</body>
+</html>
