@@ -563,6 +563,73 @@ async function initDB() {
       }
     }
 
+    // ── TÖÖTAJA ARVED (isiklik arvete genereerimine — töötaja enda ettevõte müüjana) ──
+    // Eraldi terve arved-moodulist: siin on müüja=töötaja ise (FIE/oma OÜ), mitte Royal Paigaldus.
+    // Nähtavus juhitakse omaarve_lubatud kaudu (sama muster mis projekti_lubatud) — admin lülitab
+    // töötajate kaupa sisse/välja.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS omaarve_seaded (
+        worker_id INTEGER PRIMARY KEY REFERENCES workers(id) ON DELETE CASCADE,
+        ettevote_nimi VARCHAR(200) NOT NULL DEFAULT '',
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        pangakonto VARCHAR(50),
+        pank VARCHAR(100),
+        telefon VARCHAR(50),
+        epost VARCHAR(100),
+        uuendatud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_saajad (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        nimi VARCHAR(200) NOT NULL,
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        kontaktisik TEXT,
+        maksetahtaeg_paevad INTEGER DEFAULT 14,
+        loodud TIMESTAMP DEFAULT NOW(),
+        UNIQUE(worker_id, nimi)
+      );
+      CREATE TABLE IF NOT EXISTS omaarved (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        number VARCHAR(20) NOT NULL,
+        kuupaev DATE NOT NULL,
+        maksetahtaeg DATE,
+        saaja_nimi VARCHAR(200) NOT NULL,
+        saaja_aadress TEXT,
+        saaja_rg_kood VARCHAR(20),
+        saaja_kmkr VARCHAR(20),
+        saaja_kontaktisik TEXT,
+        summa_km_ta DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kaibemaks_protsent DECIMAL(5,2) NOT NULL DEFAULT 24,
+        kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kokku DECIMAL(10,2) NOT NULL DEFAULT 0,
+        staatus VARCHAR(20) NOT NULL DEFAULT 'maksmata',
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_read (
+        id SERIAL PRIMARY KEY,
+        arve_id INTEGER REFERENCES omaarved(id) ON DELETE CASCADE,
+        jrk_nr INTEGER DEFAULT 0,
+        kirjeldus TEXT NOT NULL,
+        kogus DECIMAL(10,2) NOT NULL DEFAULT 1,
+        uhik VARCHAR(20) DEFAULT '',
+        hind DECIMAL(10,2) NOT NULL DEFAULT 0,
+        summa DECIMAL(10,2) NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_paeva_loendur (
+        paev VARCHAR(6) PRIMARY KEY,
+        jargmine_jrk INTEGER NOT NULL DEFAULT 1
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
