@@ -47,6 +47,7 @@
     .emp-card.re { background: #0a1a0a; border-color: #1a3a1a; cursor: pointer; }
     .emp-card.xseeria { background: #0a1420; border-color: #123a52; cursor: pointer; }
     .emp-card.arved { background: #0a1f14; border-color: #14532d; cursor: pointer; }
+    .emp-card.omaarved { background: #201607; border-color: #78350f; cursor: pointer; }
     .emp-logo { width: 40px; height: 40px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
     .emp-logo.lidl { background: #FFF200; border-radius: 50%; }
     .emp-logo.cramo { background: #CD2200; border-radius: 9px; }
@@ -57,6 +58,7 @@
     .emp-logo.re { background: #14532d; border-radius: 9px; }
     .emp-logo.xseeria { background: #0369a1; border-radius: 9px; }
     .emp-logo.arved { background: #16a34a; border-radius: 9px; }
+    .emp-logo.omaarved { background: #b45309; border-radius: 9px; }
     .emp-logo span { font-size: 10px; font-weight: 800; }
     .emp-logo.lidl span { color: #0050AA; }
     .emp-logo.cramo span { color: #fff; }
@@ -72,6 +74,7 @@
     .emp-label.re { color: #4ade80; }
     .emp-label.xseeria { color: #38bdf8; }
     .emp-label.arved { color: #4ade80; }
+    .emp-label.omaarved { color: #fb923c; }
     .emp-tunnid { font-size: 20px; font-weight: 700; color: #fff; }
     .emp-tunnid-sub { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 3px; }
     .kaart { background: var(--bg2); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
@@ -355,6 +358,7 @@
     var aktiivneProjekt = null;
     var onXseeria = false;
     var onArved = false;
+    var onOmaArved = false;
     var TOKEN = localStorage.getItem('workerToken') || '';
     var kalenderKuu = new Date();
     var numpadVaartus = '0';
@@ -438,7 +442,7 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), kontrolliProjektid(), kontrolliXseeria(), kontrolliArved()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved()]);
     }
 
     async function kontrolliMerekohvik() {
@@ -475,6 +479,10 @@
       try { var v = await api('/api/arved/kontroll'); onArved = v && v.lubatud; } catch(e) {}
     }
 
+    async function kontrolliOmaArved() {
+      try { var v = await api('/api/omaarved/kontroll'); onOmaArved = v && v.lubatud; } catch(e) {}
+    }
+
     async function laadiEttevotted() {
       var ettevotted = await api('/api/tood/minu-ettevotted');
       var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
@@ -491,7 +499,12 @@
             + '<div class="emp-logo arved"><span style="font-size:18px">💶</span></div>'
             + '<div class="emp-label arved">ARVED</div>'
             + '<div class="emp-tunnid">✓</div>'
-            + '<div class="emp-tunnid-sub">sisse/välja arved</div></a>' : '');
+            + '<div class="emp-tunnid-sub">sisse/välja arved</div></a>' : '')
+          + (onOmaArved ? '<a class="emp-card omaarved" href="/minu-arved" style="grid-column:1">'
+            + '<div class="emp-logo omaarved"><span style="font-size:18px">🧾</span></div>'
+            + '<div class="emp-label omaarved">MINU ARVED</div>'
+            + '<div class="emp-tunnid">✓</div>'
+            + '<div class="emp-tunnid-sub">enda arvete koostamine</div></a>' : '');
         return;
       }
       var tunnidFirma = {};
@@ -532,7 +545,12 @@
         + '<div class="emp-logo arved"><span style="font-size:18px">💶</span></div>'
         + '<div class="emp-label arved">ARVED</div>'
         + '<div class="emp-tunnid">✓</div>'
-        + '<div class="emp-tunnid-sub">sisse/välja arved</div></a>' : '');
+        + '<div class="emp-tunnid-sub">sisse/välja arved</div></a>' : '')
+      + (onOmaArved ? '<a class="emp-card omaarved" href="/minu-arved">'
+        + '<div class="emp-logo omaarved"><span style="font-size:18px">🧾</span></div>'
+        + '<div class="emp-label omaarved">MINU ARVED</div>'
+        + '<div class="emp-tunnid">✓</div>'
+        + '<div class="emp-tunnid-sub">enda arvete koostamine</div></a>' : '');
     }
 
     async function laadiTulevasedTood() {
