@@ -95,9 +95,17 @@
           <div><label class="f-label">KMKR nr</label><input id="s-kmkr" placeholder=""></div>
           <div><label class="f-label">Kontaktisik</label><input id="s-kontakt" placeholder=""></div>
         </div>
+        <div class="f-grupp"><label class="f-label">Saaja e-post (arve saatmiseks)</label><input id="s-epost" type="email" placeholder="nimi@ettevote.ee"></div>
         <div class="f-rida f-grupp">
           <div><label class="f-label">Arve kuupäev</label><input id="s-kuupaev" type="date"></div>
           <div><label class="f-label">Maksetähtaeg (päeva)</label><input id="s-tahtaeg" type="number" value="14"></div>
+        </div>
+        <div class="f-grupp" style="max-width:200px">
+          <label class="f-label">Käibemaks</label>
+          <select id="s-km" onchange="uuendaTotal()">
+            <option value="24">24% (käibemaksukohuslane)</option>
+            <option value="0">0% (mitte käibemaksukohuslane)</option>
+          </select>
         </div>
 
         <div class="f-grupp">
@@ -111,7 +119,7 @@
 
         <div style="text-align:right;margin-top:14px;font-size:13px">
           <div>Summa km-ta: <b id="tot-kmta">0,00 €</b></div>
-          <div>Käibemaks 24%: <b id="tot-km">0,00 €</b></div>
+          <div>Käibemaks <span id="tot-km-silt">24</span>%: <b id="tot-km">0,00 €</b></div>
           <div style="font-size:16px;margin-top:4px">Kokku: <b id="tot-kokku" style="color:#4ade80">0,00 €</b></div>
         </div>
 
@@ -220,6 +228,7 @@ function saajaValitud() {
     document.getElementById('s-rgkood').value = '';
     document.getElementById('s-kmkr').value = '';
     document.getElementById('s-kontakt').value = '';
+    document.getElementById('s-epost').value = '';
     document.getElementById('s-tahtaeg').value = 14;
     return;
   }
@@ -228,6 +237,7 @@ function saajaValitud() {
   document.getElementById('s-rgkood').value = s.rg_kood || '';
   document.getElementById('s-kmkr').value = s.kmkr || '';
   document.getElementById('s-kontakt').value = s.kontaktisik || '';
+  document.getElementById('s-epost').value = s.epost || '';
   document.getElementById('s-tahtaeg').value = s.maksetahtaeg_paevad || 14;
 }
 
@@ -266,9 +276,11 @@ function loeRead() {
 }
 function uuendaTotal() {
   var read = loeRead();
+  var kmProtsent = parseFloat(document.getElementById('s-km').value) || 0;
   var kmTa = read.reduce(function(s, r) { return s + r.summa; }, 0);
-  var km = +(kmTa * 0.24).toFixed(2);
+  var km = +(kmTa * kmProtsent / 100).toFixed(2);
   var kokku = +(kmTa + km).toFixed(2);
+  document.getElementById('tot-km-silt').textContent = kmProtsent;
   document.getElementById('tot-kmta').textContent = fmtEur(kmTa);
   document.getElementById('tot-km').textContent = fmtEur(km);
   document.getElementById('tot-kokku').textContent = fmtEur(kokku);
@@ -286,19 +298,37 @@ async function salvestaArve() {
     saaja_rg_kood: document.getElementById('s-rgkood').value.trim(),
     saaja_kmkr: document.getElementById('s-kmkr').value.trim(),
     saaja_kontaktisik: document.getElementById('s-kontakt').value.trim(),
+    saaja_epost: document.getElementById('s-epost').value.trim(),
     kuupaev: document.getElementById('s-kuupaev').value,
     maksetahtaeg_paevad: document.getElementById('s-tahtaeg').value,
+    kaibemaks_protsent: document.getElementById('s-km').value,
     read: read
   })});
   if (!r.ok) { teade.className = 'teade viga'; teade.textContent = 'Viga: ' + (r.veateade || 'salvestamine ebaõnnestus'); return; }
   teade.className = 'teade ok';
-  teade.innerHTML = '✅ Arve nr ' + r.number + ' loodud — <a class="laadi" href="/api/omaarved/' + r.id + '/pdf?_token=' + TOKEN + '" target="_blank">ava PDF</a>';
+  teade.innerHTML = '✅ Arve nr ' + r.number + ' loodud — '
+    + '<a class="laadi" href="/api/omaarved/' + r.id + '/pdf?_token=' + TOKEN + '" target="_blank">ava PDF</a>'
+    + ' · <a class="laadi" href="/api/omaarved/' + r.id + '/pdf?laadi=1&_token=' + TOKEN + '">laadi alla</a>'
+    + ' · <a class="laadi" href="#" onclick="saadaEmail(' + r.id + ',\'' + (document.getElementById('s-epost').value.trim() || '').replace(/'/g,"\\'") + '\');return false;">📧 saada e-mailiga</a>';
   document.getElementById('read-body').innerHTML = '';
   lisaRida();
   document.getElementById('saaja-valik').value = '';
   saajaValitud();
+  document.getElementById('s-km').value = '24';
   uuendaTotal();
   await Promise.all([laadiSaajad(), laadiAjalugu()]);
+}
+
+// ── E-MAILIGA SAATMINE ──
+async function saadaEmail(id, teadaOlevEpost) {
+  var epost = teadaOlevEpost;
+  if (!epost) {
+    epost = window.prompt('Sisesta arve saaja e-posti aadress:');
+    if (!epost) return;
+  }
+  var r = await api('/api/omaarved/' + id + '/saada-email', { method: 'POST', body: JSON.stringify({ epost: epost }) });
+  if (r.ok) { alert('✅ Arve saadetud aadressile ' + epost); }
+  else { alert('Viga: ' + (r.veateade || 'saatmine ebaõnnestus')); }
 }
 
 // ── AJALUGU + ZIP ──
@@ -320,7 +350,7 @@ async function laadiAjalugu() {
         '<td>' + a.saaja_nimi + '</td>' +
         '<td style="text-align:right;font-weight:600">' + fmtEur(a.kokku) + '</td>' +
         '<td><span class="staatus" style="' + (a.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (a.staatus === 'makstud' ? '✅ Makstud' : '⏳ Maksmata') + '</span></td>' +
-        '<td><a class="laadi" href="/api/omaarved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 PDF</a></td></tr>';
+        '<td><a class="laadi" href="/api/omaarved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 Ava</a> · <a class="laadi" href="/api/omaarved/' + a.id + '/pdf?laadi=1&_token=' + TOKEN + '">⬇️ Laadi</a> · <a class="laadi" href="#" onclick="saadaEmail(' + a.id + ',' + (a.saaja_epost ? "'" + a.saaja_epost.replace(/'/g,"\\'") + "'" : 'null') + ');return false;">📧 Saada</a></td></tr>';
     }).join('') + '</tbody></table>';
 }
 function valiArve(id, checked) {
