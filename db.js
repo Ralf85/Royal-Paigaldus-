@@ -580,6 +580,7 @@ async function initDB() {
         epost VARCHAR(100),
         logo_url TEXT,
         logo_public_id TEXT,
+        km_kohuslane BOOLEAN NOT NULL DEFAULT true,
         uuendatud TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS omaarve_saajad (
@@ -638,6 +639,7 @@ async function initDB() {
     await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS logo_public_id TEXT;`);
     await client.query(`ALTER TABLE omaarve_saajad ADD COLUMN IF NOT EXISTS epost VARCHAR(150);`);
     await client.query(`ALTER TABLE omaarved ADD COLUMN IF NOT EXISTS saaja_epost VARCHAR(150);`);
+    await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS km_kohuslane BOOLEAN NOT NULL DEFAULT true;`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
