@@ -578,6 +578,8 @@ async function initDB() {
         pank VARCHAR(100),
         telefon VARCHAR(50),
         epost VARCHAR(100),
+        logo_url TEXT,
+        logo_public_id TEXT,
         uuendatud TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS omaarve_saajad (
@@ -588,6 +590,7 @@ async function initDB() {
         rg_kood VARCHAR(20),
         kmkr VARCHAR(20),
         kontaktisik TEXT,
+        epost VARCHAR(150),
         maksetahtaeg_paevad INTEGER DEFAULT 14,
         loodud TIMESTAMP DEFAULT NOW(),
         UNIQUE(worker_id, nimi)
@@ -603,6 +606,7 @@ async function initDB() {
         saaja_rg_kood VARCHAR(20),
         saaja_kmkr VARCHAR(20),
         saaja_kontaktisik TEXT,
+        saaja_epost VARCHAR(150),
         summa_km_ta DECIMAL(10,2) NOT NULL DEFAULT 0,
         kaibemaks_protsent DECIMAL(5,2) NOT NULL DEFAULT 24,
         kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -629,6 +633,11 @@ async function initDB() {
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
       );
     `);
+    // Kaitseks, kui tabel jõudis tekkida enne logo/e-posti veergude lisamist.
+    await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
+    await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS logo_public_id TEXT;`);
+    await client.query(`ALTER TABLE omaarve_saajad ADD COLUMN IF NOT EXISTS epost VARCHAR(150);`);
+    await client.query(`ALTER TABLE omaarved ADD COLUMN IF NOT EXISTS saaja_epost VARCHAR(150);`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
