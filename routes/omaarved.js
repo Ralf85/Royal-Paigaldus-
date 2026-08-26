@@ -3,6 +3,43 @@ const router = express.Router();
 const { pool } = require('../db');
 const PDFDocument = require('pdfkit');
 const archiver = require('archiver');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const https = require('https');
+const http = require('http');
+const { Resend } = require('resend');
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  return cloudinary;
+}
+const uploadLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Ainult pildid!'));
+  }
+});
+// Kasutame arve PDF genereerimisel logo joonistamiseks — pdfkit vajab Bufferit, mitte URL-i.
+function fetchImageBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const proto = url.startsWith('https:') ? https : http;
+    proto.get(url, r => {
+      const chunks = [];
+      r.on('data', c => chunks.push(c));
+      r.on('end', () => resolve(Buffer.concat(chunks)));
+      r.on('error', reject);
+    }).on('error', reject);
+  });
+}
 
 // ── TÖÖTAJA ISIKLIK ARVETE MOODUL ────────────────────────────────────────
 // Erinevalt routes/arved.js-st (kus müüja = Royal Paigaldus OÜ), on siin müüja töötaja ENDA
@@ -142,8 +179,8 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   const client = await pool.connect();
   try {
     const {
-      saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik,
-      kuupaev, maksetahtaeg_paevad, read
+      saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, saaja_epost,
+      kuupaev, maksetahtaeg_paevad, read, kaibemaks_protsent
     } = req.body;
     if (!saaja_nimi || !saaja_nimi.trim() || !Array.isArray(read) || !read.length) {
       return res.json({ ok: false, veateade: 'Täida arve saaja nimi ja vähemalt üks arve rida' });
@@ -162,14 +199,16 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
     tahtaeg.setDate(tahtaeg.getDate() + paevi);
 
     const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-    const kaibemaksProtsent = 24;
+    // Töötaja saab ise valida, kas ta on käibemaksukohuslane (24%) või mitte (0%) — erinevalt
+    // Royal Paigalduse enda arvetest, kus 24% on alati kohustuslik.
+    const kaibemaksProtsent = [0, 24].includes(parseFloat(kaibemaks_protsent)) ? parseFloat(kaibemaks_protsent) : 24;
     const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
     const kokku = +(summaKmTa + kaibemaks).toFixed(2);
 
     const arveR = await client.query(
-      `INSERT INTO omaarved (worker_id, number, kuupaev, maksetahtaeg, saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-      [req.session.workerId, number, kp, tahtaeg, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
+      `INSERT INTO omaarved (worker_id, number, kuupaev, maksetahtaeg, saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, saaja_epost, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      [req.session.workerId, number, kp, tahtaeg, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', saaja_epost || '', summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
     );
     const arveId = arveR.rows[0].id;
 
@@ -184,12 +223,12 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
 
     // Jäta arve saaja meelde tulevikuks (uuenda andmeid, kui nimi juba olemas).
     await client.query(
-      `INSERT INTO omaarve_saajad (worker_id, nimi, aadress, rg_kood, kmkr, kontaktisik, maksetahtaeg_paevad)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO omaarve_saajad (worker_id, nimi, aadress, rg_kood, kmkr, kontaktisik, epost, maksetahtaeg_paevad)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (worker_id, nimi) DO UPDATE SET
          aadress=EXCLUDED.aadress, rg_kood=EXCLUDED.rg_kood, kmkr=EXCLUDED.kmkr,
-         kontaktisik=EXCLUDED.kontaktisik, maksetahtaeg_paevad=EXCLUDED.maksetahtaeg_paevad`,
-      [req.session.workerId, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', paevi]
+         kontaktisik=EXCLUDED.kontaktisik, epost=EXCLUDED.epost, maksetahtaeg_paevad=EXCLUDED.maksetahtaeg_paevad`,
+      [req.session.workerId, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', saaja_epost || '', paevi]
     );
 
     await client.query('COMMIT');
@@ -213,15 +252,25 @@ router.delete('/:id', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) =
 });
 
 // ── PDF GENEREERIMINE (müüja = töötaja enda rekvisiidid) ─────────────────
-function renderOmaArvePdf(muuja, arve, read) {
+function renderOmaArvePdf(muuja, arve, read, logoBuf) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
   const MARGIN = 40, PAGE_W = 595.28, CONTENT_W = PAGE_W - MARGIN * 2;
   const leftX = MARGIN, rightColX = MARGIN + 300, rightColW = CONTENT_W - 300;
 
   doc.font('Helvetica').fontSize(9).fillColor('#000');
 
+  // Logo (töötaja enda üleslaetud, kui admin on selle lisanud) päise vasakus servas
+  let logoBottom = MARGIN;
+  if (logoBuf) {
+    try {
+      const logoW = 110;
+      doc.image(logoBuf, leftX, MARGIN, { width: logoW, height: 60, fit: [logoW, 60] });
+      logoBottom = MARGIN + 60 + 14;
+    } catch (e) { /* kui logo ei laadi, jätkame ilma selleta */ }
+  }
+
   // Vasak veerg — Arve saaja
-  let y = MARGIN;
+  let y = logoBottom;
   doc.text('Arve saaja', leftX, y); y += 14;
   doc.font('Helvetica-Bold').fontSize(11).text(arve.saaja_nimi, leftX, y); y += 16;
   doc.font('Helvetica').fontSize(9);
@@ -321,13 +370,64 @@ router.get('/:id/pdf', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) 
     if (!muuja) return res.status(400).send('Rekvisiidid puuduvad');
     const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
     arve.viitenumber = arveViitenumber(arve.number);
-    const doc = renderOmaArvePdf(muuja, arve, readR.rows);
+    let logoBuf = null;
+    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    const doc = renderOmaArvePdf(muuja, arve, readR.rows, logoBuf);
+    const kasutus = req.query.laadi ? 'attachment' : 'inline';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="Arve nr ${arve.number}.pdf"`);
+    res.setHeader('Content-Disposition', `${kasutus}; filename="Arve nr ${arve.number}.pdf"`);
     doc.pipe(res);
   } catch (err) {
     console.error(err);
     res.status(500).send('Viga PDF genereerimisel: ' + err.message);
+  }
+});
+
+// ── ARVE SAATMINE E-MAILIGA (PDF manusena, sama Resend mida kasutab töö-teavituste saatmine) ──
+router.post('/:id/saada-email', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+  try {
+    const a = await pool.query('SELECT * FROM omaarved WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
+    const arve = a.rows[0];
+    if (!arve) return res.status(404).json({ ok: false, veateade: 'Arvet ei leitud' });
+    const sihtEpost = (req.body && req.body.epost) || arve.saaja_epost;
+    if (!sihtEpost) return res.json({ ok: false, veateade: 'Sisesta saaja e-posti aadress' });
+    if (!process.env.RESEND_API_KEY) return res.json({ ok: false, veateade: 'E-kirja saatmine pole seadistatud (RESEND_API_KEY puudub Railway keskkonnamuutujates).' });
+
+    const seadedR = await pool.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
+    const muuja = seadedR.rows[0];
+    if (!muuja) return res.json({ ok: false, veateade: 'Rekvisiidid puuduvad' });
+    const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
+    arve.viitenumber = arveViitenumber(arve.number);
+    let logoBuf = null;
+    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    const doc = renderOmaArvePdf(muuja, arve, readR.rows, logoBuf);
+    const chunks = [];
+    doc.on('data', c => chunks.push(c));
+    await new Promise((resolve, reject) => { doc.on('end', resolve); doc.on('error', reject); });
+    const pdfBuffer = Buffer.concat(chunks);
+
+    await getResend().emails.send({
+      from: `${muuja.ettevote_nimi} <onboarding@resend.dev>`,
+      to: sihtEpost,
+      subject: `Arve nr ${arve.number}`,
+      html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
+        <h2>Arve nr ${arve.number}</h2>
+        <p>Tere!</p>
+        <p>Manuses on arve nr ${arve.number} summas ${fmtEur(arve.kokku)}, maksetähtaeg ${fmtKp(arve.maksetahtaeg)}.</p>
+        <p style="color:#888;font-size:12px">${muuja.ettevote_nimi}</p>
+      </div>`,
+      attachments: [{ filename: `Arve_${arve.number}.pdf`, content: pdfBuffer.toString('base64') }]
+    });
+
+    // Kui e-post anti käsitsi (mitte varem salvestatud), jäta see ka saaja juurde meelde.
+    if (req.body && req.body.epost) {
+      await pool.query('UPDATE omaarve_saajad SET epost=$1 WHERE worker_id=$2 AND nimi=$3', [req.body.epost, req.session.workerId, arve.saaja_nimi]);
+      await pool.query('UPDATE omaarved SET saaja_epost=$1 WHERE id=$2', [req.body.epost, arve.id]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'E-kirja saatmine ebaõnnestus: ' + err.message });
   }
 });
 
@@ -345,12 +445,14 @@ router.get('/zip', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="Minu_arved.zip"`);
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.pipe(res);
+    let logoBuf = null;
+    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
     for (const arve of r.rows) {
       const kuupaev = String(arve.kuupaev).split('T')[0];
       const nimiAlus = `${kuupaev}_${arve.number}_${(arve.saaja_nimi || 'saaja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
       const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
       arve.viitenumber = arveViitenumber(arve.number);
-      const doc = renderOmaArvePdf(muuja, arve, readR.rows);
+      const doc = renderOmaArvePdf(muuja, arve, readR.rows, logoBuf);
       archive.append(doc, { name: `${nimiAlus}.pdf` });
     }
     archive.finalize();
@@ -365,14 +467,53 @@ router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT w.id, w.nimi,
-       EXISTS(SELECT 1 FROM omaarve_lubatud ol WHERE ol.worker_id=w.id) as lubatud
-       FROM workers w WHERE w.aktiivne=true ORDER BY w.nimi`
+       EXISTS(SELECT 1 FROM omaarve_lubatud ol WHERE ol.worker_id=w.id) as lubatud,
+       s.logo_url
+       FROM workers w LEFT JOIN omaarve_seaded s ON s.worker_id=w.id
+       WHERE w.aktiivne=true ORDER BY w.nimi`
     );
     res.json(r.rows);
   } catch (err) {
     res.status(500).json({ ok: false });
   }
 });
+// Admin laeb töötaja isikliku arve-logo üles (nt tema oma ettevõtte logo) — kasutatakse
+// selle töötaja Minu Arved PDF-idel. Töötaja ise seda üles laadida ei saa.
+router.post('/admin/logo/:workerId', noudaAdmin, uploadLogo.single('logo'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  try {
+    const cl = getCloudinary();
+    const uploaded = await new Promise((resolve, reject) => {
+      const stream = cl.uploader.upload_stream({ folder: 'royal-paigaldus/omaarve-logod', resource_type: 'image' }, (err, result) => {
+        if (err) reject(err); else resolve(result);
+      });
+      stream.end(req.file.buffer);
+    });
+    await pool.query(
+      `INSERT INTO omaarve_seaded (worker_id, ettevote_nimi, logo_url, logo_public_id)
+       VALUES ($1,'',$2,$3)
+       ON CONFLICT (worker_id) DO UPDATE SET logo_url=EXCLUDED.logo_url, logo_public_id=EXCLUDED.logo_public_id`,
+      [req.params.workerId, uploaded.secure_url, uploaded.public_id]
+    );
+    res.json({ ok: true, logo_url: uploaded.secure_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Üleslaadimine ebaõnnestus' });
+  }
+});
+router.delete('/admin/logo/:workerId', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT logo_public_id FROM omaarve_seaded WHERE worker_id=$1', [req.params.workerId]);
+    if (r.rows.length && r.rows[0].logo_public_id) {
+      try { const cl = getCloudinary(); await cl.uploader.destroy(r.rows[0].logo_public_id, { resource_type: 'image' }); } catch (e) {}
+    }
+    await pool.query('UPDATE omaarve_seaded SET logo_url=NULL, logo_public_id=NULL WHERE worker_id=$1', [req.params.workerId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false });
+  }
+});
+
 router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   const { lubatud } = req.body;
   try {
