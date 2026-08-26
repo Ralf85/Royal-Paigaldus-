@@ -128,17 +128,17 @@ router.get('/seaded', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) =
   }
 });
 router.post('/seaded', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
-  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost } = req.body;
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane } = req.body;
   if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
   try {
     await pool.query(
-      `INSERT INTO omaarve_seaded (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, uuendatud)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+      `INSERT INTO omaarve_seaded (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane, uuendatud)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
        ON CONFLICT (worker_id) DO UPDATE SET
          ettevote_nimi=EXCLUDED.ettevote_nimi, aadress=EXCLUDED.aadress, rg_kood=EXCLUDED.rg_kood,
          kmkr=EXCLUDED.kmkr, pangakonto=EXCLUDED.pangakonto, pank=EXCLUDED.pank,
-         telefon=EXCLUDED.telefon, epost=EXCLUDED.epost, uuendatud=NOW()`,
-      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '']
+         telefon=EXCLUDED.telefon, epost=EXCLUDED.epost, km_kohuslane=EXCLUDED.km_kohuslane, uuendatud=NOW()`,
+      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane !== false]
     );
     res.json({ ok: true });
   } catch (err) {
