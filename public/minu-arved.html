@@ -70,6 +70,10 @@
           <div><label class="f-label">Pank</label><input id="r-pank" placeholder="nt Swedbank"></div>
         </div>
         <div class="f-grupp"><label class="f-label">IBAN (pangakonto)</label><input id="r-iban" placeholder="EE..."></div>
+        <div class="f-grupp" style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="r-km-kohuslane" checked style="width:auto" onchange="rKmKohuslaneMuutus()">
+          <label for="r-km-kohuslane" style="font-size:13px;color:var(--text2)">Olen käibemaksukohuslane — arvetele lisandub vaikimisi 24% käibemaks</label>
+        </div>
         <button class="nupp" onclick="salvestaRekvisiidid()">💾 Salvesta rekvisiidid</button>
         <div id="rekv-teade" class="teade"></div>
       </div>
@@ -188,9 +192,18 @@ async function laadiRekvisiidid() {
     document.getElementById('r-epost').value = s.epost || '';
     document.getElementById('r-pank').value = s.pank || '';
     document.getElementById('r-iban').value = s.pangakonto || '';
+    document.getElementById('r-km-kohuslane').checked = s.km_kohuslane !== false;
+    rKmKohuslaneMuutus();
     // Kui rekvisiidid juba täidetud, hoia see kaart vaikimisi kokku pandud, et fookus oleks arve loomisel.
     toggleKaart('rekv-body', 'rekv-nool');
   }
+}
+// Rekvisiitides valitud käibemaksukohuslase staatus määrab uue arve KM% vaikeväärtuse —
+// endiselt saab seda konkreetse arve puhul käsitsi muuta (nt erandkorras).
+function rKmKohuslaneMuutus() {
+  var kohuslane = document.getElementById('r-km-kohuslane').checked;
+  var kmSel = document.getElementById('s-km');
+  if (kmSel) { kmSel.value = kohuslane ? '24' : '0'; uuendaTotal(); }
 }
 async function salvestaRekvisiidid() {
   var nimi = document.getElementById('r-nimi').value.trim();
@@ -204,7 +217,8 @@ async function salvestaRekvisiidid() {
     telefon: document.getElementById('r-telefon').value.trim(),
     epost: document.getElementById('r-epost').value.trim(),
     pank: document.getElementById('r-pank').value.trim(),
-    pangakonto: document.getElementById('r-iban').value.trim()
+    pangakonto: document.getElementById('r-iban').value.trim(),
+    km_kohuslane: document.getElementById('r-km-kohuslane').checked
   })});
   teade.className = r.ok ? 'teade ok' : 'teade viga';
   teade.textContent = r.ok ? '✅ Salvestatud' : ('Viga: ' + (r.veateade || ''));
@@ -314,8 +328,7 @@ async function salvestaArve() {
   lisaRida();
   document.getElementById('saaja-valik').value = '';
   saajaValitud();
-  document.getElementById('s-km').value = '24';
-  uuendaTotal();
+  rKmKohuslaneMuutus();
   await Promise.all([laadiSaajad(), laadiAjalugu()]);
 }
 
