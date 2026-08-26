@@ -16,23 +16,23 @@
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #555; }
-    body.hele { --bg: #f4f5f7; --bg2: #ffffff; --bg3: #e8eaed; --border: rgba(0,0,0,0.08); --text: #1a1a2e; --text2: #444; --text3: #888; }
+    :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #7a8290; }
+    body.hele { --bg: #f4f5f7; --bg2: #ffffff; --bg3: #e8eaed; --border: rgba(0,0,0,0.08); --text: #1a1a2e; --text2: #444; --text3: #5a6472; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.2s, color 0.2s; }
     .topbar { background: var(--bg2); border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 10px; }
     .brand-logo { width: 32px; height: 32px; background: linear-gradient(135deg, #c9a84c, #f0d080); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
     .brand-name { font-size: 13px; font-weight: 700; color: #c9a84c; }
-    .brand-sub { font-size: 10px; color: #555; }
+    .brand-sub { font-size: 10px; color: var(--text3); }
     .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .avatar { width: 30px; height: 30px; border-radius: 50%; background: #252830; border: 1px solid #333; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #999; }
-    .worker-nimi { font-size: 13px; color: #bbb; }
-    .logout-btn { font-size: 11px; color: #444; background: none; border: 0.5px solid #2a2a2a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: #252830; border: 1px solid #333; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text3); }
+    .worker-nimi { font-size: 13px; color: var(--text2); }
+    .logout-btn { font-size: 11px; color: var(--text3); background: none; border: 0.5px solid #2a2a2a; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
     .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
     .leht { max-width: 520px; margin: 0 auto; padding: 20px 16px 40px; }
     .kuu-filter { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
     .kuu-filter::-webkit-scrollbar { display: none; }
-    .kf-nupp { font-size: 12px; padding: 6px 14px; border-radius: 20px; border: 0.5px solid #252830; color: #555; background: none; cursor: pointer; white-space: nowrap; }
+    .kf-nupp { font-size: 12px; padding: 6px 14px; border-radius: 20px; border: 0.5px solid #252830; color: var(--text3); background: none; cursor: pointer; white-space: nowrap; }
     .kf-nupp.ak { background: #c9a84c; border-color: #c9a84c; color: #0d0f13; font-weight: 600; }
     .sekts-pealkiri { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #3a3d45; margin-bottom: 10px; }
     .employer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
@@ -79,13 +79,13 @@
     .emp-tunnid-sub { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 3px; }
     .kaart { background: var(--bg2); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
     .kaart-hdr { padding: 13px 16px 11px; border-bottom: 0.5px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
-    .kaart-hdr-tekst { font-size: 13px; font-weight: 600; color: #d0d0d0; }
-    .kaart-hdr-arv { margin-left: auto; font-size: 11px; color: #444; background: #1e2128; border-radius: 20px; padding: 2px 8px; }
+    .kaart-hdr-tekst { font-size: 13px; font-weight: 600; color: var(--text2); }
+    .kaart-hdr-arv { margin-left: auto; font-size: 11px; color: var(--text3); background: #1e2128; border-radius: 20px; padding: 2px 8px; }
     .tulevane-rida { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
     .tulevane-rida:last-child { border-bottom: none; }
     .tr-kast { min-width: 42px; background: #1e2128; border-radius: 9px; padding: 7px 4px; text-align: center; }
     .tr-paev { font-size: 17px; font-weight: 700; color: #fff; }
-    .tr-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .tr-kuu { font-size: 9px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
     .tr-info { flex: 1; }
     .tr-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; }
     .badge-lidl { background: #FFF200; color: #002060; }
@@ -93,29 +93,29 @@
     .badge-muu { background: #0369a1; color: #fff; }
     .badge-merekohvik { background: #065f46; color: #4ade80; }
     .badge-edgf { background: #4c1d95; color: #a78bfa; }
-    .tr-objekt { font-size: 13px; font-weight: 500; color: #e0e0e0; }
+    .tr-objekt { font-size: 13px; font-weight: 500; color: var(--text); }
     .tr-kirjeldus { font-size: 11px; color: #505560; margin-top: 3px; font-style: italic; }
     .tr-paevad { text-align: right; }
     .tr-paevad-arv { font-size: 11px; color: #3a3d45; }
     .laek-kokkuvote { display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(0,0,0,0.2); border-bottom: 0.5px solid rgba(255,255,255,0.05); }
     .laek-kv-item { padding: 13px 12px; text-align: center; border-right: 0.5px solid rgba(255,255,255,0.05); }
     .laek-kv-item:last-child { border-right: none; }
-    .laek-kv-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin-bottom: 5px; }
+    .laek-kv-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 5px; }
     .laek-kv-val { font-size: 17px; font-weight: 700; }
     .v-roheline { color: #4ade80; }
-    .v-hall { color: #666; }
+    .v-hall { color: var(--text3); }
     .v-kollane { color: #fbbf24; }
     .laek-firma-rida { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); font-size: 12px; }
     .laek-firma-rida:last-child { border-bottom: none; }
     .laek-firma-vasak { display: flex; align-items: center; gap: 8px; }
     .laek-firma-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .laek-firma-nimi { color: #999; }
+    .laek-firma-nimi { color: var(--text3); }
     .laek-firma-summa { font-weight: 700; color: #4ade80; }
     .laekumine-rida { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
     .laekumine-rida:last-child { border-bottom: none; }
     .lr-vasak { display: flex; align-items: center; gap: 10px; }
     .lr-ikoon { width: 30px; height: 30px; border-radius: 50%; background: #0f2d1a; border: 0.5px solid #1a4d2a; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-    .lr-kuupaev { font-size: 13px; color: #c0c0c0; }
+    .lr-kuupaev { font-size: 13px; color: var(--text2); }
     .lr-komm { font-size: 11px; color: #505560; margin-top: 1px; }
     .lr-summa { font-size: 15px; font-weight: 700; color: #4ade80; }
     .tyhi-olek { padding: 24px 16px; text-align: center; color: #3a3d45; font-size: 13px; }
@@ -123,10 +123,10 @@
     .tp-rida:last-child { border-bottom: none; }
     .tp-kp { min-width: 38px; background: #1e2128; border-radius: 8px; padding: 6px 4px; text-align: center; }
     .tp-kp-paev { font-size: 16px; font-weight: 700; color: #fff; line-height: 1; }
-    .tp-kp-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .tp-kp-kuu { font-size: 9px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
     .tp-info { flex: 1; }
     .tp-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
-    .tp-objekt { font-size: 13px; color: #d0d0d0; }
+    .tp-objekt { font-size: 13px; color: var(--text2); }
     .tp-aeg { font-size: 11px; color: #505560; margin-top: 2px; }
     .tp-komm { font-size: 11px; color: #505560; margin-top: 2px; font-style: italic; }
     .tp-tunnid { font-size: 15px; font-weight: 700; color: #c9a84c; white-space: nowrap; }
@@ -134,31 +134,31 @@
     .modal-overlay.avatud { display: flex; align-items: flex-start; justify-content: center; padding: 20px 16px; }
     .modal-sisu { background: #13161c; border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; margin-top: 20px; }
     .modal-hdr { padding: 16px 20px; border-bottom: 0.5px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; }
-    .modal-hdr-tekst { font-size: 15px; font-weight: 700; color: #e2e8f0; }
-    .modal-sulge { background: none; border: none; color: #555; font-size: 20px; cursor: pointer; padding: 0 4px; }
-    .modal-sulge:hover { color: #aaa; }
+    .modal-hdr-tekst { font-size: 15px; font-weight: 700; color: var(--text); }
+    .modal-sulge { background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; padding: 0 4px; }
+    .modal-sulge:hover { color: var(--text2); }
     .kal-nav { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
-    .kal-nav-nupp { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 18px; cursor: pointer; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
-    .kal-kuu-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+    .kal-nav-nupp { background: none; border: 0.5px solid #252830; border-radius: 8px; color: var(--text2); font-size: 18px; cursor: pointer; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+    .kal-kuu-nimi { font-size: 15px; font-weight: 600; color: var(--text); }
     .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 0 12px 12px; }
-    .kal-paev-hdr { text-align: center; font-size: 10px; color: #555; padding: 4px 0; }
+    .kal-paev-hdr { text-align: center; font-size: 10px; color: var(--text3); padding: 4px 0; }
     .kal-paev { min-height: 64px; border-radius: 8px; padding: 5px; border: 1px solid rgba(255,255,255,0.04); }
-    .kal-paev-nr { font-size: 11px; font-weight: 700; color: #aaa; margin-bottom: 3px; }
+    .kal-paev-nr { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 3px; }
     .kal-paev-nr.taana { color: #c9a84c; }
     .kal-vahetus { font-size: 9px; border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kal-vahetus.minu { background: rgba(74,222,128,0.2); color: #4ade80; }
-    .kal-vahetus.teise { background: rgba(255,255,255,0.06); color: #888; }
+    .kal-vahetus.teise { background: rgba(255,255,255,0.06); color: var(--text3); }
     .kal-legend { display: flex; gap: 12px; padding: 8px 16px 16px; flex-wrap: wrap; }
-    .kal-legend-item { font-size: 11px; color: #555; display: flex; align-items: center; gap: 4px; }
+    .kal-legend-item { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 4px; }
     .lk-rida { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
     .lk-rida:last-child { border-bottom: none; }
     .lk-kp { min-width: 38px; background: #1e2128; border-radius: 8px; padding: 6px 4px; text-align: center; }
     .lk-kp-paev { font-size: 16px; font-weight: 700; color: #fff; line-height: 1; }
-    .lk-kp-kuu { font-size: 9px; text-transform: uppercase; color: #555; margin-top: 2px; }
+    .lk-kp-kuu { font-size: 9px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
     .lk-info { flex: 1; }
-    .lk-selgitus { font-size: 13px; color: #d0d0d0; }
+    .lk-selgitus { font-size: 13px; color: var(--text2); }
     .lk-summa { font-size: 15px; font-weight: 700; color: #fb923c; white-space: nowrap; }
-    .lk-kustuta { background: none; border: none; color: #333; cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; }
+    .lk-kustuta { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; }
     .lk-kustuta:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
   </style>
 </head>
@@ -169,7 +169,7 @@
       <div class="brand-sub" style="margin-left:2px">Tööpäevik</div>
     </div>
     <div class="topbar-right">
-      <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:#aaa">&#9728;&#65039;</button>
+      <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--text2)">&#127769;</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
       <button class="logout-btn" onclick="välju()">Välja</button>
@@ -180,15 +180,15 @@
   <div id="lisakuluModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto">
     <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px">
       <div style="padding:16px 20px;border-bottom:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:15px;font-weight:700;color:#e2e8f0">&#128184; Lisakulud</span>
-        <button onclick="toggleLisakuluModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">&#10005;</button>
+        <span style="font-size:15px;font-weight:700;color:var(--text)">&#128184; Lisakulud</span>
+        <button onclick="toggleLisakuluModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">&#10005;</button>
       </div>
       <div style="padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="lk-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Summa (€)</label><input type="number" id="lk-summa" placeholder="0.00" step="0.01" min="0" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="lk-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px;color-scheme:dark"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Summa (€)</label><input type="number" id="lk-summa" placeholder="0.00" step="0.01" min="0" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px"></div>
         </div>
-        <div style="margin-bottom:10px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Selgitus</label><input type="text" id="lk-selgitus" placeholder="nt. sõidukulud, tööriistad..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
+        <div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Selgitus</label><input type="text" id="lk-selgitus" placeholder="nt. sõidukulud, tööriistad..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px"></div>
         <button onclick="lisaKulu()" style="background:#fb923c;color:#0d0f13;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
         <div id="lk-teade" style="margin-top:8px;font-size:12px;display:none"></div>
       </div>
@@ -201,7 +201,7 @@
     <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px">
       <div style="padding:16px 20px;border-bottom:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between">
         <span id="projekt-modal-pealkiri" style="font-size:15px;font-weight:700;color:#a78bfa">📁 Projekti kulud</span>
-        <button onclick="toggleProjektModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">&#10005;</button>
+        <button onclick="toggleProjektModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">&#10005;</button>
       </div>
       <div style="padding:14px 16px;border-bottom:0.5px solid rgba(255,255,255,0.05);background:rgba(0,0,0,0.2)">
         <label id="projekt-ai-nupp" style="display:block;text-align:center;background:rgba(124,58,237,0.12);border:1px dashed #7c3aed;border-radius:8px;padding:10px;color:#a78bfa;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px">
@@ -210,18 +210,18 @@
         </label>
         <div id="projekt-ai-teade" style="margin-bottom:8px;font-size:12px;display:none"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="projekt-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-          <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kulu (€)</label>
-            <div id="projekt-summa-display" onclick="avaNumpad('projekt')" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;cursor:pointer;min-height:36px"><span id="projekt-summa-tekst" style="color:#555">Vajuta summa sisestamiseks</span></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="projekt-kuupaev" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px;color-scheme:dark"></div>
+          <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Kulu (€)</label>
+            <div id="projekt-summa-display" onclick="avaNumpad('projekt')" style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px;cursor:pointer;min-height:36px"><span id="projekt-summa-tekst" style="color:var(--text3)">Vajuta summa sisestamiseks</span></div>
             <input type="hidden" id="projekt-summa">
           </div>
         </div>
-        <div style="margin-bottom:8px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Selgitus</label><input type="text" id="projekt-selgitus" placeholder="nt. kütus, tööriistad, lauade paigaldus..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Selgitus</label><input type="text" id="projekt-selgitus" placeholder="nt. kütus, tööriistad, lauade paigaldus..." style="width:100%;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px"></div>
         <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Pilt (tšekk, vabatahtlik)</label>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Pilt (tšekk, vabatahtlik)</label>
           <div style="display:flex;gap:8px">
-            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="projekt-foto" accept="image/*" capture="environment" style="display:none"></label>
-            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="projekt-foto-album" accept="image/*" style="display:none"></label>
+            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text2);font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="projekt-foto" accept="image/*" capture="environment" style="display:none"></label>
+            <label style="flex:1;background:#13161c;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text2);font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="projekt-foto-album" accept="image/*" style="display:none"></label>
           </div>
           <div id="projekt-foto-eelvaade" style="margin-top:6px;display:none"><img id="projekt-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></div>
         </div>
@@ -236,25 +236,25 @@
   <div id="numpadModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:300;align-items:flex-end;justify-content:center">
     <div style="background:#13161c;border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 16px 32px">
       <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:11px;color:#555;margin-bottom:6px">KULU (€)</div>
-        <div id="numpad-display" style="font-size:36px;font-weight:700;color:#e2e8f0;letter-spacing:2px;min-height:48px">0</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">KULU (€)</div>
+        <div id="numpad-display" style="font-size:36px;font-weight:700;color:var(--text);letter-spacing:2px;min-height:48px">0</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
-        <button onclick="numpadNupp('1')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">1</button>
-        <button onclick="numpadNupp('2')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">2</button>
-        <button onclick="numpadNupp('3')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">3</button>
-        <button onclick="numpadNupp('4')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">4</button>
-        <button onclick="numpadNupp('5')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">5</button>
-        <button onclick="numpadNupp('6')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">6</button>
-        <button onclick="numpadNupp('7')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">7</button>
-        <button onclick="numpadNupp('8')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">8</button>
-        <button onclick="numpadNupp('9')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">9</button>
-        <button onclick="numpadNupp('.')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#aaa;cursor:pointer">.</button>
-        <button onclick="numpadNupp('0')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:#e2e8f0;cursor:pointer">0</button>
+        <button onclick="numpadNupp('1')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">1</button>
+        <button onclick="numpadNupp('2')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">2</button>
+        <button onclick="numpadNupp('3')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">3</button>
+        <button onclick="numpadNupp('4')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">4</button>
+        <button onclick="numpadNupp('5')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">5</button>
+        <button onclick="numpadNupp('6')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">6</button>
+        <button onclick="numpadNupp('7')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">7</button>
+        <button onclick="numpadNupp('8')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">8</button>
+        <button onclick="numpadNupp('9')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">9</button>
+        <button onclick="numpadNupp('.')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text2);cursor:pointer">.</button>
+        <button onclick="numpadNupp('0')" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;color:var(--text);cursor:pointer">0</button>
         <button onclick="numpadKustuta()" style="background:#1e2128;border:none;border-radius:12px;padding:18px;font-size:22px;color:#ef4444;cursor:pointer">⌫</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <button onclick="sulgeNumpad()" style="background:#252830;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:600;color:#aaa;cursor:pointer">Tühista</button>
+        <button onclick="sulgeNumpad()" style="background:#252830;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:600;color:var(--text2);cursor:pointer">Tühista</button>
         <button onclick="kinnitaNumpad()" style="background:#7c3aed;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:700;color:#fff;cursor:pointer">OK ✓</button>
       </div>
     </div>
@@ -265,24 +265,27 @@
     <div style="background:#13161c;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;width:100%;max-width:520px;overflow:hidden;margin-top:20px;padding:16px 20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <span style="font-size:15px;font-weight:700;color:#a78bfa">✏️ Muuda kirjet</span>
-        <button onclick="sulgeProjektMuuta()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer">✕</button>
+        <button onclick="sulgeProjektMuuta()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">✕</button>
       </div>
       <input type="hidden" id="projekt-muuta-id">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="projekt-muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;color-scheme:dark"></div>
-        <div><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Kulu (€)</label>
-          <div id="projekt-muuta-summa-display" onclick="avaNumpad('projekt-muuta')" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px;cursor:pointer;min-height:36px"><span id="projekt-muuta-summa-tekst">0.00 €</span></div>
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Kuupäev</label><input type="date" id="projekt-muuta-kuupaev" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px;color-scheme:dark"></div>
+        <div><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Kulu (€)</label>
+          <div id="projekt-muuta-summa-display" onclick="avaNumpad('projekt-muuta')" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px;cursor:pointer;min-height:36px"><span id="projekt-muuta-summa-tekst">0.00 €</span></div>
           <input type="hidden" id="projekt-muuta-summa">
         </div>
       </div>
-      <div style="margin-bottom:12px"><label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Selgitus</label><input type="text" id="projekt-muuta-selgitus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#e2e8f0;font-size:13px"></div>
+      <div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Selgitus</label><input type="text" id="projekt-muuta-selgitus" style="width:100%;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text);font-size:13px"></div>
       <div style="margin-bottom:12px">
-        <label style="font-size:11px;color:#555;display:block;margin-bottom:4px">Pilt (vabatahtlik)</label>
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Pilt (vabatahtlik)</label>
         <div style="display:flex;gap:8px">
-          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="projekt-muuta-foto" accept="image/*" capture="environment" style="display:none"></label>
-          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:#aaa;font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="projekt-muuta-foto-album" accept="image/*" style="display:none"></label>
+          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text2);font-size:13px;text-align:center;cursor:pointer">📷 Kaamera<input type="file" id="projekt-muuta-foto" accept="image/*" capture="environment" style="display:none"></label>
+          <label style="flex:1;background:#0d0f13;border:0.5px solid #252830;border-radius:8px;padding:8px;color:var(--text2);font-size:13px;text-align:center;cursor:pointer">🖼️ Album<input type="file" id="projekt-muuta-foto-album" accept="image/*" style="display:none"></label>
         </div>
-        <div id="projekt-muuta-foto-eelvaade" style="margin-top:6px;display:none"><img id="projekt-muuta-foto-img" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;border:0.5px solid #252830"></div>
+        <div id="projekt-muuta-foto-eelvaade" style="margin-top:6px;display:none">
+          <div id="projekt-muuta-foto-silt" style="font-size:11px;color:var(--text3);margin-bottom:4px">Praegune tšekk (vali uus foto, et asendada):</div>
+          <img id="projekt-muuta-foto-img" style="width:100%;max-height:120px;object-fit:cover;border-radius:8px;border:0.5px solid #252830">
+        </div>
       </div>
       <button onclick="salvestaProjektMuutus()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
       <div id="projekt-muuta-teade" style="margin-top:8px;font-size:12px;display:none"></div>
@@ -312,7 +315,7 @@
   <div class="leht">
     <div class="kuu-filter" id="kuuFilter"></div>
     <div class="sekts-pealkiri" id="kuuPealkiri">Juuni tööd</div>
-    <div class="employer-grid" id="ettevotteKaardid"><div style="color:#555;font-size:13px;padding:20px">Laadimine...</div></div>
+    <div class="employer-grid" id="ettevotteKaardid"><div style="color:var(--text3);font-size:13px;padding:20px">Laadimine...</div></div>
 
     <div id="kalenderNuppDiv" style="display:none;margin-bottom:16px">
       <button onclick="avaKalender()" style="width:100%;background:#051a10;border:1px solid #0a3520;border-radius:14px;padding:14px 20px;color:#4ade80;font-size:14px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px">
@@ -333,9 +336,9 @@
     <div class="kaart">
       <div class="kaart-hdr" onclick="toggleLaekumised()" style="cursor:pointer">
         <span>&#128176;</span><span class="kaart-hdr-tekst">Laekumised</span><span class="kaart-hdr-arv" id="laekumiste-kuu">—</span>
-        <span id="laekumiste-silm" style="margin-left:8px;font-size:14px;color:#555">&#128065;</span>
+        <span id="laekumiste-silm" style="margin-left:8px;font-size:14px;color:var(--text3)">&#128065;</span>
       </div>
-      <div id="laekumistePeidus"><div style="padding:16px;text-align:center;color:#555;font-size:13px">Vajuta pealkirjale numbrite nägemiseks</div></div>
+      <div id="laekumistePeidus"><div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Vajuta pealkirjale numbrite nägemiseks</div></div>
       <div id="laekumisteSisu" style="display:none">
         <div class="laek-kokkuvote">
           <div class="laek-kv-item"><div class="laek-kv-label">Teenitud</div><div class="laek-kv-val v-roheline" id="kv-teenitud">—</div></div>
@@ -488,7 +491,7 @@
       var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
       var div = document.getElementById('ettevotteKaardid');
       if (!ettevotted.length) {
-        div.innerHTML = '<div style="color:#555;font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>'
+        div.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>'
           + projektiKaardidHtml('style="grid-column:1"')
           + (onXseeria ? '<a class="emp-card xseeria" href="/xseeria" style="grid-column:1">'
             + '<div class="emp-logo xseeria"><img src="/logos/xseeria.png" alt="X-seeria" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px;padding:4px;box-sizing:border-box"></div>'
@@ -584,7 +587,7 @@
           + '</div><div class="tr-paevad"><div class="tr-paevad-arv">'+(paevJaani>0?paevJaani+'p':'täna')+'</div></div></div>';
       }).join('');
       if (koik.length > 5 && !naitaKoikTulevased) {
-        div.innerHTML += '<div style="padding:10px 16px;text-align:center"><button onclick="naitaKoikTulevasedTood()" style="background:none;border:0.5px solid #252830;border-radius:8px;padding:8px 20px;color:#aaa;font-size:13px;cursor:pointer">+ '+(koik.length-5)+' veel... Näita kõiki</button></div>';
+        div.innerHTML += '<div style="padding:10px 16px;text-align:center"><button onclick="naitaKoikTulevasedTood()" style="background:none;border:0.5px solid #252830;border-radius:8px;padding:8px 20px;color:var(--text2);font-size:13px;cursor:pointer">+ '+(koik.length-5)+' veel... Näita kõiki</button></div>';
       }
     }
 
@@ -603,7 +606,7 @@
           + '<div class="tp-aeg">'+k.algus.slice(0,5)+' – '+k.lopp.slice(0,5)+kmInfo+lisakuluInfo+'</div>'
           + (k.kommentaar?'<div class="tp-komm">'+k.kommentaar+'</div>':'')
           + '</div><div class="tp-tunnid">'+parseFloat(k.tunnid).toFixed(1)+'h</div>'
-          + '<a href="/tootaja-tood?ettevote='+k.ettevote_id+'" style="color:#444;font-size:18px;padding:4px;text-decoration:none" title="Muuda/kustuta">✏️</a>'
+          + '<a href="/tootaja-tood?ettevote='+k.ettevote_id+'" style="color:var(--text3);font-size:18px;padding:4px;text-decoration:none" title="Muuda/kustuta">✏️</a>'
           + '</div>';
       }).join('');
     }
@@ -646,7 +649,7 @@
           +'<div class="lk-info"><div class="lk-selgitus">'+k.selgitus+'</div></div>'
           +'<div class="lk-summa">+'+parseFloat(k.summa).toFixed(2)+' €</div>'
           +'<button class="lk-kustuta" onclick="kustutaKulu('+k.id+')">✕</button></div>';
-      }).join('')+'<div style="padding:10px 16px;border-top:0.5px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;font-size:12px"><span style="color:#555">Kokku</span><span style="color:#fb923c;font-weight:700">+'+kokku.toFixed(2)+' €</span></div>';
+      }).join('')+'<div style="padding:10px 16px;border-top:0.5px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text3)">Kokku</span><span style="color:#fb923c;font-weight:700">+'+kokku.toFixed(2)+' €</span></div>';
     }
 
     async function kustutaKulu(id) {
@@ -729,9 +732,9 @@
         return '<div class="lk-rida"><div class="lk-kp"><div class="lk-kp-paev">'+d.getDate()+'</div><div class="lk-kp-kuu">'+KUUD_LYHIKE[d.getMonth()]+'</div></div>'
           +'<div class="lk-info"><div class="lk-selgitus">'+k.selgitus+'</div>'+(k.foto_url?'<div style="margin-top:4px"><a href="'+k.foto_url+'" target="_blank" style="font-size:11px;color:'+varv+'">📷 vaata tšekki</a></div>':'')+'</div>'
           +'<div class="lk-summa" style="color:'+varv+'">+'+parseFloat(k.summa).toFixed(2)+' €</div>'
-          +'<button class="lk-kustuta" onclick="avaProjektMuuta('+k.id+',\''+k.kuupaev.substring(0,10)+'\','+parseFloat(k.summa)+',\''+k.selgitus.replace(/'/g,"\\'")+'\')">✏️</button>'
+          +'<button class="lk-kustuta" onclick="avaProjektMuuta('+k.id+',\''+k.kuupaev.substring(0,10)+'\','+parseFloat(k.summa)+',\''+k.selgitus.replace(/'/g,"\\'")+'\',\''+(k.foto_url||'').replace(/'/g,"\\'")+'\')">✏️</button>'
           +'<button class="lk-kustuta" onclick="kustutaProjektKulu('+k.id+')">✕</button></div>';
-      }).join('')+'<div style="padding:10px 16px;border-top:0.5px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;font-size:12px"><span style="color:#555">Kokku</span><span style="color:'+varv+';font-weight:700">+'+kokku.toFixed(2)+' €</span></div>';
+      }).join('')+'<div style="padding:10px 16px;border-top:0.5px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text3)">Kokku</span><span style="color:'+varv+';font-weight:700">+'+kokku.toFixed(2)+' €</span></div>';
     }
 
     async function kustutaProjektKulu(id) {
@@ -740,7 +743,7 @@
       if(r.ok){await laadiProjektKulud();await kontrolliProjektid();await laadiEttevotted();}
     }
 
-    function avaProjektMuuta(id,kuupaev,summa,selgitus) {
+    function avaProjektMuuta(id,kuupaev,summa,selgitus,fotoUrl) {
       document.getElementById('projekt-muuta-id').value=id;
       document.getElementById('projekt-muuta-kuupaev').value=kuupaev;
       document.getElementById('projekt-muuta-summa').value=summa;
@@ -748,10 +751,21 @@
       document.getElementById('projekt-muuta-selgitus').value=selgitus;
       document.getElementById('projekt-muuta-teade').style.display='none';
       document.getElementById('projekt-muuta-foto').value='';document.getElementById('projekt-muuta-foto-album').value='';
-      document.getElementById('projekt-muuta-foto-eelvaade').style.display='none';
+      // Kui kirjel on juba tšekk/foto olemas, näita seda kohe muutmisvormis (mitte tühjana) —
+      // muidu tundus kasutajale, et foto on kadunud, kuigi tegelikult see säilib salvestamisel muutumatuna
+      // kui uut fotot valitud pole (routes/projektid.js PUT /kulu/:id ei puuduta foto välju).
       window._projektMuutaFotoInput=null;
+      var eelvaade=document.getElementById('projekt-muuta-foto-eelvaade');
+      var eelvaadeSilt=document.getElementById('projekt-muuta-foto-silt');
+      if (fotoUrl) {
+        document.getElementById('projekt-muuta-foto-img').src=fotoUrl;
+        eelvaade.style.display='block';
+        if (eelvaadeSilt) eelvaadeSilt.textContent='Praegune tšekk (vali uus foto, et asendada):';
+      } else {
+        eelvaade.style.display='none';
+      }
       document.getElementById('projektMuutaModal').style.display='flex';
-      function setupMF(inputId){document.getElementById(inputId).onchange=function(){var file=this.files[0];if(file){var reader=new FileReader();reader.onload=function(e){document.getElementById('projekt-muuta-foto-img').src=e.target.result;document.getElementById('projekt-muuta-foto-eelvaade').style.display='block';};reader.readAsDataURL(file);window._projektMuutaFotoInput=inputId;}};}
+      function setupMF(inputId){document.getElementById(inputId).onchange=function(){var file=this.files[0];if(file){var reader=new FileReader();reader.onload=function(e){document.getElementById('projekt-muuta-foto-img').src=e.target.result;document.getElementById('projekt-muuta-foto-eelvaade').style.display='block';var silt=document.getElementById('projekt-muuta-foto-silt');if(silt)silt.textContent='Uus foto valitud:';};reader.readAsDataURL(file);window._projektMuutaFotoInput=inputId;}};}
       setupMF('projekt-muuta-foto');setupMF('projekt-muuta-foto-album');
     }
     function sulgeProjektMuuta(){document.getElementById('projektMuutaModal').style.display='none';}
@@ -818,7 +832,7 @@
     async function laadiKalender() {
       var aasta=kalenderKuu.getFullYear(),kuu=kalenderKuu.getMonth()+1;
       document.getElementById('kalenderKuuNimi').textContent=KUUD[kuu-1]+' '+aasta;
-      document.getElementById('kalenderGrid').innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:#555;font-size:13px">Laadimine...</div>';
+      document.getElementById('kalenderGrid').innerHTML='<div style="grid-column:1/-1;padding:20px;text-align:center;color:var(--text3);font-size:13px">Laadimine...</div>';
       var vastus=await api('/api/graafik/kuu?aasta='+aasta+'&kuu='+kuu);
       var vahetused=(vastus&&vastus.vahetused)?vastus.vahetused:[], paevadInfo=(vastus&&vastus.paevad)?vastus.paevad:[];
       var paevadMap={},vahetusedMap={};
@@ -878,8 +892,10 @@
       sulgeNumpad();
     }
 
-    function vahetaTeema(){var hele=document.body.classList.toggle('hele');localStorage.setItem('teema',hele?'hele':'tume');document.getElementById('teemaNupp').textContent=hele?'🌙':'☀️';}
-    if(localStorage.getItem('teema')==='hele'){document.body.classList.add('hele');document.addEventListener('DOMContentLoaded',function(){var n=document.getElementById('teemaNupp');if(n)n.textContent='🌙';});}
+    // Ikoon peab näitama HETKE olekut (nagu auto armatuurlaual), mitte nuppu vajutades saadavat tulemust —
+    // öises/tumedas režiimis 🌙, päevases/heledas režiimis ☀️.
+    function vahetaTeema(){var hele=document.body.classList.toggle('hele');localStorage.setItem('teema',hele?'hele':'tume');document.getElementById('teemaNupp').textContent=hele?'☀️':'🌙';}
+    if(localStorage.getItem('teema')==='hele'){document.body.classList.add('hele');document.addEventListener('DOMContentLoaded',function(){var n=document.getElementById('teemaNupp');if(n)n.textContent='☀️';});}
 
     function välju(){localStorage.removeItem('workerToken');window.location='/';}
 
