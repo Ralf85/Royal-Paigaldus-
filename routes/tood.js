@@ -25,6 +25,17 @@ router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
   }
 });
 
+// Lidl "projektide" nimekiri (Kristo fotode kaustastruktuuri jaoks) — admin hallatav, kuvatakse
+// töökirje lisamisel Lidli töö puhul eraldi valikuna (mitte segi vaba "kommentaar" väljaga).
+router.get('/lidl-projektid', noudaSisslogimist, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT id, nimi FROM lidl_projektid WHERE aktiivne=true ORDER BY jrk_nr, nimi`);
+    res.json(r.rows);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
 // Objektid ettevõtte järgi
 router.get('/objektid/:ettevoteId', async (req, res) => {
   try {
@@ -40,7 +51,7 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 
 // Lisa töökirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
-  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
+  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
   try {
     const [ah, am] = algus.split(':').map(Number);
     const [lh, lm] = lopp.split(':').map(Number);
@@ -62,9 +73,9 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     const lisakulu_sel = lisakulu_selgitus || '';
 
     const result = await pool.query(
-      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel]
+      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel, lidl_projekt_id || null]
     );
     const kirjeId = result.rows[0].id;
 
@@ -129,11 +140,13 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
               COALESCE(t.kilomeetrid, 0) as kilomeetrid,
               COALESCE(t.km_raha, 0) as km_raha,
               COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
-              COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus
+              COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus,
+              lp.nimi as lidl_projekt_nimi
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id = e.id
        LEFT JOIN objektid o ON t.objekt_id = o.id
        LEFT JOIN worker_ettevotted we ON (we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id)
+       LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
        WHERE t.worker_id=$1 AND EXTRACT(YEAR FROM t.kuupaev)=$2 AND EXTRACT(MONTH FROM t.kuupaev)=$3
        ORDER BY t.kuupaev, t.algus`,
       [wid, aasta, kuu]
@@ -310,7 +323,7 @@ router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
 
 // Töötaja muudab oma töökirjet
 router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
-  const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus } = req.body;
+  const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
   try {
     const vana = await pool.query(
       'SELECT * FROM tookirjed WHERE id=$1 AND worker_id=$2',
@@ -337,14 +350,17 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
 
     await pool.query(
       `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5,
-       kilomeetrid=$6, km_raha=$7, lisakulu_summa=$8, lisakulu_selgitus=$9 WHERE id=$10`,
-      [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', req.params.id]
+       kilomeetrid=$6, km_raha=$7, lisakulu_summa=$8, lisakulu_selgitus=$9, lidl_projekt_id=$10, muudetud_tootaja=NOW() WHERE id=$11`,
+      [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', lidl_projekt_id || null, req.params.id]
     );
 
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [req.session.workerId, 'MUUDA_TOOKIRJE', JSON.stringify({
-        kirje_id: req.params.id, kuupaev, algus, lopp, tunnid: tunnid.toFixed(2)
+        kirje_id: req.params.id,
+        kuupaev, algus, lopp, tunnid: tunnid.toFixed(2),
+        vana_kuupaev: vana.rows[0].kuupaev, vana_algus: vana.rows[0].algus, vana_lopp: vana.rows[0].lopp,
+        vana_tunnid: parseFloat(vana.rows[0].tunnid).toFixed(2)
       }), req.ip]
     );
 
