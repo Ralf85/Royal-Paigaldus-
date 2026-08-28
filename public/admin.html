@@ -1247,6 +1247,22 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <div class="kaart-hdr"><span id="et-data-pealkiri">📊 DATA</span></div>
       <div class="kaart-body" id="et-data-sisu"><div style="padding:20px;text-align:center;color:var(--hall)">Laadimine...</div></div>
     </div>
+    <div class="kaart" id="et-lidl-projektid-kaart" style="display:none">
+      <div class="kaart-hdr"><span>📁 Lidl projektid (fotode kaustad)</span></div>
+      <div class="kaart-body">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Halda siin nimekirja, millest töötaja töökirje lisamisel valib "Projekti" — Kristo fotovaates grupeeritakse pildid selle valiku, mitte enam vabateksti järgi. Mitteaktiivne projekt kaob töötaja valikust, aga vanad kirjed ja fotod jäävad alles.</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input type="text" id="lp-uus-nimi" placeholder="Uue projekti nimi..." style="flex:1">
+          <button type="button" class="nupp kull" style="padding:8px 16px" onclick="lpLisaProjekt()">+ Lisa</button>
+        </div>
+        <div id="lp-nimekiri"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--piir)">
+          <div style="font-size:13px;font-weight:600;color:var(--tekst2);margin-bottom:6px">🧹 Vanade fotode ümbermääramine</div>
+          <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Need on vabatekstilised kirjeldused, mida töötajad on varem ise kirjutanud ja mis pole veel struktureeritud nimekirjaga seotud. Vali igale grupile õige projekt, et fotod koonduksid Kristo vaates ühte kausta.</div>
+          <div id="lp-vanad"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+        </div>
+      </div>
+    </div>
     <div class="kaart">
       <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">
         <span>🏗️ Objektid</span>
@@ -1993,6 +2009,89 @@ function avEttevoteHub(gruppId, nimi) {
 // Üks koondvaade ettevõtte kohta: DATA (kuupõhine töö tundides+rahas, mis läheb arveks —
 // Merekohviku puhul SumUp käive), Objektid, Tulevased tööd ja Arved. Vältimaks 3-4 eraldi
 // tabi klikkimist, nagu raamatupidaja soovis.
+// ── Lidl projektid (fotode kaustastruktuur) — halduspaneel ettevõtte lehel ──
+let lpProjektid = [];
+async function lpLaadi() {
+  const div = document.getElementById('lp-nimekiri');
+  div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
+  const r = await api('/api/kristo/admin/projektid');
+  lpProjektid = (r && r.ok && Array.isArray(r.projektid)) ? r.projektid : [];
+  if (!lpProjektid.length) {
+    div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Projekte pole veel lisatud</div>';
+    await lpLaadiVanad();
+    return;
+  }
+  div.innerHTML = lpProjektid.map(p => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--piir)">
+      <span style="flex:1;font-size:13px;${p.aktiivne ? '' : 'color:var(--hall);text-decoration:line-through'}">${p.nimi}</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--hall);cursor:pointer">
+        <input type="checkbox" ${p.aktiivne ? 'checked' : ''} onchange="lpToggleAktiivne(${p.id}, this.checked)"> aktiivne
+      </label>
+      <button type="button" class="nupp hall" style="padding:4px 10px;font-size:11px" onclick="lpMuudaNimi(${p.id}, '${p.nimi.replace(/'/g, "\\'")}')">✏️</button>
+    </div>
+  `).join('');
+  await lpLaadiVanad();
+}
+async function lpLisaProjekt() {
+  const input = document.getElementById('lp-uus-nimi');
+  const nimi = input.value.trim();
+  if (!nimi) return;
+  const r = await api('/api/kristo/admin/projektid', { method: 'POST', body: JSON.stringify({ nimi }) });
+  if (r && r.ok) { input.value = ''; await lpLaadi(); }
+  else alert((r && r.veateade) || 'Viga lisamisel');
+}
+async function lpToggleAktiivne(id, aktiivne) {
+  await api(`/api/kristo/admin/projektid/${id}`, { method: 'PUT', body: JSON.stringify({ aktiivne }) });
+  await lpLaadi();
+}
+async function lpMuudaNimi(id, vanaNimi) {
+  const uus = prompt('Uus nimi:', vanaNimi);
+  if (!uus || !uus.trim() || uus.trim() === vanaNimi) return;
+  const r = await api(`/api/kristo/admin/projektid/${id}`, { method: 'PUT', body: JSON.stringify({ nimi: uus.trim() }) });
+  if (r && r.ok) await lpLaadi();
+  else alert((r && r.veateade) || 'Viga muutmisel');
+}
+async function lpLaadiVanad() {
+  const div = document.getElementById('lp-vanad');
+  div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
+  const r = await api('/api/kristo/admin/vanad-kirjeldused');
+  const list = (r && r.ok && Array.isArray(r.kirjeldused)) ? r.kirjeldused : [];
+  if (!list.length) {
+    div.innerHTML = '<div style="padding:14px;text-align:center;color:var(--hall);font-size:12px">Kõik fotod on juba projektide alla määratud 🎉</div>';
+    return;
+  }
+  if (!lpProjektid.length) {
+    div.innerHTML = '<div style="padding:14px;text-align:center;color:var(--hall);font-size:12px">Lisa enne vähemalt üks projekt ülalt, siis saad siin fotod selle alla määrata.</div>';
+    return;
+  }
+  const valikud = lpProjektid.map(p => `<option value="${p.id}">${p.nimi}</option>`).join('');
+  div.innerHTML = list.map((k, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--piir);flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:13px;color:var(--tekst)">${k.kirjeldus}</div>
+        <div style="font-size:11px;color:var(--hall)">${k.piltide_arv} pilti · ${k.poode_arv} pood${k.poode_arv==1?'':'i'} (${k.poed})</div>
+      </div>
+      <select id="lp-vana-sihtmark-${i}" style="font-size:12px;padding:5px 8px">
+        <option value="">— vali projekt —</option>
+        ${valikud}
+      </select>
+      <button type="button" class="nupp kull" style="padding:5px 12px;font-size:11px" onclick="lpMaaraVanaProjekt(${JSON.stringify(k.kirjeldus)}, ${i})">Määra</button>
+    </div>
+  `).join('');
+}
+async function lpMaaraVanaProjekt(kirjeldus, i) {
+  const sel = document.getElementById('lp-vana-sihtmark-' + i);
+  const projektId = sel.value;
+  if (!projektId) { alert('Vali enne projekt'); return; }
+  const r = await api('/api/kristo/kirjeldus/maara-projekt', { method: 'PUT', body: JSON.stringify({ kirjeldus, projekt_id: projektId }) });
+  if (r && r.ok) {
+    alert(`✅ ${r.muudetud} kirjet ümber määratud`);
+    await lpLaadiVanad();
+  } else {
+    alert((r && r.veateade) || 'Viga ümbermääramisel');
+  }
+}
+
 async function laadiEttevoteLeht(nimi) {
   if (!nimi) return;
   avEttevoteAktiivneNimi = nimi;
@@ -2001,6 +2100,15 @@ async function laadiEttevoteLeht(nimi) {
 
   document.getElementById('et-objektid-nupp').onclick = () => avaFiltreeritudTab(3, nimi);
   document.getElementById('et-tulevased-nupp').onclick = () => avaFiltreeritudTab(4, nimi);
+
+  // ── Lidl projektid (ainult LIDL ettevõtte lehel) ──
+  const lpKaart = document.getElementById('et-lidl-projektid-kaart');
+  if (N === 'LIDL') {
+    lpKaart.style.display = '';
+    lpLaadi();
+  } else {
+    lpKaart.style.display = 'none';
+  }
 
   // ── DATA ──
   const dataPealkiriEl = document.getElementById('et-data-pealkiri');
