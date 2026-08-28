@@ -111,7 +111,7 @@
       osad.push('<span class="murr-osa' + (tase === 1 ? ' aktiivne' : '') + '" onclick="avaPoed(true)">🏬 Poed</span>');
       if (valitudObjekt) {
         osad.push('<span class="murr-sep">›</span>');
-        osad.push('<span class="murr-osa' + (tase === 2 ? ' aktiivne' : '') + '" onclick="avaObjekt(' + valitudObjekt.id + ', ' + JSON.stringify(valitudObjekt.nimi) + ', true)">' + valitudObjekt.nimi + '</span>');
+        osad.push('<span class="murr-osa' + (tase === 2 ? ' aktiivne' : '') + '" onclick=\'avaObjekt(' + valitudObjekt.id + ', ' + JSON.stringify(valitudObjekt.nimi) + ', true)\'>' + valitudObjekt.nimi + '</span>');
       }
       if (valitudKirjeldus) {
         osad.push('<span class="murr-sep">›</span>');
@@ -134,7 +134,7 @@
         return;
       }
       sisu.innerHTML = '<div class="grid">' + r.poed.map(function(p) {
-        return '<div class="kaart" onclick="avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)">'
+        return '<div class="kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\'>'
           + '<div><div class="kaart-nimi">' + p.objekt_nimi + '</div>'
           + '<div class="kaart-meta">' + p.projektide_arv + ' projekti · ' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
           + '<div class="kaart-noole">›</div></div>';
@@ -155,7 +155,7 @@
         return;
       }
       sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
-        return '<div class="kaart" onclick="avaProjekt(' + JSON.stringify(p.kirjeldus) + ', true)">'
+        return '<div class="kaart" onclick=\'avaProjekt(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
           + '<div><div class="kaart-nimi">' + p.kirjeldus + '</div>'
           + '<div class="kaart-meta">' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
           + '<div class="kaart-noole">›</div></div>';
