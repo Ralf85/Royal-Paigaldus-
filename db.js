@@ -641,6 +641,21 @@ async function initDB() {
     await client.query(`ALTER TABLE omaarved ADD COLUMN IF NOT EXISTS saaja_epost VARCHAR(150);`);
     await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS km_kohuslane BOOLEAN NOT NULL DEFAULT true;`);
 
+    // ── LIDL PROJEKTID (Kristo fotode kaustastruktuuri jaoks) ────────────
+    // Varem käis Kristo vaate grupeerimine tookirjed.kommentaar vaba teksti järgi, mis fragmenteeris
+    // sama tööliigi mitmeks eraldi "projektiks", kuna töötajad kirjutasid sama asja erinevalt.
+    // Nüüd on olemas kindel admin-hallatav nimekiri — kommentaar jääb alles vaid vabatahtliku lisainfona.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lidl_projektid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL UNIQUE,
+        aktiivne BOOLEAN NOT NULL DEFAULT true,
+        jrk_nr INTEGER DEFAULT 0,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lidl_projekt_id INTEGER REFERENCES lidl_projektid(id);`);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
