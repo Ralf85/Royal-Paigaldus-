@@ -145,7 +145,7 @@ router.get('/maksed', async (req, res) => {
   } else if (!isAdmin) {
     return res.status(401).json([]);
   }
-  let q = `SELECT m.*, w.nimi as worker_nimi FROM maksed m JOIN workers w ON m.worker_id=w.id WHERE 1=1`;
+  let q = `SELECT m.*, w.nimi as worker_nimi, e.nimi as ettevote_nimi FROM maksed m JOIN workers w ON m.worker_id=w.id LEFT JOIN ettevotted e ON m.ettevote_id=e.id WHERE 1=1`;
   const params = [];
   if (worker_id) { params.push(worker_id); q += ` AND m.worker_id=$${params.length}`; }
   if (aasta) { params.push(aasta); q += ` AND EXTRACT(YEAR FROM m.kuupaev)=$${params.length}`; }
@@ -156,10 +156,19 @@ router.get('/maksed', async (req, res) => {
 });
 
 router.post('/maksed', noudaAdmin, async (req, res) => {
-  const { worker_id, summa, kuupaev, kommentaar } = req.body;
+  const { worker_id, summa, kuupaev, kommentaar, ettevote_id } = req.body;
   await pool.query(
-    'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar) VALUES ($1,$2,$3,$4)',
-    [worker_id, summa, kuupaev, kommentaar || '']
+    'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar, ettevote_id) VALUES ($1,$2,$3,$4,$5)',
+    [worker_id, summa, kuupaev, kommentaar || '', ettevote_id || null]
+  );
+  res.json({ ok: true });
+});
+
+router.patch('/maksed/:id', noudaAdmin, async (req, res) => {
+  const { worker_id, summa, kuupaev, kommentaar, ettevote_id } = req.body;
+  await pool.query(
+    'UPDATE maksed SET worker_id=$1, summa=$2, kuupaev=$3, kommentaar=$4, ettevote_id=$5 WHERE id=$6',
+    [worker_id, summa, kuupaev, kommentaar || '', ettevote_id || null, req.params.id]
   );
   res.json({ ok: true });
 });
