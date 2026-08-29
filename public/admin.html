@@ -4,64 +4,65 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Royal Paigaldus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ── TEEMAD ───────────────────────────────────────────────── */
-    body.teema-tume {
-      --bg: #0d0f13;
-      --bg2: #13161c;
-      --bg3: #0d0f13;
-      --piir: rgba(255,255,255,0.06);
-      --piir2: rgba(255,255,255,0.05);
-      --piir3: rgba(255,255,255,0.03);
-      --tekst: #e2e8f0;
-      --tekst2: #d0d0d0;
-      --tekst3: #aaa;
-      --hall: #555;
-      --sisend-bg: #0d0f13;
-      --sisend-piir: #252830;
-      --tab-bg: #13161c;
-      --tab-piir: rgba(255,255,255,0.06);
-    }
-    body.teema-valge {
-      --bg: #f0f2f5;
-      --bg2: #ffffff;
-      --bg3: #e8eaed;
-      --piir: rgba(0,0,0,0.08);
-      --piir2: rgba(0,0,0,0.06);
-      --piir3: rgba(0,0,0,0.04);
-      --tekst: #1a1a2e;
-      --tekst2: #2d2d2d;
-      --tekst3: #555;
-      --hall: #888;
-      --sisend-bg: #f8f9fa;
-      --sisend-piir: #d0d4da;
-      --tab-bg: #ffffff;
-      --tab-piir: rgba(0,0,0,0.08);
-    }
-    body.teema-sinine {
-      --bg: #0a1628;
-      --bg2: #0f2040;
-      --bg3: #0a1628;
-      --piir: rgba(100,160,255,0.12);
-      --piir2: rgba(100,160,255,0.08);
-      --piir3: rgba(100,160,255,0.05);
-      --tekst: #e8f0fe;
-      --tekst2: #c8d8f0;
-      --tekst3: #8aabcc;
-      --hall: #4a7a9b;
-      --sisend-bg: #0a1628;
-      --sisend-piir: #1e3a5f;
-      --tab-bg: #0f2040;
-      --tab-piir: rgba(100,160,255,0.12);
+    /* ── VÄRVISÜSTEEM (teemast sõltumatu) ─────────────────────── */
+    :root {
+      --kuld: #C8A347;
+      --sinine: #2563EB;
+      --sinine-hover: #1D4ED8;
+      --roheline: #12A66A;
+      --oranz: #E59A16;
+      --punane: #DC4C4C;
+      --radius-kaart: 10px;
+      --radius-nupp: 8px;
     }
 
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--tekst); transition: background 0.3s, color 0.3s; }
+    /* ── TEEMAD (ainult 2: hele + tume) ──────────────────────── */
+    body.teema-valge {
+      --bg: #F5F6F8;
+      --bg2: #FFFFFF;
+      --bg3: #E9EBEF;
+      --sidebar-bg: #F0F1F4;
+      --piir: #E5E7EB;
+      --piir2: #E5E7EB;
+      --piir3: #EEEFF2;
+      --tekst: #17191C;
+      --tekst2: #33363B;
+      --tekst3: #565A61;
+      --hall: #72777F;
+      --sisend-bg: #FFFFFF;
+      --sisend-piir: #E5E7EB;
+      --tab-bg: #FFFFFF;
+      --tab-piir: #E5E7EB;
+    }
+    body.teema-tume {
+      --bg: #0F1115;
+      --bg2: #181C23;
+      --bg3: #21262F;
+      --sidebar-bg: #12151B;
+      --piir: #292F39;
+      --piir2: #252A33;
+      --piir3: #21252D;
+      --tekst: #F4F5F7;
+      --tekst2: #D7DAE0;
+      --tekst3: #A7ADB7;
+      --hall: #8E96A3;
+      --sisend-bg: #12151B;
+      --sisend-piir: #292F39;
+      --tab-bg: #12151B;
+      --tab-piir: #292F39;
+    }
+
+    body { font-family: 'Manrope', Inter, Arial, sans-serif; font-weight: 400; background: var(--bg); color: var(--tekst); transition: background 0.3s, color 0.3s; }
     .header { background: var(--bg2); border-bottom: 0.5px solid var(--piir); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
     .brand { display: flex; align-items: center; gap: 10px; }
-    .brand-logo { width: 30px; height: 30px; background: linear-gradient(135deg, #a855f7, #d8b4fe); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
-    .brand-name { font-size: 13px; font-weight: 700; color: #a855f7; }
+    .brand-logo { width: 30px; height: 30px; background: linear-gradient(135deg, #2563eb, #60a5fa); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .brand-name { font-size: 13px; font-weight: 700; color: #2563eb; }
     .brand-sub { font-size: 10px; color: var(--hall); }
 
     /* Header paremal: teema nupud + logi välja */
@@ -69,32 +70,31 @@
     .teema-nupud { display: flex; gap: 4px; background: var(--bg3); border: 0.5px solid var(--piir); border-radius: 8px; padding: 3px; }
     .teema-nupp { width: 24px; height: 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; }
     .teema-nupp:hover { transform: scale(1.1); }
-    .teema-nupp.ak { box-shadow: 0 0 0 2px #a855f7; }
-    .teema-nupp.tume { background: #0d0f13; }
-    .teema-nupp.valge { background: #f0f2f5; }
-    .teema-nupp.sinine { background: #0a1628; }
+    .teema-nupp.ak { box-shadow: 0 0 0 2px var(--sinine); }
+    .teema-nupp.tume { background: #0F1115; }
+    .teema-nupp.valge { background: #F5F6F8; }
 
     .logout { font-size: 11px; color: var(--hall); background: none; border: 0.5px solid var(--sisend-piir); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
     .logout:hover { border-color: #ef4444; color: #ef4444; }
     /* ── KÜLGMENÜÜ LAYOUT ────────────────────────────────────────── */
     .app-layout { display: flex; min-height: 100vh; }
-    .sidebar { width: 236px; flex-shrink: 0; background: var(--bg2); border-right: 0.5px solid var(--piir); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    .sidebar { width: 236px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 0.5px solid var(--piir); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
     .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 16px; border-bottom: 0.5px solid var(--piir2); flex-shrink: 0; }
     .sidebar-brand-sub { font-size: 10px; color: var(--hall); text-transform: uppercase; letter-spacing: 1px; }
     .sidebar-footer { margin-top: auto; padding: 14px; border-top: 0.5px solid var(--piir2); display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
     .sidebar-footer .teema-nupud { justify-content: center; }
     .main-area { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar { background: var(--bg2); border-bottom: 0.5px solid var(--piir); padding: 0 24px; height: 56px; display: flex; align-items: center; flex-shrink: 0; }
-    .topbar-title { font-size: 16px; font-weight: 700; color: var(--tekst); }
+    .topbar-title { font-size: 16px; font-weight: 600; color: var(--tekst); }
     .stat-kaardid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
-    .stat-kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; padding: 16px 18px; }
+    .stat-kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); padding: 16px 18px; }
     .stat-kaart-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); font-weight: 700; margin-bottom: 10px; }
-    .stat-kaart-val { font-size: 24px; font-weight: 800; color: var(--tekst); }
+    .stat-kaart-val { font-size: 24px; font-weight: 700; color: var(--tekst); }
     .stat-kaart-sub { font-size: 11px; color: var(--hall); margin-top: 4px; }
     @media (max-width: 720px) { .stat-kaardid { grid-template-columns: repeat(2, 1fr); } }
 
     .tootaja-ulevaade-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-    .tootaja-ulevaade-kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-left: 3px solid transparent; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.15s; }
+    .tootaja-ulevaade-kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-left: 3px solid transparent; border-radius: var(--radius-kaart); padding: 12px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.15s; }
     .tootaja-ulevaade-kaart:hover { background: var(--bg3); }
     .tootaja-ulevaade-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
     .tootaja-ulevaade-nimi { font-size: 12px; font-weight: 600; color: var(--tekst2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -103,7 +103,7 @@
     .konteiner { max-width: 1100px; margin: 0; padding: 20px 24px 40px; }
     .tabid { display: flex; flex-direction: column; gap: 2px; padding: 10px; flex: 1; overflow-y: auto; }
     .tab { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); transition: all 0.15s; border: none; background: none; text-align: left; width: 100%; }
-    .tab.ak { background: #a855f7; color: #ffffff; font-weight: 700; }
+    .tab.ak { background: var(--sinine); color: #ffffff; font-weight: 600; }
     .tab:hover:not(.ak) { background: var(--bg3); color: var(--tekst); }
     .tab-passiivne:not(.ak) { opacity: 0.6; }
     .sidebar-nav-label { padding: 14px 14px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); display: flex; align-items: baseline; gap: 6px; }
@@ -121,16 +121,16 @@
     /* X-seeria võistluste valik — suured ruudulised pildikaardid pelga nupu asemel */
     .xs-event-grid { display: flex; gap: 14px; flex-wrap: wrap; }
     .xs-event-tile { position: relative; width: 150px; height: 150px; border-radius: 14px; overflow: hidden; cursor: pointer; background: linear-gradient(135deg, #2a1a45, #1a1030); border: 2px solid var(--piir); flex-shrink: 0; }
-    .xs-event-tile.ak { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168,85,247,0.35); }
+    .xs-event-tile.ak { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.35); }
     .xs-event-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .xs-event-tile-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 40px; opacity: 0.5; }
     .xs-event-tile-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 10px 8px; background: linear-gradient(to top, rgba(0,0,0,0.85), transparent); }
     .xs-event-tile-nimi { font-size: 12px; font-weight: 700; color: #fff; line-height: 1.25; }
     .xs-event-tile-kp { font-size: 10px; color: rgba(255,255,255,0.75); margin-top: 2px; }
     .xs-event-tile-foto-nupp { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(13,15,19,0.75); border: none; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; color: #fff; }
-    .xs-event-tile-foto-nupp:hover { background: rgba(168,85,247,0.85); }
+    .xs-event-tile-foto-nupp:hover { background: rgba(37,99,235,0.85); }
     .xs-event-tile-uus { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: var(--bg3); border: 2px dashed var(--sisend-piir); color: var(--hall); font-size: 12px; font-weight: 600; }
-    .xs-event-tile-uus:hover { border-color: #a855f7; color: #a855f7; }
+    .xs-event-tile-uus:hover { border-color: #2563eb; color: #2563eb; }
     .sektsioon { display: none; }
     .sektsioon.nhtav { display: block; }
     @media (max-width: 860px) {
@@ -141,7 +141,7 @@
       .tab { white-space: nowrap; }
       .sidebar-footer { margin-top: 0; margin-left: auto; border-top: none; flex-direction: row; flex-shrink: 0; }
     }
-    .kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+    .kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); overflow: hidden; margin-bottom: 16px; }
     .kaart-hdr { padding: 14px 18px; border-bottom: 0.5px solid var(--piir2); font-size: 14px; font-weight: 600; color: var(--tekst2); }
     .kaart-body { padding: 16px 18px; }
     .vorm-rida { display: grid; gap: 10px; margin-bottom: 12px; }
@@ -150,25 +150,29 @@
     .vorm-rida.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
     .vorm-grupp { display: flex; flex-direction: column; gap: 5px; }
     .vorm-grupp label { font-size: 11px; color: var(--hall); text-transform: uppercase; letter-spacing: 0.8px; }
-    input, select, textarea { background: var(--sisend-bg); border: 0.5px solid var(--sisend-piir); border-radius: 8px; padding: 9px 12px; color: var(--tekst); font-size: 14px; width: 100%; outline: none; font-family: inherit; }
-    input:focus, select:focus { border-color: #a855f7; }
-    .nupp { border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .nupp.kull { background: #a855f7; color: #ffffff; }
-    .nupp.roheline { background: #16a34a; color: #fff; }
-    .nupp.punane { background: #dc2626; color: #fff; font-size: 12px; padding: 5px 10px; }
+    input, select, textarea { background: var(--sisend-bg); border: 0.5px solid var(--sisend-piir); border-radius: var(--radius-nupp); padding: 9px 12px; color: var(--tekst); font-size: 14px; width: 100%; outline: none; font-family: inherit; }
+    input:focus, select:focus { border-color: var(--sinine); }
+    .nupp { border: none; border-radius: var(--radius-nupp); padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .nupp.kull { background: var(--sinine); color: #ffffff; }
+    .nupp.kull:hover { background: var(--sinine-hover); }
+    .nupp.roheline { background: var(--roheline); color: #fff; }
+    .nupp.punane { background: var(--punane); color: #fff; font-size: 12px; padding: 5px 10px; }
     .nupp.hall { background: var(--sisend-piir); color: var(--tekst3); }
+    .nupp.outline { background: none; border: 0.5px solid var(--sisend-piir); color: var(--tekst2); }
+    .nupp.outline:hover { border-color: var(--hall); }
     .nupp.kustuta-tootaja { background: #3d0a0a; border: 0.5px solid #6b1010; color: #ef4444; font-size: 12px; padding: 6px 12px; }
     .nupp.kustuta-tootaja:hover { background: #5a1010; }
     .teade { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 10px; display: none; }
     .teade.ok { background: #14532d; color: #86efac; }
     .teade.viga { background: #7f1d1d; color: #fca5a5; }
     table { width: 100%; border-collapse: collapse; }
-    th { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); padding: 10px 12px; text-align: left; border-bottom: 0.5px solid var(--piir2); }
-    td { padding: 10px 12px; font-size: 13px; border-bottom: 0.5px solid var(--piir3); vertical-align: middle; color: var(--tekst); }
+    th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); padding: 10px 12px; text-align: left; border-bottom: 0.5px solid var(--piir2); }
+    td { padding: 10px 12px; font-size: 13px; font-weight: 500; border-bottom: 0.5px solid var(--piir3); vertical-align: middle; color: var(--tekst); }
     tr:last-child td { border-bottom: none; }
     .kuu-rida { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
     .kuu-rida select { width: auto; }
-    .raport-nupp { background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+    .raport-nupp { background: none; color: var(--tekst2); border: 0.5px solid var(--sisend-piir); border-radius: var(--radius-nupp); padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; transition: border-color 0.15s; }
+    .raport-nupp:hover { border-color: var(--hall); }
     .ettevote-rida { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; background: var(--bg3); border: 0.5px solid var(--piir3); transition: border-color 0.15s; }
     .ettevote-rida:last-child { margin-bottom: 0; }
     .ettevote-rida:hover { border-color: var(--sisend-piir); }
@@ -181,18 +185,18 @@
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
     .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--sisend-piir); border-radius: 22px; transition: 0.2s; }
     .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.2s; }
-    .toggle-switch input:checked + .toggle-slider { background: #a855f7; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--sinine); }
     .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); }
     .tootaja-kompakt { border-bottom: 0.5px solid var(--piir2); }
     .tootaja-rida { display: flex; align-items: center; gap: 10px; padding: 10px 18px; cursor: pointer; transition: background 0.15s; }
     .tootaja-rida:hover { background: rgba(255,255,255,0.02); }
-    .tootaja-avatar { width: 34px; height: 34px; background: var(--bg3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #a855f7; flex-shrink: 0; }
+    .tootaja-avatar { width: 34px; height: 34px; background: var(--bg3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #2563eb; flex-shrink: 0; }
     .tootaja-detail { display: none; padding: 12px 18px 16px; background: rgba(0,0,0,0.1); border-top: 0.5px solid var(--piir2); }
     .tootaja-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px; }
     .tootaja-modal-overlay.avatud { display: flex; }
-    .tootaja-modal-sisu { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 16px; width: 100%; max-width: 680px; margin: auto; overflow: hidden; }
+    .tootaja-modal-sisu { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); width: 100%; max-width: 680px; margin: auto; overflow: hidden; }
     .tm-hdr { padding: 20px 24px 16px; border-bottom: 0.5px solid var(--piir2); display: flex; align-items: center; gap: 14px; }
-    .tm-avatar { width: 44px; height: 44px; background: var(--bg3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #a855f7; flex-shrink: 0; }
+    .tm-avatar { width: 44px; height: 44px; background: var(--bg3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #2563eb; flex-shrink: 0; }
     .tm-sulge { margin-left: auto; background: none; border: none; color: var(--hall); font-size: 20px; cursor: pointer; padding: 4px; }
     .tm-sulge:hover { color: var(--tekst3); }
     .tm-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--piir2); border-bottom: 0.5px solid var(--piir2); }
@@ -288,8 +292,7 @@
     <div class="sidebar-footer">
       <div class="teema-nupud">
         <button class="teema-nupp tume ak" onclick="setTeema('tume')" title="Tume">🌙</button>
-        <button class="teema-nupp valge" onclick="setTeema('valge')" title="Valge">☀️</button>
-        <button class="teema-nupp sinine" onclick="setTeema('sinine')" title="Sinine">🌊</button>
+        <button class="teema-nupp valge" onclick="setTeema('valge')" title="Hele">☀️</button>
       </div>
       <button class="logout" onclick="välju()">Logi välja</button>
     </div>
@@ -302,23 +305,23 @@
   <div class="sektsioon nhtav" id="tab0">
     <div class="stat-kaardid" id="stat-kaardid">
       <div class="stat-kaart">
-        <div class="stat-kaart-label">👷 Töötajaid</div>
+        <div class="stat-kaart-label">👷 Töötajad</div>
         <div class="stat-kaart-val" id="stat-tootajaid">—</div>
         <div class="stat-kaart-sub" id="stat-tootajaid-sub">&nbsp;</div>
       </div>
       <div class="stat-kaart">
-        <div class="stat-kaart-label">⏱ Kuu tunnid</div>
-        <div class="stat-kaart-val" id="stat-tunnid" style="color:#5b9cf6">—</div>
+        <div class="stat-kaart-label">⏱ Töötunnid</div>
+        <div class="stat-kaart-val" id="stat-tunnid" style="color:var(--sinine)">—</div>
         <div class="stat-kaart-sub" id="stat-tunnid-sub">&nbsp;</div>
       </div>
       <div class="stat-kaart">
         <div class="stat-kaart-label">💶 Teenitud</div>
-        <div class="stat-kaart-val" id="stat-teenitud" style="color:#4ade80">—</div>
+        <div class="stat-kaart-val" id="stat-teenitud" style="color:var(--roheline)">—</div>
         <div class="stat-kaart-sub" id="stat-teenitud-sub">koos kuludega</div>
       </div>
       <div class="stat-kaart">
-        <div class="stat-kaart-label">📉 Võlgu</div>
-        <div class="stat-kaart-val" id="stat-volgu">—</div>
+        <div class="stat-kaart-label">📉 Tasumata</div>
+        <div class="stat-kaart-val" id="stat-volgu" style="color:var(--oranz)">—</div>
         <div class="stat-kaart-sub" id="stat-volgu-sub">&nbsp;</div>
       </div>
     </div>
@@ -389,7 +392,7 @@
     </div>
   </div>
   <div class="sektsioon" id="tab3">
-    <div id="obj-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(168,85,247,0.12);border:0.5px solid rgba(168,85,247,0.3);border-radius:8px;font-size:12px;color:#a855f7;font-weight:600"></div>
+    <div id="obj-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(37,99,235,0.12);border:0.5px solid rgba(37,99,235,0.3);border-radius:8px;font-size:12px;color:#2563eb;font-weight:600"></div>
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa objekt</div>
       <div class="kaart-body">
@@ -407,7 +410,7 @@
     </div>
   </div>
   <div class="sektsioon" id="tab4">
-    <div id="tt-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(168,85,247,0.12);border:0.5px solid rgba(168,85,247,0.3);border-radius:8px;font-size:12px;color:#a855f7;font-weight:600"></div>
+    <div id="tt-kontekst-teade" style="display:none;margin-bottom:14px;padding:8px 14px;background:rgba(37,99,235,0.12);border:0.5px solid rgba(37,99,235,0.3);border-radius:8px;font-size:12px;color:#2563eb;font-weight:600"></div>
     <div class="kaart">
       <div class="kaart-hdr">➕ Lisa tulevane töö</div>
       <div class="kaart-body">
@@ -509,9 +512,9 @@
     .tootajad-paneel-hdr { padding: 12px 14px; border-bottom: 0.5px solid var(--piir2); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); }
     .tootaja-kaart { padding: 10px 14px; border-bottom: 0.5px solid var(--piir3); cursor: grab; user-select: none; transition: background 0.15s; display: flex; align-items: center; gap: 8px; }
     .tootaja-kaart:last-child { border-bottom: none; }
-    .tootaja-kaart:hover { background: rgba(168,85,247,0.08); }
+    .tootaja-kaart:hover { background: rgba(37,99,235,0.08); }
     .tootaja-kaart.lohistatakse { opacity: 0.4; cursor: grabbing; }
-    .tootaja-kaart-avatar { width: 28px; height: 28px; background: linear-gradient(135deg, #a855f7, #d8b4fe); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
+    .tootaja-kaart-avatar { width: 28px; height: 28px; background: linear-gradient(135deg, #2563eb, #60a5fa); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
     .tootaja-kaart-nimi { font-size: 12px; font-weight: 600; color: var(--tekst2); }
     .tootaja-kaart-tunnid { font-size: 10px; color: var(--hall); margin-top: 1px; }
 
@@ -521,7 +524,7 @@
     .default-kellaaeg-rida { padding: 7px 14px; border-bottom: 0.5px solid var(--piir3); font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
     .default-kellaaeg-rida:last-child { border-bottom: none; }
     .default-kellaaeg-label { color: var(--hall); }
-    .default-kellaaeg-aeg { color: #a855f7; font-weight: 600; font-family: monospace; font-size: 11px; }
+    .default-kellaaeg-aeg { color: #2563eb; font-weight: 600; font-family: monospace; font-size: 11px; }
 
     /* Kalender */
     .kalender-paneel { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; overflow: hidden; }
@@ -532,10 +535,10 @@
     
     .kalender-rakk { min-height: 90px; border-right: 0.5px solid var(--piir3); border-bottom: 0.5px solid var(--piir3); padding: 4px; position: relative; transition: background 0.15s; vertical-align: top; }
     .kalender-rakk:nth-child(7n) { border-right: none; }
-    .kalender-rakk.tana { background: rgba(168,85,247,0.05); }
-    .kalender-rakk.tana .rakk-nr { color: #a855f7; }
+    .kalender-rakk.tana { background: rgba(37,99,235,0.05); }
+    .kalender-rakk.tana .rakk-nr { color: #2563eb; }
     .kalender-rakk.tyyhi { background: var(--bg3); opacity: 0.4; }
-    .kalender-rakk.lohistatakse-ule { background: rgba(168,85,247,0.12); border: 1px dashed #a855f7; }
+    .kalender-rakk.lohistatakse-ule { background: rgba(37,99,235,0.12); border: 1px dashed #2563eb; }
     .kalender-rakk.nadalaloppupaev { background: rgba(91,156,246,0.03); }
     .kalender-rakk.suletud { background: rgba(239,68,68,0.05); }
     .kalender-rakk.suuryritus { background: rgba(30,58,95,0.5); }
@@ -543,10 +546,10 @@
 
     .rakk-nr { font-size: 11px; font-weight: 700; color: var(--tekst3); margin-bottom: 3px; padding: 1px 3px; }
     .rakk-staatus { font-size: 9px; color: var(--hall); margin-bottom: 3px; }
-    .rakk-vahetus { background: rgba(168,85,247,0.15); border: 0.5px solid rgba(168,85,247,0.3); border-radius: 4px; padding: 2px 5px; margin-bottom: 2px; font-size: 10px; color: #a855f7; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 3px; }
-    .rakk-vahetus:hover { background: rgba(168,85,247,0.25); }
+    .rakk-vahetus { background: rgba(37,99,235,0.15); border: 0.5px solid rgba(37,99,235,0.3); border-radius: 4px; padding: 2px 5px; margin-bottom: 2px; font-size: 10px; color: #2563eb; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 3px; }
+    .rakk-vahetus:hover { background: rgba(37,99,235,0.25); }
     .rakk-vahetus-nimi { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-    .rakk-vahetus-aeg { font-size: 9px; color: rgba(168,85,247,0.7); white-space: nowrap; }
+    .rakk-vahetus-aeg { font-size: 9px; color: rgba(37,99,235,0.7); white-space: nowrap; }
     .rakk-vahetus-kustuta { color: rgba(239,68,68,0.6); font-size: 10px; padding: 0 1px; flex-shrink: 0; }
     .rakk-vahetus-kustuta:hover { color: #ef4444; }
 
@@ -556,7 +559,7 @@
     .kokkuvote-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1px; background: var(--piir2); }
     .kokkuvote-kaart { background: var(--bg2); padding: 12px 16px; }
     .kokkuvote-nimi { font-size: 12px; font-weight: 600; color: var(--tekst2); margin-bottom: 4px; }
-    .kokkuvote-tunnid { font-size: 20px; font-weight: 700; color: #a855f7; }
+    .kokkuvote-tunnid { font-size: 20px; font-weight: 700; color: #2563eb; }
     .kokkuvote-vahetused { font-size: 10px; color: var(--hall); margin-top: 2px; }
 
     /* Muuda vahetus modal */
@@ -579,7 +582,7 @@
         <select id="g-admin-aasta" style="width:auto"></select>
         <button class="nupp kull" onclick="laadiAdminGraafik()">Näita</button>
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button onclick="setGraafikVaade('kalender')" id="vaade-kalender" style="background:#a855f7;color:#ffffff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">📅 Lohistusvaade</button>
+          <button onclick="setGraafikVaade('kalender')" id="vaade-kalender" style="background:#2563eb;color:#ffffff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">📅 Lohistusvaade</button>
           <button onclick="setGraafikVaade('nimekiri')" id="vaade-nimekiri" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">☰ Nimekiri</button>
         </div>
       </div>
@@ -601,7 +604,7 @@
         <div class="default-kellaaeg-paneel">
           <div class="default-kellaaeg-hdr">
             <span>⏰ Default kellaaeg</span>
-            <button onclick="toggleDefaultEdit()" style="background:none;border:none;color:#a855f7;font-size:11px;cursor:pointer" id="default-edit-nupp">✏️ Muuda</button>
+            <button onclick="toggleDefaultEdit()" style="background:none;border:none;color:#2563eb;font-size:11px;cursor:pointer" id="default-edit-nupp">✏️ Muuda</button>
           </div>
           <div id="default-kellaaeg-kuvamine">
             <div class="default-kellaaeg-rida"><span class="default-kellaaeg-label">E–R</span><span class="default-kellaaeg-aeg" id="def-er-kuvamine">11:00–21:00</span></div>
@@ -630,7 +633,7 @@
                 <input type="time" id="def-p-lopp" value="20:00" style="flex:1;font-size:12px;padding:5px 8px">
               </div>
             </div>
-            <button onclick="salvestaDefaultKellaaeg()" style="background:#a855f7;color:#ffffff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;width:100%">Salvesta</button>
+            <button onclick="salvestaDefaultKellaaeg()" style="background:#2563eb;color:#ffffff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;width:100%">Salvesta</button>
           </div>
         </div>
       </div>
@@ -741,7 +744,7 @@
       <input type="text" id="mv2-markus" placeholder="vabatahtlik" style="width:100%">
     </div>
     <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuudaVahetus2()" style="flex:1;background:#a855f7;color:#ffffff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="salvestaMuudaVahetus2()" style="flex:1;background:#2563eb;color:#ffffff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">Salvesta</button>
       <button onclick="document.getElementById('muudaVahetusModal2').classList.remove('avatud')" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:10px 16px;font-size:13px;cursor:pointer">Tühista</button>
     </div>
   </div>
@@ -825,14 +828,14 @@ function setGraafikVaade(vaade) {
   if (vaade === 'kalender') {
     kalenterVaade && (kalenderVaade.style.display = 'block');
     nimekirjaVaade && (nimekirjaVaade.style.display = 'none');
-    kalBtn.style.background = '#a855f7'; kalBtn.style.color = '#ffffff';
+    kalBtn.style.background = '#2563eb'; kalBtn.style.color = '#ffffff';
     nimBtn.style.background = 'var(--sisend-piir)'; nimBtn.style.color = 'var(--tekst3)';
     uuendaDefaultKuvamine();
   } else {
     kalenderVaade && (kalenderVaade.style.display = 'none');
     nimekirjaVaade && (nimekirjaVaade.style.display = 'block');
     kalBtn.style.background = 'var(--sisend-piir)'; kalBtn.style.color = 'var(--tekst3)';
-    nimBtn.style.background = '#a855f7'; nimBtn.style.color = '#ffffff';
+    nimBtn.style.background = '#2563eb'; nimBtn.style.color = '#ffffff';
     if (graafikKuuAndmed) kuvaNimekirja(graafikKuuAndmed);
   }
 }
@@ -1491,7 +1494,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Päris kulud selle võistluse jaoks — lisa iga ost (toode, kogus, hind), et pärast üritust näha kokkuvõtvat summat. Nähtav ainult adminnile.</div>
         <div id="xs-kulu-kokku-box" style="background:var(--bg3);border:0.5px solid var(--sisend-piir);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:13px;color:var(--tekst3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Kokku kulud</span>
-          <span id="xs-kulu-kokku-summa" style="font-size:26px;font-weight:800;color:#a855f7">0,00 €</span>
+          <span id="xs-kulu-kokku-summa" style="font-size:26px;font-weight:800;color:#2563eb">0,00 €</span>
         </div>
         <div class="vorm-rida col4">
           <div class="vorm-grupp" style="grid-column:span 2"><label>Toode</label><input id="xs-kulu-toode" placeholder="Bännerid"></div>
@@ -1930,10 +1933,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <button class="tm-sulge" onclick="sulgeTootajaModal()">✕</button>
     </div>
     <div class="tm-stats">
-      <div class="tm-stat"><div class="tm-stat-n">Tunnid</div><div class="tm-stat-v" style="color:#5b9cf6" id="tm-tunnid">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Teenitud</div><div class="tm-stat-v" style="color:#4ade80" id="tm-teenitud">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Makstud</div><div class="tm-stat-v" style="color:#888" id="tm-makstud">—</div></div>
-      <div class="tm-stat"><div class="tm-stat-n">Saada veel</div><div class="tm-stat-v" id="tm-saada">—</div></div>
+      <div class="tm-stat"><div class="tm-stat-n">Tunnid</div><div class="tm-stat-v" style="color:var(--sinine)" id="tm-tunnid">—</div></div>
+      <div class="tm-stat"><div class="tm-stat-n">Teenitud</div><div class="tm-stat-v" style="color:var(--roheline)" id="tm-teenitud">—</div></div>
+      <div class="tm-stat"><div class="tm-stat-n">Makstud</div><div class="tm-stat-v" style="color:var(--hall)" id="tm-makstud">—</div></div>
+      <div class="tm-stat"><div class="tm-stat-n">Saldo</div><div class="tm-stat-v" id="tm-saada">—</div></div>
     </div>
     <div class="tm-sektsioon">
       <div class="tm-sektsioon-pealkiri">Ettevõttepõhine jaotus</div>
@@ -1967,7 +1970,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
     <div style="margin-bottom:20px"><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Kirjeldus</label><input type="text" id="mt-kirjeldus"></div>
     <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaTulevane()" style="flex:1;background:#a855f7;color:#ffffff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="salvestaMuutaTulevane()" style="flex:1;background:#2563eb;color:#ffffff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
       <button onclick="document.getElementById('muutaTulevaneModal').style.display='none'" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
     </div>
   </div>
@@ -2005,7 +2008,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
     <div style="margin-bottom:20px"><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Kommentaar</label><input type="text" id="muuta-komm"></div>
     <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaKirje()" style="flex:1;background:#a855f7;color:#ffffff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
+      <button onclick="salvestaMuutaKirje()" style="flex:1;background:#2563eb;color:#ffffff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
       <button onclick="document.getElementById('muutaModal').style.display='none'" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
     </div>
   </div>
@@ -2037,7 +2040,10 @@ function setTeema(teema) {
   if (ak) ak.classList.add('ak');
 }
 (function() {
-  const salvestatud = localStorage.getItem('adminTeema') || 'tume';
+  // Ainult 2 teemat on nüüd toetatud (hele/tume) — vana salvestatud 'sinine' teema
+  // (kolmas, eemaldatud variant) asendub vaikimisi tumeda teemaga.
+  let salvestatud = localStorage.getItem('adminTeema') || 'tume';
+  if (salvestatud !== 'tume' && salvestatud !== 'valge') salvestatud = 'tume';
   setTeema(salvestatud);
 })();
 
@@ -2494,17 +2500,17 @@ async function laadiKokkuvote() {
   kuvaTootajaKaardid(andmed);
   if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:var(--hall)">Selle kuu kirjeid pole</div>'; uuendaStatKaardid([], kuu, aasta, 0, 0, 0); return; }
   let kokku_tunnid=0, kokku_teenitud=0, kokku_makstud=0;
-  let html = `<div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:12px;overflow:hidden;margin-bottom:16px">
+  let html = `<div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:var(--radius-kaart);overflow:hidden;margin-bottom:16px">
     <table><thead><tr style="border-bottom:0.5px solid var(--piir2)">
       <th>Töötaja</th><th style="text-align:right">Tunnid</th><th style="text-align:right">Teenitud</th>
-      <th style="text-align:right">Kulud</th><th style="text-align:right">Makstud</th><th style="text-align:right">Saada veel</th><th></th>
+      <th style="text-align:right">Kulud</th><th style="text-align:right">Makstud</th><th style="text-align:right">Saldo</th><th></th>
     </tr></thead><tbody>`;
   andmed.forEach(w => {
     const tunnid=parseFloat(w.tunnid), teenitud=parseFloat(w.teenitud), makstud=parseFloat(w.makstud), saada=parseFloat(w.saadaVeel);
     const edgf=parseFloat(w.edgf||0), lisakulu=parseFloat(w.lisakulu||0), xseeria=parseFloat(w.xseeria||0), kulud=edgf+lisakulu+xseeria, kogusumma=parseFloat(w.kogusumma||w.teenitud);
     kokku_tunnid+=tunnid; kokku_teenitud+=kogusumma; kokku_makstud+=makstud;
     html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
-      <td style="font-weight:600;cursor:pointer;color:${tunnid>0||kulud>0?'#a855f7':'var(--hall)'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
+      <td style="font-weight:600;cursor:pointer;color:${tunnid>0||kulud>0?'#2563eb':'var(--hall)'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
         ${tunnid>0||kulud>0?'👷':'·'} ${w.nimi}
       </td>
       <td style="text-align:right;color:#5b9cf6">${tunnid>0?tunnid.toFixed(1)+' h':'—'}</td>
@@ -2526,13 +2532,13 @@ async function laadiKokkuvote() {
           <span style="color:var(--tekst3)">${k.ettevote_nimi}</span>
           <span style="color:var(--hall)">${k.objekt_nimi||'—'}</span>
           <span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
-          <span style="color:#a855f7;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
+          <span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
           ${muudetud?`<span style="color:#fbbf24;font-size:10px;font-weight:700;white-space:nowrap">✏️ MUUDETUD</span>`:''}
           ${k.ettevote_tyyp==='muu'?`<span style="display:flex;align-items:center;gap:4px">
             <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
-              style="width:60px;padding:2px 5px;font-size:11px;background:var(--bg2);border:0.5px solid ${k.muu_tunnitasu?'#a855f7':'var(--sisend-piir)'};border-radius:4px;color:var(--tekst)"
+              style="width:60px;padding:2px 5px;font-size:11px;background:var(--bg2);border:0.5px solid ${k.muu_tunnitasu?'#2563eb':'var(--sisend-piir)'};border-radius:4px;color:var(--tekst)"
               id="muu-tasu-${k.id}">
-            <button onclick="salvestaMuuTasu(${k.id})" style="background:#a855f7;border:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:#ffffff;cursor:pointer">✓</button>
+            <button onclick="salvestaMuuTasu(${k.id})" style="background:#2563eb;border:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;color:#ffffff;cursor:pointer">✓</button>
           </span>`:`<span style="color:var(--hall)">${k.tunnitasu}€/h</span>`}
           <button onclick='avaaMuutaModal(${JSON.stringify(k)})' style="background:#1a3550;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer">✏️</button>
           <button onclick="adminKustutaKirje(${k.id})" style="background:#3d0a0a;border:none;border-radius:4px;padding:2px 6px;font-size:11px;cursor:pointer">🗑</button>
@@ -2653,7 +2659,7 @@ async function avaTootajaModal(workerId, workerNimi) {
       const rowStyle = muudetud ? ' style="background:rgba(251,191,36,0.14);border-left:3px solid #fbbf24"' : '';
       const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')}"` : '';
       const muudetudBadge = muudetud ? `<span style="color:#fbbf24;font-size:9px;font-weight:700;white-space:nowrap">✏️ MUUDETUD</span>` : '';
-      return `<div class="tm-kirje-rida"${rowStyle}${muudetudTitle}><span style="color:var(--hall);min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span><span style="color:var(--tekst3)">${k.objekt_nimi || '—'}</span><span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#a855f7;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>${muudetudBadge}<span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
+      return `<div class="tm-kirje-rida"${rowStyle}${muudetudTitle}><span style="color:var(--hall);min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span><span style="color:var(--tekst3)">${k.objekt_nimi || '—'}</span><span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>${muudetudBadge}<span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
     }).join('') : '<div style="color:var(--hall);font-size:13px">Kirjeid pole</div>';
     document.getElementById('tm-kirjed').innerHTML = kirjedHtml;
   }
@@ -2698,7 +2704,7 @@ async function laadiTootajad() {
       <div class="tootaja-rida" onclick="toggleTootajaDetail(${w.id})">
         <div class="tootaja-avatar">${w.nimi[0]}</div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'var(--tekst)':'var(--hall)'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:var(--hall)">(mitteaktiivne)</span>':''}${onXs?' <span style="font-size:10px;color:#a855f7">🥏 X-seeria</span>':''}</div>
+          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'var(--tekst)':'var(--hall)'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:var(--hall)">(mitteaktiivne)</span>':''}${onXs?' <span style="font-size:10px;color:#2563eb">🥏 X-seeria</span>':''}</div>
           <div style="font-size:11px;color:var(--hall);margin-top:2px">PIN: ${w.pin}${ettevotteNimed?' · '+ettevotteNimed:''}</div>
         </div>
         <span id="tootaja-nool-${w.id}" style="color:var(--hall);font-size:12px">▼</span>
@@ -2989,7 +2995,7 @@ async function avaaMuutaTulevane(t){
   ).map(x => x.worker_id);
 
   div.innerHTML = workers.filter(w=>w.aktiivne).map(w => `
-    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${samalPaeval.includes(w.id)?'#a855f7':'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${samalPaeval.includes(w.id)?'#2563eb':'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
       <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${samalPaeval.includes(w.id)?'checked':''}> ${w.nimi}
     </label>`).join('');
 
@@ -3228,7 +3234,7 @@ async function laadiRaportTab() {
   }
   // Töötajad
   const workers = await api('/api/admin/tootajad');
-  document.getElementById('r-workers').innerHTML = '<label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid #a855f7;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#a855f7"><input type="checkbox" id="r-koik" style="width:auto;margin:0" onchange="valiKõikTootajad(this)" checked> Kõik</label>'
+  document.getElementById('r-workers').innerHTML = '<label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid #2563eb;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:#2563eb"><input type="checkbox" id="r-koik" style="width:auto;margin:0" onchange="valiKõikTootajad(this)" checked> Kõik</label>'
     + workers.filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)"><input type="checkbox" class="r-worker" value="${w.id}" style="width:auto;margin:0" checked> ${w.nimi}</label>`).join('');
   // Kuupäevad Lidlile
   const algus = document.getElementById('r-algus');
@@ -3472,7 +3478,7 @@ async function naitaFotodEttevotted(){
 async function avaFotodEttevote(nimi){
   const div=document.getElementById('fotodSisu');
   div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
-  const tagasi=`<button onclick="naitaFotodEttevotted()" style="background:none;border:none;color:#a855f7;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:0">← Tagasi ettevõtete juurde</button>`;
+  const tagasi=`<button onclick="naitaFotodEttevotted()" style="background:none;border:none;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:0">← Tagasi ettevõtete juurde</button>`;
   const ettevoteId=ettevoteIdByNimi(nimi);
   if(!ettevoteId){div.innerHTML=tagasi+`<div style="padding:24px;text-align:center;color:var(--hall)">${nimi} kohta pole veel fotosid.</div>`;return;}
   const kirjeldusteHaldusHtml = nimi==='LIDL' ? '<div id="kristo-kirjeldused-haldus" style="margin-bottom:20px"></div>' : '';
@@ -3792,7 +3798,7 @@ function xsJoonistaAsukohaVastutajaValik(valitudIds) {
   if (!div) return;
   if (!xsTootajad.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Ühelegi töötajale pole X-seeria ligipääsu lubatud (vt "Töötajad" tab).</span>'; return; }
   div.innerHTML = xsTootajad.map(w => `
-    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#a855f7' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#2563eb' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
       <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${valitudIds.includes(w.id) ? 'checked' : ''}> ${escapeHtmlXs(w.nimi)}
     </label>`).join('');
 }
@@ -3921,9 +3927,9 @@ function xsJoonistaFotoGrid() {
     const uus = !!s.eelvaadeUrl;
     return `
       <div style="text-align:center">
-        <div style="position:relative;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);border:0.5px solid ${uus ? '#a855f7' : 'var(--sisend-piir)'};cursor:pointer" onclick="xsVahetaUksPilt(${i})">
+        <div style="position:relative;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);border:0.5px solid ${uus ? '#2563eb' : 'var(--sisend-piir)'};cursor:pointer" onclick="xsVahetaUksPilt(${i})">
           ${pilt ? `<img src="${pilt}" style="width:100%;height:100%;object-fit:cover">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--hall);font-size:11px">tühi</div>`}
-          ${uus ? `<div style="position:absolute;top:2px;right:2px;background:#a855f7;color:#ffffff;font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px">uus</div>` : ''}
+          ${uus ? `<div style="position:absolute;top:2px;right:2px;background:#2563eb;color:#ffffff;font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px">uus</div>` : ''}
           ${pilt ? `<button onclick="event.stopPropagation();xsKustutaFotoSlot(${i})" title="Eemalda pilt" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(15,17,22,0.85);color:#f87171;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">✕</button>` : ''}
         </div>
         <div style="font-size:11px;color:var(--hall);margin-top:4px">nr ${s.number}</div>
@@ -4094,7 +4100,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!zone || !input) return;
   zone.addEventListener('click', () => input.click());
   input.addEventListener('change', () => { xsFotodValitud(input.files); input.value = ''; });
-  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#a855f7'; });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#2563eb'; });
   zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
   zone.addEventListener('drop', (e) => {
     e.preventDefault();
@@ -4235,7 +4241,7 @@ function xsJoonistaTegevuseInimesteValik(valitudIds) {
   const div = document.getElementById('xs-teg-inimesed-valik');
   if (!xsTootajad.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Ühelegi töötajale pole X-seeria ligipääsu lubatud (vt "Töötajad" tab).</span>'; return; }
   div.innerHTML = xsTootajad.map(w => `
-    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#a855f7' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#2563eb' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
       <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${valitudIds.includes(w.id) ? 'checked' : ''}> ${escapeHtmlXs(w.nimi)}
     </label>`).join('');
 }
