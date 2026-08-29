@@ -687,6 +687,44 @@ async function initDB() {
       ) WHERE muuja_id IS NULL
     `);
 
+    // ── ADMINNI ARVED: mitme müüja-ettevõtte tugi ────────────────────────
+    // Varem oli müüja (Royal Paigaldus OÜ) routes/arved.js sees kõvasti kodeeritud konstant.
+    // Nüüd saab admin hallata mitut oma ettevõtet ja valida iga arve loomisel, kelle nimel arve
+    // väljastatakse — sama muster mis töötaja Minu Arved moodulis (omaarve_muujad).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS arve_muujad (
+        id SERIAL PRIMARY KEY,
+        ettevote_nimi VARCHAR(200) NOT NULL DEFAULT '',
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        pangakonto VARCHAR(50),
+        swift VARCHAR(20),
+        telefon VARCHAR(50),
+        epost VARCHAR(100),
+        logo_url TEXT,
+        logo_public_id TEXT,
+        km_kohuslane BOOLEAN NOT NULL DEFAULT true,
+        vaikimisi BOOLEAN NOT NULL DEFAULT false,
+        loodud TIMESTAMP DEFAULT NOW(),
+        uuendatud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`ALTER TABLE arve_muujad ADD COLUMN IF NOT EXISTS km_kohuslane BOOLEAN NOT NULL DEFAULT true;`);
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id);`);
+    // Ühekordne migratsioon: kui nimekiri on veel tühi, loo Royal Paigaldus OÜ esimese (vaikimisi)
+    // ettevõttena — samad andmed, mis olid varem kõvasti kodeeritud MUUJA konstandis. km_kohuslane=true,
+    // kuna kõik senised arved on alati väljastatud 24% käibemaksuga.
+    await client.query(`
+      INSERT INTO arve_muujad (ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, vaikimisi)
+      SELECT 'Royal paigaldus OÜ', 'Lai tn 14-14, Paide linn, Paide linn, 72711 Järva maakond', '16256983', 'EE102384750', 'EE602200221076951690', 'HABAEE2X', '+37258586475', 'ralf.rogov@gmail.com', true, true
+      WHERE NOT EXISTS (SELECT 1 FROM arve_muujad)
+    `);
+    // Vanad arved (enne muuja_id veeru lisamist) saavad tagantjärele viite vaikimisi ettevõttele.
+    await client.query(`
+      UPDATE arved SET muuja_id = (SELECT id FROM arve_muujad WHERE vaikimisi=true LIMIT 1) WHERE muuja_id IS NULL
+    `);
+
     // ── LIDL PROJEKTID (Kristo fotode kaustastruktuuri jaoks) ────────────
     // Varem käis Kristo vaate grupeerimine tookirjed.kommentaar vaba teksti järgi, mis fragmenteeris
     // sama tööliigi mitmeks eraldi "projektiks", kuna töötajad kirjutasid sama asja erinevalt.
