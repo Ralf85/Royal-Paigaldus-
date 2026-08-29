@@ -54,6 +54,28 @@
     .lightbox-eelmine { left: 16px; }
     .lightbox-jargmine { right: 16px; }
     .lightbox-info { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #aaa; background: rgba(0,0,0,0.5); padding: 6px 14px; border-radius: 20px; }
+    /* Kommentaarid */
+    .kaart-nupud { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .kommentaar-nupp { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 12px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+    .kommentaar-nupp:hover { border-color: #c9a84c; color: #c9a84c; }
+    .kommentaar-nupp.aktiivsed { border-color: #ef4444; color: #ef4444; font-weight: 700; }
+    .poe-kommentaar-marker { position: absolute; top: 10px; right: 12px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; border-radius: 10px; padding: 2px 6px; }
+    .poe-kaart { position: relative; }
+    .kmodal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 400; align-items: center; justify-content: center; padding: 20px; }
+    .kmodal.avatud { display: flex; }
+    .kmodal-sisu { background: #13161c; border: 0.5px solid #252830; border-radius: 14px; max-width: 480px; width: 100%; max-height: 82vh; display: flex; flex-direction: column; }
+    .kmodal-pealkiri { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 0.5px solid #252830; font-size: 14px; font-weight: 700; }
+    .kmodal-sulge { background: none; border: none; color: #aaa; font-size: 20px; cursor: pointer; line-height: 1; }
+    .kmodal-nimekiri { padding: 12px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .kmodal-tyhi { color: #7a8290; font-size: 13px; text-align: center; padding: 20px 0; }
+    .kkommentaar { background: #0d0f13; border: 0.5px solid #252830; border-radius: 10px; padding: 10px 12px; }
+    .kkommentaar-tekst { font-size: 13px; color: #e2e8f0; line-height: 1.4; }
+    .kkommentaar-meta { font-size: 11px; color: #7a8290; margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+    .kkommentaar-lahendatud { color: #4ade80; font-weight: 600; }
+    .kmodal-lisa { padding: 14px 18px; border-top: 0.5px solid #252830; display: flex; flex-direction: column; gap: 8px; }
+    .kmodal-lisa textarea { background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; color: #e2e8f0; font-family: inherit; font-size: 13px; padding: 10px; resize: vertical; min-height: 60px; }
+    .kmodal-saada { background: #FFF200; border: none; border-radius: 8px; color: #002060; font-weight: 700; font-size: 13px; padding: 9px; cursor: pointer; }
+    .kmodal-saada:hover { opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -65,7 +87,10 @@
     <div class="murr" id="murr"></div>
     <div class="toimingud-riba" id="toimingud-riba" style="display:none">
       <span class="foto-arv" id="foto-arv"></span>
-      <button class="zip-nupp" id="zip-nupp" onclick="laadiZip()">⬇ Laadi kõik ZIP-ina</button>
+      <span style="display:flex;gap:8px">
+        <button class="kommentaar-nupp" id="tase3-kommentaar-nupp" onclick="avaKommentaarid(valitudObjekt.id, valitudObjekt.nimi, valitudKirjeldus)">💬 Kommentaar</button>
+        <button class="zip-nupp" id="zip-nupp" onclick="laadiZip()">⬇ Laadi kõik ZIP-ina</button>
+      </span>
     </div>
     <div id="sisu"><div class="laadimine">Laadimine...</div></div>
   </div>
@@ -77,6 +102,20 @@
     <button class="lightbox-nool lightbox-jargmine" onclick="navigeeri(1)">›</button>
     <div class="lightbox-info" id="lightbox-info"></div>
   </div>
+  <!-- Kommentaarid -->
+  <div class="kmodal" id="kmodal">
+    <div class="kmodal-sisu">
+      <div class="kmodal-pealkiri">
+        <span id="kmodal-pealkiri-tekst">💬 Kommentaarid</span>
+        <button class="kmodal-sulge" onclick="suljeKommentaarid()">✕</button>
+      </div>
+      <div class="kmodal-nimekiri" id="kmodal-nimekiri"><div class="kmodal-tyhi">Laadimine...</div></div>
+      <div class="kmodal-lisa">
+        <textarea id="kmodal-tekst" placeholder="Kirjuta kommentaar, nt kirjelda probleemi..."></textarea>
+        <button class="kmodal-saada" onclick="saadaKommentaar()">Saada admin'ile</button>
+      </div>
+    </div>
+  </div>
   <script>
     var TOKEN = localStorage.getItem('workerToken') || '';
     var tase = 1;
@@ -84,6 +123,9 @@
     var valitudKirjeldus = null; // string
     var praegusedPildid = [];
     var suurIndeks = 0;
+    var kommentaarObjektId = null;
+    var kommentaarObjektNimi = '';
+    var kommentaarKirjeldus = '';
 
     function api(url, opts) {
       opts = opts || {};
@@ -164,10 +206,13 @@
         return;
       }
       sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
+        var kArv = parseInt(p.kommentaare_arv, 10) || 0;
         return '<div class="kaart" onclick=\'avaProjekt(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
           + '<div><div class="kaart-nimi">' + p.kirjeldus + '</div>'
           + '<div class="kaart-meta">' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
-          + '<div class="kaart-noole">›</div></div>';
+          + '<div class="kaart-nupud">'
+          + '<button class="kommentaar-nupp' + (kArv ? ' aktiivsed' : '') + '" onclick=\'event.stopPropagation(); avaKommentaarid(' + objektId + ', ' + JSON.stringify(objektNimi) + ', ' + JSON.stringify(p.kirjeldus) + ')\'>💬' + (kArv ? ' ' + kArv : '') + '</button>'
+          + '<div class="kaart-noole">›</div></div></div>';
       }).join('') + '</div>';
     }
 
@@ -197,6 +242,53 @@
       if (!valitudObjekt) return;
       var url = '/api/kristo/zip/' + valitudObjekt.id + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus || '') + '&_token=' + encodeURIComponent(TOKEN);
       window.open(url, '_blank');
+    }
+
+    // ── Kommentaarid ───────────────────────────────────────────
+    function avaKommentaarid(objektId, objektNimi, kirjeldus) {
+      kommentaarObjektId = objektId;
+      kommentaarObjektNimi = objektNimi;
+      kommentaarKirjeldus = kirjeldus;
+      document.getElementById('kmodal-pealkiri-tekst').textContent = '💬 ' + objektNimi + ' — ' + kirjeldus;
+      document.getElementById('kmodal-tekst').value = '';
+      document.getElementById('kmodal').classList.add('avatud');
+      laadiKommentaarid();
+    }
+    function suljeKommentaarid() {
+      document.getElementById('kmodal').classList.remove('avatud');
+      // Kui olime tase 2-l (projektide nimekiri), värskenda seda, et kommentaaride märgid uueneksid.
+      if (tase === 2 && valitudObjekt) avaObjekt(valitudObjekt.id, valitudObjekt.nimi, false);
+    }
+    async function laadiKommentaarid() {
+      var el = document.getElementById('kmodal-nimekiri');
+      el.innerHTML = '<div class="kmodal-tyhi">Laadimine...</div>';
+      var r = await api('/api/kristo/kommentaarid?objekt_id=' + kommentaarObjektId + '&kirjeldus=' + encodeURIComponent(kommentaarKirjeldus));
+      var list = (r.ok && r.kommentaarid) ? r.kommentaarid : [];
+      if (!list.length) {
+        el.innerHTML = '<div class="kmodal-tyhi">Kommentaare pole veel — kirjuta esimene allpool.</div>';
+        return;
+      }
+      el.innerHTML = list.map(function(k) {
+        var d = new Date(k.loodud);
+        var aeg = !isNaN(d.getTime()) ? (formatKp(k.loodud) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')) : '';
+        return '<div class="kkommentaar">'
+          + '<div class="kkommentaar-tekst">' + k.tekst.replace(/</g,'&lt;') + '</div>'
+          + '<div class="kkommentaar-meta"><span>' + aeg + '</span>'
+          + (k.lahendatud ? '<span class="kkommentaar-lahendatud">✅ Lahendatud</span>' : '<span>⏳ Ootel</span>')
+          + '</div></div>';
+      }).join('');
+    }
+    async function saadaKommentaar() {
+      var tekst = document.getElementById('kmodal-tekst').value.trim();
+      if (!tekst) return;
+      var r = await api('/api/kristo/kommentaarid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objekt_id: kommentaarObjektId, kirjeldus: kommentaarKirjeldus, tekst: tekst })
+      });
+      if (!r.ok) { alert('Viga: ' + (r.veateade || 'saatmine ebaõnnestus')); return; }
+      document.getElementById('kmodal-tekst').value = '';
+      laadiKommentaarid();
     }
 
     // ── Lightbox ───────────────────────────────────────────────
