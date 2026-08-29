@@ -16,6 +16,26 @@ function getCloudinary() {
   });
   return cloudinary;
 }
+// Müüja-ettevõtte üleslaetud logo (Cloudinary URL) toomiseks Bufferiks — pdfkit vajab Bufferit, mitte URL-i.
+function fetchImageBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const proto = url.startsWith('https:') ? https : http;
+    proto.get(url, r => {
+      const chunks = [];
+      r.on('data', c => chunks.push(c));
+      r.on('end', () => resolve(Buffer.concat(chunks)));
+      r.on('error', reject);
+    }).on('error', reject);
+  });
+}
+const uploadLogo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Ainult pildid!'));
+  }
+});
 // Cloudinary blokeerib vaikimisi PDF/ZIP-failide avaliku vaatamise "image/upload" tee kaudu (turvapiirang) —
 // see põhjustas "tühi valge leht" viga faili avamisel. Lahendus: laadi PDF-id üles resource_type='raw' all
 // (mitte 'image'/'auto'), mille peale sama piirang ei kehti. Pildid jäävad 'image' alla nagu enne.
@@ -70,19 +90,116 @@ async function noudaArvedLubatud(req, res, next) {
   }
 }
 
-// Royal Paigaldus OÜ enda (müüja) andmed — samad, mis varasematel arvetel.
-const MUUJA = {
-  nimi: 'Royal paigaldus OÜ',
-  aadress: 'Lai tn 14-14',
-  linn: 'Paide linn, Paide linn',
-  piirkond: '72711 Järva maakond',
-  rg_kood: '16256983',
-  kmkr: 'EE102384750',
-  telefon: '+37258586475',
-  epost: 'ralf.rogov@gmail.com',
-  iban: 'EE602200221076951690',
-  swift: 'HABAEE2X'
-};
+// Royal Paigaldus OÜ registrikood — kasutame seda ainult selleks, et otsustada, millal näidata
+// PDF-il vanast ajast pärit sisseehitatud logopilti (ROYAL_LOGO_B64), kui müüjal endal veel
+// Cloudinary kaudu üleslaetud logo pole (vt renderArvePdf allpool). Kõik muu müüja info tuleb
+// nüüd arve_muujad tabelist, mitte kõvasti kodeeritud konstandist.
+const ROYAL_RG_KOOD = '16256983';
+
+// ── MÜÜJA-ETTEVÕTETE HALDUS (admin saab hallata mitut oma ettevõtet) ─────
+router.get('/muujad', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM arve_muujad ORDER BY vaikimisi DESC, ettevote_nimi');
+    res.json({ ok: true, muujad: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.post('/muujad', noudaAdmin, async (req, res) => {
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane } = req.body;
+  if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
+  try {
+    const juba = await pool.query('SELECT COUNT(*) FROM arve_muujad');
+    const esimene = parseInt(juba.rows[0].count, 10) === 0;
+    const r = await pool.query(
+      `INSERT INTO arve_muujad (ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, vaikimisi)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, esimene]
+    );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/muujad/:id', noudaAdmin, async (req, res) => {
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane } = req.body;
+  if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
+  try {
+    const r = await pool.query(
+      `UPDATE arve_muujad SET ettevote_nimi=$1, aadress=$2, rg_kood=$3, kmkr=$4, pangakonto=$5, swift=$6,
+         telefon=$7, epost=$8, km_kohuslane=$9, uuendatud=NOW() WHERE id=$10`,
+      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, req.params.id]
+    );
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/muujad/:id/vaikimisi', noudaAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE arve_muujad SET vaikimisi=false');
+    const r = await client.query('UPDATE arve_muujad SET vaikimisi=true WHERE id=$1', [req.params.id]);
+    await client.query('COMMIT');
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  } finally {
+    client.release();
+  }
+});
+router.delete('/muujad/:id', noudaAdmin, async (req, res) => {
+  try {
+    const kasutusel = await pool.query('SELECT COUNT(*) FROM arved WHERE muuja_id=$1', [req.params.id]);
+    if (parseInt(kasutusel.rows[0].count, 10) > 0) {
+      return res.json({ ok: false, veateade: 'Seda ettevõtet ei saa kustutada, kuna sellega on juba arveid tehtud' });
+    }
+    const kustutatav = await pool.query('SELECT vaikimisi FROM arve_muujad WHERE id=$1', [req.params.id]);
+    if (!kustutatav.rows.length) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    await pool.query('DELETE FROM arve_muujad WHERE id=$1', [req.params.id]);
+    if (kustutatav.rows[0].vaikimisi) {
+      await pool.query(`UPDATE arve_muujad SET vaikimisi=true WHERE id = (SELECT id FROM arve_muujad ORDER BY id LIMIT 1)`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.post('/muujad/:id/logo', noudaAdmin, uploadLogo.single('logo'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  try {
+    const olemas = await pool.query('SELECT id FROM arve_muujad WHERE id=$1', [req.params.id]);
+    if (!olemas.rows.length) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    const cl = getCloudinary();
+    const uploaded = await new Promise((resolve, reject) => {
+      const stream = cl.uploader.upload_stream({ folder: 'royal-paigaldus/arve-muuja-logod', resource_type: 'image' }, (err, result) => {
+        if (err) reject(err); else resolve(result);
+      });
+      stream.end(req.file.buffer);
+    });
+    await pool.query('UPDATE arve_muujad SET logo_url=$1, logo_public_id=$2 WHERE id=$3', [uploaded.secure_url, uploaded.public_id, req.params.id]);
+    res.json({ ok: true, logo_url: uploaded.secure_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Üleslaadimine ebaõnnestus' });
+  }
+});
+router.delete('/muujad/:id/logo', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT logo_public_id FROM arve_muujad WHERE id=$1', [req.params.id]);
+    if (r.rows.length && r.rows[0].logo_public_id) {
+      try { const cl = getCloudinary(); await cl.uploader.destroy(r.rows[0].logo_public_id, { resource_type: 'image' }); } catch (e) {}
+    }
+    await pool.query('UPDATE arve_muujad SET logo_url=NULL, logo_public_id=NULL WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false });
+  }
+});
 
 // Eesti viitenumbri kontrollnumbri arvutus (7-3-1 kaalud paremalt, kontrollnumber = (10 - summa%10) % 10).
 function arveViitenumber(number) {
@@ -656,6 +773,9 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_arved.zip"`);
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.pipe(res);
+    // Valitud arved võivad olla eri müüja-ettevõtete nimel — laadi iga müüja andmed/logo ainult
+    // korra ja pane vahemällu, et sama ettevõtte pilti mitu korda uuesti alla ei laetaks.
+    const muujaCache = {};
     for (const arve of r.rows) {
       const kuupaev = String(arve.kuupaev).split('T')[0];
       const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
@@ -669,8 +789,17 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
         });
       } else {
         // Süsteemis loodud arve — genereeri PDF samast mootorist, mida kasutab üksiku arve vaade
+        if (!muujaCache[arve.muuja_id]) {
+          const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
+          const muuja = muujaR.rows[0];
+          let logoBuf = null;
+          if (muuja && muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+          muujaCache[arve.muuja_id] = { muuja, logoBuf };
+        }
+        const { muuja, logoBuf } = muujaCache[arve.muuja_id];
+        if (!muuja) continue;
         const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
-        const doc = renderArvePdf(arve, readR.rows);
+        const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
         archive.append(doc, { name: `${nimiAlus}.pdf` });
       }
     }
@@ -702,12 +831,25 @@ router.post('/', noudaAdmin, async (req, res) => {
   try {
     const {
       ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr,
-      kontaktisik, po_number, viide_tyyp, kuupaev, maksetahtaeg_paevad, algus, lopp, read
+      kontaktisik, po_number, viide_tyyp, kuupaev, maksetahtaeg_paevad, algus, lopp, read, muuja_id
     } = req.body;
     if (!ostja_nimi || !Array.isArray(read) || !read.length) {
       return res.json({ ok: false, veateade: 'Täida ostja nimi ja vähemalt üks arve rida' });
     }
     const viideTyyp = ['po', 'projekt'].includes(viide_tyyp) ? viide_tyyp : 'po';
+    let muujaR;
+    if (muuja_id) {
+      muujaR = await client.query('SELECT id, km_kohuslane FROM arve_muujad WHERE id=$1', [muuja_id]);
+    } else {
+      muujaR = await client.query('SELECT id, km_kohuslane FROM arve_muujad WHERE vaikimisi=true');
+    }
+    if (!muujaR.rows.length) {
+      return res.json({ ok: false, veateade: 'Vali enne müüja-ettevõte — halda neid "Müüjad" nupu alt' });
+    }
+    const valitudMuujaId = muujaR.rows[0].id;
+    // Käibemaks lähtub rangelt müüja-ettevõtte käibemaksukohuslase seadest — mitte vabast valikust,
+    // et vältida valesid/vastuolulisi arveid (sama loogika, mis töötaja Minu Arved moodulis).
+    const muujaKmKohuslane = muujaR.rows[0].km_kohuslane !== false;
 
     await client.query('BEGIN');
     const kp = kuupaev ? new Date(kuupaev) : new Date();
@@ -721,14 +863,14 @@ router.post('/', noudaAdmin, async (req, res) => {
     const viitenumber = arveViitenumber(number);
 
     const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-    const kaibemaksProtsent = 24;
+    const kaibemaksProtsent = muujaKmKohuslane ? 24 : 0;
     const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
     const kokku = +(summaKmTa + kaibemaks).toFixed(2);
 
     const arveR = await client.query(
-      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
-      [number, kp, tahtaeg, viitenumber, ettevote_id || null, ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', kontaktisik || '', po_number || '', viideTyyp, algus || null, lopp || null, summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, muuja_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
+      [number, kp, tahtaeg, viitenumber, ettevote_id || null, ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', kontaktisik || '', po_number || '', viideTyyp, algus || null, lopp || null, summaKmTa, kaibemaksProtsent, kaibemaks, kokku, valitudMuujaId]
     );
     const arveId = arveR.rows[0].id;
 
@@ -1050,20 +1192,24 @@ router.delete('/:id', noudaAdmin, async (req, res) => {
 });
 
 // ── PDF GENEREERIMINE (jagatud abifunktsioon — kasutab nii üksiku PDF-i vaade kui ZIP-ina allalaadimine) ──
-function renderArvePdf(arve, read) {
+function renderArvePdf(muuja, arve, read, logoBuf) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     const MARGIN = 40, PAGE_W = 595.28, CONTENT_W = PAGE_W - MARGIN * 2;
     const leftX = MARGIN, rightColX = MARGIN + 300, rightColW = CONTENT_W - 300;
 
     doc.font('Helvetica').fontSize(9).fillColor('#000');
 
-    // Logo (Royal Paigaldus) päise vasakus servas
+    // Logo päise vasakus servas — kui müüjale on Cloudinary kaudu logo üles laetud, kasutame seda;
+    // vanast ajast pärit Royal Paigaldus OÜ kirje puhul, kellel eraldi üleslaetud logo veel pole,
+    // langeme tagasi sisseehitatud pildile, et olemasolevad arved näeksid endiselt samad välja.
     let logoBottom = MARGIN;
     try {
-      const logoBuf = Buffer.from(ROYAL_LOGO_B64, 'base64');
-      const logoW = 130, logoH = logoW * 417 / 1200;
-      doc.image(logoBuf, leftX, MARGIN, { width: logoW });
-      logoBottom = MARGIN + logoH + 14;
+      const buf = logoBuf || (muuja.rg_kood === ROYAL_RG_KOOD ? Buffer.from(ROYAL_LOGO_B64, 'base64') : null);
+      if (buf) {
+        const logoW = 130;
+        doc.image(buf, leftX, MARGIN, { width: logoW, fit: [logoW, 70] });
+        logoBottom = MARGIN + 70 + 14;
+      }
     } catch (e) { /* kui logo ei laadi, jätkame ilma selleta */ }
 
     // Vasak veerg — Arve saaja
@@ -1093,12 +1239,12 @@ function renderArvePdf(arve, read) {
     paar('Viitenumber', arve.viitenumber);
     paar('Viivis', '0,05% päevas');
     ry += 8;
-    doc.font('Helvetica-Bold').fontSize(10).text(MUUJA.nimi, rightColX, ry, { width: rightColW, align: 'right' }); ry += 14;
+    doc.font('Helvetica-Bold').fontSize(10).text(muuja.ettevote_nimi, rightColX, ry, { width: rightColW, align: 'right' }); ry += 14;
     doc.font('Helvetica').fontSize(9);
-    [MUUJA.aadress, MUUJA.linn, MUUJA.piirkond].forEach(line => { doc.text(line, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; });
+    (muuja.aadress || '').split(',').filter(s => s.trim()).forEach(line => { doc.text(line.trim(), rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; });
     ry += 8;
-    doc.text('Rg-kood ' + MUUJA.rg_kood, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12;
-    doc.text('KMKR nr ' + MUUJA.kmkr, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12;
+    if (muuja.rg_kood) { doc.text('Rg-kood ' + muuja.rg_kood, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
+    if (muuja.kmkr) { doc.text('KMKR nr ' + muuja.kmkr, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
 
     y = Math.max(y, ry) + 18;
 
@@ -1156,10 +1302,10 @@ function renderArvePdf(arve, read) {
     const footY = 780;
     doc.moveTo(leftX, footY - 10).lineTo(leftX + CONTENT_W, footY - 10).strokeColor('#cccccc').stroke();
     doc.font('Helvetica').fontSize(8).fillColor('#333333');
-    doc.text('Telefon ' + MUUJA.telefon, leftX, footY);
-    doc.text('E-post ' + MUUJA.epost, leftX, footY + 11);
-    doc.text(MUUJA.nimi.toUpperCase() + '  SWIFT ' + MUUJA.swift, leftX, footY, { width: CONTENT_W, align: 'right' });
-    doc.text('IBAN ' + MUUJA.iban, leftX, footY + 11, { width: CONTENT_W, align: 'right' });
+    if (muuja.telefon) doc.text('Telefon ' + muuja.telefon, leftX, footY);
+    if (muuja.epost) doc.text('E-post ' + muuja.epost, leftX, footY + 11);
+    doc.text(muuja.ettevote_nimi.toUpperCase() + (muuja.swift ? '  SWIFT ' + muuja.swift : ''), leftX, footY, { width: CONTENT_W, align: 'right' });
+    if (muuja.pangakonto) doc.text('IBAN ' + muuja.pangakonto, leftX, footY + 11, { width: CONTENT_W, align: 'right' });
 
     doc.end();
     return doc;
@@ -1172,7 +1318,12 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
     const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
-    const doc = renderArvePdf(arve, readR.rows);
+    const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
+    const muuja = muujaR.rows[0];
+    if (!muuja) return res.status(500).send('Arve müüja-ettevõtet ei leitud');
+    let logoBuf = null;
+    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="Royal paigaldus OU Arve nr ${arve.number}.pdf"`);
     doc.pipe(res);
