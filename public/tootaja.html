@@ -531,9 +531,10 @@
           : tyyp === 'cramo'
             ? '<img src="/logos/cramo.png" alt="CRAMO" style="width:82%;height:82%;object-fit:contain">'
             : '<span>' + logo + '</span>';
+        var kuvatavNimi = e.nimi === 'MUU' ? 'MUUD OBJEKTID' : e.nimi;
         return '<a class="emp-card ' + tyyp + '" href="/tootaja-tood?ettevote=' + e.id + '">'
           + '<div class="emp-logo ' + tyyp + '">' + logoHtml + '</div>'
-          + '<div class="emp-label ' + tyyp + '">' + e.nimi + '</div>'
+          + '<div class="emp-label ' + tyyp + '">' + kuvatavNimi + '</div>'
           + '<div class="emp-tunnid">' + (tunnid > 0 ? tunnid.toFixed(1) + 'h' : '0 h') + '</div>'
           + '<div class="emp-tunnid-sub">sellel kuul</div></a>';
       }).join('')
