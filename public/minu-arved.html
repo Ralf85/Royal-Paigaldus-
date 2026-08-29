@@ -49,33 +49,43 @@
 
   <div id="sisu" style="display:none">
 
-    <!-- MINU REKVISIIDID -->
+    <!-- MINU ETTEVÕTTED -->
     <div class="kaart">
       <div class="kaart-hdr" onclick="toggleKaart('rekv-body','rekv-nool')">
-        <span>🏢 Minu ettevõtte rekvisiidid</span>
+        <span>🏢 Minu ettevõtted</span>
         <span id="rekv-nool" style="color:var(--text3);font-size:12px">▲</span>
       </div>
       <div id="rekv-body" class="kaart-body">
-        <div class="f-rida f-grupp">
-          <div><label class="f-label">Ettevõtte/enda nimi *</label><input id="r-nimi" placeholder="nt Jaan Tamm FIE"></div>
-          <div><label class="f-label">Registrikood</label><input id="r-rgkood" placeholder=""></div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Sul võib olla mitu ettevõtet (nt mitu OÜ-d) — lisa need siia ja vali arve loomisel, millise nimel arve väljastad. Käibemaksukohuslasest ettevõtte arvetele lisandub alati 24% käibemaks, mitte-kohuslasest ettevõtte arvetele alati 0%.</div>
+        <div id="muujad-nimekiri" style="margin-bottom:14px"><div class="laadimine">Laadimine...</div></div>
+        <button type="button" class="nupp hall" onclick="avaMuujaVorm()">+ Lisa ettevõte</button>
+
+        <div id="muuja-vorm" style="display:none;margin-top:16px;padding-top:16px;border-top:0.5px solid var(--border)">
+          <input type="hidden" id="mv-id">
+          <div class="f-rida f-grupp">
+            <div><label class="f-label">Ettevõtte/enda nimi *</label><input id="mv-nimi" placeholder="nt Jaan Tamm FIE"></div>
+            <div><label class="f-label">Registrikood</label><input id="mv-rgkood" placeholder=""></div>
+          </div>
+          <div class="f-grupp"><label class="f-label">Aadress</label><input id="mv-aadress" placeholder="tänav, linn, maakond, sihtnumber"></div>
+          <div class="f-rida f-grupp">
+            <div><label class="f-label">KMKR nr (kui käibemaksukohuslane)</label><input id="mv-kmkr" placeholder=""></div>
+            <div><label class="f-label">Telefon</label><input id="mv-telefon" placeholder=""></div>
+          </div>
+          <div class="f-rida f-grupp">
+            <div><label class="f-label">E-post</label><input id="mv-epost" placeholder=""></div>
+            <div><label class="f-label">Pank</label><input id="mv-pank" placeholder="nt Swedbank"></div>
+          </div>
+          <div class="f-grupp"><label class="f-label">IBAN (pangakonto)</label><input id="mv-iban" placeholder="EE..."></div>
+          <div class="f-grupp" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="mv-km-kohuslane" checked style="width:auto">
+            <label for="mv-km-kohuslane" style="font-size:13px;color:var(--text2)">Olen käibemaksukohuslane — selle ettevõtte arvetele lisandub alati 24% käibemaks (kui märkimata, alati 0%)</label>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="nupp" onclick="salvestaMuuja()">💾 Salvesta ettevõte</button>
+            <button type="button" class="nupp hall" onclick="suljeMuujaVorm()">Loobu</button>
+          </div>
+          <div id="muuja-teade" class="teade"></div>
         </div>
-        <div class="f-grupp"><label class="f-label">Aadress</label><input id="r-aadress" placeholder="tänav, linn, maakond, sihtnumber"></div>
-        <div class="f-rida f-grupp">
-          <div><label class="f-label">KMKR nr (kui käibemaksukohuslane)</label><input id="r-kmkr" placeholder=""></div>
-          <div><label class="f-label">Telefon</label><input id="r-telefon" placeholder=""></div>
-        </div>
-        <div class="f-rida f-grupp">
-          <div><label class="f-label">E-post</label><input id="r-epost" placeholder=""></div>
-          <div><label class="f-label">Pank</label><input id="r-pank" placeholder="nt Swedbank"></div>
-        </div>
-        <div class="f-grupp"><label class="f-label">IBAN (pangakonto)</label><input id="r-iban" placeholder="EE..."></div>
-        <div class="f-grupp" style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" id="r-km-kohuslane" checked style="width:auto" onchange="rKmKohuslaneMuutus()">
-          <label for="r-km-kohuslane" style="font-size:13px;color:var(--text2)">Olen käibemaksukohuslane — arvetele lisandub vaikimisi 24% käibemaks</label>
-        </div>
-        <button class="nupp" onclick="salvestaRekvisiidid()">💾 Salvesta rekvisiidid</button>
-        <div id="rekv-teade" class="teade"></div>
       </div>
     </div>
 
@@ -86,6 +96,10 @@
         <span id="uus-nool" style="color:var(--text3);font-size:12px">▲</span>
       </div>
       <div id="uus-body" class="kaart-body">
+        <div class="f-grupp" style="max-width:320px">
+          <label class="f-label">Minu ettevõte (müüja)</label>
+          <select id="s-muuja" onchange="muujaValitud()"></select>
+        </div>
         <div class="f-grupp">
           <label class="f-label">Arve saaja</label>
           <select id="saaja-valik" onchange="saajaValitud()"><option value="">— Uus saaja —</option></select>
@@ -104,12 +118,13 @@
           <div><label class="f-label">Arve kuupäev</label><input id="s-kuupaev" type="date"></div>
           <div><label class="f-label">Maksetähtaeg (päeva)</label><input id="s-tahtaeg" type="number" value="14"></div>
         </div>
-        <div class="f-grupp" style="max-width:200px">
+        <div class="f-grupp" style="max-width:280px">
           <label class="f-label">Käibemaks</label>
-          <select id="s-km" onchange="uuendaTotal()">
+          <select id="s-km" disabled style="opacity:0.75;cursor:not-allowed">
             <option value="24">24% (käibemaksukohuslane)</option>
             <option value="0">0% (mitte käibemaksukohuslane)</option>
           </select>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Määratud "Minu ettevõtte rekvisiitide" käibemaksukohuslase märke järgi — kõik arved lähevad automaatselt sama käibemaksuga.</div>
         </div>
 
         <div class="f-grupp">
@@ -167,6 +182,8 @@ function toggleKaart(bodyId, noolId) {
 var saajad = [];
 var reaId = 0;
 
+var muujad = [];
+
 async function init() {
   var kontroll = await api('/api/omaarved/kontroll');
   if (!kontroll.lubatud) {
@@ -175,53 +192,118 @@ async function init() {
   }
   document.getElementById('sisu').style.display = 'block';
   document.getElementById('s-kuupaev').value = new Date().toISOString().split('T')[0];
-  await Promise.all([laadiRekvisiidid(), laadiSaajad(), laadiAjalugu()]);
+  await Promise.all([laadiMuujad(), laadiSaajad(), laadiAjalugu()]);
   if (!document.getElementById('read-body').children.length) lisaRida();
 }
 
-// ── REKVISIIDID ──
-async function laadiRekvisiidid() {
-  var r = await api('/api/omaarved/seaded');
-  if (r.ok && r.seaded) {
-    var s = r.seaded;
-    document.getElementById('r-nimi').value = s.ettevote_nimi || '';
-    document.getElementById('r-aadress').value = s.aadress || '';
-    document.getElementById('r-rgkood').value = s.rg_kood || '';
-    document.getElementById('r-kmkr').value = s.kmkr || '';
-    document.getElementById('r-telefon').value = s.telefon || '';
-    document.getElementById('r-epost').value = s.epost || '';
-    document.getElementById('r-pank').value = s.pank || '';
-    document.getElementById('r-iban').value = s.pangakonto || '';
-    document.getElementById('r-km-kohuslane').checked = s.km_kohuslane !== false;
-    rKmKohuslaneMuutus();
-    // Kui rekvisiidid juba täidetud, hoia see kaart vaikimisi kokku pandud, et fookus oleks arve loomisel.
+// ── MINU ETTEVÕTTED (müüjad) ──
+async function laadiMuujad() {
+  var div = document.getElementById('muujad-nimekiri');
+  var r = await api('/api/omaarved/muujad');
+  muujad = (r.ok && Array.isArray(r.muujad)) ? r.muujad : [];
+  renderMuujadNimekiri();
+  renderMuujaValik();
+  if (muujad.length) {
+    // Kui vähemalt üks ettevõte juba lisatud, hoia see kaart vaikimisi kokku pandud, et fookus oleks arve loomisel.
     toggleKaart('rekv-body', 'rekv-nool');
   }
 }
-// Rekvisiitides valitud käibemaksukohuslase staatus määrab uue arve KM% vaikeväärtuse —
-// endiselt saab seda konkreetse arve puhul käsitsi muuta (nt erandkorras).
-function rKmKohuslaneMuutus() {
-  var kohuslane = document.getElementById('r-km-kohuslane').checked;
-  var kmSel = document.getElementById('s-km');
-  if (kmSel) { kmSel.value = kohuslane ? '24' : '0'; uuendaTotal(); }
+function renderMuujadNimekiri() {
+  var div = document.getElementById('muujad-nimekiri');
+  if (!muujad.length) {
+    div.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">Ühtegi ettevõtet pole veel lisatud — lisa esimene allolevast nupust.</div>';
+    return;
+  }
+  div.innerHTML = muujad.map(function(m) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:0.5px solid var(--border);flex-wrap:wrap">'
+      + '<div style="flex:1;min-width:140px">'
+      + '<div style="font-size:13px;font-weight:600">' + m.ettevote_nimi + (m.vaikimisi ? ' <span style="font-size:10px;color:#4ade80">★ vaikimisi</span>' : '') + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">' + (m.km_kohuslane ? 'Käibemaksukohuslane (24%)' : 'Ei ole käibemaksukohuslane (0%)') + '</div>'
+      + '</div>'
+      + (!m.vaikimisi ? '<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="teeMuujaVaikimisi(' + m.id + ')">Tee vaikimisi</button>' : '')
+      + '<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="muudaMuuja(' + m.id + ')">✏️</button>'
+      + '<button type="button" class="nupp punane" style="padding:5px 10px;font-size:11px" onclick="kustutaMuuja(' + m.id + ')">🗑</button>'
+      + '</div>';
+  }).join('');
 }
-async function salvestaRekvisiidid() {
-  var nimi = document.getElementById('r-nimi').value.trim();
-  var teade = document.getElementById('rekv-teade');
+function renderMuujaValik() {
+  var sel = document.getElementById('s-muuja');
+  sel.innerHTML = muujad.map(function(m) {
+    return '<option value="' + m.id + '">' + m.ettevote_nimi + '</option>';
+  }).join('');
+  if (muujad.length) {
+    var vaikimisi = muujad.find(function(m) { return m.vaikimisi; }) || muujad[0];
+    sel.value = vaikimisi.id;
+  }
+  muujaValitud();
+}
+function muujaValitud() {
+  var id = parseInt(document.getElementById('s-muuja').value, 10);
+  var m = muujad.find(function(x) { return x.id === id; });
+  var kmSel = document.getElementById('s-km');
+  if (kmSel) { kmSel.value = (m && m.km_kohuslane) ? '24' : '0'; }
+  uuendaTotal();
+}
+function avaMuujaVorm() {
+  document.getElementById('mv-id').value = '';
+  ['mv-nimi','mv-aadress','mv-rgkood','mv-kmkr','mv-telefon','mv-epost','mv-pank','mv-iban'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('mv-km-kohuslane').checked = true;
+  document.getElementById('muuja-teade').style.display = 'none';
+  document.getElementById('muuja-vorm').style.display = 'block';
+}
+function suljeMuujaVorm() {
+  document.getElementById('muuja-vorm').style.display = 'none';
+}
+function muudaMuuja(id) {
+  var m = muujad.find(function(x) { return x.id === id; });
+  if (!m) return;
+  document.getElementById('mv-id').value = m.id;
+  document.getElementById('mv-nimi').value = m.ettevote_nimi || '';
+  document.getElementById('mv-aadress').value = m.aadress || '';
+  document.getElementById('mv-rgkood').value = m.rg_kood || '';
+  document.getElementById('mv-kmkr').value = m.kmkr || '';
+  document.getElementById('mv-telefon').value = m.telefon || '';
+  document.getElementById('mv-epost').value = m.epost || '';
+  document.getElementById('mv-pank').value = m.pank || '';
+  document.getElementById('mv-iban').value = m.pangakonto || '';
+  document.getElementById('mv-km-kohuslane').checked = m.km_kohuslane !== false;
+  document.getElementById('muuja-teade').style.display = 'none';
+  document.getElementById('muuja-vorm').style.display = 'block';
+}
+async function salvestaMuuja() {
+  var id = document.getElementById('mv-id').value;
+  var nimi = document.getElementById('mv-nimi').value.trim();
+  var teade = document.getElementById('muuja-teade');
   if (!nimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta ettevõtte/enda nimi'; return; }
-  var r = await api('/api/omaarved/seaded', { method: 'POST', body: JSON.stringify({
+  var body = {
     ettevote_nimi: nimi,
-    aadress: document.getElementById('r-aadress').value.trim(),
-    rg_kood: document.getElementById('r-rgkood').value.trim(),
-    kmkr: document.getElementById('r-kmkr').value.trim(),
-    telefon: document.getElementById('r-telefon').value.trim(),
-    epost: document.getElementById('r-epost').value.trim(),
-    pank: document.getElementById('r-pank').value.trim(),
-    pangakonto: document.getElementById('r-iban').value.trim(),
-    km_kohuslane: document.getElementById('r-km-kohuslane').checked
-  })});
-  teade.className = r.ok ? 'teade ok' : 'teade viga';
-  teade.textContent = r.ok ? '✅ Salvestatud' : ('Viga: ' + (r.veateade || ''));
+    aadress: document.getElementById('mv-aadress').value.trim(),
+    rg_kood: document.getElementById('mv-rgkood').value.trim(),
+    kmkr: document.getElementById('mv-kmkr').value.trim(),
+    telefon: document.getElementById('mv-telefon').value.trim(),
+    epost: document.getElementById('mv-epost').value.trim(),
+    pank: document.getElementById('mv-pank').value.trim(),
+    pangakonto: document.getElementById('mv-iban').value.trim(),
+    km_kohuslane: document.getElementById('mv-km-kohuslane').checked
+  };
+  var r = id
+    ? await api('/api/omaarved/muujad/' + id, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/api/omaarved/muujad', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) { teade.className = 'teade viga'; teade.textContent = 'Viga: ' + (r.veateade || ''); return; }
+  suljeMuujaVorm();
+  await laadiMuujad();
+}
+async function teeMuujaVaikimisi(id) {
+  await api('/api/omaarved/muujad/' + id + '/vaikimisi', { method: 'PUT' });
+  await laadiMuujad();
+}
+async function kustutaMuuja(id) {
+  if (!confirm('Kustutada see ettevõte?')) return;
+  var r = await api('/api/omaarved/muujad/' + id, { method: 'DELETE' });
+  if (!r.ok) { alert('Viga: ' + (r.veateade || 'kustutamine ebaõnnestus')); return; }
+  await laadiMuujad();
 }
 
 // ── SAAJAD ──
@@ -304,9 +386,11 @@ async function salvestaArve() {
   var teade = document.getElementById('arve-teade');
   var saajaNimi = document.getElementById('s-nimi').value.trim();
   var read = loeRead();
+  if (!muujad.length) { teade.className = 'teade viga'; teade.textContent = 'Lisa enne vähemalt üks ettevõte "Minu ettevõtted" alt'; return; }
   if (!saajaNimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta arve saaja nimi'; return; }
   if (!read.length) { teade.className = 'teade viga'; teade.textContent = 'Lisa vähemalt üks arve rida'; return; }
   var r = await api('/api/omaarved', { method: 'POST', body: JSON.stringify({
+    muuja_id: document.getElementById('s-muuja').value,
     saaja_nimi: saajaNimi,
     saaja_aadress: document.getElementById('s-aadress').value.trim(),
     saaja_rg_kood: document.getElementById('s-rgkood').value.trim(),
@@ -315,7 +399,6 @@ async function salvestaArve() {
     saaja_epost: document.getElementById('s-epost').value.trim(),
     kuupaev: document.getElementById('s-kuupaev').value,
     maksetahtaeg_paevad: document.getElementById('s-tahtaeg').value,
-    kaibemaks_protsent: document.getElementById('s-km').value,
     read: read
   })});
   if (!r.ok) { teade.className = 'teade viga'; teade.textContent = 'Viga: ' + (r.veateade || 'salvestamine ebaõnnestus'); return; }
@@ -328,7 +411,7 @@ async function salvestaArve() {
   lisaRida();
   document.getElementById('saaja-valik').value = '';
   saajaValitud();
-  rKmKohuslaneMuutus();
+  muujaValitud();
   await Promise.all([laadiSaajad(), laadiAjalugu()]);
 }
 
