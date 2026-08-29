@@ -3524,9 +3524,13 @@ function mkRender() {
     return true;
   });
 
-  const kokku = filtreeritud.reduce((s,m)=>s+parseFloat(m.summa),0);
-  const tootajaid = new Set(filtreeritud.map(m=>m.worker_id)).size;
-  const keskmine = filtreeritud.length ? kokku/filtreeritud.length : 0;
+  const nyyd = new Date();
+  const kuuVoti = nyyd.getFullYear() + '-' + String(nyyd.getMonth()+1).padStart(2,'0');
+  const seKuu = mkKoikMaksed.filter(m=>m.kuupaev.slice(0,7)===kuuVoti);
+  const seKuuKokku = seKuu.reduce((s,m)=>s+parseFloat(m.summa),0);
+  const seKuuTootajaid = new Set(seKuu.map(m=>m.worker_id)).size;
+  const KUUD_NIM=['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+  const kuuSilt = KUUD_NIM[nyyd.getMonth()] + ' ' + nyyd.getFullYear();
 
   const svgKokku='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>';
   const svgTootajad='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
@@ -3535,15 +3539,15 @@ function mkRender() {
   document.getElementById('mk-kpi-rida').innerHTML = `
     <div class="stat-kaart">
       <div class="stat-kaart-ikoon" style="background:rgba(37,99,235,.12);color:var(--sinine)">${svgKokku}</div>
-      <div><div class="stat-kaart-label">Makstud kokku (valitud periood)</div><div class="stat-kaart-val" style="font-size:18px">${kokku.toFixed(2)} €</div><div style="font-size:11px;color:var(--hall);margin-top:2px">${filtreeritud.length} makset</div></div>
+      <div><div class="stat-kaart-label">Selle kuu maksed</div><div class="stat-kaart-val" style="font-size:18px">${seKuuKokku.toFixed(2)} €</div><div style="font-size:11px;color:var(--hall);margin-top:2px">${seKuu.length} makset</div></div>
     </div>
     <div class="stat-kaart">
       <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)">${svgTootajad}</div>
-      <div><div class="stat-kaart-label">Töötajaid makstud</div><div class="stat-kaart-val" style="font-size:18px">${tootajaid}</div><div style="font-size:11px;color:var(--hall);margin-top:2px">töötajat</div></div>
+      <div><div class="stat-kaart-label">Makstud töötajatele</div><div class="stat-kaart-val" style="font-size:18px">${seKuuTootajaid}</div><div style="font-size:11px;color:var(--hall);margin-top:2px">töötajat sel kuul</div></div>
     </div>
     <div class="stat-kaart">
       <div class="stat-kaart-ikoon" style="background:rgba(200,163,71,.16);color:var(--kuld)">${svgArv}</div>
-      <div><div class="stat-kaart-label">Keskmine makse</div><div class="stat-kaart-val" style="font-size:18px">${keskmine.toFixed(2)} €</div><div style="font-size:11px;color:var(--hall);margin-top:2px">summa / maksete arv</div></div>
+      <div><div class="stat-kaart-label">Maksete arv</div><div class="stat-kaart-val" style="font-size:18px">${seKuu.length}</div><div style="font-size:11px;color:var(--hall);margin-top:2px">${kuuSilt}</div></div>
     </div>`;
 
   let html='<table class="mk-tabel"><thead><tr><th>Kuupäev</th><th>Töötaja</th><th class="mk-th-summa">Summa</th><th>Projekt</th><th>Kommentaar</th><th></th></tr></thead><tbody>';
