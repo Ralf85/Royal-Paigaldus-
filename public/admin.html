@@ -188,6 +188,15 @@
     .tj-ligipaas-rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 0.5px solid var(--piir2); font-size: 12.5px; color: var(--tekst2); }
     .tj-ligipaas-rida:last-child { border-bottom: none; }
 
+    .arved-stat-rida { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+    @media (max-width: 1200px) { .arved-stat-rida { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 640px) { .arved-stat-rida { grid-template-columns: repeat(2, 1fr); } }
+    .arved-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 1000px) { .arved-grid { grid-template-columns: 1fr; } }
+    .av-tegevus-ikoon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--bg3); border: none; border-radius: 6px; color: var(--tekst2); cursor: pointer; text-decoration: none; }
+    .av-tegevus-ikoon:hover { color: var(--sinine); }
+    .av-tegevus-ikoon.kustuta:hover { color: var(--punane); }
+
     .konteiner { max-width: 1100px; width: 100%; margin: 0 auto; padding: 20px 24px 40px; }
     .tabid { display: flex; flex-direction: column; gap: 2px; padding: 10px; flex: 1; overflow-y: auto; }
     .tab { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); transition: all 0.15s; border: none; background: none; text-align: left; width: 100%; display: flex; align-items: center; }
@@ -1685,26 +1694,21 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 
   <div class="sektsioon" id="tab12">
     <div class="kaart" style="margin-bottom:16px">
-      <div class="kaart-hdr">🤖 Kiirlaadi arve/tšekk <span style="margin-left:auto;font-size:11px;color:var(--hall);font-weight:400">AI tuvastab ise, kas see on välja- või sissetulev</span></div>
-      <div class="kaart-body">
-        <div id="av-kiir-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer">
-          <span id="av-kiir-dropzone-tekst">📎 Lohista siia arve või tšekk (pilt või PDF), või kliki valimiseks — ei pea ise valima, kas Sisse või Välja</span>
+      <div class="kaart-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:14px">
+        <div id="av-kiir-dropzone" style="flex:1;min-width:280px;display:flex;align-items:center;gap:12px;border:2px dashed var(--sisend-piir);border-radius:10px;padding:14px 16px;cursor:pointer">
+          <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,.12);color:var(--sinine);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3v12"/><polyline points="7 8 12 3 17 8"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--tekst)">Kiirlaadi arve/tšekk</div>
+            <div style="font-size:11px;color:var(--hall)" id="av-kiir-dropzone-tekst">Lohista siia arve või tšekk (pilt või PDF), <br>või kliki valimiseks — AI tuvastab ise, kas Sisse või Välja</div>
+          </div>
           <input type="file" id="av-kiir-fail" accept="image/*,application/pdf" style="display:none">
         </div>
-        <div class="teade" id="av-kiir-teade"></div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')" title="Uue müügiarve vorm — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">➕ Uus arve (müük — raha tuleb sisse)</button>
+          <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avVaataAlamtab('sisse')" title="Uue kulu/tšeki vorm — raha läheb Royalilt VÄLJA, käibemaksu saab tagasi">➕ Lisa kulu (ost — raha läheb välja)</button>
+        </div>
       </div>
-    </div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-      <div style="display:flex;gap:8px">
-        <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')" title="Uue müügiarve vorm — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">➕ Uus arve (müük — raha tuleb sisse)</button>
-        <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avVaataAlamtab('sisse')" title="Uue kulu/tšeki vorm — raha läheb Royalilt VÄLJA, käibemaksu saab tagasi">➕ Lisa kulu (ost — raha läheb välja)</button>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:1px">Kuu</span>
-        <select id="av-kuu-valik" onchange="avKuuMuutus()"></select>
-        <select id="av-aasta-valik" onchange="avKuuMuutus()"></select>
-      </div>
+      <div class="teade" id="av-kiir-teade" style="margin:0 18px 16px"></div>
     </div>
 
     <div class="kaart" style="margin-bottom:16px">
@@ -1715,42 +1719,45 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <input type="date" id="km-algus" onchange="avUuendaKmAnalyys()">
           <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Lõpp</span>
           <input type="date" id="km-lopp" onchange="avUuendaKmAnalyys()">
+          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Kuu</span>
+          <select id="av-kuu-valik" onchange="avKuuMuutus()"></select>
+          <select id="av-aasta-valik" onchange="avKuuMuutus()"></select>
           <button type="button" class="nupp hall" style="font-size:11px;padding:5px 10px" onclick="avKmAnalyysKaesolevKuu()">↺ Käesolev kuu</button>
           <span id="av-km-nool" onclick="avToggleKaart('av-km-body','av-km-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
       </div>
       <div class="kaart-body" id="av-km-body">
-        <div class="vorm-rida col3" style="margin-bottom:12px">
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Kogukäive (müük, km-ta)</div>
-            <div id="dt-kaive" style="font-size:20px;font-weight:800;color:#4ade80">0,00 €</div>
+        <div class="arved-stat-rida">
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg></div>
+            <div><div class="stat-kaart-label">Kogukäive (km-ta)</div><div class="stat-kaart-val" id="dt-kaive" style="color:var(--roheline);font-size:18px">0,00 €</div></div>
           </div>
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Kogukulud (ostud, km-ta)</div>
-            <div id="dt-kulud" style="font-size:20px;font-weight:800;color:#fb923c">0,00 €</div>
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(229,154,22,.14);color:var(--oranz)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="3 7 9 13 13 9 21 17"/><polyline points="14 17 21 17 21 10"/></svg></div>
+            <div><div class="stat-kaart-label">Kogukulud (km-ta)</div><div class="stat-kaart-val" id="dt-kulud" style="color:var(--oranz);font-size:18px">0,00 €</div></div>
           </div>
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Kasum (käive − kulud)</div>
-            <div id="dt-kasum" style="font-size:20px;font-weight:800">0,00 €</div>
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(37,99,235,.12);color:var(--sinine)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
+            <div><div class="stat-kaart-label">Kasum (käive−kulud)</div><div class="stat-kaart-val" id="dt-kasum" style="font-size:18px">0,00 €</div></div>
           </div>
-        </div>
-        <div class="vorm-rida col3">
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks väljas (müük — riigile maksta)</div>
-            <div id="km-valjas" style="font-size:20px;font-weight:800;color:#4ade80">0,00 €</div>
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="12" cy="12" r="9"/><polyline points="8 12 12 8 16 12"/><line x1="12" y1="16" x2="12" y2="8"/></svg></div>
+            <div><div class="stat-kaart-label">Käibemaks väljas</div><div class="stat-kaart-val" id="km-valjas" style="color:var(--roheline);font-size:18px">0,00 €</div></div>
           </div>
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Käibemaks sisse (ost — tagasi saab)</div>
-            <div id="km-sisse" style="font-size:20px;font-weight:800;color:#fb923c">0,00 €</div>
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(229,154,22,.14);color:var(--oranz)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><circle cx="12" cy="12" r="9"/><polyline points="16 12 12 16 8 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg></div>
+            <div><div class="stat-kaart-label">Käibemaks sisse</div><div class="stat-kaart-val" id="km-sisse" style="color:var(--oranz);font-size:18px">0,00 €</div></div>
           </div>
-          <div style="background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:10px;padding:14px 16px">
-            <div id="km-vahe-silt" style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Vahe</div>
-            <div id="km-vahe" style="font-size:20px;font-weight:800">0,00 €</div>
+          <div class="stat-kaart">
+            <div class="stat-kaart-ikoon" style="background:rgba(200,163,71,.16);color:var(--kuld)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 21 7 3 7"/></svg></div>
+            <div><div class="stat-kaart-label" id="km-vahe-silt" style="font-size:9px">Vahe</div><div class="stat-kaart-val" id="km-vahe" style="font-size:18px">0,00 €</div></div>
           </div>
         </div>
       </div>
     </div>
 
+    <div class="arved-grid">
+    <div class="arved-vasak">
     <div id="av-alamvaade-valja">
     <div class="kaart" id="avm-muujad-kaart">
       <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
@@ -1904,7 +1911,45 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div class="teade" id="arve-teade"></div>
       </div>
     </div>
+    </div><!-- /av-alamvaade-valja -->
 
+    <div id="av-alamvaade-sisse">
+      <div class="kaart" id="av-lisasisse-kaart" style="display:none">
+        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span id="as-vormi-pealkiri">📥 Lisa tšekk/arve</span>
+          <button type="button" class="nupp hall" id="as-tuhista-nupp" style="display:none;font-size:12px;padding:5px 12px" onclick="avTuhistaSisseMuutmine()">✕ Tühista muutmine</button>
+          <span id="av-lisasisse-nool" onclick="avToggleKaart('av-lisasisse-body','av-lisasisse-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
+        </div>
+        <div class="kaart-body" id="av-lisasisse-body">
+          <div id="av-sisse-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
+            <span id="av-sisse-dropzone-tekst">📎 Lohista siia pilt või PDF, või kliki valimiseks</span>
+            <input type="file" id="av-sisse-fail" accept="image/*,application/pdf" style="display:none">
+          </div>
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="as-kuupaev"></div>
+            <div class="vorm-grupp"><label>Tähtaeg (valikuline)</label><input type="date" id="as-tahtaeg"></div>
+            <div class="vorm-grupp">
+              <label>Ettevõte</label>
+              <select id="as-ettevote">
+                <option value="">— Muu / üldkulu —</option>
+              </select>
+            </div>
+            <div class="vorm-grupp"><label>Kirjeldus</label><input type="text" id="as-kirjeldus" placeholder="nt Kütus, tööriistad..."></div>
+          </div>
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="as-kaibemaks" placeholder="0.00"></div>
+            <div class="vorm-grupp"><label>Summa kokku (€, km-ga)</label><input type="number" step="0.01" id="as-summa" placeholder="0.00"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+            <button type="button" class="nupp roheline" onclick="avSalvestaSisse()" id="as-salvesta-nupp">💾 Salvesta</button>
+          </div>
+          <div class="teade" id="as-teade"></div>
+        </div>
+      </div>
+    </div><!-- /av-alamvaade-sisse -->
+    </div><!-- /arved-vasak -->
+
+    <div class="arved-parem">
     <div class="kaart">
       <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span>📋 Arvete ajalugu</span>
@@ -1978,53 +2023,20 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
       </div><!-- /av-ajalugu-body -->
     </div>
-    </div><!-- /av-alamvaade-valja -->
 
-    <div id="av-alamvaade-sisse">
-      <div class="kaart" id="av-lisasisse-kaart" style="display:none">
-        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span id="as-vormi-pealkiri">📥 Lisa tšekk/arve</span>
-          <button type="button" class="nupp hall" id="as-tuhista-nupp" style="display:none;font-size:12px;padding:5px 12px" onclick="avTuhistaSisseMuutmine()">✕ Tühista muutmine</button>
-          <span id="av-lisasisse-nool" onclick="avToggleKaart('av-lisasisse-body','av-lisasisse-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-        </div>
-        <div class="kaart-body" id="av-lisasisse-body">
-          <div id="av-sisse-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
-            <span id="av-sisse-dropzone-tekst">📎 Lohista siia pilt või PDF, või kliki valimiseks</span>
-            <input type="file" id="av-sisse-fail" accept="image/*,application/pdf" style="display:none">
-          </div>
-          <div class="vorm-rida col4">
-            <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="as-kuupaev"></div>
-            <div class="vorm-grupp"><label>Tähtaeg (valikuline)</label><input type="date" id="as-tahtaeg"></div>
-            <div class="vorm-grupp">
-              <label>Ettevõte</label>
-              <select id="as-ettevote">
-                <option value="">— Muu / üldkulu —</option>
-              </select>
-            </div>
-            <div class="vorm-grupp"><label>Kirjeldus</label><input type="text" id="as-kirjeldus" placeholder="nt Kütus, tööriistad..."></div>
-          </div>
-          <div class="vorm-rida col2">
-            <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="as-kaibemaks" placeholder="0.00"></div>
-            <div class="vorm-grupp"><label>Summa kokku (€, km-ga)</label><input type="number" step="0.01" id="as-summa" placeholder="0.00"></div>
-          </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:10px">
-            <button type="button" class="nupp roheline" onclick="avSalvestaSisse()" id="as-salvesta-nupp">💾 Salvesta</button>
-          </div>
-          <div class="teade" id="as-teade"></div>
-        </div>
+    <div class="kaart" style="margin-top:16px">
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>📋 Sissetulevate ajalugu</span>
+        <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
+        <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
+        <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
       </div>
-      <div class="kaart">
-        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <span>📋 Sissetulevate ajalugu</span>
-          <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
-          <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
-          <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-        </div>
-        <div id="av-sisseajalugu-body">
-        <div id="sisseTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
-        </div>
+      <div id="av-sisseajalugu-body">
+      <div id="sisseTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
       </div>
-    </div><!-- /av-alamvaade-sisse -->
+    </div>
+    </div><!-- /arved-parem -->
+    </div><!-- /arved-grid -->
 
     <div class="kaart">
       <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="avToggleLigipaasPaneel()">
@@ -5622,7 +5634,7 @@ function avJoonistaArvedTabel() {
   let arved = avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter);
   arved = avKuuFiltreeri(arved, 'kuupaev');
   if (!arved.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid ei leitud</div>'; avUuendaArvedZipNupp(); return; }
-  div.innerHTML = `<table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th></th></tr></thead><tbody>` +
+  div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th>Tegevused</th></tr></thead><tbody>` +
     arved.map(a => `
       <tr>
         <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
@@ -5630,14 +5642,15 @@ function avJoonistaArvedTabel() {
         <td>${formatKp(a.kuupaev)}</td>
         <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
-        <td><span onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')" style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;${a.staatus==='makstud'?'background:rgba(74,222,128,0.15);color:#4ade80':'background:rgba(251,191,36,0.15);color:#fbbf24'}">${a.staatus==='makstud'?'✅ Makstud':'⏳ Maksmata'}</span></td>
+        <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
           ${a.fail_url
-            ? `<a href="${a.fail_url}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📎 Fail</a>`
-            : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📄 PDF</a>`}
-          <button onclick="avKustutaArve(${a.id})" style="background:#3d0a0a;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🗑</button>
+            ? `<a href="${a.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
+            : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
+          <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
+          <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
-      </tr>`).join('') + '</tbody></table>';
+      </tr>`).join('') + '</tbody></table></div>';
   avUuendaArvedZipNupp();
 }
 
@@ -5977,7 +5990,7 @@ function avJoonistaSisseTabel() {
       <th><input type="checkbox" id="as-vali-koik" onchange="avVaataKoikSisse(this.checked)"></th>
       <th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th>
       <th style="text-align:right">Summa km-ta</th><th style="text-align:right">Käibemaks</th><th style="text-align:right">Kokku</th>
-      <th>Staatus</th><th></th><th></th><th></th>
+      <th>Staatus</th><th>Tegevused</th>
     </tr></thead><tbody>` +
     avSisseList.map(s => {
       const kmta = (parseFloat(s.summa) || 0) - (parseFloat(s.kaibemaks) || 0);
@@ -5991,10 +6004,12 @@ function avJoonistaSisseTabel() {
         <td style="text-align:right">${avFmtEur(kmta)}</td>
         <td style="text-align:right">${avFmtEur(s.kaibemaks)}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
-        <td><span onclick="avMuudaSisseStaatus(${s.id},'${s.staatus==='makstud'?'ootel':'makstud'}')" style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;${s.staatus==='makstud'?'background:rgba(74,222,128,0.15);color:#4ade80':'background:rgba(251,191,36,0.15);color:#fbbf24'}">${s.staatus==='makstud'?'✅ Makstud':'⏳ Ootel'}</span></td>
-        <td>${s.fail_url ? `<a href="${s.fail_url}" target="_blank" style="background:#1a3550;border-radius:6px;padding:5px 10px;font-size:12px;text-decoration:none;color:var(--tekst2)">📎 Fail</a>` : ''}</td>
-        <td><button onclick="avMuudaSisse(${s.id})" style="background:#1a3550;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">✏️</button></td>
-        <td><button onclick="avKustutaSisse(${s.id})" style="background:#3d0a0a;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">🗑</button></td>
+        <td><span class="staatus-pill ${s.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaSisseStaatus(${s.id},'${s.staatus==='makstud'?'ootel':'makstud'}')">${s.staatus==='makstud'?'Makstud':'Ootel'}</span></td>
+        <td style="display:flex;gap:6px">
+          ${s.fail_url ? `<a href="${s.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>` : ''}
+          <button onclick="avMuudaSisse(${s.id})" class="av-tegevus-ikoon" title="Muuda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+          <button onclick="avKustutaSisse(${s.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        </td>
       </tr>`;
     }).join('') +
     `</tbody></table></div><div style="padding:12px 18px;display:flex;justify-content:flex-end;gap:24px;font-size:13px;color:var(--hall);border-top:0.5px solid var(--piir2)">
