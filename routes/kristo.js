@@ -38,7 +38,7 @@ router.get('/poed', noudaKristo, async (req, res) => {
        WHERE e.nimi = 'LIDL'
        GROUP BY o.id, o.nimi
        HAVING COUNT(DISTINCT p.id) > 0
-       ORDER BY MAX(t.kuupaev) DESC`
+       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`
     );
     res.json({ ok: true, poed: r.rows });
   } catch (err) {
