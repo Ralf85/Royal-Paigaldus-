@@ -56,12 +56,14 @@ router.get('/projektid', noudaKristo, async (req, res) => {
       `SELECT
          ${KIRJELDUS_VOTI} as kirjeldus,
          COUNT(DISTINCT p.id) as piltide_arv,
-         MAX(t.kuupaev) as viimane_kuupaev
+         MAX(t.kuupaev) as viimane_kuupaev,
+         COUNT(DISTINCT k.id) FILTER (WHERE k.lahendatud = false) as kommentaare_arv
        FROM tookirje_pildid p
        JOIN tookirjed t ON p.tookirje_id = t.id
        JOIN objektid o ON t.objekt_id = o.id
        JOIN ettevotted e ON o.ettevote_id = e.id
        ${LP_JOIN}
+       LEFT JOIN kristo_kommentaarid k ON k.objekt_id = o.id AND k.kirjeldus = ${KIRJELDUS_VOTI}
        WHERE e.nimi = 'LIDL' AND o.id = $1
        GROUP BY ${KIRJELDUS_VOTI}
        HAVING COUNT(DISTINCT p.id) > 0
@@ -269,6 +271,93 @@ router.put('/admin/projektid/:id', noudaAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (err.code === '23505') return res.json({ ok: false, veateade: 'Selline projekt on juba olemas' });
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+// ── KOMMENTAARID (Kristo lisab, admin saab teate) ─────────────────────────
+// Kommentaar käib konkreetse "projekti" (objekt_id + kirjeldus) kohta — sama grupeerimisvõti,
+// mida kasutab pildivaade, kuna projektil endal (kui see on veel vabateksti kirjeldus) eraldi
+// ID-d pole.
+router.get('/kommentaarid', noudaKristo, async (req, res) => {
+  const { objekt_id, kirjeldus } = req.query;
+  if (!objekt_id || !kirjeldus) return res.json({ ok: false, veateade: 'Objekt ja kirjeldus on kohustuslikud' });
+  try {
+    const r = await pool.query(
+      `SELECT * FROM kristo_kommentaarid WHERE objekt_id=$1 AND kirjeldus=$2 ORDER BY loodud DESC`,
+      [objekt_id, kirjeldus]
+    );
+    res.json({ ok: true, kommentaarid: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+router.post('/kommentaarid', noudaKristo, async (req, res) => {
+  const { objekt_id, kirjeldus, tekst } = req.body;
+  if (!objekt_id || !kirjeldus || !tekst || !tekst.trim()) {
+    return res.json({ ok: false, veateade: 'Objekt, kirjeldus ja kommentaari tekst on kohustuslikud' });
+  }
+  try {
+    const r = await pool.query(
+      `INSERT INTO kristo_kommentaarid (objekt_id, kirjeldus, tekst) VALUES ($1,$2,$3) RETURNING id`,
+      [objekt_id, kirjeldus, tekst.trim()]
+    );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── ADMIN: kommentaaride nimekiri + teavituse loendur ─────────────────────
+router.get('/admin/kommentaarid', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT k.*, o.nimi as objekt_nimi
+       FROM kristo_kommentaarid k
+       JOIN objektid o ON k.objekt_id = o.id
+       ORDER BY k.lahendatud ASC, k.loetud ASC, k.loodud DESC`
+    );
+    res.json({ ok: true, kommentaarid: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+router.get('/admin/kommentaarid/arv', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT COUNT(*) FROM kristo_kommentaarid WHERE loetud=false`);
+    res.json({ ok: true, arv: parseInt(r.rows[0].count, 10) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/admin/kommentaarid/loe-koik', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query(`UPDATE kristo_kommentaarid SET loetud=true WHERE loetud=false`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/admin/kommentaarid/:id/lahendatud', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE kristo_kommentaarid SET lahendatud=true, loetud=true WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Kommentaari ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.delete('/admin/kommentaarid/:id', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM kristo_kommentaarid WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
