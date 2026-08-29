@@ -220,6 +220,10 @@
     <div class="sidebar-brand">
       <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:24px;width:auto">
       <div class="sidebar-brand-sub">Admin paneel</div>
+      <button type="button" id="kk-kelluke" onclick="kkAvaPaneel()" title="Kristo kommentaarid" style="margin-left:auto;position:relative;background:none;border:none;cursor:pointer;font-size:17px;padding:4px;line-height:1">
+        🔔
+        <span id="kk-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center">0</span>
+      </button>
     </div>
     <div class="tabid">
       <button class="tab ak" data-tab="0" onclick="avatTab(0)">📊 Kokkuvõte</button>
@@ -1247,6 +1251,21 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       <div class="kaart-hdr"><span id="et-data-pealkiri">📊 DATA</span></div>
       <div class="kaart-body" id="et-data-sisu"><div style="padding:20px;text-align:center;color:var(--hall)">Laadimine...</div></div>
     </div>
+    <div class="kaart" id="kk-kaart" style="display:none">
+      <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
+        <span>💬 Kristo kommentaarid</span>
+        <span id="kk-kaart-arv" style="font-size:11px;color:var(--hall)"></span>
+        <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <label style="font-size:11px;color:var(--hall);display:flex;align-items:center;gap:5px;cursor:pointer">
+            <input type="checkbox" id="kk-naita-lahendatud" onchange="kkLaadi()" style="width:auto"> näita ka lahendatuid
+          </label>
+          <button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="kkLubaTeavitused()">🔔 Luba teavitused</button>
+        </span>
+      </div>
+      <div class="kaart-body">
+        <div id="kk-nimekiri"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+      </div>
+    </div>
     <div class="kaart" id="et-lidl-projektid-kaart" style="display:none">
       <div class="kaart-hdr"><span>📁 Lidl projektid (fotode kaustad)</span></div>
       <div class="kaart-body">
@@ -2144,6 +2163,72 @@ async function lpMaaraVanaProjekt(kirjeldus, i) {
   }
 }
 
+// ── KRISTO KOMMENTAARID (Lidl fotovaate teavitused) ───────────────────────
+let kkViimaneArv = 0;
+let kkTeavitusiLubatud = false;
+async function kkLaadi() {
+  const div = document.getElementById('kk-nimekiri');
+  const naitaLahendatud = document.getElementById('kk-naita-lahendatud').checked;
+  div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
+  const r = await api('/api/kristo/admin/kommentaarid');
+  let list = (r && r.ok && Array.isArray(r.kommentaarid)) ? r.kommentaarid : [];
+  if (!naitaLahendatud) list = list.filter(k => !k.lahendatud);
+  document.getElementById('kk-kaart-arv').textContent = list.length ? `(${list.length})` : '';
+  if (!list.length) {
+    div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Kommentaare pole' + (naitaLahendatud ? '' : ' lahendamata') + '</div>';
+  } else {
+    div.innerHTML = list.map(k => `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--piir2);${k.lahendatud ? 'opacity:0.55' : ''}">
+        <div style="flex:1">
+          <div style="font-size:12px;color:var(--hall);margin-bottom:2px">🏬 ${k.objekt_nimi} · ${k.kirjeldus}</div>
+          <div style="font-size:13px">${(k.tekst || '').replace(/</g,'&lt;')}</div>
+          <div style="font-size:11px;color:var(--hall);margin-top:4px">${new Date(k.loodud).toLocaleString('et-EE')}${k.lahendatud ? ' · ✅ lahendatud' : ''}</div>
+        </div>
+        ${!k.lahendatud ? `<button type="button" class="nupp roheline" style="padding:5px 10px;font-size:11px;white-space:nowrap" onclick="kkMargiLahendatuks(${k.id})">✅ Lahendatud</button>` : `<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px;white-space:nowrap" onclick="kkKustuta(${k.id})">🗑</button>`}
+      </div>
+    `).join('');
+  }
+  // Kristo panelist vaadatuna loeme kõik lugemata kommentaarid loetuks — punane märk kaob.
+  await api('/api/kristo/admin/kommentaarid/loe-koik', { method: 'PUT' });
+  kkUuendaArv();
+}
+async function kkMargiLahendatuks(id) {
+  await api(`/api/kristo/admin/kommentaarid/${id}/lahendatud`, { method: 'PUT' });
+  await kkLaadi();
+}
+async function kkKustuta(id) {
+  if (!confirm('Kustutada see kommentaar?')) return;
+  await api(`/api/kristo/admin/kommentaarid/${id}`, { method: 'DELETE' });
+  await kkLaadi();
+}
+function kkAvaPaneel() {
+  avEttevoteHub('grupp-lidl', 'LIDL');
+  setTimeout(() => {
+    const el = document.getElementById('kk-kaart');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }, 200);
+}
+function kkLubaTeavitused() {
+  if (!('Notification' in window)) { alert('Sinu brauser ei toeta teavitusi'); return; }
+  Notification.requestPermission().then(p => {
+    kkTeavitusiLubatud = (p === 'granted');
+    alert(kkTeavitusiLubatud ? 'Teavitused lubatud ✅' : 'Teavitused pole lubatud');
+  });
+}
+async function kkUuendaArv() {
+  const r = await api('/api/kristo/admin/kommentaarid/arv');
+  const arv = (r && r.ok) ? r.arv : 0;
+  const badge = document.getElementById('kk-badge');
+  if (arv > 0) { badge.style.display = 'block'; badge.textContent = arv > 99 ? '99+' : arv; }
+  else { badge.style.display = 'none'; }
+  document.title = arv > 0 ? `🔴 (${arv}) Admin — Royal Paigaldus` : 'Admin — Royal Paigaldus';
+  if (kkTeavitusiLubatud && 'Notification' in window && arv > kkViimaneArv && kkViimaneArv !== 0) {
+    new Notification('💬 Uus kommentaar Kristolt', { body: 'Royal Paigaldus adminnis on uus lugemata kommentaar.' });
+  }
+  kkViimaneArv = arv;
+}
+setInterval(kkUuendaArv, 45000);
+
 async function laadiEttevoteLeht(nimi) {
   if (!nimi) return;
   avEttevoteAktiivneNimi = nimi;
@@ -2155,11 +2240,15 @@ async function laadiEttevoteLeht(nimi) {
 
   // ── Lidl projektid (ainult LIDL ettevõtte lehel) ──
   const lpKaart = document.getElementById('et-lidl-projektid-kaart');
+  const kkKaart = document.getElementById('kk-kaart');
   if (N === 'LIDL') {
     lpKaart.style.display = '';
     lpLaadi();
+    kkKaart.style.display = '';
+    kkLaadi();
   } else {
     lpKaart.style.display = 'none';
+    kkKaart.style.display = 'none';
   }
 
   // ── DATA ──
@@ -2368,6 +2457,7 @@ async function init() {
     trLopp.value = t.toISOString().split('T')[0];
   }
   laadiKokkuvote();
+  kkUuendaArv();
 }
 
 // ── TÖÖTAJA DETAILRAPORT (Excel) ────────────────────────────────
