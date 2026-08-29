@@ -162,6 +162,32 @@
     .tabel-pager button:not(:disabled):hover { border-color: var(--sinine); }
     .tabel-avatar { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 10px; font-weight: 700; color: #ffffff; margin-right: 8px; vertical-align: -6px; }
 
+    .tootajad-master-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; align-items: start; }
+    @media (max-width: 980px) { .tootajad-master-grid { grid-template-columns: 1fr; } }
+    .tootajad-otsi-riba { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tootajad-otsi-riba input[type=text] { flex: 1; min-width: 180px; }
+    .tootajad-stat-rida { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    @media (max-width: 720px) { .tootajad-stat-rida { grid-template-columns: repeat(2, 1fr); } }
+    .tj-tabeli-rida { cursor: pointer; transition: background 0.15s; }
+    .tj-tabeli-rida:hover { background: var(--bg3); }
+    .tj-tabeli-rida.aktiivne-valik { background: rgba(37,99,235,.12); }
+    .tj-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--tekst2); margin: 1px 2px 1px 0; }
+    .tj-detail-hdr { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
+    .tj-detail-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
+    .tj-more-nupp { background: var(--bg3); border: 0.5px solid var(--piir2); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 13px; color: var(--hall); flex-shrink: 0; }
+    .tj-more-nupp:hover { color: var(--punane); border-color: var(--punane); }
+    .tj-detail-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
+    .tj-detail-tab { background: none; border: none; padding: 8px 4px; margin-right: 18px; font-size: 13px; font-weight: 600; color: var(--hall); cursor: pointer; border-bottom: 2px solid transparent; }
+    .tj-detail-tab.aktiivne { color: var(--tekst); border-bottom-color: var(--sinine); }
+    .tj-info-tiilid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .tj-info-tiil { background: var(--bg3); border-radius: 10px; padding: 10px 12px; }
+    .tj-info-tiil-silt { font-size: 10px; color: var(--hall); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .tj-info-tiil-val { font-size: 14px; font-weight: 700; color: var(--tekst); }
+    .tj-sektsioon-pealkiri { font-size: 11px; font-weight: 700; color: var(--hall); text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 8px; }
+    .tj-sektsioon-pealkiri:first-of-type { margin-top: 0; }
+    .tj-ligipaas-rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 0.5px solid var(--piir2); font-size: 12.5px; color: var(--tekst2); }
+    .tj-ligipaas-rida:last-child { border-bottom: none; }
+
     .konteiner { max-width: 1100px; width: 100%; margin: 0 auto; padding: 20px 24px 40px; }
     .tabid { display: flex; flex-direction: column; gap: 2px; padding: 10px; flex: 1; overflow-y: auto; }
     .tab { padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--tekst3); transition: all 0.15s; border: none; background: none; text-align: left; width: 100%; display: flex; align-items: center; }
@@ -480,23 +506,45 @@
     </div>
   </div>
   <div class="sektsioon" id="tab2">
-    <div class="kaart">
-      <div class="kaart-hdr">➕ Lisa töötaja</div>
-      <div class="kaart-body">
-        <div class="vorm-rida col2">
-          <div class="vorm-grupp"><label>Nimi</label><input type="text" id="t-nimi" placeholder="Vaiko"></div>
-          <div class="vorm-grupp"><label>PIN-kood</label><input type="text" id="t-pin" placeholder="1234" maxlength="6"></div>
+    <div class="tootajad-master-grid">
+      <div class="tootajad-vasak">
+        <div class="tootajad-otsi-riba">
+          <input type="text" id="tj-otsi" placeholder="🔍 Otsi töötajat või PIN-i..." oninput="tjOtsiMuutus(this.value)">
+          <select id="tj-ettevote-filter" onchange="tjFiltriMuutus()"><option value="kõik">Kõik ettevõtted</option></select>
+          <select id="tj-staatus-filter" onchange="tjFiltriMuutus()">
+            <option value="aktiivsed">Aktiivsed</option>
+            <option value="kõik">Kõik</option>
+            <option value="mitteaktiivsed">Mitteaktiivsed</option>
+          </select>
+          <button class="nupp kull" onclick="tjLylitaLisaVorm()">+ Lisa töötaja</button>
         </div>
-        <div class="vorm-rida">
-          <div class="vorm-grupp"><label>Email</label><input type="email" id="t-email" placeholder="vaiko@gmail.com"></div>
+        <div class="tootajad-stat-rida" id="tj-stat-rida"></div>
+        <div class="kaart" id="tj-lisa-vorm" style="display:none;margin-bottom:16px">
+          <div class="kaart-hdr">➕ Lisa töötaja</div>
+          <div class="kaart-body">
+            <div class="vorm-rida col2">
+              <div class="vorm-grupp"><label>Nimi</label><input type="text" id="t-nimi" placeholder="Vaiko"></div>
+              <div class="vorm-grupp"><label>PIN-kood</label><input type="text" id="t-pin" placeholder="1234" maxlength="6"></div>
+            </div>
+            <div class="vorm-rida">
+              <div class="vorm-grupp"><label>Email</label><input type="email" id="t-email" placeholder="vaiko@gmail.com"></div>
+            </div>
+            <button class="nupp roheline" onclick="lisaTootaja()">➕ Lisa töötaja</button>
+            <div class="teade" id="tootaja-teade"></div>
+          </div>
         </div>
-        <button class="nupp roheline" onclick="lisaTootaja()">➕ Lisa töötaja</button>
-        <div class="teade" id="tootaja-teade"></div>
+        <div class="kaart" style="overflow:hidden;padding:0">
+          <div id="tj-nimekiri"></div>
+        </div>
+        <div class="tabel-pager" id="tj-pager"></div>
       </div>
-    </div>
-    <div class="kaart">
-      <div class="kaart-hdr">👥 Töötajad ja ettevõtted</div>
-      <div id="tootajadSisu"></div>
+      <div class="tootajad-parem">
+        <div class="kaart">
+          <div class="kaart-body" id="tj-detail-sisu">
+            <div style="padding:60px 20px;text-align:center;color:var(--hall)">Vali töötaja nimekirjast, et näha detaile</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="sektsioon" id="tab3">
@@ -2929,88 +2977,318 @@ function laadiCSV(e) {
   window.location=`/api/admin/raport-csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
 }
 
+// ── TÖÖTAJAD (master-detail) ────────────────────────────────────
+let tjKoikTootajad = [];
+let tjKoikTootajadEttevotted = {};
+let tjKoikXs = {};
+let tjKoikArved = {};
+let tjKoikOmaarved = {};
+let tjOtsing = '';
+let tjEttevoteFilter = 'kõik';
+let tjStaatusFilter = 'aktiivsed';
+let tjValitudId = null;
+let tjDetailTab = 'ulevaade';
+let tjLehekylg = 1;
+const TJ_LEHE_SUURUS = 8;
+
+const TJ_SVG_USERS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.2 14.2c2.6.3 4.8 2.2 4.8 5.3"/></svg>';
+const TJ_SVG_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+const TJ_SVG_SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6z"/></svg>';
+const TJ_SVG_RECEIPT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>';
+
 async function laadiTootajad() {
-  const workers = await api('/api/admin/tootajad');
-  const xsLubatudList = await api('/api/xseeria/admin/lubatud');
-  const xsLubatudMap = {};
-  if (Array.isArray(xsLubatudList)) xsLubatudList.forEach(w => xsLubatudMap[w.id] = w.lubatud);
-  const div = document.getElementById('tootajadSisu');
-  let html = '';
-  for(const w of workers) {
+  const [workers, xsList, arvedList, omaarvedList] = await Promise.all([
+    api('/api/admin/tootajad'),
+    api('/api/xseeria/admin/lubatud'),
+    api('/api/arved/admin/lubatud'),
+    api('/api/omaarved/admin/lubatud')
+  ]);
+  tjKoikTootajad = Array.isArray(workers) ? workers : [];
+  tjKoikXs = {}; if (Array.isArray(xsList)) xsList.forEach(w => tjKoikXs[w.id] = !!w.lubatud);
+  tjKoikArved = {}; if (Array.isArray(arvedList)) arvedList.forEach(w => tjKoikArved[w.id] = !!w.lubatud);
+  tjKoikOmaarved = {}; if (Array.isArray(omaarvedList)) omaarvedList.forEach(w => tjKoikOmaarved[w.id] = !!w.lubatud);
+  tjKoikTootajadEttevotted = {};
+  await Promise.all(tjKoikTootajad.map(async w => {
     const we = await api(`/api/admin/tootaja-ettevotted/${w.id}`);
-    const weMap = {};
-    we.forEach(x => weMap[x.ettevote_id] = x.tunnitasu);
-    const ettevotteNimed = kõikEttevotted.filter(e => weMap[e.id] !== undefined).map(e => e.nimi).join(', ');
-    const onXs = !!xsLubatudMap[w.id];
-    html += `<div class="tootaja-kompakt">
-      <div class="tootaja-rida" onclick="toggleTootajaDetail(${w.id})">
-        <div class="tootaja-avatar">${w.nimi[0]}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:${w.aktiivne?'var(--tekst)':'var(--hall)'}">${w.nimi}${!w.aktiivne?' <span style="font-size:10px;color:var(--hall)">(mitteaktiivne)</span>':''}${onXs?' <span style="font-size:10px;color:#2563eb">🥏 X-seeria</span>':''}</div>
-          <div style="font-size:11px;color:var(--hall);margin-top:2px">PIN: ${w.pin}${ettevotteNimed?' · '+ettevotteNimed:''}</div>
-        </div>
-        <span id="tootaja-nool-${w.id}" style="color:var(--hall);font-size:12px">▼</span>
-      </div>
-      <div class="tootaja-detail" id="tootaja-detail-${w.id}">
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:0.5px solid var(--piir2)">
-          <input type="text" value="${w.nimi}" id="wn-${w.id}" style="width:130px;font-weight:600">
-          <span style="color:var(--hall);font-size:12px">PIN:</span>
-          <input type="text" value="${w.pin}" id="wp-${w.id}" style="width:70px">
-          <input type="email" value="${w.email||''}" id="we-${w.id}" placeholder="email" style="width:160px">
-          <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:5px">
-            <input type="checkbox" ${w.aktiivne?'checked':''} id="wa-${w.id}"> Aktiivne
-          </label>
-          <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:5px">
-            <input type="checkbox" ${onXs?'checked':''} onchange="toggleXseeriaLuba(${w.id}, this.checked)"> 🥏 X-seeria
-          </label>
-          <button class="nupp hall" style="font-size:12px;padding:6px 14px" onclick="uuendaTootaja(${w.id})">Salvesta</button>
-          <button class="nupp kustuta-tootaja" onclick="kustutaTootaja(${w.id}, '${w.nimi}')">🗑 Kustuta</button>
-        </div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:1px">Ettevõtted ja tunnitasud</span>
-          <span style="font-size:10px;color:var(--hall);opacity:0.7">(salvestub automaatselt)</span>
-        </div>
-        ${kõikEttevotted.map(e => {
-          const onMaara = weMap[e.id] !== undefined;
-          const tasu = weMap[e.id] || '';
-          const isEdgf = e.tyyp === 'edgf';
-          const varv = ETTEVOTE_TYYP_VARV[e.tyyp] || '#888';
-          return `<div class="ettevote-rida">
-            <div class="ettevote-rida-vasak">
-              <span class="ettevote-dot" style="background:${varv}"></span>
-              <span class="ettevote-nimi">${e.nimi}</span>
-            </div>
-            <div class="ettevote-rida-parem">
-              ${isEdgf
-                ? `<span style="font-size:11px;color:var(--hall);font-style:italic">kulupõhine</span>`
-                : `<input type="number" id="et-${w.id}-${e.id}" class="ettevote-tasu-input" value="${tasu}" placeholder="€/h" step="0.5" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">`
-              }
-              <label class="toggle-switch">
-                <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this, ${isEdgf})">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
+    tjKoikTootajadEttevotted[w.id] = Array.isArray(we) ? we.map(x => ({ ettevote_id: x.ettevote_id, tunnitasu: x.tunnitasu })) : [];
+  }));
+  const filterSelect = document.getElementById('tj-ettevote-filter');
+  if (filterSelect) {
+    const praegune = filterSelect.value;
+    filterSelect.innerHTML = '<option value="kõik">Kõik ettevõtted</option>' +
+      kõikEttevotted.map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
+    filterSelect.value = praegune || 'kõik';
   }
-  div.innerHTML = html || '<div style="padding:24px;text-align:center;color:var(--hall)">Töötajaid pole</div>';
+  if (tjValitudId && !tjKoikTootajad.find(w => w.id === tjValitudId)) tjValitudId = null;
+  tjRenderStatid();
+  tjRenderList();
+  tjRenderDetail();
 }
 
-function toggleTootajaDetail(id) {
-  const detail = document.getElementById('tootaja-detail-' + id);
-  const nool = document.getElementById('tootaja-nool-' + id);
-  const nhtav = detail.style.display !== 'none';
-  detail.style.display = nhtav ? 'none' : 'block';
-  nool.textContent = nhtav ? '▼' : '▲';
+function tjRenderStatid() {
+  const div = document.getElementById('tj-stat-rida');
+  if (!div) return;
+  const aktiivsed = tjKoikTootajad.filter(w => w.aktiivne).length;
+  const kokku = tjKoikTootajad.length;
+  let seoseidKokku = 0;
+  Object.values(tjKoikTootajadEttevotted).forEach(we => seoseidKokku += we.length);
+  const xsKokku = Object.values(tjKoikXs).filter(Boolean).length;
+  const arveKokku = tjKoikTootajad.filter(w => tjKoikArved[w.id] || tjKoikOmaarved[w.id]).length;
+  div.innerHTML = `
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(37,99,235,.12);color:var(--sinine)">${TJ_SVG_USERS}</div>
+      <div><div class="stat-kaart-label">Aktiivseid töötajaid</div><div class="stat-kaart-val">${aktiivsed}</div><div class="stat-kaart-sub">${kokku} kokku nimekirjas</div></div>
+    </div>
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)">${TJ_SVG_FOLDER}</div>
+      <div><div class="stat-kaart-label">Projekti seoseid</div><div class="stat-kaart-val">${seoseidKokku}</div><div class="stat-kaart-sub">Kokku kõigi töötajatega</div></div>
+    </div>
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(37,99,235,.12);color:var(--sinine)">${TJ_SVG_SHIELD}</div>
+      <div><div class="stat-kaart-label">X-seeria ligipääsuga</div><div class="stat-kaart-val">${xsKokku}</div><div class="stat-kaart-sub">&nbsp;</div></div>
+    </div>
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(229,154,22,.14);color:var(--oranz)">${TJ_SVG_RECEIPT}</div>
+      <div><div class="stat-kaart-label">Arvete ligipääsuga</div><div class="stat-kaart-val">${arveKokku}</div><div class="stat-kaart-sub">&nbsp;</div></div>
+    </div>`;
 }
 
-// Sama lubatud/keelatud lipp, mida kasutab ka X-seeria tabi "Töötajate ligipääs" — hallatav nüüd
-// mugavalt ka siit, üldisest Töötajad vaatest, ilma X-seeria tabi vahetamata.
-async function toggleXseeriaLuba(workerId, lubatud) {
+function tjOtsiMuutus(v) { tjOtsing = (v||'').toLowerCase(); tjLehekylg = 1; tjRenderList(); }
+function tjFiltriMuutus() {
+  tjEttevoteFilter = document.getElementById('tj-ettevote-filter').value;
+  tjStaatusFilter = document.getElementById('tj-staatus-filter').value;
+  tjLehekylg = 1;
+  tjRenderList();
+}
+function tjLeheVaheta(delta) { tjLehekylg += delta; tjRenderList(); }
+function tjLylitaLisaVorm() {
+  const el = document.getElementById('tj-lisa-vorm');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function tjRenderList() {
+  const listDiv = document.getElementById('tj-nimekiri');
+  const pagerDiv = document.getElementById('tj-pager');
+  if (!listDiv) return;
+  let list = tjKoikTootajad.filter(w => {
+    if (tjOtsing && !(w.nimi.toLowerCase().includes(tjOtsing) || (w.pin||'').toLowerCase().includes(tjOtsing))) return false;
+    if (tjStaatusFilter === 'aktiivsed' && !w.aktiivne) return false;
+    if (tjStaatusFilter === 'mitteaktiivsed' && w.aktiivne) return false;
+    if (tjEttevoteFilter !== 'kõik') {
+      const we = tjKoikTootajadEttevotted[w.id] || [];
+      if (!we.some(x => String(x.ettevote_id) === String(tjEttevoteFilter))) return false;
+    }
+    return true;
+  }).sort((a,b) => a.nimi.localeCompare(b.nimi, 'et'));
+
+  const kokkuLeheküljed = Math.max(1, Math.ceil(list.length / TJ_LEHE_SUURUS));
+  if (tjLehekylg > kokkuLeheküljed) tjLehekylg = kokkuLeheküljed;
+  const lehelised = list.slice((tjLehekylg-1)*TJ_LEHE_SUURUS, tjLehekylg*TJ_LEHE_SUURUS);
+
+  if (!list.length) {
+    listDiv.innerHTML = '<div style="padding:32px;text-align:center;color:var(--hall)">Töötajaid ei leitud</div>';
+    pagerDiv.innerHTML = '';
+    return;
+  }
+
+  listDiv.innerHTML = `<table><thead><tr style="border-bottom:0.5px solid var(--piir2)">
+      <th>Töötaja</th><th>PIN</th><th>Projektid</th><th>Staatus</th><th></th>
+    </tr></thead><tbody>` + lehelised.map(w => {
+    const we = tjKoikTootajadEttevotted[w.id] || [];
+    const nimed = we.map(x => (kõikEttevotted.find(e=>e.id===x.ettevote_id)||{}).nimi).filter(Boolean);
+    const vc = tootajaVarv(w.id || w.nimi);
+    const onXs = !!tjKoikXs[w.id];
+    return `<tr class="tj-tabeli-rida${tjValitudId===w.id?' aktiivne-valik':''}" onclick="tjValiTootaja(${w.id})">
+      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span>${w.nimi}</td>
+      <td style="color:var(--hall);font-size:12px">${w.pin}</td>
+      <td>${nimed.length ? nimed.slice(0,2).map(n=>`<span class="tj-badge">${n}</span>`).join('') + (nimed.length>2?`<span class="tj-badge">+${nimed.length-2}</span>`:'') : '<span style="color:var(--hall);font-size:11px">—</span>'}${onXs?'<span class="tj-badge" style="color:var(--sinine)">🥏 X-seeria</span>':''}</td>
+      <td><span class="staatus-pill ${w.aktiivne?'roheline':'hall'}">${w.aktiivne?'Aktiivne':'Mitteaktiivne'}</span></td>
+      <td style="text-align:right;color:var(--hall)">›</td>
+    </tr>`;
+  }).join('') + `</tbody></table>`;
+
+  pagerDiv.innerHTML = kokkuLeheküljed > 1 ? `
+      <button type="button" onclick="tjLeheVaheta(-1)" ${tjLehekylg<=1?'disabled':''}>‹ Eelmine</button>
+      <span>Lehekülg ${tjLehekylg} / ${kokkuLeheküljed}</span>
+      <button type="button" onclick="tjLeheVaheta(1)" ${tjLehekylg>=kokkuLeheküljed?'disabled':''}>Järgmine ›</button>` : '';
+}
+
+function tjValiTootaja(id) {
+  tjValitudId = id;
+  tjDetailTab = 'ulevaade';
+  tjRenderList();
+  tjRenderDetail();
+}
+
+function tjVahetaDetailTab(tab) {
+  tjDetailTab = tab;
+  tjRenderDetail();
+}
+
+function tjRenderDetail() {
+  const div = document.getElementById('tj-detail-sisu');
+  if (!div) return;
+  if (!tjValitudId) { div.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--hall)">Vali töötaja nimekirjast, et näha detaile</div>'; return; }
+  const w = tjKoikTootajad.find(x => x.id === tjValitudId);
+  if (!w) { tjValitudId = null; div.innerHTML = '<div style="padding:60px 20px;text-align:center;color:var(--hall)">Vali töötaja nimekirjast, et näha detaile</div>'; return; }
+  const we = tjKoikTootajadEttevotted[w.id] || [];
+  const vc = tootajaVarv(w.id || w.nimi);
+  div.innerHTML = `
+    <div class="tj-detail-hdr">
+      <div class="tj-detail-avatar" style="background:${vc}">${w.nimi[0]}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:16px;font-weight:700;color:var(--tekst)">${w.nimi}</div>
+        <div style="font-size:12px;color:var(--hall)">Töötaja profiil</div>
+      </div>
+      <button type="button" class="tj-more-nupp" onclick="tjKustutaTootaja()" title="Kustuta töötaja jäädavalt">🗑</button>
+    </div>
+    <div class="tj-detail-tabs">
+      <button type="button" class="tj-detail-tab ${tjDetailTab==='ulevaade'?'aktiivne':''}" onclick="tjVahetaDetailTab('ulevaade')">Ülevaade</button>
+      <button type="button" class="tj-detail-tab ${tjDetailTab==='projektid'?'aktiivne':''}" onclick="tjVahetaDetailTab('projektid')">Projektid</button>
+      <button type="button" class="tj-detail-tab ${tjDetailTab==='ajalugu'?'aktiivne':''}" onclick="tjVahetaDetailTab('ajalugu')">Ajalugu</button>
+    </div>
+    <div id="tj-detail-tab-sisu">${tjRenderDetailTabSisu(w, we)}</div>
+  `;
+  if (tjDetailTab === 'ajalugu') tjLaadiAjalugu(w.id);
+}
+
+function tjRenderDetailTabSisu(w, we) {
+  if (tjDetailTab === 'ulevaade') {
+    const onXs = !!tjKoikXs[w.id], onArved = !!tjKoikArved[w.id], onOmaarved = !!tjKoikOmaarved[w.id];
+    return `
+      <div class="tj-info-tiilid">
+        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">PIN-kood</div><div class="tj-info-tiil-val">${w.pin}</div></div>
+        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Staatus</div><div class="tj-info-tiil-val" style="color:${w.aktiivne?'var(--roheline)':'var(--hall)'}">${w.aktiivne?'Aktiivne':'Mitteaktiivne'}</div></div>
+        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Registreeritud</div><div class="tj-info-tiil-val" style="font-size:12px">${w.loodud ? new Date(w.loodud).toLocaleDateString('et-EE') : '—'}</div></div>
+        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Ettevõtte seoseid</div><div class="tj-info-tiil-val">${we.length}</div></div>
+      </div>
+      <div class="tj-sektsioon-pealkiri">Andmed</div>
+      <div class="vorm-rida col2">
+        <div class="vorm-grupp"><label>Nimi</label><input type="text" id="tj-e-nimi" value="${w.nimi.replace(/"/g,'&quot;')}"></div>
+        <div class="vorm-grupp"><label>PIN-kood</label><input type="text" id="tj-e-pin" value="${w.pin}" maxlength="6"></div>
+      </div>
+      <div class="vorm-rida">
+        <div class="vorm-grupp"><label>Email</label><input type="email" id="tj-e-email" value="${(w.email||'').replace(/"/g,'&quot;')}" placeholder="email"></div>
+      </div>
+      <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:7px;margin:8px 0 4px">
+        <input type="checkbox" id="tj-e-aktiivne" ${w.aktiivne?'checked':''}> Aktiivne (saab tootaja.html-i sisse logida)
+      </label>
+      <div class="tj-sektsioon-pealkiri">Ligipääsud</div>
+      <div class="tj-ligipaas-rida">
+        <span>🥏 X-seeria (võistlused, kulude sisestus)</span>
+        <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="tj-ligipaas-rida">
+        <span>🧾 Minu Arved (isiklik arvete moodul)</span>
+        <label class="toggle-switch"><input type="checkbox" ${onOmaarved?'checked':''} onchange="tjToggleOmaarved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="tj-ligipaas-rida">
+        <span>👤 Kogu ettevõtte arved (raamatupidaja täisligipääs)</span>
+        <label class="toggle-switch"><input type="checkbox" ${onArved?'checked':''} onchange="tjToggleArved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="teade" id="tj-detail-teade" style="margin-top:10px"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="nupp kull" style="flex:1" onclick="tjSalvestaTootaja()">💾 Salvesta muudatused</button>
+        <button class="nupp hall" onclick="tjLylitaAktiivsus()">${w.aktiivne?'⏸ Deaktiveeri':'▶ Aktiveeri'}</button>
+      </div>`;
+  }
+  if (tjDetailTab === 'projektid') {
+    return `
+      <div class="tj-sektsioon-pealkiri">Ettevõtted ja tunnitasud</div>
+      <div style="font-size:11px;color:var(--hall);margin-bottom:10px">Salvestub automaatselt</div>
+      ${kõikEttevotted.map(e => {
+        const rec = we.find(x => x.ettevote_id === e.id);
+        const onMaara = !!rec;
+        const tasu = rec ? rec.tunnitasu : '';
+        const isEdgf = e.tyyp === 'edgf';
+        const varv = ETTEVOTE_TYYP_VARV[e.tyyp] || '#888';
+        return `<div class="ettevote-rida">
+          <div class="ettevote-rida-vasak">
+            <span class="ettevote-dot" style="background:${varv}"></span>
+            <span class="ettevote-nimi">${e.nimi}</span>
+          </div>
+          <div class="ettevote-rida-parem">
+            ${isEdgf
+              ? `<span style="font-size:11px;color:var(--hall);font-style:italic">kulupõhine</span>`
+              : `<input type="number" id="et-${w.id}-${e.id}" class="ettevote-tasu-input" value="${tasu}" placeholder="€/h" step="0.5" ${onMaara?'':'disabled'} onchange="uuendaEttevoteTasu(${w.id}, ${e.id})">`
+            }
+            <label class="toggle-switch">
+              <input type="checkbox" id="ec-${w.id}-${e.id}" ${onMaara?'checked':''} onchange="toggleEttevote(${w.id}, ${e.id}, this, ${isEdgf})">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>`;
+      }).join('')}`;
+  }
+  return `<div id="tj-ajalugu-sisu"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>`;
+}
+
+async function tjLaadiAjalugu(workerId) {
+  const div = document.getElementById('tj-ajalugu-sisu');
+  if (!div) return;
+  try {
+    const d = await api('/api/admin/audit-log');
+    const omad = (Array.isArray(d) ? d : []).filter(a => a.worker_id === workerId).slice(0, 30);
+    if (!omad.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selle töötaja kohta pole veel ajalugu</div>'; return; }
+    div.innerHTML = omad.map(a => {
+      const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
+      const tegevusTekst = (typeof AUDIT_TEGEVUSED !== 'undefined' && AUDIT_TEGEVUSED[a.tegevus]) || a.tegevus || '—';
+      return `<div class="tegevus-rida"><div class="tegevus-dot"></div><div><div class="tegevus-tekst">${escapeHtmlXs(tegevusTekst)}</div><div class="tegevus-aeg">${aeg}</div></div></div>`;
+    }).join('');
+  } catch(e) {
+    div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Ei õnnestunud laadida</div>';
+  }
+}
+
+async function tjToggleXs(workerId, lubatud) {
   await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
-  laadiTootajad();
+  tjKoikXs[workerId] = lubatud;
+  tjRenderStatid(); tjRenderList();
+}
+async function tjToggleArved(workerId, lubatud) {
+  await api(`/api/arved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  tjKoikArved[workerId] = lubatud;
+  tjRenderStatid();
+}
+async function tjToggleOmaarved(workerId, lubatud) {
+  await api(`/api/omaarved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  tjKoikOmaarved[workerId] = lubatud;
+  tjRenderStatid();
+}
+
+async function tjSalvestaTootaja() {
+  const id = tjValitudId;
+  if (!id) return;
+  const nimi = document.getElementById('tj-e-nimi').value;
+  const pin = document.getElementById('tj-e-pin').value;
+  const email = document.getElementById('tj-e-email').value;
+  const aktiivne = document.getElementById('tj-e-aktiivne').checked;
+  if (!nimi || !pin) { naitaTeade('tj-detail-teade','viga','Nimi ja PIN on kohustuslikud'); return; }
+  const r = await api(`/api/admin/tootajad/${id}`, { method:'PUT', body: JSON.stringify({ nimi, pin, aktiivne, email }) });
+  if (r && r.ok === false) { naitaTeade('tj-detail-teade','viga', r.veateade || 'Salvestamine ebaõnnestus'); return; }
+  await laadiTootajad();
+  naitaTeade('tj-detail-teade','ok','✅ Salvestatud');
+}
+
+async function tjLylitaAktiivsus() {
+  const id = tjValitudId;
+  const w = tjKoikTootajad.find(x => x.id === id);
+  if (!w) return;
+  const uusAktiivne = !w.aktiivne;
+  if (!uusAktiivne && !confirm(`Deaktiveerida töötaja "${w.nimi}"?\n\nTa ei saa enam sisse logida, aga kõik andmed säilivad.`)) return;
+  await api(`/api/admin/tootajad/${id}`, { method:'PUT', body: JSON.stringify({ nimi: w.nimi, pin: w.pin, aktiivne: uusAktiivne, email: w.email||'' }) });
+  await laadiTootajad();
+}
+
+async function tjKustutaTootaja() {
+  const id = tjValitudId;
+  const w = tjKoikTootajad.find(x => x.id === id);
+  if (!w) return;
+  if (!confirm(`Kustutad töötaja "${w.nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed!\n\nSee on pöördumatu!`)) return;
+  const r = await api(`/api/admin/tootajad/${id}`, { method:'DELETE' });
+  if (!r || !r.ok) { alert((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
+  tjValitudId = null;
+  await laadiTootajad();
 }
 
 async function lisaTootaja() {
@@ -3021,21 +3299,17 @@ async function lisaTootaja() {
   else naitaTeade('tootaja-teade','viga',r.veateade);
 }
 
-async function uuendaTootaja(id) {
-  const nimi=document.getElementById(`wn-${id}`).value, pin=document.getElementById(`wp-${id}`).value;
-  const aktiivne=document.getElementById(`wa-${id}`).checked, email=document.getElementById(`we-${id}`)?.value||'';
-  await api(`/api/admin/tootajad/${id}`,{method:'PUT',body:JSON.stringify({nimi,pin,aktiivne,email})});
-  laadiTootajad();
-}
-
-async function kustutaTootaja(id,nimi) {
-  if(!confirm(`Kustutad töötaja "${nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed!\n\nSee on pöördumatu!`)) return;
-  const r=await api(`/api/admin/tootajad/${id}`,{method:'DELETE'});
-  if(r.ok){naitaTeade('tootaja-teade','ok',`✅ ${nimi} kustutatud`);laadiTootajad();}
-  else naitaTeade('tootaja-teade','viga',r.veateade||'Kustutamine ebaõnnestus');
-}
-
 const ETTEVOTE_TYYP_VARV = { lidl: '#FFF200', cramo: '#CD2200', muu: '#38bdf8', merekohvik: '#4ade80', edgf: '#a78bfa' };
+
+function tjPatchEttevoteMap(workerId, ettevoteId, tunnitasu, eemalda) {
+  if (typeof tjKoikTootajadEttevotted === 'undefined') return;
+  const we = tjKoikTootajadEttevotted[workerId] || (tjKoikTootajadEttevotted[workerId] = []);
+  const idx = we.findIndex(x => x.ettevote_id === ettevoteId);
+  if (eemalda) { if (idx > -1) we.splice(idx, 1); }
+  else if (idx > -1) we[idx].tunnitasu = tunnitasu;
+  else we.push({ ettevote_id: ettevoteId, tunnitasu });
+  if (typeof tjRenderList === 'function') tjRenderList();
+}
 
 async function toggleEttevote(workerId, ettevoteId, checkbox, isEdgf) {
   const tasuInput = document.getElementById(`et-${workerId}-${ettevoteId}`);
@@ -3050,9 +3324,11 @@ async function toggleEttevote(workerId, ettevoteId, checkbox, isEdgf) {
       return;
     }
     if (!isEdgf && tasuInput) tasuInput.focus();
+    tjPatchEttevoteMap(workerId, ettevoteId, tasu, false);
   } else {
     if (tasuInput) { tasuInput.disabled = true; tasuInput.value = ''; }
     await api(`/api/admin/tootaja-ettevotted/${workerId}/${ettevoteId}`, {method:'DELETE'});
+    tjPatchEttevoteMap(workerId, ettevoteId, 0, true);
   }
 }
 
@@ -3061,6 +3337,7 @@ async function uuendaEttevoteTasu(workerId,ettevoteId) {
   const tasu=document.getElementById(`et-${workerId}-${ettevoteId}`).value;
   if(!checkbox.checked||!tasu) return;
   await api('/api/admin/tootaja-ettevotted',{method:'POST',body:JSON.stringify({worker_id:workerId,ettevote_id:ettevoteId,tunnitasu:tasu})});
+  tjPatchEttevoteMap(workerId, ettevoteId, tasu, false);
 }
 
 let objAktiivneFilter=null, objLukustatudEttevoteId=null;
