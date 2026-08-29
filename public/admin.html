@@ -1574,6 +1574,53 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div id="av-alamvaade-valja">
+    <div class="kaart" id="avm-muujad-kaart">
+      <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
+        <span>🏢 Müüjad (minu ettevõtted)</span>
+        <span id="avm-nool" onclick="avToggleKaart('avm-body','avm-nool')" style="margin-left:auto;cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▼</span>
+      </div>
+      <div class="kaart-body" id="avm-body" style="display:none">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Kui väljastad arveid mitme oma ettevõtte (OÜ) nimel, lisa need siia ja vali "Uus arve" vormis, millise nimel arve väljastad. Käibemaksukohuslasest ettevõtte arvetele lisandub alati 24% käibemaks, mitte-kohuslasest ettevõtte arvetele alati 0%.</div>
+        <div id="avm-nimekiri" style="margin-bottom:14px"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+        <button type="button" class="nupp hall" onclick="avmAvaVorm()">+ Lisa ettevõte</button>
+
+        <div id="avm-vorm" style="display:none;margin-top:16px;padding-top:16px;border-top:0.5px solid var(--piir2)">
+          <input type="hidden" id="avm-id">
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>Ettevõtte nimi *</label><input id="avm-nimi" placeholder="nt Näidis OÜ"></div>
+            <div class="vorm-grupp"><label>Registrikood</label><input id="avm-rgkood"></div>
+          </div>
+          <div class="vorm-grupp"><label>Aadress</label><input id="avm-aadress" placeholder="tänav, linn, maakond, sihtnumber"></div>
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>KMKR nr (kui käibemaksukohuslane)</label><input id="avm-kmkr"></div>
+            <div class="vorm-grupp"><label>Telefon</label><input id="avm-telefon"></div>
+          </div>
+          <div class="vorm-rida col2">
+            <div class="vorm-grupp"><label>E-post</label><input id="avm-epost"></div>
+            <div class="vorm-grupp"><label>SWIFT</label><input id="avm-swift"></div>
+          </div>
+          <div class="vorm-grupp"><label>IBAN (pangakonto)</label><input id="avm-pangakonto" placeholder="EE..."></div>
+          <div class="vorm-grupp" style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="avm-km-kohuslane" checked style="width:auto">
+            <label for="avm-km-kohuslane" style="font-size:13px;color:var(--tekst2)">Käibemaksukohuslane — selle ettevõtte arvetele lisandub alati 24% käibemaks (kui märkimata, alati 0%)</label>
+          </div>
+          <div class="vorm-grupp" id="avm-logo-plokk" style="display:none">
+            <label>Logo</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div id="avm-logo-eelvaade" style="width:70px;height:44px;background:var(--sisend-bg);border:0.5px solid var(--piir2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--hall);overflow:hidden">—</div>
+              <input type="file" id="avm-logo-fail" accept="image/*" style="display:none" onchange="avmLogoValitud(this)">
+              <button type="button" class="nupp hall" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('avm-logo-fail').click()">📷 Laadi logo üles</button>
+              <button type="button" class="nupp hall" id="avm-logo-eemalda-nupp" style="padding:6px 12px;font-size:12px;display:none" onclick="avmEemaldaLogo()">🗑 Eemalda</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="nupp roheline" onclick="avmSalvesta()">💾 Salvesta ettevõte</button>
+            <button type="button" class="nupp hall" onclick="avmSuljeVorm()">Loobu</button>
+          </div>
+          <div class="teade" id="avm-teade"></div>
+        </div>
+      </div>
+    </div>
     <div class="kaart" id="av-uusarve-kaart">
       <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
         <span>➕ Uus arve</span>
@@ -1581,7 +1628,12 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <span id="av-uusarve-nool" onclick="avToggleKaart('av-uusarve-body','av-uusarve-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
       </div>
       <div class="kaart-body" id="av-uusarve-body">
-        <div class="vorm-rida col3">
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp">
+            <label>Müüja (minu ettevõte)</label>
+            <select id="av-muuja" onchange="avmMuujaValitud()"></select>
+            <div style="margin-top:6px"><a href="#" onclick="avmAvaKaartJaKeri();return false;" style="font-size:11px;color:var(--hall)">⚙️ Halda müüjaid</a></div>
+          </div>
           <div class="vorm-grupp">
             <label>Klient</label>
             <select id="av-klient" onchange="avKlientMuutus()">
@@ -1664,7 +1716,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--piir2);display:flex;justify-content:flex-end">
           <div style="min-width:260px">
             <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--hall);padding:4px 0"><span>Summa km-ta</span><span id="av-summa-kmta">0,00 €</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--hall);padding:4px 0"><span>Käibemaks 24%</span><span id="av-kaibemaks">0,00 €</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--hall);padding:4px 0"><span id="av-kaibemaks-silt">Käibemaks 24%</span><span id="av-kaibemaks">0,00 €</span></div>
             <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;color:var(--tekst);padding:8px 0;border-top:0.5px solid var(--piir2);margin-top:4px"><span>Arve kokku</span><span id="av-kokku">0,00 €</span></div>
           </div>
         </div>
@@ -4444,6 +4496,144 @@ async function laadiArved() {
   await avPreviewNumber();
   if (!avRead.length) avLisaRida();
   avJoonistaRead();
+  await avmLaadiMuujad();
+}
+
+// ── MÜÜJAD (adminni enda mitme ettevõtte haldus, sama muster mis töötaja Minu Arved moodulis) ──
+let avmMuujad = [];
+let avKmProtsent = 24;
+async function avmLaadiMuujad() {
+  const r = await api('/api/arved/muujad');
+  avmMuujad = (r && r.ok && Array.isArray(r.muujad)) ? r.muujad : [];
+  avmRenderNimekiri();
+  avmRenderValik();
+}
+function avmRenderNimekiri() {
+  const div = document.getElementById('avm-nimekiri');
+  if (!avmMuujad.length) {
+    div.innerHTML = '<div style="font-size:12px;color:var(--hall);padding:8px 0">Ühtegi ettevõtet pole veel lisatud — lisa esimene allolevast nupust.</div>';
+    return;
+  }
+  div.innerHTML = avmMuujad.map(m => `
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:0.5px solid var(--piir2);flex-wrap:wrap">
+      ${m.logo_url ? `<img src="${m.logo_url}" style="width:44px;height:30px;object-fit:contain;background:var(--sisend-bg);border-radius:5px">` : ''}
+      <div style="flex:1;min-width:140px">
+        <div style="font-size:13px;font-weight:600">${m.ettevote_nimi}${m.vaikimisi ? ' <span style="font-size:10px;color:#4ade80">★ vaikimisi</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--hall)">${m.km_kohuslane ? 'Käibemaksukohuslane (24%)' : 'Ei ole käibemaksukohuslane (0%)'}</div>
+      </div>
+      ${!m.vaikimisi ? `<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmTeeVaikimisi(${m.id})">Tee vaikimisi</button>` : ''}
+      <button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmMuudaMuuja(${m.id})">✏️</button>
+      <button type="button" class="nupp punane" style="padding:5px 10px;font-size:11px" onclick="avmKustuta(${m.id})">🗑</button>
+    </div>
+  `).join('');
+}
+function avmRenderValik() {
+  const sel = document.getElementById('av-muuja');
+  sel.innerHTML = avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('');
+  if (avmMuujad.length) {
+    const vaikimisi = avmMuujad.find(m => m.vaikimisi) || avmMuujad[0];
+    sel.value = vaikimisi.id;
+  }
+  avmMuujaValitud();
+}
+function avmMuujaValitud() {
+  const id = parseInt(document.getElementById('av-muuja').value, 10);
+  const m = avmMuujad.find(x => x.id === id);
+  avKmProtsent = (m && m.km_kohuslane) ? 24 : 0;
+  avJoonistaRead();
+}
+function avmAvaKaartJaKeri() {
+  const keha = document.getElementById('avm-body');
+  if (keha.style.display === 'none') avToggleKaart('avm-body', 'avm-nool');
+  document.getElementById('avm-muujad-kaart').scrollIntoView({ behavior: 'smooth' });
+}
+function avmAvaVorm() {
+  document.getElementById('avm-id').value = '';
+  ['avm-nimi', 'avm-aadress', 'avm-rgkood', 'avm-kmkr', 'avm-telefon', 'avm-epost', 'avm-swift', 'avm-pangakonto'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('avm-km-kohuslane').checked = true;
+  document.getElementById('avm-logo-plokk').style.display = 'none';
+  document.getElementById('avm-teade').style.display = 'none';
+  document.getElementById('avm-vorm').style.display = 'block';
+}
+function avmSuljeVorm() {
+  document.getElementById('avm-vorm').style.display = 'none';
+}
+function avmMuudaMuuja(id) {
+  const m = avmMuujad.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('avm-id').value = m.id;
+  document.getElementById('avm-nimi').value = m.ettevote_nimi || '';
+  document.getElementById('avm-aadress').value = m.aadress || '';
+  document.getElementById('avm-rgkood').value = m.rg_kood || '';
+  document.getElementById('avm-kmkr').value = m.kmkr || '';
+  document.getElementById('avm-telefon').value = m.telefon || '';
+  document.getElementById('avm-epost').value = m.epost || '';
+  document.getElementById('avm-swift').value = m.swift || '';
+  document.getElementById('avm-pangakonto').value = m.pangakonto || '';
+  document.getElementById('avm-km-kohuslane').checked = m.km_kohuslane !== false;
+  const logoPlokk = document.getElementById('avm-logo-plokk');
+  logoPlokk.style.display = 'block';
+  document.getElementById('avm-logo-eelvaade').innerHTML = m.logo_url ? `<img src="${m.logo_url}" style="width:100%;height:100%;object-fit:contain">` : '—';
+  document.getElementById('avm-logo-eemalda-nupp').style.display = m.logo_url ? 'inline-block' : 'none';
+  document.getElementById('avm-teade').style.display = 'none';
+  document.getElementById('avm-vorm').style.display = 'block';
+}
+async function avmSalvesta() {
+  const id = document.getElementById('avm-id').value;
+  const nimi = document.getElementById('avm-nimi').value.trim();
+  const teade = document.getElementById('avm-teade');
+  if (!nimi) return naitaTeade('avm-teade', 'viga', 'Sisesta ettevõtte nimi');
+  const body = {
+    ettevote_nimi: nimi,
+    aadress: document.getElementById('avm-aadress').value.trim(),
+    rg_kood: document.getElementById('avm-rgkood').value.trim(),
+    kmkr: document.getElementById('avm-kmkr').value.trim(),
+    telefon: document.getElementById('avm-telefon').value.trim(),
+    epost: document.getElementById('avm-epost').value.trim(),
+    swift: document.getElementById('avm-swift').value.trim(),
+    pangakonto: document.getElementById('avm-pangakonto').value.trim(),
+    km_kohuslane: document.getElementById('avm-km-kohuslane').checked
+  };
+  const r = id
+    ? await api('/api/arved/muujad/' + id, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/api/arved/muujad', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) return naitaTeade('avm-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  avmSuljeVorm();
+  await avmLaadiMuujad();
+}
+async function avmTeeVaikimisi(id) {
+  await api('/api/arved/muujad/' + id + '/vaikimisi', { method: 'PUT' });
+  await avmLaadiMuujad();
+}
+async function avmKustuta(id) {
+  if (!confirm('Kustutada see ettevõte?')) return;
+  const r = await api('/api/arved/muujad/' + id, { method: 'DELETE' });
+  if (!r.ok) return alert('Viga: ' + (r.veateade || 'kustutamine ebaõnnestus'));
+  await avmLaadiMuujad();
+}
+async function avmLogoValitud(input) {
+  const id = document.getElementById('avm-id').value;
+  if (!id) return alert('Salvesta enne ettevõte ära, siis saad logo lisada.');
+  if (!input.files || !input.files[0]) return;
+  const fd = new FormData();
+  fd.append('logo', input.files[0]);
+  const res = await fetch('/api/arved/muujad/' + id + '/logo', { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd });
+  const r = await res.json();
+  input.value = '';
+  if (!r.ok) return alert('Viga: ' + (r.veateade || 'üleslaadimine ebaõnnestus'));
+  document.getElementById('avm-logo-eelvaade').innerHTML = `<img src="${r.logo_url}" style="width:100%;height:100%;object-fit:contain">`;
+  document.getElementById('avm-logo-eemalda-nupp').style.display = 'inline-block';
+  await avmLaadiMuujad();
+}
+async function avmEemaldaLogo() {
+  const id = document.getElementById('avm-id').value;
+  if (!id) return;
+  await api('/api/arved/muujad/' + id + '/logo', { method: 'DELETE' });
+  document.getElementById('avm-logo-eelvaade').innerHTML = '—';
+  document.getElementById('avm-logo-eemalda-nupp').style.display = 'none';
+  await avmLaadiMuujad();
 }
 
 function avVaataAlamtab(v) {
@@ -4688,9 +4878,10 @@ function avJoonistaRead() {
       <td><button onclick="avEemaldaRida(${idx})" style="background:none;border:none;color:var(--hall);cursor:pointer">✕</button></td>
     </tr>`).join('');
   const summaKmTa = avRead.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-  const kaibemaks = summaKmTa * 0.24;
+  const kaibemaks = summaKmTa * (avKmProtsent / 100);
   document.getElementById('av-summa-kmta').textContent = avFmtEur(summaKmTa);
   document.getElementById('av-kaibemaks').textContent = avFmtEur(kaibemaks);
+  document.getElementById('av-kaibemaks-silt').textContent = `Käibemaks ${avKmProtsent}%`;
   document.getElementById('av-kokku').textContent = avFmtEur(summaKmTa + kaibemaks);
 }
 
@@ -4715,7 +4906,9 @@ async function avSalvestaArve() {
   if (!ostjaNimi) return naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!');
   const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
   if (!kehtivadRead.length) return naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!');
+  if (!avmMuujad.length) return naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt');
   const body = {
+    muuja_id: document.getElementById('av-muuja').value,
     ettevote_id: ettevoteId || null,
     ostja_nimi: ostjaNimi,
     ostja_aadress: document.getElementById('av-ostja-aadress').value,
