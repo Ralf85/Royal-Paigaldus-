@@ -5352,27 +5352,39 @@ async function laadiOaArvedLigipaas() {
   const r = await api('/api/omaarved/admin/lubatud');
   const div = document.getElementById('avOaLigipaasSisu');
   if (!Array.isArray(r) || !r.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Töötajaid ei leitud.</span>'; return; }
+  // Töötajal võib olla mitu oma ettevõtet (nt mitu OÜ-d) — logo hallatakse iga ettevõtte
+  // kaupa eraldi, mitte enam ühe worker'i kaupa.
   div.innerHTML = r.map(w => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--piir2);gap:10px">
-      <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'};flex:1">${w.lubatud ? '🧾' : '·'} ${w.nimi}</span>
-      ${w.logo_url ? `<img src="${w.logo_url}" style="width:28px;height:28px;object-fit:contain;background:#fff;border-radius:6px;padding:2px" title="Praegune logo">` : ''}
-      <button type="button" class="nupp hall" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('oa-logo-${w.id}').click()">🖼️ Logo</button>
-      <input type="file" id="oa-logo-${w.id}" accept="image/*" style="display:none" onchange="avLaadiOaLogo(${w.id}, this)">
-      <label class="toggle-switch">
-        <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleOaLigipaas(${w.id}, this.checked)">
-        <span class="toggle-slider"></span>
-      </label>
+    <div style="padding:9px 0;border-bottom:0.5px solid var(--piir2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'};flex:1">${w.lubatud ? '🧾' : '·'} ${w.nimi}</span>
+        <label class="toggle-switch">
+          <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleOaLigipaas(${w.id}, this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      ${(w.muujad && w.muujad.length) ? `
+        <div style="margin-top:6px;padding-left:20px;display:flex;flex-direction:column;gap:5px">
+          ${w.muujad.map(m => `
+            <div style="display:flex;align-items:center;gap:8px">
+              ${m.logo_url ? `<img src="${m.logo_url}" style="width:24px;height:24px;object-fit:contain;background:#fff;border-radius:5px;padding:2px" title="Praegune logo">` : ''}
+              <span style="font-size:12px;color:var(--hall);flex:1">${m.ettevote_nimi}${m.vaikimisi ? ' ★' : ''}</span>
+              <button type="button" class="nupp hall" style="font-size:10px;padding:3px 8px" onclick="document.getElementById('oa-logo-${m.id}').click()">🖼️ Logo</button>
+              <input type="file" id="oa-logo-${m.id}" accept="image/*" style="display:none" onchange="avLaadiOaLogo(${m.id}, this)">
+            </div>`).join('')}
+        </div>
+      ` : `<div style="margin-top:4px;padding-left:20px;font-size:11px;color:var(--hall)">Töötaja pole veel ühtki ettevõtet lisanud</div>`}
     </div>`).join('');
 }
 async function avToggleOaLigipaas(workerId, lubatud) {
   await api(`/api/omaarved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
 }
-async function avLaadiOaLogo(workerId, input) {
+async function avLaadiOaLogo(muujaId, input) {
   const fail = input.files && input.files[0];
   if (!fail) return;
   const fd = new FormData();
   fd.append('logo', fail);
-  const r = await fetch(`/api/omaarved/admin/logo/${workerId}`, { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd }).then(r => r.json());
+  const r = await fetch(`/api/omaarved/admin/logo/${muujaId}`, { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd }).then(r => r.json());
   if (!r.ok) { alert('Logo üleslaadimine ebaõnnestus: ' + (r.veateade || '')); return; }
   input.value = '';
   laadiOaArvedLigipaas();
