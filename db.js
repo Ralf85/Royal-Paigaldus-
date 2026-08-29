@@ -641,6 +641,52 @@ async function initDB() {
     await client.query(`ALTER TABLE omaarved ADD COLUMN IF NOT EXISTS saaja_epost VARCHAR(150);`);
     await client.query(`ALTER TABLE omaarve_seaded ADD COLUMN IF NOT EXISTS km_kohuslane BOOLEAN NOT NULL DEFAULT true;`);
 
+    // ── TÖÖTAJA ARVED: mitme müüja-ettevõtte tugi ────────────────────────
+    // Varem sai iga töötaja hallata ainult ÜHTE oma ettevõtet (omaarve_seaded, worker_id oli
+    // primaarvõti). Nüüd saab töötaja hallata mitut ettevõtet (nt kui tal on mitu OÜ-d) ja valida
+    // arve loomisel, millise ettevõtte nimel arve väljastatakse. Vana omaarve_seaded tabel jääb
+    // muutmata (ajalooline varukoopia), uued kirjed käivad ainult omaarve_muujad kaudu.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS omaarve_muujad (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        ettevote_nimi VARCHAR(200) NOT NULL DEFAULT '',
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        pangakonto VARCHAR(50),
+        pank VARCHAR(100),
+        telefon VARCHAR(50),
+        epost VARCHAR(100),
+        logo_url TEXT,
+        logo_public_id TEXT,
+        km_kohuslane BOOLEAN NOT NULL DEFAULT true,
+        vaikimisi BOOLEAN NOT NULL DEFAULT false,
+        loodud TIMESTAMP DEFAULT NOW(),
+        uuendatud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`ALTER TABLE omaarved ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES omaarve_muujad(id);`);
+    // Ühekordne migratsioon: iga töötaja, kellel oli vana omaarve_seaded rida, saab selle esimese
+    // (vaikimisi) ettevõttena omaarve_muujad tabelisse — ei puuduta töötajaid, kes on juba migreeritud.
+    const migreeritavad = await client.query(`
+      SELECT s.* FROM omaarve_seaded s
+      WHERE NOT EXISTS (SELECT 1 FROM omaarve_muujad m WHERE m.worker_id = s.worker_id)
+    `);
+    for (const s of migreeritavad.rows) {
+      await client.query(
+        `INSERT INTO omaarve_muujad (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, logo_url, logo_public_id, km_kohuslane, vaikimisi)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true)`,
+        [s.worker_id, s.ettevote_nimi || '', s.aadress, s.rg_kood, s.kmkr, s.pangakonto, s.pank, s.telefon, s.epost, s.logo_url, s.logo_public_id, s.km_kohuslane !== false]
+      );
+    }
+    // Vanad arved (enne muuja_id veeru lisamist) saavad tagantjärele viite oma looja vaikimisi ettevõttele.
+    await client.query(`
+      UPDATE omaarved SET muuja_id = (
+        SELECT m.id FROM omaarve_muujad m WHERE m.worker_id = omaarved.worker_id AND m.vaikimisi = true LIMIT 1
+      ) WHERE muuja_id IS NULL
+    `);
+
     // ── LIDL PROJEKTID (Kristo fotode kaustastruktuuri jaoks) ────────────
     // Varem käis Kristo vaate grupeerimine tookirjed.kommentaar vaba teksti järgi, mis fragmenteeris
     // sama tööliigi mitmeks eraldi "projektiks", kuna töötajad kirjutasid sama asja erinevalt.
