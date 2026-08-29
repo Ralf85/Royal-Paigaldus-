@@ -72,6 +72,7 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    await client.query(`ALTER TABLE maksed ADD COLUMN IF NOT EXISTS ettevote_id INTEGER REFERENCES ettevotted(id) ON DELETE SET NULL;`);
     await client.query(`
       INSERT INTO ettevotted (nimi, tyyp) VALUES
         ('EDGF 2026', 'edgf'),
