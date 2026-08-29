@@ -27,6 +27,13 @@
     .kaart-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; }
     .kaart-meta { font-size: 12px; color: #7a8290; margin-top: 4px; }
     .kaart-noole { font-size: 18px; color: #555; flex-shrink: 0; }
+    /* Poodide kastid (avavaade) */
+    .poe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+    .poe-kaart { background: #13161c; border: 1.5px solid #252830; border-radius: 16px; padding: 22px 10px 16px; text-align: center; cursor: pointer; transition: all 0.15s; }
+    .poe-kaart:hover { border-color: #FFF200; transform: translateY(-2px); }
+    .poe-number { font-size: 30px; font-weight: 800; color: #FFF200; line-height: 1; }
+    .poe-nimi { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-top: 6px; }
+    .poe-meta { font-size: 11px; color: #7a8290; margin-top: 8px; line-height: 1.4; }
     .tyhi { padding: 60px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
     .laadimine { padding: 60px 20px; text-align: center; color: #7a8290; font-size: 13px; }
     /* Pildigrid */
@@ -133,11 +140,13 @@
         sisu.innerHTML = '<div class="tyhi">Ühtegi Lidli poodi pilte veel pole</div>';
         return;
       }
-      sisu.innerHTML = '<div class="grid">' + r.poed.map(function(p) {
-        return '<div class="kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\'>'
-          + '<div><div class="kaart-nimi">' + p.objekt_nimi + '</div>'
-          + '<div class="kaart-meta">' + p.projektide_arv + ' projekti · ' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
-          + '<div class="kaart-noole">›</div></div>';
+      sisu.innerHTML = '<div class="poe-grid">' + r.poed.map(function(p) {
+        var osad = poeNimiOsad(p.objekt_nimi);
+        return '<div class="poe-kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\'>'
+          + (osad.number ? '<div class="poe-number">' + osad.number + '</div>' : '')
+          + '<div class="poe-nimi">' + osad.nimi + '</div>'
+          + '<div class="poe-meta">' + p.projektide_arv + ' projekti<br>' + p.piltide_arv + ' pilti</div>'
+          + '</div>';
       }).join('') + '</div>';
     }
 
@@ -220,6 +229,13 @@
     });
 
     // ── Abifunktsioonid ────────────────────────────────────────
+    // Lahutab poe nime "617 - Linnamäe" kujul kaheks: number ja nimi eraldi,
+    // et saaks kuvada suure numbriga kastina (nagu töötaja pealehe kaardid).
+    function poeNimiOsad(objektNimi) {
+      var m = /^(\d+)\s*-\s*(.+)$/.exec(objektNimi || '');
+      if (m) return { number: m[1], nimi: m[2].trim() };
+      return { number: '', nimi: objektNimi || '' };
+    }
     var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     function formatKp(kp) {
       if (!kp) return '';
