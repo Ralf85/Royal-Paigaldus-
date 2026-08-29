@@ -191,8 +191,6 @@
     .arved-stat-rida { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
     @media (max-width: 1200px) { .arved-stat-rida { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 640px) { .arved-stat-rida { grid-template-columns: repeat(2, 1fr); } }
-    .arved-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-    @media (max-width: 1000px) { .arved-grid { grid-template-columns: 1fr; } }
     .av-tegevus-ikoon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--bg3); border: none; border-radius: 6px; color: var(--tekst2); cursor: pointer; text-decoration: none; }
     .av-tegevus-ikoon:hover { color: var(--sinine); }
     .av-tegevus-ikoon.kustuta:hover { color: var(--punane); }
@@ -1704,8 +1702,8 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <input type="file" id="av-kiir-fail" accept="image/*,application/pdf" style="display:none">
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0">
-          <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avVaataAlamtab('valja')" title="Uue müügiarve vorm — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">➕ Uus arve (müük — raha tuleb sisse)</button>
-          <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avVaataAlamtab('sisse')" title="Uue kulu/tšeki vorm — raha läheb Royalilt VÄLJA, käibemaksu saab tagasi">➕ Lisa kulu (ost — raha läheb välja)</button>
+          <button type="button" class="nupp kull" id="av-alamtab-valja" onclick="avAvaUusArveModal()" title="Uue müügiarve vorm — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">➕ Uus arve (müük — raha tuleb sisse)</button>
+          <button type="button" class="nupp hall" id="av-alamtab-sisse" onclick="avAvaLisaKuluModal()" title="Uue kulu/tšeki vorm — raha läheb Royalilt VÄLJA, käibemaksu saab tagasi">➕ Lisa kulu (ost — raha läheb välja)</button>
         </div>
       </div>
       <div class="teade" id="av-kiir-teade" style="margin:0 18px 16px"></div>
@@ -1756,9 +1754,6 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
       </div>
     </div>
 
-    <div class="arved-grid">
-    <div class="arved-vasak">
-    <div id="av-alamvaade-valja">
     <div class="kaart" id="avm-muujad-kaart">
       <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
         <span>🏢 Müüjad (minu ettevõtted)</span>
@@ -1806,14 +1801,127 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         </div>
       </div>
     </div>
-    <div class="kaart" id="av-uusarve-kaart">
-      <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
-        <span>➕ Uus arve</span>
-        <span id="arve-jargmine-nr" style="margin-left:auto;font-size:11px;color:var(--hall)"></span>
-        <span id="av-uusarve-nool" onclick="avToggleKaart('av-uusarve-body','av-uusarve-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
+
+    <div class="kaart">
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>📋 Arvete ajalugu</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="nupp hall" id="av-filt-koik" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('koik')">Kõik</button>
+          <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
+          <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
+          <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
+          <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
+          <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
+          <span id="av-ajalugu-nool" onclick="avToggleKaart('av-ajalugu-body','av-ajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
+        </div>
       </div>
-      <div class="kaart-body" id="av-uusarve-body">
+      <div id="av-ajalugu-body">
+      <div id="av-laadi-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
+        <div id="av-laadi-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
+          <span id="av-laadi-dropzone-tekst">📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks</span>
+          <input type="file" id="av-laadi-fail" accept="image/*,application/pdf" style="display:none">
+        </div>
         <div class="vorm-rida col4">
+          <div class="vorm-grupp"><label>Arve number</label><input type="text" id="al-number" placeholder="nt vana süsteemi number"></div>
+          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="al-kuupaev"></div>
+          <div class="vorm-grupp"><label>Maksetähtaeg</label><input type="date" id="al-tahtaeg"></div>
+          <div class="vorm-grupp"><label>Ostja nimi</label><input type="text" id="al-ostja" placeholder="nt Cramo Estonia AS"></div>
+        </div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp">
+            <label>Ettevõte (valikuline)</label>
+            <select id="al-ettevote"><option value="">— vali —</option></select>
+          </div>
+          <div class="vorm-grupp"><label>Summa km-ta (€)</label><input type="number" step="0.01" id="al-summa-km-ta" placeholder="0.00"></div>
+          <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="al-kaibemaks" placeholder="0.00"></div>
+          <div class="vorm-grupp"><label>Kokku (€)</label><input type="number" step="0.01" id="al-kokku" placeholder="0.00"></div>
+        </div>
+        <div class="vorm-rida col4">
+          <div class="vorm-grupp">
+            <label>Staatus</label>
+            <select id="al-staatus"><option value="maksmata">⏳ Maksmata</option><option value="makstud">✅ Makstud</option></select>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px">
+          <button type="button" class="nupp roheline" onclick="avSalvestaLaadi()">💾 Salvesta arve</button>
+        </div>
+        <div class="teade" id="al-teade"></div>
+      </div>
+      <div id="av-sumup-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">SumUp väljamakse (Payout Report) aruanne EI OLE arve — see loob korraga <b>kaks</b> kirjet: Merekohviku kaardikäibe (siia, Väljaminevatesse, ostja "MEREKOHVIK") ja SumUp teenustasu (Sisse alla, kuluna).</div>
+        <div id="av-sumup-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
+          <span id="av-sumup-dropzone-tekst">📎 Lohista siia SumUp Payout Report PDF, või kliki valimiseks</span>
+          <input type="file" id="av-sumup-fail" accept="image/*,application/pdf" style="display:none">
+        </div>
+        <div class="teade" id="su-loe-teade"></div>
+        <div id="av-sumup-tulemus" style="display:none">
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>Perioodi algus</label><input type="date" id="su-algus"></div>
+            <div class="vorm-grupp"><label>Perioodi lõpp</label><input type="date" id="su-lopp"></div>
+            <div class="vorm-grupp"><label>Käive brutos (€)</label><input type="number" step="0.01" id="su-kaive" oninput="avSumupArvutaKm()"></div>
+            <div class="vorm-grupp"><label>Käibemaksumäär (%)</label><input type="number" step="0.01" id="su-km-protsent" value="24" oninput="avSumupArvutaKm()"></div>
+          </div>
+          <div class="vorm-rida col4">
+            <div class="vorm-grupp"><label>SumUp teenustasu (€)</label><input type="number" step="0.01" id="su-tasu"></div>
+            <div class="vorm-grupp"><label>Arvutatud käibemaks (€)</label><input type="text" id="su-km-arvutatud" readonly style="opacity:0.7"></div>
+          </div>
+          <div style="font-size:11px;color:var(--hall);margin:8px 0">Käibemaks arvutatakse brutokäibest tagurpidi valitud määraga — kontrolli üle, kas kogu Merekohviku müük on tõesti sellel määral, ja SumUp tasu käibemaksukäsitlus (pöördmaksustamine?) raamatupidajaga.</div>
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="nupp roheline" onclick="avSalvestaSumup()">💾 Salvesta käive + kulu</button>
+          </div>
+        </div>
+        <div class="teade" id="su-teade"></div>
+      </div>
+      <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+      </div><!-- /av-ajalugu-body -->
+    </div>
+
+    <div class="kaart" style="margin-top:16px">
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span>📋 Sissetulevate ajalugu</span>
+        <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
+        <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
+        <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
+      </div>
+      <div id="av-sisseajalugu-body">
+      <div id="sisseTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+      </div>
+    </div>
+
+    <div class="kaart">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="avToggleLigipaasPaneel()">
+        <span>👤⚠️ KOGU ettevõtte arved — raamatupidaja täisligipääs</span>
+        <span id="av-lig-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="av-ligipaas-paneel" style="display:none">
+        <div style="font-size:12px;color:#fb923c;margin-bottom:12px">⚠️ Ainult päris raamatupidajale! See lülitab töötajale nähtavaks TERVE Royal Paigalduse arvete ajaloo (kõik ettevõtted — Lidl, Cramo, Merekohvik jne, nii sisse kui välja) eraldi lehel. Tavalisele töötajale ÄRA seda luba — vaata allpool "Ainult töötaja enda arved".</div>
+        <div id="avLigipaasSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
+      </div>
+    </div>
+
+    <div class="kaart">
+      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="avToggleOaLigipaasPaneel()">
+        <span>🧾 Ainult töötaja ENDA arved — isiklik arvete moodul</span>
+        <span id="av-oalig-nool" style="color:var(--hall);font-size:12px">▼</span>
+      </div>
+      <div class="kaart-body" id="av-oaligipaas-paneel" style="display:none">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Turvaline valik igapäevaseks kasutamiseks — töötaja näeb ja loob AINULT oma isiklikke arveid (nt FIE/oma OÜ), mitte Royal Paigalduse enda ega teiste ettevõtete arveid. Lülitab pealehel nähtavaks "🧾 MINU ARVED" nupu.</div>
+        <div id="avOaLigipaasSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- Uus arve modal -->
+<div class="tootaja-modal-overlay" id="avUusArveModal">
+  <div class="tootaja-modal-sisu" style="max-width:920px">
+    <div class="tm-hdr">
+      <div style="font-size:16px;font-weight:700;color:var(--tekst)">➕ Uus arve</div>
+      <span id="arve-jargmine-nr" style="font-size:11px;color:var(--hall)"></span>
+      <button class="tm-sulge" onclick="avSuljeUusArveModal()">✕</button>
+    </div>
+    <div class="tm-sektsioon" id="av-uusarve-body" style="padding:20px 24px">
+        <div class="vorm-rida col2">
           <div class="vorm-grupp">
             <label>Müüja (minu ettevõte)</label>
             <select id="av-muuja" onchange="avmMuujaValitud()"></select>
@@ -1909,25 +2017,28 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button class="nupp roheline" onclick="avSalvestaArve()">💾 Salvesta ja loo PDF</button>
         </div>
         <div class="teade" id="arve-teade"></div>
-      </div>
     </div>
-    </div><!-- /av-alamvaade-valja -->
+  </div>
+</div>
 
-    <div id="av-alamvaade-sisse">
-      <div class="kaart" id="av-lisasisse-kaart" style="display:none">
-        <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span id="as-vormi-pealkiri">📥 Lisa tšekk/arve</span>
-          <button type="button" class="nupp hall" id="as-tuhista-nupp" style="display:none;font-size:12px;padding:5px 12px" onclick="avTuhistaSisseMuutmine()">✕ Tühista muutmine</button>
-          <span id="av-lisasisse-nool" onclick="avToggleKaart('av-lisasisse-body','av-lisasisse-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-        </div>
-        <div class="kaart-body" id="av-lisasisse-body">
+<!-- Lisa kulu modal -->
+<div class="tootaja-modal-overlay" id="avLisaKuluModal">
+  <div class="tootaja-modal-sisu" style="max-width:640px">
+    <div class="tm-hdr">
+      <div style="font-size:16px;font-weight:700;color:var(--tekst)" id="as-vormi-pealkiri">📥 Lisa tšekk/arve</div>
+      <button type="button" class="nupp hall" id="as-tuhista-nupp" style="display:none;font-size:12px;padding:5px 12px" onclick="avTuhistaSisseMuutmine()">✕ Tühista muutmine</button>
+      <button class="tm-sulge" onclick="avSuljeLisaKuluModal()">✕</button>
+    </div>
+    <div class="tm-sektsioon" id="av-lisasisse-body" style="padding:20px 24px">
           <div id="av-sisse-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
             <span id="av-sisse-dropzone-tekst">📎 Lohista siia pilt või PDF, või kliki valimiseks</span>
             <input type="file" id="av-sisse-fail" accept="image/*,application/pdf" style="display:none">
           </div>
-          <div class="vorm-rida col4">
+          <div class="vorm-rida col2">
             <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="as-kuupaev"></div>
             <div class="vorm-grupp"><label>Tähtaeg (valikuline)</label><input type="date" id="as-tahtaeg"></div>
+          </div>
+          <div class="vorm-rida col2">
             <div class="vorm-grupp">
               <label>Ettevõte</label>
               <select id="as-ettevote">
@@ -1944,123 +2055,8 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <button type="button" class="nupp roheline" onclick="avSalvestaSisse()" id="as-salvesta-nupp">💾 Salvesta</button>
           </div>
           <div class="teade" id="as-teade"></div>
-        </div>
-      </div>
-    </div><!-- /av-alamvaade-sisse -->
-    </div><!-- /arved-vasak -->
-
-    <div class="arved-parem">
-    <div class="kaart">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <span>📋 Arvete ajalugu</span>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" class="nupp hall" id="av-filt-koik" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('koik')">Kõik</button>
-          <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
-          <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
-          <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
-          <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
-          <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
-          <span id="av-ajalugu-nool" onclick="avToggleKaart('av-ajalugu-body','av-ajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-        </div>
-      </div>
-      <div id="av-ajalugu-body">
-      <div id="av-laadi-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
-        <div id="av-laadi-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
-          <span id="av-laadi-dropzone-tekst">📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks</span>
-          <input type="file" id="av-laadi-fail" accept="image/*,application/pdf" style="display:none">
-        </div>
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp"><label>Arve number</label><input type="text" id="al-number" placeholder="nt vana süsteemi number"></div>
-          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="al-kuupaev"></div>
-          <div class="vorm-grupp"><label>Maksetähtaeg</label><input type="date" id="al-tahtaeg"></div>
-          <div class="vorm-grupp"><label>Ostja nimi</label><input type="text" id="al-ostja" placeholder="nt Cramo Estonia AS"></div>
-        </div>
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp">
-            <label>Ettevõte (valikuline)</label>
-            <select id="al-ettevote"><option value="">— vali —</option></select>
-          </div>
-          <div class="vorm-grupp"><label>Summa km-ta (€)</label><input type="number" step="0.01" id="al-summa-km-ta" placeholder="0.00"></div>
-          <div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="al-kaibemaks" placeholder="0.00"></div>
-          <div class="vorm-grupp"><label>Kokku (€)</label><input type="number" step="0.01" id="al-kokku" placeholder="0.00"></div>
-        </div>
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp">
-            <label>Staatus</label>
-            <select id="al-staatus"><option value="maksmata">⏳ Maksmata</option><option value="makstud">✅ Makstud</option></select>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:10px">
-          <button type="button" class="nupp roheline" onclick="avSalvestaLaadi()">💾 Salvesta arve</button>
-        </div>
-        <div class="teade" id="al-teade"></div>
-      </div>
-      <div id="av-sumup-vorm" style="display:none;padding:16px 18px;border-bottom:0.5px solid var(--piir2)">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">SumUp väljamakse (Payout Report) aruanne EI OLE arve — see loob korraga <b>kaks</b> kirjet: Merekohviku kaardikäibe (siia, Väljaminevatesse, ostja "MEREKOHVIK") ja SumUp teenustasu (Sisse alla, kuluna).</div>
-        <div id="av-sumup-dropzone" style="border:2px dashed var(--sisend-piir);border-radius:10px;padding:22px;text-align:center;color:var(--hall);font-size:13px;cursor:pointer;margin-bottom:16px">
-          <span id="av-sumup-dropzone-tekst">📎 Lohista siia SumUp Payout Report PDF, või kliki valimiseks</span>
-          <input type="file" id="av-sumup-fail" accept="image/*,application/pdf" style="display:none">
-        </div>
-        <div class="teade" id="su-loe-teade"></div>
-        <div id="av-sumup-tulemus" style="display:none">
-          <div class="vorm-rida col4">
-            <div class="vorm-grupp"><label>Perioodi algus</label><input type="date" id="su-algus"></div>
-            <div class="vorm-grupp"><label>Perioodi lõpp</label><input type="date" id="su-lopp"></div>
-            <div class="vorm-grupp"><label>Käive brutos (€)</label><input type="number" step="0.01" id="su-kaive" oninput="avSumupArvutaKm()"></div>
-            <div class="vorm-grupp"><label>Käibemaksumäär (%)</label><input type="number" step="0.01" id="su-km-protsent" value="24" oninput="avSumupArvutaKm()"></div>
-          </div>
-          <div class="vorm-rida col4">
-            <div class="vorm-grupp"><label>SumUp teenustasu (€)</label><input type="number" step="0.01" id="su-tasu"></div>
-            <div class="vorm-grupp"><label>Arvutatud käibemaks (€)</label><input type="text" id="su-km-arvutatud" readonly style="opacity:0.7"></div>
-          </div>
-          <div style="font-size:11px;color:var(--hall);margin:8px 0">Käibemaks arvutatakse brutokäibest tagurpidi valitud määraga — kontrolli üle, kas kogu Merekohviku müük on tõesti sellel määral, ja SumUp tasu käibemaksukäsitlus (pöördmaksustamine?) raamatupidajaga.</div>
-          <div style="display:flex;justify-content:flex-end">
-            <button type="button" class="nupp roheline" onclick="avSalvestaSumup()">💾 Salvesta käive + kulu</button>
-          </div>
-        </div>
-        <div class="teade" id="su-teade"></div>
-      </div>
-      <div id="arvedTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
-      </div><!-- /av-ajalugu-body -->
-    </div>
-
-    <div class="kaart" style="margin-top:16px">
-      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <span>📋 Sissetulevate ajalugu</span>
-        <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
-        <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
-        <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-      </div>
-      <div id="av-sisseajalugu-body">
-      <div id="sisseTabel"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
-      </div>
-    </div>
-    </div><!-- /arved-parem -->
-    </div><!-- /arved-grid -->
-
-    <div class="kaart">
-      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="avToggleLigipaasPaneel()">
-        <span>👤⚠️ KOGU ettevõtte arved — raamatupidaja täisligipääs</span>
-        <span id="av-lig-nool" style="color:var(--hall);font-size:12px">▼</span>
-      </div>
-      <div class="kaart-body" id="av-ligipaas-paneel" style="display:none">
-        <div style="font-size:12px;color:#fb923c;margin-bottom:12px">⚠️ Ainult päris raamatupidajale! See lülitab töötajale nähtavaks TERVE Royal Paigalduse arvete ajaloo (kõik ettevõtted — Lidl, Cramo, Merekohvik jne, nii sisse kui välja) eraldi lehel. Tavalisele töötajale ÄRA seda luba — vaata allpool "Ainult töötaja enda arved".</div>
-        <div id="avLigipaasSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
-      </div>
-    </div>
-
-    <div class="kaart">
-      <div class="kaart-hdr" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="avToggleOaLigipaasPaneel()">
-        <span>🧾 Ainult töötaja ENDA arved — isiklik arvete moodul</span>
-        <span id="av-oalig-nool" style="color:var(--hall);font-size:12px">▼</span>
-      </div>
-      <div class="kaart-body" id="av-oaligipaas-paneel" style="display:none">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Turvaline valik igapäevaseks kasutamiseks — töötaja näeb ja loob AINULT oma isiklikke arveid (nt FIE/oma OÜ), mitte Royal Paigalduse enda ega teiste ettevõtete arveid. Lülitab pealehel nähtavaks "🧾 MINU ARVED" nupu.</div>
-        <div id="avOaLigipaasSisu"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
-      </div>
     </div>
   </div>
-
 </div>
 <!-- X-seeria rajakaartide modal -->
 <div class="tootaja-modal-overlay" id="xsFotoModal">
@@ -5073,8 +5069,6 @@ let avRead = [];
 
 function avFmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 
-let avAktiivneAlamtab = 'valja';
-
 let avKliendidList = [];
 
 async function laadiArved() {
@@ -5116,7 +5110,8 @@ async function laadiArved() {
     for (let y = t.getFullYear(); y >= t.getFullYear() - 2; y--) { const o = document.createElement('option'); o.value = y; o.textContent = y; if (y === t.getFullYear()) o.selected = true; aastaSel.appendChild(o); }
   }
 
-  avVaataAlamtab(avAktiivneAlamtab);
+  laadiArvedTabel();
+  laadiSisseTabel();
   avSisseDropzoneSeadista();
   avLaadiDropzoneSeadista();
   avSumupDropzoneSeadista();
@@ -5171,6 +5166,7 @@ function avmMuujaValitud() {
   avJoonistaRead();
 }
 function avmAvaKaartJaKeri() {
+  avSuljeUusArveModal();
   const keha = document.getElementById('avm-body');
   if (keha.style.display === 'none') avToggleKaart('avm-body', 'avm-nool');
   document.getElementById('avm-muujad-kaart').scrollIntoView({ behavior: 'smooth' });
@@ -5264,20 +5260,22 @@ async function avmEemaldaLogo() {
   await avmLaadiMuujad();
 }
 
-function avVaataAlamtab(v) {
-  // Ajalood (Arvete ajalugu + Sissetulevate ajalugu) on nüüd ALATI mõlemad nähtaval, kumbki oma
-  // noolega eraldi kokkuklapitav — see nupupaar valib ainult, kumb LISAMISE vorm (Uus arve vs
-  // Lisa tšekk/kulu) parasjagu avatud on, mitte kumba ajalugu näidatakse.
-  avAktiivneAlamtab = v;
-  document.getElementById('av-uusarve-kaart').style.display = v === 'valja' ? 'block' : 'none';
-  document.getElementById('av-lisasisse-kaart').style.display = v === 'sisse' ? 'block' : 'none';
-  document.getElementById('av-alamtab-valja').classList.toggle('kull', v === 'valja');
-  document.getElementById('av-alamtab-valja').classList.toggle('hall', v !== 'valja');
-  document.getElementById('av-alamtab-sisse').classList.toggle('kull', v === 'sisse');
-  document.getElementById('av-alamtab-sisse').classList.toggle('hall', v !== 'sisse');
-  laadiArvedTabel();
-  laadiSisseTabel();
+// "Uus arve" ja "Lisa kulu" on hüpikaknad (modaalid) — Arvete ajalugu ja Sissetulevate ajalugu
+// on alati mõlemad nähtaval all pool, sõltumata sellest, kumb vorm parasjagu avatud on.
+function avAvaUusArveModal() {
+  document.getElementById('avUusArveModal').classList.add('avatud');
 }
+function avSuljeUusArveModal() {
+  document.getElementById('avUusArveModal').classList.remove('avatud');
+}
+function avAvaLisaKuluModal() {
+  document.getElementById('avLisaKuluModal').classList.add('avatud');
+}
+function avSuljeLisaKuluModal() {
+  document.getElementById('avLisaKuluModal').classList.remove('avatud');
+}
+document.getElementById('avUusArveModal')?.addEventListener('click', function(e) { if (e.target === this) avSuljeUusArveModal(); });
+document.getElementById('avLisaKuluModal')?.addEventListener('click', function(e) { if (e.target === this) avSuljeLisaKuluModal(); });
 
 function avKuuMuutus() {
   laadiArvedTabel();
@@ -5570,6 +5568,7 @@ async function avSalvestaArve() {
   document.getElementById('av-ostja-valjad').style.display = 'none';
   document.getElementById('av-uus-klient-link').style.display = 'block';
   await laadiArved();
+  setTimeout(avSuljeUusArveModal, 900);
 }
 
 let avArvedList = [];
@@ -5895,7 +5894,6 @@ async function avKiirValiFail(file) {
 
   if (r.suund === 'valja') {
     naitaTeade('av-kiir-teade', 'ok', '📤 Tuvastasin: VÄLJAMINEV arve — täidan vormi allpool, kontrolli üle!');
-    avVaataAlamtab('valja');
     avAvatudNaita('av-ajalugu-body', 'av-ajalugu-nool');
     if (document.getElementById('av-laadi-vorm').style.display === 'none') avToggleLaadiVorm();
     if (r.number) document.getElementById('al-number').value = r.number;
@@ -5911,8 +5909,7 @@ async function avKiirValiFail(file) {
     document.getElementById('av-laadi-vorm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
     naitaTeade('av-kiir-teade', 'ok', '📥 Tuvastasin: SISSETULEV tšekk/arve — täidan vormi allpool, kontrolli üle!');
-    avVaataAlamtab('sisse');
-    avAvatudNaita('av-lisasisse-body', 'av-lisasisse-nool');
+    avAvaLisaKuluModal();
     if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
     if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
     if (r.kokku) document.getElementById('as-summa').value = r.kokku;
@@ -5921,7 +5918,6 @@ async function avKiirValiFail(file) {
     if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
     avSisseFail = file;
     document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
-    document.getElementById('av-sisse-dropzone').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 
@@ -6055,7 +6051,7 @@ async function avKustutaValitudSisse() {
 function avMuudaSisse(id) {
   const s = avSisseList.find(x => x.id === id);
   if (!s) return;
-  avVaataAlamtab('sisse'); // veendu, et "Lisa kulu" vorm on nähtaval, mitte peidus "Uus arve" taga
+  avAvaLisaKuluModal();
   avSisseMuudaId = id;
   document.getElementById('as-vormi-pealkiri').textContent = '✏️ Muuda kirjet';
   document.getElementById('as-tuhista-nupp').style.display = 'inline-block';
@@ -6066,7 +6062,6 @@ function avMuudaSisse(id) {
   document.getElementById('as-kirjeldus').value = s.kirjeldus || '';
   document.getElementById('as-summa').value = s.summa;
   document.getElementById('as-kaibemaks').value = s.kaibemaks;
-  document.getElementById('av-alamvaade-sisse').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function avTuhistaSisseMuutmine() {
@@ -6114,6 +6109,7 @@ async function avSalvestaSisse() {
   naitaTeade('as-teade', 'ok', '✅ Salvestatud!');
   avTuhistaSisseMuutmine();
   await laadiSisseTabel();
+  setTimeout(avSuljeLisaKuluModal, 900);
 }
 
 async function avMuudaSisseStaatus(id, uusStaatus) {
@@ -6218,3 +6214,4 @@ init();
 </script>
 </body>
 </html>
+  
