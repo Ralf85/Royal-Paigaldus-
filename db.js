@@ -725,6 +725,21 @@ async function initDB() {
       UPDATE arved SET muuja_id = (SELECT id FROM arve_muujad WHERE vaikimisi=true LIMIT 1) WHERE muuja_id IS NULL
     `);
 
+    // ── KRISTO KOMMENTAARID: Lidl fotoprojektide kommentaarid + adminni teavitus ──
+    // Kristo saab pildivaates märkida, kui millegagi on probleem (nt "sein on vales kohas") —
+    // admin näeb seda kohe punase märgina külgmenüüs, kuni ta on kommentaari lugenud/lahendanud.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kristo_kommentaarid (
+        id SERIAL PRIMARY KEY,
+        objekt_id INTEGER NOT NULL REFERENCES objektid(id) ON DELETE CASCADE,
+        kirjeldus TEXT NOT NULL,
+        tekst TEXT NOT NULL,
+        loodud TIMESTAMP DEFAULT NOW(),
+        loetud BOOLEAN NOT NULL DEFAULT false,
+        lahendatud BOOLEAN NOT NULL DEFAULT false
+      );
+    `);
+
     // ── LIDL PROJEKTID (Kristo fotode kaustastruktuuri jaoks) ────────────
     // Varem käis Kristo vaate grupeerimine tookirjed.kommentaar vaba teksti järgi, mis fragmenteeris
     // sama tööliigi mitmeks eraldi "projektiks", kuna töötajad kirjutasid sama asja erinevalt.
