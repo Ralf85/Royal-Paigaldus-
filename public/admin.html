@@ -191,6 +191,23 @@
     .arved-stat-rida { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
     @media (max-width: 1200px) { .arved-stat-rida { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 640px) { .arved-stat-rida { grid-template-columns: repeat(2, 1fr); } }
+    .av-km-filtri-riba { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
+    .av-km-filter-grupp { display: flex; flex-direction: column; gap: 4px; }
+    .av-km-filter-silt { font-size: 10px; color: var(--hall); text-transform: uppercase; letter-spacing: 0.5px; }
+    .av-km-filtri-riba input[type=date], .av-km-filtri-riba select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--sisend-piir); background: var(--sisend-bg); color: var(--tekst); font-size: 13px; }
+    .mk-lisa-rida { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .mk-lisa-grupp { display: flex; flex-direction: column; gap: 4px; min-width: 130px; flex: 1; }
+    .mk-lisa-grupp label { font-size: 10px; color: var(--hall); text-transform: uppercase; letter-spacing: 0.5px; }
+    .mk-lisa-grupp input, .mk-lisa-grupp select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--sisend-piir); background: var(--sisend-bg); color: var(--tekst); font-size: 13px; width: 100%; }
+    .mk-saldo-teade { margin-top: 10px; padding: 8px 12px; background: rgba(37,99,235,.1); border-radius: 8px; font-size: 12px; color: var(--tekst2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .mk-saldo-teade button { background: var(--sinine); border: none; color: #fff; border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
+    .mk-filtri-riba { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+    .mk-tabel td, .mk-tabel th { padding: 8px 12px; }
+    .mk-tabel td.mk-summa { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+    .mk-tabel th.mk-th-summa { text-align: right; }
+    .mk-tabel td.mk-komm { color: var(--tekst2); }
+    .mk-tabel td.mk-tegevused { text-align: right; white-space: nowrap; }
+    .mk-projekt-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--bg3); color: var(--tekst2); font-size: 11px; font-weight: 600; }
     .av-tegevus-ikoon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--bg3); border: none; border-radius: 6px; color: var(--tekst2); cursor: pointer; text-decoration: none; }
     .av-tegevus-ikoon:hover { color: var(--sinine); }
     .av-tegevus-ikoon.kustuta:hover { color: var(--punane); }
@@ -494,22 +511,57 @@
     </div>
   </div>
   <div class="sektsioon" id="tab1">
-    <div class="kaart">
+    <div class="kaart" style="margin-bottom:16px">
       <div class="kaart-hdr">➕ Lisa makse</div>
       <div class="kaart-body">
-        <div class="vorm-rida col4">
-          <div class="vorm-grupp"><label>Töötaja</label><select id="makse-worker"></select></div>
-          <div class="vorm-grupp"><label>Summa (€)</label><input type="number" id="makse-summa" placeholder="500" step="0.01"></div>
-          <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="makse-kuupaev"></div>
-          <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="makse-komm" placeholder="Mai ettemaks"></div>
+        <div class="mk-lisa-rida">
+          <div class="mk-lisa-grupp" style="flex:1.3"><label>Töötaja</label><select id="makse-worker" onchange="mkTootajaMuutus()"></select></div>
+          <div class="mk-lisa-grupp" style="flex:0.8"><label>Summa (€)</label><input type="number" id="makse-summa" placeholder="500" step="0.01"></div>
+          <div class="mk-lisa-grupp" style="flex:0.9"><label>Kuupäev</label><input type="date" id="makse-kuupaev"></div>
+          <div class="mk-lisa-grupp" style="flex:1"><label>Projekt / klient</label><select id="makse-ettevote"><option value="">—</option></select></div>
+          <div class="mk-lisa-grupp" style="flex:1.4"><label>Kommentaar</label><input type="text" id="makse-komm" placeholder="Mai ettemaks"></div>
+          <button class="nupp kull" style="white-space:nowrap" onclick="lisaMakse()">💾 Salvesta makse</button>
         </div>
-        <button class="nupp roheline" onclick="lisaMakse()">💾 Salvesta makse</button>
+        <div class="mk-saldo-teade" id="mk-saldo-teade" style="display:none"></div>
         <div class="teade" id="makse-teade"></div>
       </div>
     </div>
+
+    <div class="arved-stat-rida" style="margin-bottom:16px" id="mk-kpi-rida"></div>
+
+    <div class="kaart" style="margin-bottom:16px">
+      <div class="kaart-body">
+        <div class="mk-filtri-riba">
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Kuu</span><select id="mk-f-kuu" onchange="mkFiltriMuutus()"><option value="">Kõik kuud</option></select></div>
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Töötaja</span><select id="mk-f-tootaja" onchange="mkFiltriMuutus()"><option value="">Kõik töötajad</option></select></div>
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Projekt / klient</span><select id="mk-f-projekt" onchange="mkFiltriMuutus()"><option value="">Kõik projektid</option></select></div>
+          <div class="av-km-filter-grupp" style="flex:1;min-width:180px"><span class="av-km-filter-silt">Otsi kommentaarist</span><input type="text" id="mk-f-otsi" placeholder="Otsi märkuse järgi..." oninput="mkFiltriMuutus()"></div>
+          <button type="button" class="nupp hall" style="font-size:12px;padding:8px 12px" onclick="mkTyhjendaFiltrid()">✕ Tühista filtrid</button>
+        </div>
+      </div>
+    </div>
+
     <div class="kaart">
       <div class="kaart-hdr">📋 Maksete ajalugu</div>
       <div style="padding:0"><div id="maksedTabel"></div></div>
+    </div>
+  </div>
+
+  <div class="tootaja-modal-overlay" id="mkMuudaModal">
+    <div class="tootaja-modal-sisu" style="max-width:560px">
+      <div class="tm-hdr"><span>✏️ Muuda makset</span><span class="tm-sulge" onclick="mkSuljeMuudaModal()">✕</span></div>
+      <input type="hidden" id="mk-muuda-id">
+      <div class="vorm-rida col2">
+        <div class="vorm-grupp"><label>Töötaja</label><select id="mk-muuda-worker"></select></div>
+        <div class="vorm-grupp"><label>Summa (€)</label><input type="number" id="mk-muuda-summa" step="0.01"></div>
+      </div>
+      <div class="vorm-rida col2">
+        <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="mk-muuda-kuupaev"></div>
+        <div class="vorm-grupp"><label>Projekt / klient</label><select id="mk-muuda-ettevote"><option value="">—</option></select></div>
+      </div>
+      <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="mk-muuda-komm"></div>
+      <button class="nupp kull" onclick="mkSalvestaMuudetud()">💾 Salvesta muudatused</button>
+      <div class="teade" id="mk-muuda-teade"></div>
     </div>
   </div>
   <div class="sektsioon" id="tab2">
@@ -1710,21 +1762,18 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
 
     <div class="kaart" style="margin-bottom:16px">
-      <div class="kaart-hdr" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px">
+      <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
         <span>📊 DATA — kasum, käive/kulud ja käibemaks</span>
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Algus</span>
-          <input type="date" id="km-algus" onchange="avUuendaKmAnalyys()">
-          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Lõpp</span>
-          <input type="date" id="km-lopp" onchange="avUuendaKmAnalyys()">
-          <span style="font-size:11px;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px">Kuu</span>
-          <select id="av-kuu-valik" onchange="avKuuMuutus()"></select>
-          <select id="av-aasta-valik" onchange="avKuuMuutus()"></select>
-          <button type="button" class="nupp hall" style="font-size:11px;padding:5px 10px" onclick="avKmAnalyysKaesolevKuu()">↺ Käesolev kuu</button>
-          <span id="av-km-nool" onclick="avToggleKaart('av-km-body','av-km-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
-        </div>
+        <span id="av-km-nool" onclick="avToggleKaart('av-km-body','av-km-nool')" style="margin-left:auto;cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
       </div>
       <div class="kaart-body" id="av-km-body">
+        <div class="av-km-filtri-riba">
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Algus</span><input type="date" id="km-algus" onchange="avUuendaKmAnalyys()"></div>
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Lõpp</span><input type="date" id="km-lopp" onchange="avUuendaKmAnalyys()"></div>
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Kuu</span><select id="av-kuu-valik" onchange="avKuuMuutus()"></select></div>
+          <div class="av-km-filter-grupp"><span class="av-km-filter-silt">Aasta</span><select id="av-aasta-valik" onchange="avKuuMuutus()"></select></div>
+          <button type="button" class="nupp hall" style="font-size:12px;padding:8px 12px" onclick="avKmAnalyysKaesolevKuu()">↺ Käesolev kuu</button>
+        </div>
         <div class="arved-stat-rida">
           <div class="stat-kaart">
             <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg></div>
@@ -3384,32 +3433,181 @@ async function uuendaObjekt(id) {
   laadiObjektid();
 }
 
+let mkKoikMaksed = [];
+let mkTootajadNimekiri = [];
+let mkKvSaldodCache = null;
+
+function mkEsc(s) { return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 async function laadiWorkerSelect() {
   const workers=await api('/api/admin/tootajad');
+  mkTootajadNimekiri = workers.filter(w=>w.aktiivne);
   const sel=document.getElementById('makse-worker');
+  const fsel=document.getElementById('mk-f-tootaja');
   sel.innerHTML='';
-  workers.filter(w=>w.aktiivne).forEach(w=>sel.innerHTML+=`<option value="${w.id}">${w.nimi}</option>`);
+  if(fsel) fsel.innerHTML='<option value="">Kõik töötajad</option>';
+  mkTootajadNimekiri.forEach(w=>{
+    sel.innerHTML+=`<option value="${w.id}">${mkEsc(w.nimi)}</option>`;
+    if(fsel) fsel.innerHTML+=`<option value="${w.id}">${mkEsc(w.nimi)}</option>`;
+  });
+  mkTaidaEttevotteSelect(document.getElementById('makse-ettevote'));
+  mkTaidaEttevotteSelect(document.getElementById('mk-muuda-ettevote'));
+  const fpsel=document.getElementById('mk-f-projekt');
+  if(fpsel){
+    fpsel.innerHTML='<option value="">Kõik projektid</option>';
+    (kõikEttevotted||[]).forEach(e=>fpsel.innerHTML+=`<option value="${e.id}">${mkEsc(e.nimi)}</option>`);
+  }
+  const mwsel=document.getElementById('mk-muuda-worker');
+  if(mwsel){ mwsel.innerHTML=''; mkTootajadNimekiri.forEach(w=>mwsel.innerHTML+=`<option value="${w.id}">${mkEsc(w.nimi)}</option>`); }
+  mkTootajaMuutus();
+}
+
+function mkTaidaEttevotteSelect(sel, skip) {
+  if(!sel || skip) return;
+  sel.innerHTML='<option value="">—</option>';
+  (kõikEttevotted||[]).forEach(e=>sel.innerHTML+=`<option value="${e.id}">${mkEsc(e.nimi)}</option>`);
+}
+
+async function mkTootajaMuutus() {
+  const workerId=document.getElementById('makse-worker').value;
+  const teade=document.getElementById('mk-saldo-teade');
+  if(!workerId || !teade) { if(teade) teade.style.display='none'; return; }
+  if(!mkKvSaldodCache) {
+    const t=new Date();
+    const r=await api(`/api/admin/kokkuvote?aasta=${t.getFullYear()}&kuu=${t.getMonth()+1}`);
+    mkKvSaldodCache = Array.isArray(r) ? r : [];
+  }
+  const w = mkTootajadNimekiri.find(x=>String(x.id)===String(workerId));
+  const kv = w ? mkKvSaldodCache.find(x=>x.nimi===w.nimi) : null;
+  if(!kv) { teade.style.display='none'; return; }
+  const saldo = parseFloat(kv.saadaVeel);
+  teade.style.display='flex';
+  teade.innerHTML = `Tasumata: <strong>${saldo.toFixed(2)} €</strong>` + (saldo>0 ? `<button type="button" onclick="mkTaidaSaldo(${saldo})">Täida kogu saldo</button>` : '');
+}
+
+function mkTaidaSaldo(saldo) {
+  document.getElementById('makse-summa').value = saldo.toFixed(2);
 }
 
 async function laadiMaksed() {
   const r=await api('/api/admin/maksed');
-  let html='<table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Summa</th><th>Kommentaar</th><th></th></tr></thead><tbody>';
-  if(Array.isArray(r)) r.forEach(m=>{html+=`<tr><td>${formatKp(m.kuupaev)}</td><td>${m.worker_nimi}</td><td><strong>${parseFloat(m.summa).toFixed(2)} €</strong></td><td style="color:var(--hall)">${m.kommentaar||'—'}</td><td><button class="nupp punane" onclick="kustutaMakse(${m.id})">🗑</button></td></tr>`;});
+  mkKoikMaksed = Array.isArray(r) ? r : [];
+  const fkuu=document.getElementById('mk-f-kuu');
+  if(fkuu){
+    const kuud = [...new Set(mkKoikMaksed.map(m=>m.kuupaev.slice(0,7)))].sort().reverse();
+    const KUUD=['jaanuar','veebruar','märts','aprill','mai','juuni','juuli','august','september','oktoober','november','detsember'];
+    fkuu.innerHTML='<option value="">Kõik kuud</option>'+kuud.map(k=>{const[a,m]=k.split('-');return `<option value="${k}">${KUUD[parseInt(m,10)-1]} ${a}</option>`;}).join('');
+  }
+  mkRender();
+}
+
+function mkFiltriMuutus() { mkRender(); }
+
+function mkTyhjendaFiltrid() {
+  document.getElementById('mk-f-kuu').value='';
+  document.getElementById('mk-f-tootaja').value='';
+  document.getElementById('mk-f-projekt').value='';
+  document.getElementById('mk-f-otsi').value='';
+  mkRender();
+}
+
+function mkRender() {
+  const fkuu=document.getElementById('mk-f-kuu').value;
+  const ftootaja=document.getElementById('mk-f-tootaja').value;
+  const fprojekt=document.getElementById('mk-f-projekt').value;
+  const fotsi=(document.getElementById('mk-f-otsi').value||'').toLowerCase().trim();
+  const filtreeritud = mkKoikMaksed.filter(m=>{
+    if(fkuu && m.kuupaev.slice(0,7)!==fkuu) return false;
+    if(ftootaja && String(m.worker_id)!==String(ftootaja)) return false;
+    if(fprojekt && String(m.ettevote_id)!==String(fprojekt)) return false;
+    if(fotsi && !(m.kommentaar||'').toLowerCase().includes(fotsi)) return false;
+    return true;
+  });
+
+  const kokku = filtreeritud.reduce((s,m)=>s+parseFloat(m.summa),0);
+  const tootajaid = new Set(filtreeritud.map(m=>m.worker_id)).size;
+  const keskmine = filtreeritud.length ? kokku/filtreeritud.length : 0;
+
+  const svgKokku='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>';
+  const svgTootajad='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  const svgArv='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
+
+  document.getElementById('mk-kpi-rida').innerHTML = `
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(37,99,235,.12);color:var(--sinine)">${svgKokku}</div>
+      <div><div class="stat-kaart-label">Makstud kokku (valitud periood)</div><div class="stat-kaart-val" style="font-size:18px">${kokku.toFixed(2)} €</div><div style="font-size:11px;color:var(--hall);margin-top:2px">${filtreeritud.length} makset</div></div>
+    </div>
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(18,166,106,.14);color:var(--roheline)">${svgTootajad}</div>
+      <div><div class="stat-kaart-label">Töötajaid makstud</div><div class="stat-kaart-val" style="font-size:18px">${tootajaid}</div><div style="font-size:11px;color:var(--hall);margin-top:2px">töötajat</div></div>
+    </div>
+    <div class="stat-kaart">
+      <div class="stat-kaart-ikoon" style="background:rgba(200,163,71,.16);color:var(--kuld)">${svgArv}</div>
+      <div><div class="stat-kaart-label">Keskmine makse</div><div class="stat-kaart-val" style="font-size:18px">${keskmine.toFixed(2)} €</div><div style="font-size:11px;color:var(--hall);margin-top:2px">summa / maksete arv</div></div>
+    </div>`;
+
+  let html='<table class="mk-tabel"><thead><tr><th>Kuupäev</th><th>Töötaja</th><th class="mk-th-summa">Summa</th><th>Projekt</th><th>Kommentaar</th><th></th></tr></thead><tbody>';
+  if(!filtreeritud.length) html+='<tr><td colspan="6" style="text-align:center;color:var(--hall);padding:24px">Maksed puuduvad</td></tr>';
+  filtreeritud.forEach(m=>{
+    html+=`<tr>
+      <td>${formatKp(m.kuupaev)}</td>
+      <td>${mkEsc(m.worker_nimi)}</td>
+      <td class="mk-summa">${parseFloat(m.summa).toFixed(2)} €</td>
+      <td>${m.ettevote_nimi?`<span class="mk-projekt-pill">${mkEsc(m.ettevote_nimi)}</span>`:'<span style="color:var(--hall)">—</span>'}</td>
+      <td class="mk-komm">${mkEsc(m.kommentaar)||'—'}</td>
+      <td class="mk-tegevused">
+        <button class="av-tegevus-ikoon" title="Muuda" onclick="mkAvaMuudaModal(${m.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="av-tegevus-ikoon kustuta" title="Tühista makse" onclick="kustutaMakse(${m.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+      </td>
+    </tr>`;
+  });
   document.getElementById('maksedTabel').innerHTML=html+'</tbody></table>';
 }
 
 async function lisaMakse() {
   const worker_id=document.getElementById('makse-worker').value, summa=document.getElementById('makse-summa').value;
   const kuupaev=document.getElementById('makse-kuupaev').value, kommentaar=document.getElementById('makse-komm').value;
+  const ettevote_id=document.getElementById('makse-ettevote').value||null;
   if(!summa||!kuupaev) return naitaTeade('makse-teade','viga','Täida väljad!');
-  const r=await api('/api/admin/maksed',{method:'POST',body:JSON.stringify({worker_id,summa,kuupaev,kommentaar})});
-  if(r.ok){naitaTeade('makse-teade','ok','✅ Salvestatud!');document.getElementById('makse-summa').value='';laadiMaksed();}
+  const r=await api('/api/admin/maksed',{method:'POST',body:JSON.stringify({worker_id,summa,kuupaev,kommentaar,ettevote_id})});
+  if(r.ok){naitaTeade('makse-teade','ok','✅ Salvestatud!');document.getElementById('makse-summa').value='';document.getElementById('makse-komm').value='';mkKvSaldodCache=null;laadiMaksed();mkTootajaMuutus();}
   else naitaTeade('makse-teade','viga',r.veateade);
 }
 
+function mkAvaMuudaModal(id) {
+  const m = mkKoikMaksed.find(x=>x.id===id);
+  if(!m) return;
+  document.getElementById('mk-muuda-id').value=m.id;
+  document.getElementById('mk-muuda-worker').value=m.worker_id;
+  document.getElementById('mk-muuda-summa').value=parseFloat(m.summa).toFixed(2);
+  document.getElementById('mk-muuda-kuupaev').value=m.kuupaev.slice(0,10);
+  document.getElementById('mk-muuda-ettevote').value=m.ettevote_id||'';
+  document.getElementById('mk-muuda-komm').value=m.kommentaar||'';
+  document.getElementById('mkMuudaModal').classList.add('avatud');
+}
+
+function mkSuljeMuudaModal() {
+  document.getElementById('mkMuudaModal').classList.remove('avatud');
+}
+document.getElementById('mkMuudaModal')?.addEventListener('click', function(e){ if(e.target===this) mkSuljeMuudaModal(); });
+
+async function mkSalvestaMuudetud() {
+  const id=document.getElementById('mk-muuda-id').value;
+  const worker_id=document.getElementById('mk-muuda-worker').value;
+  const summa=document.getElementById('mk-muuda-summa').value;
+  const kuupaev=document.getElementById('mk-muuda-kuupaev').value;
+  const ettevote_id=document.getElementById('mk-muuda-ettevote').value||null;
+  const kommentaar=document.getElementById('mk-muuda-komm').value;
+  if(!summa||!kuupaev) return naitaTeade('mk-muuda-teade','viga','Täida väljad!');
+  const r=await api(`/api/admin/maksed/${id}`,{method:'PATCH',body:JSON.stringify({worker_id,summa,kuupaev,kommentaar,ettevote_id})});
+  if(r.ok){ mkKvSaldodCache=null; await laadiMaksed(); setTimeout(mkSuljeMuudaModal,500); }
+  else naitaTeade('mk-muuda-teade','viga',r.veateade);
+}
+
 async function kustutaMakse(id) {
-  if(!confirm('Kustutad makse?')) return;
+  if(!confirm('Tühistad selle makse? Seda ei saa hiljem taastada.')) return;
   await api(`/api/admin/maksed/${id}`,{method:'DELETE'});
+  mkKvSaldodCache=null;
   laadiMaksed();
 }
 
@@ -6214,4 +6412,3 @@ init();
 </script>
 </body>
 </html>
-  
