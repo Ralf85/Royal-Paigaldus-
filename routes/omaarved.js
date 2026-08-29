@@ -118,28 +118,81 @@ router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// ── MINU ETTEVÕTTE REKVISIIDID (müüja andmed) ────────────────────────────
-router.get('/seaded', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+// ── MINU ETTEVÕTTED (müüja andmed — töötaja saab hallata mitut ettevõtet) ──
+router.get('/muujad', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
-    res.json({ ok: true, seaded: r.rows[0] || null });
+    const r = await pool.query('SELECT * FROM omaarve_muujad WHERE worker_id=$1 ORDER BY vaikimisi DESC, ettevote_nimi', [req.session.workerId]);
+    res.json({ ok: true, muujad: r.rows });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
-router.post('/seaded', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+router.post('/muujad', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane } = req.body;
   if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
   try {
-    await pool.query(
-      `INSERT INTO omaarve_seaded (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane, uuendatud)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-       ON CONFLICT (worker_id) DO UPDATE SET
-         ettevote_nimi=EXCLUDED.ettevote_nimi, aadress=EXCLUDED.aadress, rg_kood=EXCLUDED.rg_kood,
-         kmkr=EXCLUDED.kmkr, pangakonto=EXCLUDED.pangakonto, pank=EXCLUDED.pank,
-         telefon=EXCLUDED.telefon, epost=EXCLUDED.epost, km_kohuslane=EXCLUDED.km_kohuslane, uuendatud=NOW()`,
-      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane !== false]
+    const juba = await pool.query('SELECT COUNT(*) FROM omaarve_muujad WHERE worker_id=$1', [req.session.workerId]);
+    const esimene = parseInt(juba.rows[0].count, 10) === 0;
+    const r = await pool.query(
+      `INSERT INTO omaarve_muujad (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane, vaikimisi)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane !== false, esimene]
     );
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/muujad/:id', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane } = req.body;
+  if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
+  try {
+    const r = await pool.query(
+      `UPDATE omaarve_muujad SET ettevote_nimi=$1, aadress=$2, rg_kood=$3, kmkr=$4, pangakonto=$5, pank=$6,
+         telefon=$7, epost=$8, km_kohuslane=$9, uuendatud=NOW()
+       WHERE id=$10 AND worker_id=$11`,
+      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane !== false, req.params.id, req.session.workerId]
+    );
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+router.put('/muujad/:id/vaikimisi', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE omaarve_muujad SET vaikimisi=false WHERE worker_id=$1', [req.session.workerId]);
+    const r = await client.query('UPDATE omaarve_muujad SET vaikimisi=true WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
+    await client.query('COMMIT');
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  } finally {
+    client.release();
+  }
+});
+router.delete('/muujad/:id', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+  try {
+    const kasutusel = await pool.query('SELECT COUNT(*) FROM omaarved WHERE muuja_id=$1', [req.params.id]);
+    if (parseInt(kasutusel.rows[0].count, 10) > 0) {
+      return res.json({ ok: false, veateade: 'Seda ettevõtet ei saa kustutada, kuna sellega on juba arveid tehtud' });
+    }
+    const kustutatav = await pool.query('SELECT vaikimisi FROM omaarve_muujad WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
+    if (!kustutatav.rows.length) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
+    await pool.query('DELETE FROM omaarve_muujad WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
+    // Kui kustutati vaikimisi ettevõte, tee mõni järelejäänu uueks vaikimisi ettevõtteks.
+    if (kustutatav.rows[0].vaikimisi) {
+      await pool.query(
+        `UPDATE omaarve_muujad SET vaikimisi=true WHERE id = (
+           SELECT id FROM omaarve_muujad WHERE worker_id=$1 ORDER BY id LIMIT 1
+         )`,
+        [req.session.workerId]
+      );
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -180,15 +233,21 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   try {
     const {
       saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, saaja_epost,
-      kuupaev, maksetahtaeg_paevad, read, kaibemaks_protsent
+      kuupaev, maksetahtaeg_paevad, read, muuja_id
     } = req.body;
     if (!saaja_nimi || !saaja_nimi.trim() || !Array.isArray(read) || !read.length) {
       return res.json({ ok: false, veateade: 'Täida arve saaja nimi ja vähemalt üks arve rida' });
     }
-    const seadedR = await client.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
-    if (!seadedR.rows.length || !seadedR.rows[0].ettevote_nimi) {
-      return res.json({ ok: false, veateade: 'Täida enne "Minu rekvisiidid" — ilma nendeta ei saa arvet väljastada' });
+    let muujaR;
+    if (muuja_id) {
+      muujaR = await client.query('SELECT * FROM omaarve_muujad WHERE id=$1 AND worker_id=$2', [muuja_id, req.session.workerId]);
+    } else {
+      muujaR = await client.query('SELECT * FROM omaarve_muujad WHERE worker_id=$1 AND vaikimisi=true', [req.session.workerId]);
     }
+    if (!muujaR.rows.length || !muujaR.rows[0].ettevote_nimi) {
+      return res.json({ ok: false, veateade: 'Täida enne "Minu ettevõtted" — ilma nendeta ei saa arvet väljastada' });
+    }
+    const muuja = muujaR.rows[0];
 
     await client.query('BEGIN');
     const kp = kuupaev ? new Date(kuupaev) : new Date();
@@ -199,16 +258,16 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
     tahtaeg.setDate(tahtaeg.getDate() + paevi);
 
     const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-    // Töötaja saab ise valida, kas ta on käibemaksukohuslane (24%) või mitte (0%) — erinevalt
-    // Royal Paigalduse enda arvetest, kus 24% on alati kohustuslik.
-    const kaibemaksProtsent = [0, 24].includes(parseFloat(kaibemaks_protsent)) ? parseFloat(kaibemaks_protsent) : 24;
+    // Käibemaksuprotsent tuleb rangelt valitud müüja-ettevõtte käibemaksukohuslase märkest, mitte
+    // vabast valikust — käibemaksukohuslasena pead alati käibemaksuga arveid esitama.
+    const kaibemaksProtsent = muuja.km_kohuslane ? 24 : 0;
     const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
     const kokku = +(summaKmTa + kaibemaks).toFixed(2);
 
     const arveR = await client.query(
-      `INSERT INTO omaarved (worker_id, number, kuupaev, maksetahtaeg, saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, saaja_epost, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      [req.session.workerId, number, kp, tahtaeg, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', saaja_epost || '', summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
+      `INSERT INTO omaarved (worker_id, muuja_id, number, kuupaev, maksetahtaeg, saaja_nimi, saaja_aadress, saaja_rg_kood, saaja_kmkr, saaja_kontaktisik, saaja_epost, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [req.session.workerId, muuja.id, number, kp, tahtaeg, saaja_nimi.trim(), saaja_aadress || '', saaja_rg_kood || '', saaja_kmkr || '', saaja_kontaktisik || '', saaja_epost || '', summaKmTa, kaibemaksProtsent, kaibemaks, kokku]
     );
     const arveId = arveR.rows[0].id;
 
@@ -365,8 +424,8 @@ router.get('/:id/pdf', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) 
     const a = await pool.query('SELECT * FROM omaarved WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
-    const seadedR = await pool.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
-    const muuja = seadedR.rows[0];
+    const muujaR = await pool.query('SELECT * FROM omaarve_muujad WHERE id=$1', [arve.muuja_id]);
+    const muuja = muujaR.rows[0];
     if (!muuja) return res.status(400).send('Rekvisiidid puuduvad');
     const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
     arve.viitenumber = arveViitenumber(arve.number);
@@ -393,8 +452,8 @@ router.post('/:id/saada-email', noudaSisslogimist, noudaOmaarveLubatud, async (r
     if (!sihtEpost) return res.json({ ok: false, veateade: 'Sisesta saaja e-posti aadress' });
     if (!process.env.RESEND_API_KEY) return res.json({ ok: false, veateade: 'E-kirja saatmine pole seadistatud (RESEND_API_KEY puudub Railway keskkonnamuutujates).' });
 
-    const seadedR = await pool.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
-    const muuja = seadedR.rows[0];
+    const muujaR = await pool.query('SELECT * FROM omaarve_muujad WHERE id=$1', [arve.muuja_id]);
+    const muuja = muujaR.rows[0];
     if (!muuja) return res.json({ ok: false, veateade: 'Rekvisiidid puuduvad' });
     const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
     arve.viitenumber = arveViitenumber(arve.number);
@@ -436,18 +495,25 @@ router.get('/zip', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
   if (!idid.length) return res.status(400).json({ ok: false, veateade: 'Vali vähemalt üks arve' });
   try {
-    const seadedR = await pool.query('SELECT * FROM omaarve_seaded WHERE worker_id=$1', [req.session.workerId]);
-    const muuja = seadedR.rows[0];
-    if (!muuja) return res.status(400).json({ ok: false, veateade: 'Rekvisiidid puuduvad' });
     const r = await pool.query('SELECT * FROM omaarved WHERE id = ANY($1) AND worker_id=$2', [idid, req.session.workerId]);
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="Minu_arved.zip"`);
     const archive = archiver('zip', { zlib: { level: 6 } });
     archive.pipe(res);
-    let logoBuf = null;
-    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    // Valitud arved võivad olla eri müüja-ettevõtete nimel — laadi iga müüja andmed/logo ainult
+    // korra ja pane vahemällu, et sama ettevõtte pilti mitu korda uuesti alla ei laetaks.
+    const muujaCache = {};
     for (const arve of r.rows) {
+      if (!muujaCache[arve.muuja_id]) {
+        const muujaR = await pool.query('SELECT * FROM omaarve_muujad WHERE id=$1', [arve.muuja_id]);
+        const muuja = muujaR.rows[0];
+        let logoBuf = null;
+        if (muuja && muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+        muujaCache[arve.muuja_id] = { muuja, logoBuf };
+      }
+      const { muuja, logoBuf } = muujaCache[arve.muuja_id];
+      if (!muuja) continue;
       const kuupaev = String(arve.kuupaev).split('T')[0];
       const nimiAlus = `${kuupaev}_${arve.number}_${(arve.saaja_nimi || 'saaja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
       const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
@@ -467,21 +533,29 @@ router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT w.id, w.nimi,
-       EXISTS(SELECT 1 FROM omaarve_lubatud ol WHERE ol.worker_id=w.id) as lubatud,
-       s.logo_url
-       FROM workers w LEFT JOIN omaarve_seaded s ON s.worker_id=w.id
-       WHERE w.aktiivne=true ORDER BY w.nimi`
+       EXISTS(SELECT 1 FROM omaarve_lubatud ol WHERE ol.worker_id=w.id) as lubatud
+       FROM workers w WHERE w.aktiivne=true ORDER BY w.nimi`
     );
-    res.json(r.rows);
+    const muujadR = await pool.query(
+      `SELECT id, worker_id, ettevote_nimi, logo_url, vaikimisi FROM omaarve_muujad ORDER BY vaikimisi DESC, ettevote_nimi`
+    );
+    const muujadPerWorker = {};
+    muujadR.rows.forEach(m => {
+      if (!muujadPerWorker[m.worker_id]) muujadPerWorker[m.worker_id] = [];
+      muujadPerWorker[m.worker_id].push(m);
+    });
+    res.json(r.rows.map(w => ({ ...w, muujad: muujadPerWorker[w.id] || [] })));
   } catch (err) {
     res.status(500).json({ ok: false });
   }
 });
-// Admin laeb töötaja isikliku arve-logo üles (nt tema oma ettevõtte logo) — kasutatakse
-// selle töötaja Minu Arved PDF-idel. Töötaja ise seda üles laadida ei saa.
-router.post('/admin/logo/:workerId', noudaAdmin, uploadLogo.single('logo'), async (req, res) => {
+// Admin laeb töötaja ühe ettevõtte logo üles (nt tema oma ettevõtte logo) — kasutatakse
+// selle ettevõtte nimel tehtud Minu Arved PDF-idel. Töötaja ise seda üles laadida ei saa.
+router.post('/admin/logo/:muujaId', noudaAdmin, uploadLogo.single('logo'), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
   try {
+    const olemas = await pool.query('SELECT id FROM omaarve_muujad WHERE id=$1', [req.params.muujaId]);
+    if (!olemas.rows.length) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
     const cl = getCloudinary();
     const uploaded = await new Promise((resolve, reject) => {
       const stream = cl.uploader.upload_stream({ folder: 'royal-paigaldus/omaarve-logod', resource_type: 'image' }, (err, result) => {
@@ -490,10 +564,8 @@ router.post('/admin/logo/:workerId', noudaAdmin, uploadLogo.single('logo'), asyn
       stream.end(req.file.buffer);
     });
     await pool.query(
-      `INSERT INTO omaarve_seaded (worker_id, ettevote_nimi, logo_url, logo_public_id)
-       VALUES ($1,'',$2,$3)
-       ON CONFLICT (worker_id) DO UPDATE SET logo_url=EXCLUDED.logo_url, logo_public_id=EXCLUDED.logo_public_id`,
-      [req.params.workerId, uploaded.secure_url, uploaded.public_id]
+      `UPDATE omaarve_muujad SET logo_url=$1, logo_public_id=$2 WHERE id=$3`,
+      [uploaded.secure_url, uploaded.public_id, req.params.muujaId]
     );
     res.json({ ok: true, logo_url: uploaded.secure_url });
   } catch (err) {
@@ -501,13 +573,13 @@ router.post('/admin/logo/:workerId', noudaAdmin, uploadLogo.single('logo'), asyn
     res.status(500).json({ ok: false, veateade: 'Üleslaadimine ebaõnnestus' });
   }
 });
-router.delete('/admin/logo/:workerId', noudaAdmin, async (req, res) => {
+router.delete('/admin/logo/:muujaId', noudaAdmin, async (req, res) => {
   try {
-    const r = await pool.query('SELECT logo_public_id FROM omaarve_seaded WHERE worker_id=$1', [req.params.workerId]);
+    const r = await pool.query('SELECT logo_public_id FROM omaarve_muujad WHERE id=$1', [req.params.muujaId]);
     if (r.rows.length && r.rows[0].logo_public_id) {
       try { const cl = getCloudinary(); await cl.uploader.destroy(r.rows[0].logo_public_id, { resource_type: 'image' }); } catch (e) {}
     }
-    await pool.query('UPDATE omaarve_seaded SET logo_url=NULL, logo_public_id=NULL WHERE worker_id=$1', [req.params.workerId]);
+    await pool.query('UPDATE omaarve_muujad SET logo_url=NULL, logo_public_id=NULL WHERE id=$1', [req.params.muujaId]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false });
