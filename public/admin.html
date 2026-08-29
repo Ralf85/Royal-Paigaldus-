@@ -3170,10 +3170,11 @@ function tjRenderDetailTabSisu(w, we) {
       <div class="vorm-rida">
         <div class="vorm-grupp"><label>Email</label><input type="email" id="tj-e-email" value="${(w.email||'').replace(/"/g,'&quot;')}" placeholder="email"></div>
       </div>
-      <label style="font-size:12px;color:var(--hall);display:flex;align-items:center;gap:7px;margin:8px 0 4px">
-        <input type="checkbox" id="tj-e-aktiivne" ${w.aktiivne?'checked':''}> Aktiivne (saab tootaja.html-i sisse logida)
-      </label>
       <div class="tj-sektsioon-pealkiri">Ligipääsud</div>
+      <div class="tj-ligipaas-rida">
+        <span>✅ Aktiivne (saab tootaja.html-i sisse logida)</span>
+        <label class="toggle-switch"><input type="checkbox" id="tj-e-aktiivne" ${w.aktiivne?'checked':''}><span class="toggle-slider"></span></label>
+      </div>
       <div class="tj-ligipaas-rida">
         <span>🥏 X-seeria (võistlused, kulude sisestus)</span>
         <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
