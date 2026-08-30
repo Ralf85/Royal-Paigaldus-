@@ -2881,7 +2881,7 @@ function renderKokkuvoteTable() {
       <td style="text-align:right;color:var(--hall)">${makstud>0?makstud.toFixed(2)+' €':'—'}</td>
       <td style="text-align:right;color:${saada>0?'#fbbf24':saada<0?'#ef4444':'var(--hall)'}">${saada!==0?(saada>0?'+':'')+saada.toFixed(2)+' €':'—'}</td>
       <td><span class="staatus-pill ${st.cls}">${st.text}</span></td>
-      <td style="text-align:right">${tunnid>0?`<button onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" style="background:#1a2840;border:none;border-radius:6px;padding:4px 10px;font-size:11px;color:#5b9cf6;cursor:pointer">▼ kirjed</button>`:''}
+      <td style="text-align:right">${tunnid>0?`<button class="av-tegevus-ikoon" id="kirjed-chevron-${w.nimi.replace(/\s/g,'_')}" onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" title="Näita töökirjeid"><span class="tj-arhiiv-chevron">▾</span></button>`:''}
       </td></tr>
     ${w.kirjed.length?`<tr id="kirjed-${w.nimi.replace(/\s/g,'_')}" style="display:none"><td colspan="8" style="padding:0 0 8px 0">
       <div style="margin:4px 14px;background:var(--bg3);border-radius:8px;overflow:hidden">
@@ -3105,8 +3105,11 @@ function toggleKirjed(nimi) {
   if (!el) return;
   const visible = el.style.display !== 'none';
   el.style.display = visible ? 'none' : 'table-row';
-  const btn = document.querySelector(`#worker-rida-${nimi} button`);
-  if (btn) btn.textContent = visible ? '▼ kirjed' : '▲ sulge';
+  const btn = document.getElementById('kirjed-chevron-'+nimi);
+  if (btn) {
+    const chev = btn.querySelector('.tj-arhiiv-chevron');
+    if (chev) chev.classList.toggle('avatud', !visible);
+  }
 }
 
 function laadiCSV(e) {
