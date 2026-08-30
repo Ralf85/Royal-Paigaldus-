@@ -5,13 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Royal Paigaldus — Tööpäevik</title>
   <script>
-    // Kiire suunamine Kristole enne lehekülje laadimist
+    // Admin "Vaheta roll" kiirsisselogimine — kui URL-is on vaheta_token, salvestame selle
+    // töötaja sessioonitokeniks ja puhastame URL-i, enne kui midagi muud käivitub.
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var vahetaToken = params.get('vaheta_token');
+      if (vahetaToken) {
+        localStorage.setItem('workerToken', vahetaToken);
+        params.delete('vaheta_token');
+        var uusUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        window.history.replaceState({}, '', uusUrl);
+      }
+    })();
+    // Kiire suunamine Lidl Eesti fotovaatesse enne lehekülje laadimist
     (function() {
       var token = localStorage.getItem('workerToken');
       if (!token) return;
       fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } })
         .then(function(r) { return r.json(); })
-        .then(function(s) { if (s.sisselogitud && s.workerId === 17) window.location.replace('/kristo'); });
+        .then(function(s) { if (s.sisselogitud && s.workerId === 17) window.location.replace('/lidl-eesti'); });
     })();
   </script>
   <style>
@@ -379,7 +391,7 @@
       if (!TOKEN) { window.location = '/'; return; }
       var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud || s.isAdmin) { window.location = '/'; return; }
-      if (s.workerId === 17) { window.location = '/kristo'; return; }
+      if (s.workerId === 17) { window.location = '/lidl-eesti'; return; }
       var initsiaalid = s.nimi.split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().slice(0,2);
       document.getElementById('avatarInitsiaalid').textContent = initsiaalid;
       document.getElementById('workerNimiTop').textContent = s.nimi;
