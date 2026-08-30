@@ -52,11 +52,9 @@ app.use('/api/push', require('./routes/push').router);
 app.use('/api/graafik', require('./routes/graafik'));
 app.use('/api/edgf', require('./routes/edgf'));
 app.use('/api/re', require('./routes/re'));
-app.use('/api/projektid', require('./routes/projektid'));
 app.use('/api/kristo', require('./routes/kristo'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
-app.use('/api/omaarved', require('./routes/omaarved'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -64,10 +62,12 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 app.get('/tootaja-tood', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja-tood.html')));
 app.get('/graafik-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin.html')));
 app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'graafik-admin-login.html')));
-app.get('/kristo', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kristo.html')));
+// "Kristo" nimetati ümber "Lidl Eesti"-ks (moodul kasvas ühe töötaja isiklikust vaatest kogu Lidl Eesti
+// poodide fotokorpuseks) — vana /kristo aadress jääb alles ja suunab uuele, et miski katki ei läheks.
+app.get('/lidl-eesti', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-eesti.html')));
+app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
-app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
