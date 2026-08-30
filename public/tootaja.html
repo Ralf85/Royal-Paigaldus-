@@ -12,6 +12,9 @@
       var vahetaToken = params.get('vaheta_token');
       if (vahetaToken) {
         localStorage.setItem('workerToken', vahetaToken);
+        // Märgime SELLE vahekaardi (mitte kogu brauseri) admini kaudu avatuks, et saaks kiirelt tagasi minna.
+        // sessionStorage on vahekaardipõhine — ei kandu edasi tavalisele PIN-iga sisse logitud töötajale.
+        sessionStorage.setItem('vahetatudAdminist', '1');
         params.delete('vaheta_token');
         var uusUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
         window.history.replaceState({}, '', uusUrl);
@@ -181,6 +184,7 @@
       <div class="brand-sub" style="margin-left:2px">Tööpäevik</div>
     </div>
     <div class="topbar-right">
+      <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
       <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--text2)">&#127769;</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
@@ -911,6 +915,24 @@
     if(localStorage.getItem('teema')==='hele'){document.body.classList.add('hele');document.addEventListener('DOMContentLoaded',function(){var n=document.getElementById('teemaNupp');if(n)n.textContent='☀️';});}
 
     function välju(){localStorage.removeItem('workerToken');window.location='/';}
+
+    // "Vaheta roll" kaudu avatud vahekaardil näidatakse admini juurde tagasi mineku nuppu.
+    // Lipp on sessionStorage'is (vahekaardipõhine) — tavalise PIN-iga sisse logitud töötaja seda kunagi ei näe.
+    (function() {
+      if (sessionStorage.getItem('vahetatudAdminist') === '1') {
+        var nupp = document.getElementById('tagasiAdminNupp');
+        if (nupp) nupp.style.display = 'inline-block';
+      }
+    })();
+    function tagasiAdminni() {
+      // See vahekaart avati admini enda poolt window.open()-iga — sulgemine viib tagasi
+      // admini vahekaardile, mille sessioon polnud siin kunagi puudutatud.
+      window.close();
+      // Kui brauser ei luba sulgemist (nt kaart avati mitte skriptiga), anname käsitsi juhise.
+      setTimeout(function() {
+        alert('Seda vahekaarti ei saanud automaatselt sulgeda — sulge see käsitsi ja mine tagasi admin-vahekaardile.');
+      }, 300);
+    }
 
     async function registreeriPush(){
       if(!('serviceWorker'in navigator)||!('PushManager'in window))return;
