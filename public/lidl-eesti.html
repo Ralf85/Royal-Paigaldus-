@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lidl Eesti — Pildid</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; }
+    .topbar { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 0 20px; height: 56px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 100; }
+    .topbar-back { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    .topbar-back:hover { border-color: #c9a84c; color: #c9a84c; }
+    .topbar-title { font-size: 14px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 8px; }
+    .topbar-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: #FFF200; color: #002060; }
+    .leht { max-width: 720px; margin: 0 auto; padding: 20px 16px 40px; }
+    /* Breadcrumb */
+    .murr { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; color: #7a8290; }
+    .murr-osa { cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+    .murr-osa:hover { background: #13161c; color: #c9a84c; }
+    .murr-osa.aktiivne { color: #e2e8f0; font-weight: 600; cursor: default; }
+    .murr-osa.aktiivne:hover { background: none; color: #e2e8f0; }
+    .murr-sep { color: #3a3d45; }
+    /* Kaartide grid */
+    .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 14px; transition: border-color 0.15s; }
+    .kaart:hover { border-color: #c9a84c; }
+    .kaart-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+    .kaart-meta { font-size: 12px; color: #7a8290; margin-top: 4px; }
+    .kaart-noole { font-size: 18px; color: #555; flex-shrink: 0; }
+    /* Poodide kastid (avavaade) */
+    .poe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+    .poe-kaart { background: #13161c; border: 1.5px solid #252830; border-radius: 16px; padding: 22px 10px 16px; text-align: center; cursor: pointer; transition: all 0.15s; }
+    .poe-kaart:hover { border-color: #FFF200; transform: translateY(-2px); }
+    .poe-number { font-size: 30px; font-weight: 800; color: #FFF200; line-height: 1; }
+    .poe-nimi { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-top: 6px; }
+    .poe-meta { font-size: 11px; color: #7a8290; margin-top: 8px; line-height: 1.4; }
+    .tyhi { padding: 60px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
+    .laadimine { padding: 60px 20px; text-align: center; color: #7a8290; font-size: 13px; }
+    /* Pildigrid */
+    .foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+    .foto-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; border: 0.5px solid #252830; transition: opacity 0.15s; }
+    .foto-grid img:hover { opacity: 0.85; }
+    .toimingud-riba { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+    .foto-arv { font-size: 13px; color: #7a8290; }
+    .zip-nupp { background: #1a2840; border: 0.5px solid #1e3a5f; border-radius: 8px; padding: 8px 16px; font-size: 12px; color: #60a5fa; cursor: pointer; font-weight: 600; }
+    .zip-nupp:hover { border-color: #60a5fa; }
+    /* Lightbox */
+    .lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92); z-index: 300; align-items: center; justify-content: center; }
+    .lightbox.avatud { display: flex; }
+    .lightbox img { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: 6px; }
+    .lightbox-sulge { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 30px; cursor: pointer; line-height: 1; }
+    .lightbox-nool { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.08); border: none; color: #fff; font-size: 26px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; }
+    .lightbox-nool:hover { background: rgba(255,255,255,0.18); }
+    .lightbox-eelmine { left: 16px; }
+    .lightbox-jargmine { right: 16px; }
+    .lightbox-info { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #aaa; background: rgba(0,0,0,0.5); padding: 6px 14px; border-radius: 20px; }
+    /* Kommentaarid */
+    .kaart-nupud { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .kommentaar-nupp { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 12px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+    .kommentaar-nupp:hover { border-color: #c9a84c; color: #c9a84c; }
+    .kommentaar-nupp.aktiivsed { border-color: #ef4444; color: #ef4444; font-weight: 700; }
+    .poe-kommentaar-marker { position: absolute; top: 10px; right: 12px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; border-radius: 10px; padding: 2px 6px; }
+    .poe-kaart { position: relative; }
+    .kmodal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 400; align-items: center; justify-content: center; padding: 20px; }
+    .kmodal.avatud { display: flex; }
+    .kmodal-sisu { background: #13161c; border: 0.5px solid #252830; border-radius: 14px; max-width: 480px; width: 100%; max-height: 82vh; display: flex; flex-direction: column; }
+    .kmodal-pealkiri { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 0.5px solid #252830; font-size: 14px; font-weight: 700; }
+    .kmodal-sulge { background: none; border: none; color: #aaa; font-size: 20px; cursor: pointer; line-height: 1; }
+    .kmodal-nimekiri { padding: 12px 18px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .kmodal-tyhi { color: #7a8290; font-size: 13px; text-align: center; padding: 20px 0; }
+    .kkommentaar { background: #0d0f13; border: 0.5px solid #252830; border-radius: 10px; padding: 10px 12px; }
+    .kkommentaar-tekst { font-size: 13px; color: #e2e8f0; line-height: 1.4; }
+    .kkommentaar-meta { font-size: 11px; color: #7a8290; margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+    .kkommentaar-lahendatud { color: #4ade80; font-weight: 600; }
+    .kmodal-lisa { padding: 14px 18px; border-top: 0.5px solid #252830; display: flex; flex-direction: column; gap: 8px; }
+    .kmodal-lisa textarea { background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; color: #e2e8f0; font-family: inherit; font-size: 13px; padding: 10px; resize: vertical; min-height: 60px; }
+    .kmodal-saada { background: #FFF200; border: none; border-radius: 8px; color: #002060; font-weight: 700; font-size: 13px; padding: 9px; cursor: pointer; }
+    .kmodal-saada:hover { opacity: 0.9; }
+    /* Töö (tase 3) päiskaart */
+    .too-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+    .too-kaart-top { display: flex; align-items: flex-start; gap: 14px; justify-content: space-between; flex-wrap: wrap; }
+    .too-ikoon { width: 44px; height: 44px; border-radius: 10px; background: rgba(255,242,0,0.14); color: #FFF200; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+    .too-pealkiri-plokk { flex: 1; min-width: 200px; }
+    .too-silt { font-size: 11px; color: #7a8290; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .too-pealkiri { font-size: 19px; font-weight: 700; color: #e2e8f0; line-height: 1.3; }
+    .too-nupud { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+    .too-nupp-primary { background: #2563eb; border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .too-nupp-primary:hover { background: #1d4ed8; }
+    .too-nupp-secondary { background: none; border: 0.5px solid #252830; border-radius: 8px; color: #aaa; font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .too-nupp-secondary:hover { border-color: #c9a84c; color: #c9a84c; }
+    .too-meta-rida { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 0.5px solid #252830; }
+    .too-meta-item { display: flex; align-items: flex-start; gap: 8px; }
+    .too-meta-ikoon { color: #7a8290; font-size: 14px; }
+    .too-meta-tekst { font-size: 11px; color: #7a8290; }
+    .too-meta-val { font-size: 13px; font-weight: 700; color: #e2e8f0; margin-top: 1px; }
+    .too-tabs-riba { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .too-tabs { display: flex; gap: 22px; border-bottom: 0.5px solid #252830; flex: 1; }
+    .too-tab { background: none; border: none; padding: 10px 2px; font-size: 13px; font-weight: 600; color: #7a8290; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .too-tab.aktiivne { color: #e2e8f0; border-bottom-color: #c9a84c; }
+    .too-tools { display: flex; gap: 8px; align-items: center; }
+    .too-select { background: #13161c; border: 0.5px solid #252830; border-radius: 8px; color: #e2e8f0; font-size: 12px; padding: 7px 10px; }
+    .too-vaate-toggle { display: flex; border: 0.5px solid #252830; border-radius: 8px; overflow: hidden; }
+    .too-vaate-nupp { background: #13161c; border: none; color: #7a8290; padding: 7px 10px; cursor: pointer; font-size: 14px; line-height: 1; }
+    .too-vaate-nupp.aktiivne { background: rgba(201,168,76,0.15); color: #c9a84c; }
+    .foto-tumb { position: relative; }
+    .foto-rida { display: flex; align-items: center; gap: 12px; padding: 8px 10px; background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 10px; margin-bottom: 6px; cursor: pointer; }
+    .foto-rida:hover { border-color: #c9a84c; }
+    .foto-rida img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .foto-rida-info { flex: 1; font-size: 12px; color: #7a8290; }
+    .too-footer-tekst { text-align: center; color: #7a8290; font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="topbar-back" onclick="tagasiNupp()">← Tagasi</button>
+    <span class="topbar-title"><span class="topbar-badge">LIDL</span> Lidl Eesti — Pildid</span>
+  </div>
+  <div class="leht">
+    <div class="murr" id="murr"></div>
+    <div class="toimingud-riba" id="toimingud-riba" style="display:none">
+      <span class="foto-arv" id="foto-arv"></span>
+      <span style="display:flex;gap:8px">
+        <button class="kommentaar-nupp" id="tase3-kommentaar-nupp" onclick="avaKommentaarid(valitudObjekt.id, valitudObjekt.nimi, valitudKirjeldus)">💬 Kommentaar</button>
+        <button class="zip-nupp" id="zip-nupp" onclick="laadiZip()">⬇ Laadi kõik ZIP-ina</button>
+      </span>
+    </div>
+    <div id="sisu"><div class="laadimine">Laadimine...</div></div>
+  </div>
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-sulge" onclick="sulgeSuur()">✕</button>
+    <button class="lightbox-nool lightbox-eelmine" onclick="navigeeri(-1)">‹</button>
+    <img id="lightbox-img" src="" alt="">
+    <button class="lightbox-nool lightbox-jargmine" onclick="navigeeri(1)">›</button>
+    <div class="lightbox-info" id="lightbox-info"></div>
+  </div>
+  <!-- Kommentaarid -->
+  <div class="kmodal" id="kmodal">
+    <div class="kmodal-sisu">
+      <div class="kmodal-pealkiri">
+        <span id="kmodal-pealkiri-tekst">💬 Kommentaarid</span>
+        <button class="kmodal-sulge" onclick="suljeKommentaarid()">✕</button>
+      </div>
+      <div class="kmodal-nimekiri" id="kmodal-nimekiri"><div class="kmodal-tyhi">Laadimine...</div></div>
+      <div class="kmodal-lisa">
+        <textarea id="kmodal-tekst" placeholder="Kirjuta kommentaar, nt kirjelda probleemi..."></textarea>
+        <button class="kmodal-saada" onclick="saadaKommentaar()">Saada admin'ile</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    var TOKEN = localStorage.getItem('workerToken') || '';
+    var tase = 1;
+    var valitudObjekt = null;   // { id, nimi }
+    var valitudKirjeldus = null; // string
+    var praegusedPildid = [];
+    var suurIndeks = 0;
+    var kommentaarObjektId = null;
+    var kommentaarObjektNimi = '';
+    var kommentaarKirjeldus = '';
+
+    function api(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers['x-session-token'] = TOKEN;
+      return fetch(url, opts).then(function(r) {
+        if (r.status === 401 || r.status === 403) { window.location = '/'; return Promise.reject('ligipääs keelatud'); }
+        return r.json();
+      });
+    }
+
+    function tagasiNupp() {
+      if (tase === 3) { avaObjekt(valitudObjekt.id, valitudObjekt.nimi, true); }
+      else if (tase === 2) { avaPoed(true); }
+      else { window.location = '/'; }
+    }
+
+    function uuendaURL(push) {
+      var params = new URLSearchParams();
+      params.set('tase', tase);
+      if (valitudObjekt) { params.set('objekt_id', valitudObjekt.id); params.set('objekt_nimi', valitudObjekt.nimi); }
+      if (valitudKirjeldus) params.set('kirjeldus', valitudKirjeldus);
+      var url = '/lidl-eesti?' + params.toString();
+      var state = { tase: tase, objekt: valitudObjekt, kirjeldus: valitudKirjeldus };
+      if (push) history.pushState(state, '', url);
+      else history.replaceState(state, '', url);
+    }
+
+    function renderMurr() {
+      var el = document.getElementById('murr');
+      var osad = [];
+      osad.push('<span class="murr-osa' + (tase === 1 ? ' aktiivne' : '') + '" onclick="avaPoed(true)">🏬 Poed</span>');
+      if (valitudObjekt) {
+        osad.push('<span class="murr-sep">›</span>');
+        osad.push('<span class="murr-osa' + (tase === 2 ? ' aktiivne' : '') + '" onclick=\'avaObjekt(' + valitudObjekt.id + ', ' + JSON.stringify(valitudObjekt.nimi) + ', true)\'>' + valitudObjekt.nimi + '</span>');
+      }
+      if (valitudKirjeldus) {
+        osad.push('<span class="murr-sep">›</span>');
+        osad.push('<span class="murr-osa aktiivne">' + valitudKirjeldus + '</span>');
+      }
+      el.innerHTML = osad.join('');
+    }
+
+    // ── TASE 1: Poed ───────────────────────────────────────────
+    async function avaPoed(push) {
+      tase = 1; valitudObjekt = null; valitudKirjeldus = null;
+      renderMurr();
+      document.getElementById('toimingud-riba').style.display = 'none';
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/poed');
+      if (!r.ok || !r.poed || !r.poed.length) {
+        sisu.innerHTML = '<div class="tyhi">Ühtegi Lidli poodi pilte veel pole</div>';
+        return;
+      }
+      sisu.innerHTML = '<div class="poe-grid">' + r.poed.map(function(p) {
+        var osad = poeNimiOsad(p.objekt_nimi);
+        return '<div class="poe-kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\'>'
+          + (osad.number ? '<div class="poe-number">' + osad.number + '</div>' : '')
+          + '<div class="poe-nimi">' + osad.nimi + '</div>'
+          + '<div class="poe-meta">' + p.projektide_arv + ' projekti<br>' + p.piltide_arv + ' pilti</div>'
+          + '</div>';
+      }).join('') + '</div>';
+    }
+
+    // ── TASE 2: Projektid ühe poe sees ────────────────────────
+    async function avaObjekt(objektId, objektNimi, push) {
+      tase = 2; valitudObjekt = { id: objektId, nimi: objektNimi }; valitudKirjeldus = null;
+      renderMurr();
+      document.getElementById('toimingud-riba').style.display = 'none';
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/projektid?objekt_id=' + objektId);
+      if (!r.ok || !r.projektid || !r.projektid.length) {
+        sisu.innerHTML = '<div class="tyhi">Selles poes pole veel projekte pilte</div>';
+        return;
+      }
+      sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
+        var kArv = parseInt(p.kommentaare_arv, 10) || 0;
+        return '<div class="kaart" onclick=\'avaProjekt(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
+          + '<div><div class="kaart-nimi">' + p.kirjeldus + '</div>'
+          + '<div class="kaart-meta">' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
+          + '<div class="kaart-nupud">'
+          + '<button class="kommentaar-nupp' + (kArv ? ' aktiivsed' : '') + '" onclick=\'event.stopPropagation(); avaKommentaarid(' + objektId + ', ' + JSON.stringify(objektNimi) + ', ' + JSON.stringify(p.kirjeldus) + ')\'>💬' + (kArv ? ' ' + kArv : '') + '</button>'
+          + '<div class="kaart-noole">›</div></div></div>';
+      }).join('') + '</div>';
+    }
+
+    // ── TASE 3: Pildid ─────────────────────────────────────────
+    async function avaProjekt(kirjeldus, push) {
+      tase = 3; valitudKirjeldus = kirjeldus;
+      renderMurr();
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/pildid/' + valitudObjekt.id + '?kirjeldus=' + encodeURIComponent(kirjeldus));
+      praegusedPildid = (r.ok && r.pildid) ? r.pildid : [];
+      var riba = document.getElementById('toimingud-riba');
+      if (!praegusedPildid.length) {
+        riba.style.display = 'none';
+        sisu.innerHTML = '<div class="tyhi">Selle projekti alt pilte ei leitud</div>';
+        return;
+      }
+      riba.style.display = 'flex';
+      document.getElementById('foto-arv').textContent = praegusedPildid.length + ' pilti';
+      sisu.innerHTML = '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
+        return '<img src="' + p.url + '" loading="lazy" onclick="avaSuur(' + i + ')">';
+      }).join('') + '</div>';
+    }
+
+    async function laadiZip() {
+      if (!valitudObjekt) return;
+      var url = '/api/kristo/zip/' + valitudObjekt.id + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus || '') + '&_token=' + encodeURIComponent(TOKEN);
+      window.open(url, '_blank');
+    }
+
+    // ── Kommentaarid ───────────────────────────────────────────
+    function avaKommentaarid(objektId, objektNimi, kirjeldus) {
+      kommentaarObjektId = objektId;
+      kommentaarObjektNimi = objektNimi;
+      kommentaarKirjeldus = kirjeldus;
+      document.getElementById('kmodal-pealkiri-tekst').textContent = '💬 ' + objektNimi + ' — ' + kirjeldus;
+      document.getElementById('kmodal-tekst').value = '';
+      document.getElementById('kmodal').classList.add('avatud');
+      laadiKommentaarid();
+    }
+    function suljeKommentaarid() {
+      document.getElementById('kmodal').classList.remove('avatud');
+      // Kui olime tase 2-l (projektide nimekiri), värskenda seda, et kommentaaride märgid uueneksid.
+      if (tase === 2 && valitudObjekt) avaObjekt(valitudObjekt.id, valitudObjekt.nimi, false);
+    }
+    async function laadiKommentaarid() {
+      var el = document.getElementById('kmodal-nimekiri');
+      el.innerHTML = '<div class="kmodal-tyhi">Laadimine...</div>';
+      var r = await api('/api/kristo/kommentaarid?objekt_id=' + kommentaarObjektId + '&kirjeldus=' + encodeURIComponent(kommentaarKirjeldus));
+      var list = (r.ok && r.kommentaarid) ? r.kommentaarid : [];
+      if (!list.length) {
+        el.innerHTML = '<div class="kmodal-tyhi">Kommentaare pole veel — kirjuta esimene allpool.</div>';
+        return;
+      }
+      el.innerHTML = list.map(function(k) {
+        var d = new Date(k.loodud);
+        var aeg = !isNaN(d.getTime()) ? (formatKp(k.loodud) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')) : '';
+        return '<div class="kkommentaar">'
+          + '<div class="kkommentaar-tekst">' + k.tekst.replace(/</g,'&lt;') + '</div>'
+          + '<div class="kkommentaar-meta"><span>' + aeg + '</span>'
+          + (k.lahendatud ? '<span class="kkommentaar-lahendatud">✅ Lahendatud</span>' : '<span>⏳ Ootel</span>')
+          + '</div></div>';
+      }).join('');
+    }
+    async function saadaKommentaar() {
+      var tekst = document.getElementById('kmodal-tekst').value.trim();
+      if (!tekst) return;
+      var r = await api('/api/kristo/kommentaarid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objekt_id: kommentaarObjektId, kirjeldus: kommentaarKirjeldus, tekst: tekst })
+      });
+      if (!r.ok) { alert('Viga: ' + (r.veateade || 'saatmine ebaõnnestus')); return; }
+      document.getElementById('kmodal-tekst').value = '';
+      laadiKommentaarid();
+    }
+
+    // ── Lightbox ───────────────────────────────────────────────
+    function avaSuur(index) {
+      suurIndeks = index;
+      naitaSuur();
+      document.getElementById('lightbox').classList.add('avatud');
+    }
+    function naitaSuur() {
+      var p = praegusedPildid[suurIndeks];
+      if (!p) return;
+      document.getElementById('lightbox-img').src = p.url;
+      document.getElementById('lightbox-info').textContent = (suurIndeks + 1) + ' / ' + praegusedPildid.length + (p.kuupaev ? ' · ' + formatKp(p.kuupaev) : '');
+    }
+    function navigeeri(delta) {
+      suurIndeks = (suurIndeks + delta + praegusedPildid.length) % praegusedPildid.length;
+      naitaSuur();
+    }
+    function sulgeSuur() {
+      document.getElementById('lightbox').classList.remove('avatud');
+    }
+    document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('lightbox').classList.contains('avatud')) return;
+      if (e.key === 'Escape') sulgeSuur();
+      if (e.key === 'ArrowLeft') navigeeri(-1);
+      if (e.key === 'ArrowRight') navigeeri(1);
+    });
+    document.getElementById('lightbox').addEventListener('click', function(e) {
+      if (e.target === this) sulgeSuur();
+    });
+
+    // ── Abifunktsioonid ────────────────────────────────────────
+    // Lahutab poe nime "617 - Linnamäe" kujul kaheks: number ja nimi eraldi,
+    // et saaks kuvada suure numbriga kastina (nagu töötaja pealehe kaardid).
+    function poeNimiOsad(objektNimi) {
+      var m = /^(\d+)\s*-\s*(.+)$/.exec(objektNimi || '');
+      if (m) return { number: m[1], nimi: m[2].trim() };
+      return { number: '', nimi: objektNimi || '' };
+    }
+    var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    function formatKp(kp) {
+      if (!kp) return '';
+      var d = new Date(kp);
+      if (isNaN(d.getTime())) return '';
+      return d.getDate() + '. ' + KUUD_L[d.getMonth()];
+    }
+
+    // ── Ajaloo navigeerimine (tagasi/edasi nupud brauseris) ───
+    window.addEventListener('popstate', function(e) {
+      var s = e.state;
+      if (!s || s.tase === 1) { avaPoed(false); return; }
+      if (s.tase === 2 && s.objekt) { avaObjekt(s.objekt.id, s.objekt.nimi, false); return; }
+      if (s.tase === 3 && s.objekt && s.kirjeldus) {
+        valitudObjekt = s.objekt;
+        avaProjekt(s.kirjeldus, false);
+        return;
+      }
+      avaPoed(false);
+    });
+
+    // ── Käivitus ───────────────────────────────────────────────
+    async function init() {
+      if (!TOKEN) { window.location = '/'; return; }
+      var s = await api('/api/auth/sessioon');
+      if (!s.sisselogitud) { window.location = '/'; return; }
+      var params = new URLSearchParams(window.location.search);
+      var algTase = parseInt(params.get('tase') || '1', 10);
+      if (algTase === 2 && params.get('objekt_id')) {
+        await avaObjekt(parseInt(params.get('objekt_id'), 10), params.get('objekt_nimi') || '', false);
+      } else if (algTase === 3 && params.get('objekt_id') && params.get('kirjeldus')) {
+        valitudObjekt = { id: parseInt(params.get('objekt_id'), 10), nimi: params.get('objekt_nimi') || '' };
+        await avaProjekt(params.get('kirjeldus'), false);
+      } else {
+        await avaPoed(false);
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
