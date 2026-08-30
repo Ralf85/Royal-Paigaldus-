@@ -114,6 +114,7 @@
   <div class="topbar">
     <button class="topbar-back" onclick="tagasiNupp()">← Tagasi</button>
     <span class="topbar-title"><span class="topbar-badge">LIDL</span> Lidl Eesti — Pildid</span>
+    <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;margin-left:auto;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
   </div>
   <div class="leht">
     <div class="murr" id="murr"></div>
@@ -173,6 +174,19 @@
       if (tase === 3) { avaObjekt(valitudObjekt.id, valitudObjekt.nimi, true); }
       else if (tase === 2) { avaPoed(true); }
       else { window.location = '/'; }
+    }
+
+    (function() {
+      if (sessionStorage.getItem('vahetatudAdminist') === '1') {
+        var nupp = document.getElementById('tagasiAdminNupp');
+        if (nupp) nupp.style.display = 'inline-block';
+      }
+    })();
+    function tagasiAdminni() {
+      window.close();
+      setTimeout(function() {
+        alert('Seda vahekaarti ei saanud automaatselt sulgeda — sulge see käsitsi ja mine tagasi admin-vahekaardile.');
+      }, 300);
     }
 
     function uuendaURL(push) {
