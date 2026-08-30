@@ -19,7 +19,7 @@ function noudaAdmin(req, res, next) {
 // ── TÖÖTAJAD ──────────────────────────────────────────────────────
 
 router.get('/tootajad', noudaAdmin, async (req, res) => {
-  const r = await pool.query('SELECT id, nimi, pin, aktiivne, email FROM workers ORDER BY nimi');
+  const r = await pool.query('SELECT id, nimi, pin, aktiivne, email, COALESCE(arhiveeritud,false) as arhiveeritud FROM workers ORDER BY nimi');
   res.json(r.rows);
 });
 
@@ -53,6 +53,50 @@ router.delete('/tootajad/:id', noudaAdmin, async (req, res) => {
     await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
     await pool.query('DELETE FROM workers WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── TÖÖTAJA ARHIVEERIMINE (endised töötajad — peidus, ilma andmeid kustutamata) ──
+
+router.put('/tootajad/:id/arhiveeri', noudaAdmin, async (req, res) => {
+  const { arhiveeritud } = req.body;
+  try {
+    if (arhiveeritud) {
+      // Arhiveerimisel keelame kohe ka sisselogimise (endine töötaja ei saa enam tootaja.html-i)
+      await pool.query('UPDATE workers SET arhiveeritud=true, aktiivne=false WHERE id=$1', [req.params.id]);
+      await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
+    } else {
+      // Taastamisel jätame sisselogimise teadlikult väljalülitatuks — admin lülitab käsitsi sisse, kui vaja
+      await pool.query('UPDATE workers SET arhiveeritud=false WHERE id=$1', [req.params.id]);
+    }
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [req.params.id, arhiveeritud ? 'ADMIN_ARHIVEERIS_TOOTAJA' : 'ADMIN_TAASTAS_TOOTAJA', JSON.stringify({}), req.ip]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── VAHETA ROLL (admin logib end kiirelt töötaja vaatesse ilma PIN-koodita) ──
+
+router.post('/vaheta-roll/:id', noudaAdmin, async (req, res) => {
+  try {
+    const w = await pool.query('SELECT * FROM workers WHERE id=$1', [req.params.id]);
+    if (!w.rows.length) return res.status(404).json({ ok: false, veateade: 'Töötajat ei leitud' });
+    const worker = w.rows[0];
+    if (!worker.aktiivne || worker.arhiveeritud) {
+      return res.status(400).json({ ok: false, veateade: 'Ainult aktiivsete, arhiveerimata töötajate vahel saab rolli vahetada' });
+    }
+    const token = await req.saveSession({ workerId: worker.id, workerNimi: worker.nimi });
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [worker.id, 'ADMIN_VAHETAS_ROLLI', JSON.stringify({ nimi: worker.nimi }), req.ip]
+    );
+    res.json({ ok: true, token, nimi: worker.nimi, workerId: worker.id });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
