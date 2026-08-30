@@ -508,7 +508,15 @@
           <a class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ Ekspordi CSV</a>
         </div>
         <div id="kokkuvote-tootajad-kaardid"></div>
-        <div id="kokkuvoteKast"></div>
+        <div class="kaart tj-arhiiv-kaart" style="margin-top:0">
+          <button type="button" class="tj-arhiiv-toggle" onclick="kvToggleUlevaade()">
+            <span>👥 Töötajate ülevaade</span>
+            <span class="tj-arhiiv-chevron" id="kv-ulevaade-chevron">▾</span>
+          </button>
+          <div class="tj-arhiiv-sisu" id="kv-ulevaade-sisu" style="padding:12px 16px 16px">
+            <div id="kokkuvoteKast"></div>
+          </div>
+        </div>
         <div class="kaart" style="margin-top:16px">
           <div class="kaart-hdr">🔎 Töötaja detailraport (Excel)</div>
           <div class="kaart-body">
@@ -2926,6 +2934,20 @@ function renderKokkuvoteTable() {
     </div>`;
   }
   div.innerHTML = html;
+  kvRenderUlevaadeToggle();
+}
+
+let kvUlevaadeAvatud = localStorage.getItem('kvUlevaadeAvatud') === '1';
+function kvToggleUlevaade() {
+  kvUlevaadeAvatud = !kvUlevaadeAvatud;
+  localStorage.setItem('kvUlevaadeAvatud', kvUlevaadeAvatud ? '1' : '0');
+  kvRenderUlevaadeToggle();
+}
+function kvRenderUlevaadeToggle() {
+  const sisu = document.getElementById('kv-ulevaade-sisu');
+  const chevron = document.getElementById('kv-ulevaade-chevron');
+  if (sisu) sisu.classList.toggle('avatud', kvUlevaadeAvatud);
+  if (chevron) chevron.classList.toggle('avatud', kvUlevaadeAvatud);
 }
 
 function saldoStaatus(teenitud, makstud) {
