@@ -53,6 +53,7 @@ app.use('/api/graafik', require('./routes/graafik'));
 app.use('/api/edgf', require('./routes/edgf'));
 app.use('/api/re', require('./routes/re'));
 app.use('/api/kristo', require('./routes/kristo'));
+app.use('/api/projektid', require('./routes/projektid'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
