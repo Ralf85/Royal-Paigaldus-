@@ -172,10 +172,22 @@
     .tj-tabeli-rida:hover { background: var(--bg3); }
     .tj-tabeli-rida.aktiivne-valik { background: rgba(37,99,235,.12); }
     .tj-badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--bg3); color: var(--tekst2); margin: 1px 2px 1px 0; }
-    .tj-detail-hdr { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
+    .tj-detail-hdr { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
     .tj-detail-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; color: #ffffff; flex-shrink: 0; }
     .tj-more-nupp { background: var(--bg3); border: 0.5px solid var(--piir2); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 13px; color: var(--hall); flex-shrink: 0; }
     .tj-more-nupp:hover { color: var(--punane); border-color: var(--punane); }
+    .tj-arhiiv-kaart { margin-top: 12px; }
+    .tj-arhiiv-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 16px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--tekst2); text-align: left; }
+    .tj-arhiiv-toggle:hover { color: var(--tekst); }
+    .tj-arhiiv-chevron { transition: transform 0.2s; color: var(--hall); }
+    .tj-arhiiv-chevron.avatud { transform: rotate(180deg); }
+    .tj-arhiiv-sisu { display: none; border-top: 0.5px solid var(--piir2); }
+    .tj-arhiiv-sisu.avatud { display: block; }
+    .tj-arhiiv-rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 0.5px solid var(--piir3); }
+    .tj-arhiiv-rida:last-child { border-bottom: none; }
+    .tj-arhiiv-nimi { font-weight: 600; color: var(--tekst2); font-size: 13px; }
+    .vr-nupp { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0.5px solid var(--sisend-piir); border-radius: 8px; color: var(--tekst2); font-size: 12px; font-weight: 600; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+    .vr-nupp:hover { border-color: var(--kuld); color: var(--kuld); }
     .tj-detail-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 0.5px solid var(--piir2); }
     .tj-detail-tab { background: none; border: none; padding: 8px 4px; margin-right: 18px; font-size: 13px; font-weight: 600; color: var(--hall); cursor: pointer; border-bottom: 2px solid transparent; }
     .tj-detail-tab.aktiivne { color: var(--tekst); border-bottom-color: var(--sinine); }
@@ -428,10 +440,14 @@
       </button>
       <div class="topbar-title" id="topbar-title">Kokkuvõte</div>
       <div class="topbar-parem">
+        <button type="button" class="vr-nupp" onclick="vrAvaModal()" title="Kiire sisselogimine töötaja vaatesse ilma PIN-koodita">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/></svg>
+          Vaheta roll
+        </button>
         <button type="button" class="topbar-ikoon-nupp" onclick="vahetaTeema()" title="Vaheta teemat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
-        <button type="button" class="topbar-ikoon-nupp" id="kk-kelluke" onclick="kkAvaPaneel()" title="Kristo kommentaarid">
+        <button type="button" class="topbar-ikoon-nupp" id="kk-kelluke" onclick="kkAvaPaneel()" title="Lidl Eesti kommentaarid">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M6 8a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S6 14 6 8z"/><path d="M10.3 20a1.94 1.94 0 0 0 3.4 0"/></svg>
           <span id="kk-badge" style="display:none;position:absolute;top:2px;right:2px;background:var(--punane);color:#fff;font-size:9px;font-weight:800;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center">0</span>
         </button>
@@ -610,6 +626,13 @@
           <div id="tj-nimekiri"></div>
         </div>
         <div class="tabel-pager" id="tj-pager"></div>
+        <div class="kaart tj-arhiiv-kaart">
+          <button type="button" class="tj-arhiiv-toggle" onclick="tjToggleArhiiv()">
+            <span>📦 Arhiveeritud (<span id="tj-arhiiv-arv">0</span>)</span>
+            <span class="tj-arhiiv-chevron" id="tj-arhiiv-chevron">▾</span>
+          </button>
+          <div class="tj-arhiiv-sisu" id="tj-arhiiv-sisu"></div>
+        </div>
       </div>
       <div class="tootajad-parem">
         <div class="kaart">
@@ -1487,7 +1510,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     </div>
     <div class="kaart" id="kk-kaart" style="display:none">
       <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
-        <span>💬 Kristo kommentaarid</span>
+        <span>💬 Lidl Eesti kommentaarid</span>
         <span id="kk-kaart-arv" style="font-size:11px;color:var(--hall)"></span>
         <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
           <label style="font-size:11px;color:var(--hall);display:flex;align-items:center;gap:5px;cursor:pointer">
@@ -1503,7 +1526,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart" id="et-lidl-projektid-kaart" style="display:none">
       <div class="kaart-hdr"><span>📁 Lidl projektid (fotode kaustad)</span></div>
       <div class="kaart-body">
-        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Halda siin nimekirja, millest töötaja töökirje lisamisel valib "Projekti" — Kristo fotovaates grupeeritakse pildid selle valiku, mitte enam vabateksti järgi. Mitteaktiivne projekt kaob töötaja valikust, aga vanad kirjed ja fotod jäävad alles.</div>
+        <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Halda siin nimekirja, millest töötaja töökirje lisamisel valib "Projekti" — Lidl Eesti fotovaates grupeeritakse pildid selle valiku, mitte enam vabateksti järgi. Mitteaktiivne projekt kaob töötaja valikust, aga vanad kirjed ja fotod jäävad alles.</div>
         <div style="display:flex;gap:8px;margin-bottom:14px">
           <input type="text" id="lp-uus-nimi" placeholder="Uue projekti nimi..." style="flex:1">
           <button type="button" class="nupp kull" style="padding:8px 16px" onclick="lpLisaProjekt()">+ Lisa</button>
@@ -1511,7 +1534,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <div id="lp-nimekiri"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--piir)">
           <div style="font-size:13px;font-weight:600;color:var(--tekst2);margin-bottom:6px">🧹 Vanade fotode ümbermääramine</div>
-          <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Need on vabatekstilised kirjeldused, mida töötajad on varem ise kirjutanud ja mis pole veel struktureeritud nimekirjaga seotud. Vali igale grupile õige projekt, et fotod koonduksid Kristo vaates ühte kausta.</div>
+          <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Need on vabatekstilised kirjeldused, mida töötajad on varem ise kirjutanud ja mis pole veel struktureeritud nimekirjaga seotud. Vali igale grupile õige projekt, et fotod koonduksid Lidl Eesti vaates ühte kausta.</div>
           <div id="lp-vanad"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
         </div>
       </div>
@@ -2150,6 +2173,15 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
 </div><!-- /.konteiner (tab11 lõpp + konteiner lõpp) -->
   </div><!-- /.main-area -->
 </div><!-- /.app-layout -->
+<!-- Vaheta roll modal -->
+<div class="tootaja-modal-overlay" id="vrModal">
+  <div class="tootaja-modal-sisu" style="max-width:420px">
+    <div class="tm-hdr"><span>🔄 Vaheta roll</span><span class="tm-sulge" onclick="vrSuljeModal()">✕</span></div>
+    <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Vali töötaja, kelle vaatesse soovid kiirelt sisse logida (ilma PIN-koodita). Avaneb uues vahekaardis. Ainult aktiivsed, arhiveerimata töötajad on valitavad.</div>
+    <input type="text" id="vr-otsi" placeholder="🔍 Otsi töötajat..." oninput="vrOtsiMuutus(this.value)" style="margin-bottom:10px">
+    <div id="vr-nimekiri" style="max-height:360px;overflow-y:auto"></div>
+  </div>
+</div>
 <!-- Töötaja detailmodal -->
 <div class="tootaja-modal-overlay" id="tootajaModal">
   <div class="tootaja-modal-sisu">
@@ -2201,23 +2233,6 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div style="display:flex;gap:10px">
       <button onclick="salvestaMuutaTulevane()" style="flex:1;background:#2563eb;color:#ffffff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
       <button onclick="document.getElementById('muutaTulevaneModal').style.display='none'" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
-    </div>
-  </div>
-</div>
-<!-- Muuda vahetus modal -->
-<div id="muutaVahetusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:16px;padding:28px;width:100%;max-width:400px;margin:20px">
-    <h3 style="margin-bottom:20px;color:var(--tekst)">✏️ Muuda vahetust</h3>
-    <input type="hidden" id="mv-id">
-    <div style="margin-bottom:12px"><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Töötaja</label><select id="mv-worker"></select></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Algus</label><input type="time" id="mv-algus"></div>
-      <div><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Lõpp</label><input type="time" id="mv-lopp"></div>
-    </div>
-    <div style="margin-bottom:20px"><label style="font-size:11px;color:var(--hall);display:block;margin-bottom:4px">Märkus</label><input type="text" id="mv-markus"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="salvestaMuutaVahetus()" style="flex:1;background:#4ade80;color:#0d0f13;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">Salvesta</button>
-      <button onclick="document.getElementById('muutaVahetusModal').style.display='none'" style="background:var(--sisend-piir);color:var(--tekst3);border:none;border-radius:8px;padding:11px 20px;font-size:14px;cursor:pointer">Tühista</button>
     </div>
   </div>
 </div>
@@ -2472,7 +2487,7 @@ async function kkUuendaArv() {
   else { badge.style.display = 'none'; }
   document.title = arv > 0 ? `🔴 (${arv}) Admin — Royal Paigaldus` : 'Admin — Royal Paigaldus';
   if (kkTeavitusiLubatud && 'Notification' in window && arv > kkViimaneArv && kkViimaneArv !== 0) {
-    new Notification('💬 Uus kommentaar Kristolt', { body: 'Royal Paigaldus adminnis on uus lugemata kommentaar.' });
+    new Notification('💬 Uus kommentaar Lidl Eesti vaates', { body: 'Royal Paigaldus adminnis on uus lugemata kommentaar.' });
   }
   kkViimaneArv = arv;
 }
@@ -2623,6 +2638,48 @@ async function laadiEttevoteLeht(nimi) {
     : '<div style="padding:16px;text-align:center;color:var(--hall)">Arveid pole veel</div>';
   arvedNuppudEl.innerHTML = '<button type="button" class="nupp hall" style="font-size:11px;padding:5px 12px" onclick="avatTab(12)">Ava Arved →</button>'
     + (N === 'MEREKOHVIK' ? '<button type="button" class="nupp kull" style="font-size:11px;padding:5px 12px" onclick="avatTab(12)">📥 SumUp aruanne</button>' : '');
+}
+
+// ── VAHETA ROLL (kiire sisselogimine töötaja vaatesse ilma PIN-koodita) ──
+let vrKoikTootajad = [];
+let vrOtsing = '';
+
+async function vrAvaModal() {
+  document.getElementById('vrModal').classList.add('avatud');
+  const otsiEl = document.getElementById('vr-otsi');
+  if (otsiEl) otsiEl.value = '';
+  vrOtsing = '';
+  document.getElementById('vr-nimekiri').innerHTML = '<div style="padding:20px;text-align:center;color:var(--hall);font-size:13px">Laadimine...</div>';
+  const workers = await api('/api/admin/tootajad');
+  vrKoikTootajad = (Array.isArray(workers) ? workers : []).filter(w => w.aktiivne && !w.arhiveeritud);
+  vrRenderList();
+}
+function vrSuljeModal() {
+  document.getElementById('vrModal').classList.remove('avatud');
+}
+document.getElementById('vrModal')?.addEventListener('click', function(e) { if (e.target === this) vrSuljeModal(); });
+
+function vrOtsiMuutus(v) { vrOtsing = (v || '').toLowerCase(); vrRenderList(); }
+
+function vrRenderList() {
+  const div = document.getElementById('vr-nimekiri');
+  if (!div) return;
+  const list = vrKoikTootajad.filter(w => !vrOtsing || w.nimi.toLowerCase().includes(vrOtsing)).sort((a,b) => a.nimi.localeCompare(b.nimi, 'et'));
+  if (!list.length) { div.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hall);font-size:13px">Aktiivseid töötajaid ei leitud</div>'; return; }
+  div.innerHTML = list.map(w => {
+    const vc = tootajaVarv(w.id || w.nimi);
+    return `<div class="tj-arhiiv-rida" style="cursor:pointer" onclick="vrVahetaTootaja(${w.id})">
+      <span style="display:flex;align-items:center;gap:10px"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span><span style="font-weight:600;color:var(--tekst)">${w.nimi}</span></span>
+      <span style="color:var(--hall)">→</span>
+    </div>`;
+  }).join('');
+}
+
+async function vrVahetaTootaja(id) {
+  const r = await api(`/api/admin/vaheta-roll/${id}`, { method: 'POST' });
+  if (!r || !r.ok) { alert((r && r.veateade) || 'Rolli vahetamine ebaõnnestus'); return; }
+  vrSuljeModal();
+  window.open('/tootaja?vaheta_token=' + encodeURIComponent(r.token), '_blank');
 }
 
 function avaMobiiliMenuu() {
@@ -3071,6 +3128,7 @@ let tjStaatusFilter = 'aktiivsed';
 let tjValitudId = null;
 let tjDetailTab = 'ulevaade';
 let tjLehekylg = 1;
+let tjArhiivAvatud = false;
 const TJ_LEHE_SUURUS = 8;
 
 const TJ_SVG_USERS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.2 14.2c2.6.3 4.8 2.2 4.8 5.3"/></svg>';
@@ -3110,8 +3168,9 @@ async function laadiTootajad() {
 function tjRenderStatid() {
   const div = document.getElementById('tj-stat-rida');
   if (!div) return;
-  const aktiivsed = tjKoikTootajad.filter(w => w.aktiivne).length;
-  const kokku = tjKoikTootajad.length;
+  const mitteArhiveeritud = tjKoikTootajad.filter(w => !w.arhiveeritud);
+  const aktiivsed = mitteArhiveeritud.filter(w => w.aktiivne).length;
+  const kokku = mitteArhiveeritud.length;
   let seoseidKokku = 0;
   Object.values(tjKoikTootajadEttevotted).forEach(we => seoseidKokku += we.length);
   const xsKokku = Object.values(tjKoikXs).filter(Boolean).length;
@@ -3153,6 +3212,7 @@ function tjRenderList() {
   const pagerDiv = document.getElementById('tj-pager');
   if (!listDiv) return;
   let list = tjKoikTootajad.filter(w => {
+    if (w.arhiveeritud) return false;
     if (tjOtsing && !(w.nimi.toLowerCase().includes(tjOtsing) || (w.pin||'').toLowerCase().includes(tjOtsing))) return false;
     if (tjStaatusFilter === 'aktiivsed' && !w.aktiivne) return false;
     if (tjStaatusFilter === 'mitteaktiivsed' && w.aktiivne) return false;
@@ -3162,6 +3222,8 @@ function tjRenderList() {
     }
     return true;
   }).sort((a,b) => a.nimi.localeCompare(b.nimi, 'et'));
+
+  tjRenderArhiiv();
 
   const kokkuLeheküljed = Math.max(1, Math.ceil(list.length / TJ_LEHE_SUURUS));
   if (tjLehekylg > kokkuLeheküljed) tjLehekylg = kokkuLeheküljed;
@@ -3195,6 +3257,37 @@ function tjRenderList() {
       <button type="button" onclick="tjLeheVaheta(1)" ${tjLehekylg>=kokkuLeheküljed?'disabled':''}>Järgmine ›</button>` : '';
 }
 
+function tjToggleArhiiv() {
+  tjArhiivAvatud = !tjArhiivAvatud;
+  const sisu = document.getElementById('tj-arhiiv-sisu');
+  const chevron = document.getElementById('tj-arhiiv-chevron');
+  if (sisu) sisu.classList.toggle('avatud', tjArhiivAvatud);
+  if (chevron) chevron.classList.toggle('avatud', tjArhiivAvatud);
+}
+
+function tjRenderArhiiv() {
+  const sisu = document.getElementById('tj-arhiiv-sisu');
+  const arvEl = document.getElementById('tj-arhiiv-arv');
+  if (!sisu) return;
+  const arhiveeritud = tjKoikTootajad.filter(w => w.arhiveeritud).sort((a,b) => a.nimi.localeCompare(b.nimi, 'et'));
+  if (arvEl) arvEl.textContent = arhiveeritud.length;
+  if (!arhiveeritud.length) {
+    sisu.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall);font-size:12px">Arhiveeritud töötajaid pole</div>';
+    return;
+  }
+  sisu.innerHTML = arhiveeritud.map(w => `
+    <div class="tj-arhiiv-rida">
+      <span class="tj-arhiiv-nimi" style="cursor:pointer" onclick="tjValiTootaja(${w.id})">${w.nimi}</span>
+      <button type="button" class="nupp hall" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation();tjTaastaTootaja(${w.id})">↩ Taasta</button>
+    </div>`).join('');
+}
+
+async function tjTaastaTootaja(id) {
+  if (!confirm('Taastad selle töötaja aktiivsete töötajate nimekirja? Sisselogimine (aktiivne) jääb teadlikult välja lülitatuks, kuni lülitad selle eraldi sisse.')) return;
+  await api(`/api/admin/tootajad/${id}/arhiveeri`, { method: 'PUT', body: JSON.stringify({ arhiveeritud: false }) });
+  await laadiTootajad();
+}
+
 function tjValiTootaja(id) {
   tjValitudId = id;
   tjDetailTab = 'ulevaade';
@@ -3219,9 +3312,12 @@ function tjRenderDetail() {
     <div class="tj-detail-hdr">
       <div class="tj-detail-avatar" style="background:${vc}">${w.nimi[0]}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:16px;font-weight:700;color:var(--tekst)">${w.nimi}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--tekst)">${w.nimi}${w.arhiveeritud ? '<span class="tj-badge" style="margin-left:8px;color:var(--hall)">📦 Arhiveeritud</span>' : ''}</div>
         <div style="font-size:12px;color:var(--hall)">Töötaja profiil</div>
       </div>
+      ${w.arhiveeritud
+        ? `<button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjTaastaTootaja(${w.id})">↩ Taasta</button>`
+        : `<button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjArhiveeriTootaja()">📦 Arhiveeri</button>`}
       <button type="button" class="tj-more-nupp" onclick="tjKustutaTootaja()" title="Kustuta töötaja jäädavalt">🗑</button>
     </div>
     <div class="tj-detail-tabs">
@@ -3371,6 +3467,15 @@ async function tjKustutaTootaja() {
   const r = await api(`/api/admin/tootajad/${id}`, { method:'DELETE' });
   if (!r || !r.ok) { alert((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
   tjValitudId = null;
+  await laadiTootajad();
+}
+
+async function tjArhiveeriTootaja() {
+  const id = tjValitudId;
+  const w = tjKoikTootajad.find(x => x.id === id);
+  if (!w) return;
+  if (!confirm(`Arhiveerida töötaja "${w.nimi}"?\n\nTa kaob peamisest töötajate nimekirjast "Arhiveeritud" alla ega saa enam sisse logida. Kõik andmed (töökirjed, maksed, ajalugu) säilivad ja saab hiljem taastada.`)) return;
+  await api(`/api/admin/tootajad/${id}/arhiveeri`, { method: 'PUT', body: JSON.stringify({ arhiveeritud: true }) });
   await laadiTootajad();
 }
 
@@ -4260,7 +4365,8 @@ const FOTOD_ETTEVOTTED=[
   {nimi:'LIDL',emoji:'🛒'},
   {nimi:'CRAMO',emoji:'🏗️'},
   {nimi:'MEREKOHVIK',emoji:'🍹'},
-  {nimi:'X-SEERIA',emoji:'🥏'}
+  {nimi:'X-SEERIA',emoji:'🥏'},
+  {nimi:'MUU',emoji:'📦'}
 ];
 
 async function laadiFotod(){
