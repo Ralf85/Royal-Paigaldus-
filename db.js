@@ -436,6 +436,13 @@ async function initDB() {
     // ning selleks, et vältida Cloudinary vaikimisi PDF-delivery piirangut ("tühi leht" viga).
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
+    // Reg-kood/KMKR väljad olid VARCHAR(20) — liiga kitsas, kui kellegi salvestatud kliendiandmetesse
+    // sattus kogemata pikem tekst (nt osakonna nimi reg-koodi asemel). Sellest tuli "value too long"
+    // viga arve salvestamisel. Laiendame, et see enam terve arve loomist ei blokeeriks.
+    await client.query(`ALTER TABLE arved ALTER COLUMN ostja_rg_kood TYPE VARCHAR(200);`);
+    await client.query(`ALTER TABLE arved ALTER COLUMN ostja_kmkr TYPE VARCHAR(200);`);
+    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN rg_kood TYPE VARCHAR(200);`);
+    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN kmkr TYPE VARCHAR(200);`);
     // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
     // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
     await client.query(`
@@ -443,8 +450,8 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(200) NOT NULL UNIQUE,
         aadress TEXT,
-        rg_kood VARCHAR(20),
-        kmkr VARCHAR(20),
+        rg_kood VARCHAR(200),
+        kmkr VARCHAR(200),
         maksetahtaeg_paevad INTEGER DEFAULT 14,
         kontaktisik TEXT,
         loodud TIMESTAMP DEFAULT NOW()
@@ -471,6 +478,110 @@ async function initDB() {
     // Ostja täisnimi (eraldi guard arve_nimi järgi, sest arve_rg_kood võib eelmisest deploy'st juba täidetud olla).
     await client.query(`UPDATE ettevotted SET arve_nimi = 'Lidl Eesti OÜ' WHERE nimi = 'LIDL' AND (arve_nimi IS NULL OR arve_nimi = '');`);
     await client.query(`UPDATE ettevotted SET arve_nimi = 'Cramo Estonia AS' WHERE nimi = 'CRAMO' AND (arve_nimi IS NULL OR arve_nimi = '');`);
+
+    // ── PROJEKTID (üldistatud EDGF/Rally Estonia + tulevased üritused, routes/projektid.js) ──
+    // Need tabelid puudusid seni täielikult — moodul oli koodis olemas, aga andmebaasis mitte,
+    // mistõttu iga päring (nt "Loo projekt") lõppes veaga.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS projektid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL,
+        ikoon VARCHAR(10) DEFAULT '📁',
+        varv VARCHAR(20) DEFAULT '#7c3aed',
+        jrk_nr INTEGER DEFAULT 0,
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS projekti_kulud (
+        id SERIAL PRIMARY KEY,
+        projekt_id INTEGER REFERENCES projektid(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        foto_url TEXT,
+        foto_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS projekti_lubatud (
+        id SERIAL PRIMARY KEY,
+        projekt_id INTEGER REFERENCES projektid(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        UNIQUE(projekt_id, worker_id)
+      );
+    `);
+
+    // ── OMA ARVED (töötaja isiklik arvete moodul, routes/omaarved.js) ──
+    // Samuti täiesti puudu olnud tabelid — vt eelmine märkus.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS omaarve_muujad (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        ettevote_nimi VARCHAR(200) NOT NULL,
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        pangakonto VARCHAR(50),
+        pank VARCHAR(100),
+        telefon VARCHAR(50),
+        epost VARCHAR(200),
+        km_kohuslane BOOLEAN DEFAULT true,
+        vaikimisi BOOLEAN DEFAULT false,
+        logo_url TEXT,
+        logo_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW(),
+        uuendatud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_saajad (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        nimi VARCHAR(200) NOT NULL,
+        aadress TEXT,
+        rg_kood VARCHAR(20),
+        kmkr VARCHAR(20),
+        kontaktisik TEXT,
+        epost VARCHAR(200),
+        maksetahtaeg_paevad INTEGER DEFAULT 14,
+        UNIQUE(worker_id, nimi)
+      );
+      CREATE TABLE IF NOT EXISTS omaarved (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        muuja_id INTEGER REFERENCES omaarve_muujad(id),
+        number VARCHAR(20) NOT NULL,
+        kuupaev DATE NOT NULL,
+        maksetahtaeg DATE NOT NULL,
+        saaja_nimi VARCHAR(200) NOT NULL,
+        saaja_aadress TEXT,
+        saaja_rg_kood VARCHAR(20),
+        saaja_kmkr VARCHAR(20),
+        saaja_kontaktisik TEXT,
+        saaja_epost VARCHAR(200),
+        summa_km_ta DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kaibemaks_protsent DECIMAL(5,2) NOT NULL DEFAULT 24,
+        kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
+        kokku DECIMAL(10,2) NOT NULL DEFAULT 0,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_read (
+        id SERIAL PRIMARY KEY,
+        arve_id INTEGER REFERENCES omaarved(id) ON DELETE CASCADE,
+        jrk_nr INTEGER DEFAULT 0,
+        kirjeldus TEXT NOT NULL,
+        kogus DECIMAL(10,2) NOT NULL DEFAULT 1,
+        uhik VARCHAR(20) DEFAULT '',
+        hind DECIMAL(10,2) NOT NULL DEFAULT 0,
+        summa DECIMAL(10,2) NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
+      CREATE TABLE IF NOT EXISTS omaarve_paeva_loendur (
+        paev VARCHAR(6) PRIMARY KEY,
+        jargmine_jrk INTEGER NOT NULL DEFAULT 1
+      );
+    `);
 
     console.log('✅ Andmebaas valmis');
   } finally {
