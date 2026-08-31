@@ -1088,7 +1088,7 @@ function setGraafikVaade(vaade) {
   const nimBtn = document.getElementById('vaade-nimekiri');
   
   if (vaade === 'kalender') {
-    kalenterVaade && (kalenderVaade.style.display = 'block');
+    kalenderVaade && (kalenderVaade.style.display = 'block');
     nimekirjaVaade && (nimekirjaVaade.style.display = 'none');
     kalBtn.style.background = '#2563eb'; kalBtn.style.color = '#ffffff';
     nimBtn.style.background = 'var(--sisend-piir)'; nimBtn.style.color = 'var(--tekst3)';
@@ -1515,6 +1515,10 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart">
       <div class="kaart-hdr"><span id="et-data-pealkiri">📊 DATA</span></div>
       <div class="kaart-body" id="et-data-sisu"><div style="padding:20px;text-align:center;color:var(--hall)">Laadimine...</div></div>
+    </div>
+    <div class="kaart" id="et-tootajad-kaart" style="display:none">
+      <div class="kaart-hdr"><span id="et-tootajad-pealkiri">👷 Töötajad</span></div>
+      <div class="kaart-body" id="et-tootajad-sisu"><div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div></div>
     </div>
     <div class="kaart" id="kk-kaart" style="display:none">
       <div class="kaart-hdr" style="display:flex;align-items:center;gap:8px">
@@ -2501,6 +2505,56 @@ async function kkUuendaArv() {
 }
 setInterval(kkUuendaArv, 45000);
 
+// Ettevõtte lehe "Töötajad" plokk — kes on antud perioodil (Cramo: jooksev kuu, Lidl: alates
+// viimasest arvest) sellele ettevõttele tunde teinud, koos avatava töökirjete nimekirjaga
+// (sama ▾ muster mis Kokkuvõtte tabelis) — et ei peaks selle jaoks eraldi tabi avama.
+function renderEttevoteTootajad(rowList, esitusHind) {
+  const kaart = document.getElementById('et-tootajad-kaart');
+  const sisu = document.getElementById('et-tootajad-sisu');
+  kaart.style.display = '';
+  if (!rowList.length) {
+    sisu.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Selle perioodi kohta töökirjeid pole</div>';
+    return;
+  }
+  const perWorker = {};
+  rowList.forEach(r => {
+    const id = r.worker_id || r.worker_nimi;
+    if (!perWorker[id]) perWorker[id] = { id, nimi: r.worker_nimi, tunnid: 0, rows: [] };
+    perWorker[id].tunnid += parseFloat(r.tunnid) || 0;
+    perWorker[id].rows.push(r);
+  });
+  const workers = Object.values(perWorker).sort((a, b) => b.tunnid - a.tunnid);
+  const kolonniArv = esitusHind ? 4 : 3;
+  let html = `<div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:var(--radius-kaart);overflow:hidden">
+    <table><thead><tr style="border-bottom:0.5px solid var(--piir2)">
+      <th>Töötaja</th><th style="text-align:right">Tunnid</th>${esitusHind ? '<th style="text-align:right">Summa (km-ga)</th>' : ''}<th></th>
+    </tr></thead><tbody>`;
+  workers.forEach(w => {
+    const safeId = 'et-tj-' + String(w.id).replace(/\s/g, '_');
+    const summa = esitusHind ? (w.tunnid * esitusHind * 1.24) : 0;
+    const vc = tootajaVarv(w.id);
+    html += `<tr id="worker-rida-${safeId}">
+      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span>${w.nimi}</td>
+      <td style="text-align:right;color:#5b9cf6">${w.tunnid.toFixed(1)} h</td>
+      ${esitusHind ? `<td style="text-align:right;color:#4ade80">${summa.toFixed(2)} €</td>` : ''}
+      <td style="text-align:right"><button class="av-tegevus-ikoon" id="kirjed-chevron-${safeId}" onclick="toggleKirjed('${safeId}')" title="Näita töökirjeid"><span class="tj-arhiiv-chevron">▾</span></button></td>
+    </tr>
+    <tr id="kirjed-${safeId}" style="display:none"><td colspan="${kolonniArv}" style="padding:0 0 8px 0">
+      <div style="margin:4px 14px;background:var(--bg3);border-radius:8px;overflow:hidden">
+        ${w.rows.map(k => `<div style="display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:0.5px solid var(--piir3);font-size:12px">
+          <span style="color:var(--hall);min-width:80px">${formatKp(k.kuupaev)}</span>
+          <span style="color:var(--tekst3)">${k.objekt_nimi || '—'}</span>
+          <span style="color:var(--tekst3)">${(k.algus || '').slice(0,5)}–${(k.lopp || '').slice(0,5)}</span>
+          <span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
+          ${k.kommentaar ? `<span style="color:var(--hall)">${k.kommentaar}</span>` : ''}
+        </div>`).join('')}
+      </div>
+    </td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  sisu.innerHTML = html;
+}
+
 async function laadiEttevoteLeht(nimi) {
   if (!nimi) return;
   avEttevoteAktiivneNimi = nimi;
@@ -2526,6 +2580,8 @@ async function laadiEttevoteLeht(nimi) {
   // ── DATA ──
   const dataPealkiriEl = document.getElementById('et-data-pealkiri');
   const dataSisuEl = document.getElementById('et-data-sisu');
+  const tootajadKaartEl = document.getElementById('et-tootajad-kaart');
+  tootajadKaartEl.style.display = 'none';
   if (N === 'MEREKOHVIK') {
     dataPealkiriEl.textContent = '📊 DATA — Merekohviku käive (SumUp)';
     const arved = await api('/api/arved');
@@ -2562,7 +2618,8 @@ async function laadiEttevoteLeht(nimi) {
       const algus = algusD.toISOString().split('T')[0];
       const lopp = new Date().toISOString().split('T')[0];
       const rows = await api(`/api/admin/raport-filter?ettevote_id=${e.id}&algus=${algus}&lopp=${lopp}`);
-      const tunnid = (Array.isArray(rows) ? rows : []).reduce((s, r) => s + (parseFloat(r.tunnid) || 0), 0);
+      const rowList = Array.isArray(rows) ? rows : [];
+      const tunnid = rowList.reduce((s, r) => s + (parseFloat(r.tunnid) || 0), 0);
       const summa = esitusHind ? tunnid * esitusHind * 1.24 : 0;
       dataSisuEl.innerHTML =
         `<div style="padding:10px 16px;font-size:12px;color:var(--hall)">${viimaneArve ? `Loetud alates viimasest arvest — ${viimaneArve.number} (${formatKp(viimaneArve.kuupaev)})` : 'Arveid pole veel esitatud — loetud algusest peale'}</div>` +
@@ -2570,6 +2627,8 @@ async function laadiEttevoteLeht(nimi) {
         `<tr><td>Tunnid (veel arveldamata)</td><td style="text-align:right">${tunnid.toFixed(1)}h</td></tr>` +
         (esitusHind ? `<tr><td>Summa (km-ga, veel saada)</td><td style="text-align:right;color:#4ade80;font-weight:600">${summa.toFixed(2)} €</td></tr>` : '') +
         '</tbody></table>';
+      document.getElementById('et-tootajad-pealkiri').textContent = '👷 Töötajad (alates viimasest arvest)';
+      renderEttevoteTootajad(rowList, esitusHind);
     }
   } else {
     dataPealkiriEl.textContent = `📊 DATA — ${nimi} kuupõhine töö`;
@@ -2597,6 +2656,8 @@ async function laadiEttevoteLeht(nimi) {
       });
       html += '</tbody></table>';
       dataSisuEl.innerHTML = html;
+      document.getElementById('et-tootajad-pealkiri').textContent = `👷 Töötajad — ${kuud[0].nimi} ${kuud[0].aasta}`;
+      renderEttevoteTootajad(Array.isArray(tulemused[0]) ? tulemused[0] : [], esitusHind);
     }
   }
 
