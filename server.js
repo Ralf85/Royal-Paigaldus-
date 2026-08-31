@@ -54,6 +54,7 @@ app.use('/api/edgf', require('./routes/edgf'));
 app.use('/api/re', require('./routes/re'));
 app.use('/api/kristo', require('./routes/kristo'));
 app.use('/api/projektid', require('./routes/projektid'));
+app.use('/api/omaarved', require('./routes/omaarved'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
@@ -69,6 +70,7 @@ app.get('/lidl-eesti', (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
+app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
 initDB().then(() => {
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
