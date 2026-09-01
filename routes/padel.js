@@ -230,7 +230,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
                 WHERE pk.nadal_id = pn.id) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
                 FROM padel_setid ps WHERE ps.nadal_id = pn.id) AS setid
-       FROM padel_nadalad pn WHERE pn.ryhm_id=$1 ORDER BY pn.kuupaev DESC LIMIT 12`,
+       FROM padel_nadalad pn WHERE pn.ryhm_id=$1 ORDER BY pn.kuupaev DESC LIMIT 60`,
       [req.params.id]
     );
     res.json({ ok: true, ryhm: ryhmR.rows[0], liikmed: liikmedR.rows, edetabel, nadalad: nadaladR.rows });
