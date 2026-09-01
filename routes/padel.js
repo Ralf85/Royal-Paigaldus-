@@ -240,29 +240,61 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Loo (või tagasta olemasolev) selle nädala trenn, koos automaatse paarijaotusega
+// Loob (kui puudub) ühe nädala trenni koos automaatse paarijaotusega. Tagastab {nadal_id, uus}
+// või {veateade} kui gruppi ei saa (nt liikmeid pole täpselt 4).
+async function looNadalKuiPuudub(ryhmId, kuupaev) {
+  const olemasR = await pool.query('SELECT id FROM padel_nadalad WHERE ryhm_id=$1 AND kuupaev=$2', [ryhmId, kuupaev]);
+  if (olemasR.rows.length) return { nadal_id: olemasR.rows[0].id, uus: false };
+
+  const liikmedR = await pool.query('SELECT id, worker_id FROM padel_liikmed WHERE ryhm_id=$1 ORDER BY jrk_nr', [ryhmId]);
+  if (liikmedR.rows.length !== 4) return { veateade: 'Grupis peab olema täpselt 4 liiget, et nädalat luua' };
+
+  const arvR = await pool.query('SELECT COUNT(*) c FROM padel_nadalad WHERE ryhm_id=$1', [ryhmId]);
+  const indeks = parseInt(arvR.rows[0].c, 10);
+  const [paar1, paar2] = paaridRotatsioon(liikmedR.rows, indeks);
+
+  const nadalR = await pool.query('INSERT INTO padel_nadalad (ryhm_id, kuupaev) VALUES ($1,$2) RETURNING id', [ryhmId, kuupaev]);
+  const nadalId = nadalR.rows[0].id;
+  for (const liige of paar1) {
+    await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,1)', [nadalId, liige.id]);
+  }
+  for (const liige of paar2) {
+    await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,2)', [nadalId, liige.id]);
+  }
+  return { nadal_id: nadalId, uus: true };
+}
+
+// Genereeri mitu järjestikust nädalatrenni korraga (nt "järgmised 10 kolmapäeva")
+router.post('/admin/ryhmad/:id/genereeri-nadalad', noudaAdmin, async (req, res) => {
+  const { algus, arv } = req.body;
+  const n = parseInt(arv, 10);
+  if (!algus) return res.json({ ok: false, veateade: 'Vali esimese trenni kuupäev' });
+  if (!Number.isInteger(n) || n < 1 || n > 52) return res.json({ ok: false, veateade: 'Nädalate arv peab olema 1–52' });
+  try {
+    const tulemused = [];
+    const algusKp = new Date(algus + 'T12:00:00');
+    for (let i = 0; i < n; i++) {
+      const kp = new Date(algusKp);
+      kp.setDate(kp.getDate() + i * 7);
+      const kuupaevStr = kp.toISOString().split('T')[0];
+      const tulemus = await looNadalKuiPuudub(req.params.id, kuupaevStr);
+      tulemused.push({ kuupaev: kuupaevStr, ...tulemus });
+    }
+    const veaga = tulemused.find(t => t.veateade);
+    if (veaga) return res.json({ ok: false, veateade: veaga.veateade, tulemused });
+    res.json({ ok: true, tulemused });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.post('/ryhm/:id/nadal', noudaPadelLigipaas, async (req, res) => {
   const { kuupaev } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev puudub' });
   try {
-    const olemasR = await pool.query('SELECT id FROM padel_nadalad WHERE ryhm_id=$1 AND kuupaev=$2', [req.params.id, kuupaev]);
-    if (olemasR.rows.length) return res.json({ ok: true, nadal_id: olemasR.rows[0].id, uus: false });
-
-    const liikmedR = await pool.query('SELECT id, worker_id FROM padel_liikmed WHERE ryhm_id=$1 ORDER BY jrk_nr', [req.params.id]);
-    if (liikmedR.rows.length !== 4) return res.json({ ok: false, veateade: 'Grupis peab olema täpselt 4 liiget, et nädalat luua' });
-
-    const arvR = await pool.query('SELECT COUNT(*) c FROM padel_nadalad WHERE ryhm_id=$1', [req.params.id]);
-    const indeks = parseInt(arvR.rows[0].c, 10);
-    const [paar1, paar2] = paaridRotatsioon(liikmedR.rows, indeks);
-
-    const nadalR = await pool.query('INSERT INTO padel_nadalad (ryhm_id, kuupaev) VALUES ($1,$2) RETURNING id', [req.params.id, kuupaev]);
-    const nadalId = nadalR.rows[0].id;
-    for (const liige of paar1) {
-      await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,1)', [nadalId, liige.id]);
-    }
-    for (const liige of paar2) {
-      await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,2)', [nadalId, liige.id]);
-    }
-    res.json({ ok: true, nadal_id: nadalId, uus: true });
+    const tulemus = await looNadalKuiPuudub(req.params.id, kuupaev);
+    if (tulemus.veateade) return res.json({ ok: false, veateade: tulemus.veateade });
+    res.json({ ok: true, nadal_id: tulemus.nadal_id, uus: tulemus.uus });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
