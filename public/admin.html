@@ -2092,6 +2092,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <input type="date" id="av-lopp" style="width:auto">
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('koond')">⚡ Täida tundide+km järgi</button>
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('tootajad')">⚡ Täida töötajate kaupa</button>
+            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avSeadistaArveldushind()" title="Kliendile esitatav tunnihind — eraldi töötaja palgamäärast">💶 Arveldushind</button>
           </div>
         </div>
 
@@ -6007,6 +6008,19 @@ async function avAutotaida(viis) {
   if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
   avRead = r.read;
   avJoonistaRead();
+  if (r.hoiatus) alert('⚠️ ' + r.hoiatus);
+}
+
+async function avSeadistaArveldushind() {
+  const { tyyp, id } = avKlientValik();
+  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', 'Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu).');
+  const uus = prompt('Kliendile esitatav tunnihind (€/h, käibemaksuta) — see EI OLE töötaja palgamäär, vaid arvel kasutatav hind:');
+  if (uus === null || uus.trim() === '') return;
+  const hind = parseFloat(uus.replace(',', '.'));
+  if (!Number.isFinite(hind) || hind < 0) return naitaTeade('arve-teade', 'viga', 'Vigane hind');
+  const r = await api(`/api/arved/admin/ettevotted/${id}/tunnihind`, { method: 'PUT', body: JSON.stringify({ arve_tunnihind: hind }) });
+  if (r.ok) naitaTeade('arve-teade', 'ok', `✅ Arveldushind salvestatud: ${hind} €/h`);
+  else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
 
 async function avSalvestaArve() {
@@ -6014,7 +6028,7 @@ async function avSalvestaArve() {
   const ettevoteId = tyyp === 'ettevote' ? id : null;
   const ostjaNimi = document.getElementById('av-ostja-nimi').value.trim();
   if (!ostjaNimi) return naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!');
-  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
+  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && (parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0));
   if (!kehtivadRead.length) return naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!');
   if (!avmMuujad.length) return naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt');
   const body = {
