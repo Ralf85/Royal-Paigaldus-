@@ -73,10 +73,29 @@ router.post('/saada', async (req, res) => {
       return res.json({ ok: false, veateade: 'Sellel töötajal pole veel telefonis teavitusi lubatud — palu tal töötaja vaates "🔔 Luba teavitused" nupule vajutada.' });
     }
     await saadaTeavitus(worker_id, title, body, '/tootaja');
+    // Salvestame sõnumi, et see jääks töötaja pealehele "Sinu teated" alla nähtavaks
+    // ka pärast seda, kui telefoni teavitus ise on kadunud.
+    await pool.query(
+      'INSERT INTO worker_teated (worker_id, pealkiri, sonum) VALUES ($1,$2,$3)',
+      [worker_id, title, body]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+// Töötaja enda viimased käsitsi saadetud teated (kuvatakse töötaja pealehel)
+router.get('/minu-teated', noudaSisslogimist, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT pealkiri, sonum, loodud FROM worker_teated WHERE worker_id=$1 ORDER BY loodud DESC LIMIT 5',
+      [req.session.workerId]
+    );
+    res.json({ ok: true, teated: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, teated: [] });
   }
 });
 
