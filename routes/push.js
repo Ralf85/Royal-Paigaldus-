@@ -56,4 +56,22 @@ async function saadaTeavitus(workerId, title, body, url) {
   }
 }
 
+// Saada teavitus käsitsi (admin valib töötaja ja kirjutab vabas vormis sõnumi)
+router.post('/saada', async (req, res) => {
+  if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
+  const { worker_id, title, body } = req.body;
+  if (!worker_id || !title || !body) return res.json({ ok: false, veateade: 'Täida töötaja, pealkiri ja sõnum' });
+  try {
+    const sub = await pool.query('SELECT 1 FROM push_subscriptions WHERE worker_id=$1', [worker_id]);
+    if (!sub.rows.length) {
+      return res.json({ ok: false, veateade: 'Sellel töötajal pole veel telefonis teavitusi lubatud — palu tal töötaja vaates "🔔 Luba teavitused" nupule vajutada.' });
+    }
+    await saadaTeavitus(worker_id, title, body, '/tootaja');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
 module.exports = { router, saadaTeavitus };
