@@ -407,6 +407,9 @@ async function initDB() {
     await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_kontakt_viimane TEXT;`);
     // Ostja täisnimi arvel (nt "Cramo Estonia AS"), eristub külgmenüü lühinimest ("CRAMO").
     await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_nimi VARCHAR(200);`);
+    // Kliendile ESITATAV tunnihind (nt Cramo 25€/h) — eraldi töötaja enda PALGAMÄÄRAST
+    // (worker_ettevotted.tunnitasu). Neid kahte ei tohi arvete koostamisel omavahel segi ajada.
+    await client.query(`ALTER TABLE ettevotted ADD COLUMN IF NOT EXISTS arve_tunnihind DECIMAL(10,2);`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS arved (
