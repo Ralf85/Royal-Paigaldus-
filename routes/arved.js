@@ -281,10 +281,16 @@ router.get('/valikud', noudaAdmin, async (req, res) => {
 router.post('/valikud', noudaAdmin, async (req, res) => {
   const { ettevote_id, tyyp, vaartus, silt } = req.body;
   if (!ettevote_id || !tyyp || !vaartus) return res.json({ ok: false, veateade: 'Puudulikud andmed' });
+  // Kaitse: ettevote_id peab olema päris number (mitte nt "e-2" — vale formaadis väärtus,
+  // mis muidu jõuaks otse INTEGER veergu ja tekitaks toore andmebaasi veateate).
+  const ettevoteIdNum = parseInt(ettevote_id, 10);
+  if (!Number.isInteger(ettevoteIdNum) || String(ettevoteIdNum) !== String(ettevote_id).trim()) {
+    return res.json({ ok: false, veateade: 'Vigane ettevõtte ID — proovi klient uuesti valida.' });
+  }
   try {
     const r = await pool.query(
       'INSERT INTO arve_valikud (ettevote_id, tyyp, vaartus, silt) VALUES ($1,$2,$3,$4) RETURNING *',
-      [ettevote_id, tyyp, vaartus, silt || '']
+      [ettevoteIdNum, tyyp, vaartus, silt || '']
     );
     res.json({ ok: true, valik: r.rows[0] });
   } catch (err) {
