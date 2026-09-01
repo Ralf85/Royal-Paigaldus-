@@ -5846,14 +5846,14 @@ function avPoValikMuutus() {
   if (item) document.getElementById('av-po').value = item.vaartus;
 }
 async function avSalvestaPoValik() {
-  const ettevoteId = document.getElementById('av-klient').value;
+  const { tyyp, id: ettevoteId } = avKlientValik();
   const vaartus = document.getElementById('av-po').value.trim();
-  const tyyp = avViideTyyp();
-  const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
-  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', `Vali enne klient (ettevõte) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
+  const siltNimiTyyp = avViideTyyp();
+  const siltNimi = siltNimiTyyp === 'projekt' ? 'projektinumber' : 'PO number';
+  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', `Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
   if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
   const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
-  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp, vaartus, silt }) });
+  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: siltNimiTyyp, vaartus, silt }) });
   if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', `✅ ${siltNimi} salvestatud valikusse.`); }
   else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
@@ -5872,9 +5872,9 @@ function avKontaktValikMuutus() {
   if (item) document.getElementById('av-kontaktisik').value = item.vaartus;
 }
 async function avSalvestaKontaktValik() {
-  const ettevoteId = document.getElementById('av-klient').value;
+  const { tyyp, id: ettevoteId } = avKlientValik();
   const vaartus = document.getElementById('av-kontaktisik').value.trim();
-  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Vali enne klient (ettevõte) — kontaktisikud salvestuvad ettevõtte kaupa.');
+  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', 'Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu) — kontaktisikud salvestuvad ettevõtte kaupa.');
   if (!vaartus) return naitaTeade('arve-teade', 'viga', 'Kontaktisiku väli on tühi.');
   const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: 'kontakt', vaartus }) });
   if (r.ok) { await avLaadiKontaktValikud(ettevoteId); naitaTeade('arve-teade', 'ok', '✅ Kontaktisik salvestatud valikusse.'); }
