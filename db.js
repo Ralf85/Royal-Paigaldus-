@@ -704,6 +704,16 @@ async function initDB() {
         summa DECIMAL(10,2),
         UNIQUE(nadal_id, liige_id)
       );
+      -- Iga trenn võib koosneda mitmest geimist/setist (nt 6:3, 7:5, 1:6) — kokkuvõttes
+      -- võrreldakse GEIMIDE SUMMAT: rohkem geime kogunud paar saab trenni eest 2 punkti,
+      -- viigi korral mõlemad paarid 1 punkti. Punktid (mitte geimid) on peamine edetabeli näitaja.
+      CREATE TABLE IF NOT EXISTS padel_setid (
+        id SERIAL PRIMARY KEY,
+        nadal_id INTEGER REFERENCES padel_nadalad(id) ON DELETE CASCADE,
+        jrk_nr INTEGER NOT NULL DEFAULT 0,
+        paar1_geimid INTEGER NOT NULL,
+        paar2_geimid INTEGER NOT NULL
+      );
     `);
 
     console.log('✅ Andmebaas valmis');
