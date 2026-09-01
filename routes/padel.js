@@ -189,26 +189,47 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
        WHERE pl.ryhm_id=$1 ORDER BY pl.jrk_nr`,
       [req.params.id]
     );
-    // Edetabel: kõik kohad-read (nii ise mängitud kui asendaja mängitud — geimid lähevad ALATI liikme arvele)
+    // Iga nädala GEIMIDE SUMMA (kõigi setide peale) ja sellest tulenev PUNKTISKOOR:
+    // 2p võidu eest, 1p+1p viigi eest, 0p kaotuse eest. Edetabelis on punktid peamine näitaja.
     const edetabelR = await pool.query(
-      `SELECT pk.liige_id,
-              SUM(CASE WHEN pk.paar = 1 THEN COALESCE(pn.paar1_geimid,0) ELSE COALESCE(pn.paar2_geimid,0) END) AS geimid_kokku,
-              COUNT(*) FILTER (WHERE pn.paar1_geimid IS NOT NULL) AS mange
-       FROM padel_kohad pk JOIN padel_nadalad pn ON pn.id = pk.nadal_id
+      `WITH nadal_summa AS (
+         SELECT nadal_id, SUM(paar1_geimid) AS p1g, SUM(paar2_geimid) AS p2g
+         FROM padel_setid GROUP BY nadal_id
+       ),
+       nadal_punktid AS (
+         SELECT nadal_id, p1g, p2g,
+           CASE WHEN p1g > p2g THEN 2 WHEN p1g < p2g THEN 0 ELSE 1 END AS p1p,
+           CASE WHEN p2g > p1g THEN 2 WHEN p2g < p1g THEN 0 ELSE 1 END AS p2p
+         FROM nadal_summa
+       )
+       SELECT pk.liige_id,
+              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1p ELSE np.p2p END), 0) AS punktid,
+              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1g ELSE np.p2g END), 0) AS geimid_kokku,
+              COUNT(np.nadal_id) AS mange
+       FROM padel_kohad pk
+       JOIN padel_nadalad pn ON pn.id = pk.nadal_id
+       LEFT JOIN nadal_punktid np ON np.nadal_id = pk.nadal_id
        WHERE pn.ryhm_id = $1
        GROUP BY pk.liige_id`,
       [req.params.id]
     );
     const edetabel = liikmedR.rows.map(l => {
       const rida = edetabelR.rows.find(e => e.liige_id === l.id);
-      return { liige_id: l.id, nimi: l.nimi, geimid: rida ? parseInt(rida.geimid_kokku, 10) : 0, mange: rida ? parseInt(rida.mange, 10) : 0 };
-    }).sort((a, b) => b.geimid - a.geimid);
+      return {
+        liige_id: l.id, nimi: l.nimi,
+        punktid: rida ? parseInt(rida.punktid, 10) : 0,
+        geimid: rida ? parseInt(rida.geimid_kokku, 10) : 0,
+        mange: rida ? parseInt(rida.mange, 10) : 0
+      };
+    }).sort((a, b) => b.punktid - a.punktid || b.geimid - a.geimid);
 
     const nadaladR = await pool.query(
-      `SELECT pn.*, 
+      `SELECT pn.*,
               (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
                 FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
-                WHERE pk.nadal_id = pn.id) AS kohad
+                WHERE pk.nadal_id = pn.id) AS kohad,
+              (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
+                FROM padel_setid ps WHERE ps.nadal_id = pn.id) AS setid
        FROM padel_nadalad pn WHERE pn.ryhm_id=$1 ORDER BY pn.kuupaev DESC LIMIT 12`,
       [req.params.id]
     );
@@ -283,14 +304,24 @@ router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, async (req, res) => {
   }
 });
 
-// Sisesta/muuda nädala tulemus (kehtib kohe, ei vaja kinnitust)
-router.put('/nadalad/:id/tulemus', noudaPadelLigipaas, async (req, res) => {
-  const { paar1_geimid, paar2_geimid } = req.body;
-  const p1 = parseInt(paar1_geimid, 10), p2 = parseInt(paar2_geimid, 10);
-  if (!Number.isFinite(p1) || !Number.isFinite(p2) || p1 < 0 || p2 < 0) return res.json({ ok: false, veateade: 'Sisesta korrektsed geimide arvud' });
+// Sisesta/muuda nädala setid (kehtib kohe, ei vaja kinnitust). Asendab kõik setid korraga.
+router.put('/nadalad/:id/setid', noudaPadelLigipaas, async (req, res) => {
+  const { setid } = req.body;
+  if (!Array.isArray(setid) || !setid.length) return res.json({ ok: false, veateade: 'Lisa vähemalt üks geimi tulemus' });
+  const puhtad = [];
+  for (const s of setid) {
+    const p1 = parseInt(s.paar1_geimid, 10), p2 = parseInt(s.paar2_geimid, 10);
+    if (!Number.isFinite(p1) || !Number.isFinite(p2) || p1 < 0 || p2 < 0) continue;
+    puhtad.push([p1, p2]);
+  }
+  if (!puhtad.length) return res.json({ ok: false, veateade: 'Sisesta korrektsed geimide arvud' });
   try {
-    await pool.query('UPDATE padel_nadalad SET paar1_geimid=$1, paar2_geimid=$2, tulemus_sisestas=$3 WHERE id=$4',
-      [p1, p2, req.session.workerId || null, req.params.id]);
+    await pool.query('DELETE FROM padel_setid WHERE nadal_id=$1', [req.params.id]);
+    for (let i = 0; i < puhtad.length; i++) {
+      await pool.query('INSERT INTO padel_setid (nadal_id, jrk_nr, paar1_geimid, paar2_geimid) VALUES ($1,$2,$3,$4)',
+        [req.params.id, i, puhtad[i][0], puhtad[i][1]]);
+    }
+    await pool.query('UPDATE padel_nadalad SET tulemus_sisestas=$1 WHERE id=$2', [req.session.workerId || null, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
