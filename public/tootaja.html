@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Royal Paigaldus — Tööpäevik</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d0f13">
+  <!-- iOS "Lisa avakuvale" tugi — Safari ei loe manifest.json, vaid neid silte -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Royal">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" href="/icons/icon-192.png">
   <script>
     // Admin "Vaheta roll" kiirsisselogimine — kui URL-is on vaheta_token, salvestame selle
     // töötaja sessioonitokeniks ja puhastame URL-i, enne kui midagi muud käivitub.
@@ -342,6 +350,11 @@
       </button>
     </div>
 
+    <div class="kaart" id="minuTeatedKaart" style="display:none">
+      <div class="kaart-hdr"><span>&#128172;</span><span class="kaart-hdr-tekst">Sinu teated</span></div>
+      <div id="minuTeatedSisu"></div>
+    </div>
+
     <div class="kaart">
       <div class="kaart-hdr"><span>&#128197;</span><span class="kaart-hdr-tekst">Tulevased tööd</span><span class="kaart-hdr-arv" id="tulevaste-arv">0</span></div>
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
@@ -462,7 +475,7 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), laadiMinuTeated()]);
     }
 
     async function kontrolliMerekohvik() {
@@ -572,6 +585,25 @@
         + '<div class="emp-label omaarved">MINU ARVED</div>'
         + '<div class="emp-tunnid">✓</div>'
         + '<div class="emp-tunnid-sub">enda arvete koostamine</div></a>' : '');
+    }
+
+    async function laadiMinuTeated() {
+      try {
+        var r = await api('/api/push/minu-teated');
+        var kaart = document.getElementById('minuTeatedKaart');
+        var div = document.getElementById('minuTeatedSisu');
+        if (!r.ok || !r.teated || !r.teated.length) { kaart.style.display = 'none'; return; }
+        kaart.style.display = '';
+        div.innerHTML = r.teated.map(function(t) {
+          var d = new Date(t.loodud);
+          var kp = d.getDate() + '.' + (d.getMonth()+1) + '.' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+          return '<div class="tulevane-rida"><div class="tr-info">'
+            + '<div style="font-weight:600">' + t.pealkiri + '</div>'
+            + '<div class="tr-kirjeldus">' + t.sonum + '</div>'
+            + '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + kp + '</div>'
+            + '</div></div>';
+        }).join('');
+      } catch(e) {}
     }
 
     async function laadiTulevasedTood() {
@@ -951,9 +983,20 @@
     // Teavituste luba tuleb küsida OTSE töötaja klõpsu peale (nupp), sest brauserid (eriti
     // Chrome Androidil) ignoreerivad vaikimisi loa-küsimusi, mis tulevad automaatselt (nt setTimeout
     // kaudu) ilma kasutaja enda vajutuseta. Seepärast kuvame nupu ja ei küsi luba iseenesest.
+    // iPhone'i Safari ei toeta teavitusi üldse enne, kui leht on "Lisa avakuvale" kaudu paigaldatud —
+    // sel juhul puudub 'Notification' aken täielikult, nii et näitame selle asemel juhist.
     (function seadistaPushNupp(){
-      if(!('Notification'in window)) return;
       var nupp=document.getElementById('pushLubaNupp');
+      var iOS=/iP(hone|ad|od)/.test(navigator.userAgent);
+      var standalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+      if(!('Notification'in window)){
+        if(iOS&&!standalone&&nupp){
+          nupp.textContent='📲 Lisa avakuvale, et saada teavitusi';
+          nupp.style.display='inline-block';
+          nupp.onclick=function(){ alert('Vajuta Safari all keskel "Jaga" nuppu (ruut noolega üles) ja vali "Lisa avakuvale". Ava seejärel rakendus sealt uue ikooni kaudu.'); };
+        }
+        return;
+      }
       if(!nupp) return;
       if(Notification.permission==='default'){
         nupp.style.display='inline-block';
