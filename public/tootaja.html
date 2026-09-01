@@ -185,6 +185,7 @@
     </div>
     <div class="topbar-right">
       <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
+      <button onclick="registreeriPush()" id="pushLubaNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔔 Luba teavitused</button>
       <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--text2)">&#127769;</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
@@ -935,12 +936,34 @@
     }
 
     async function registreeriPush(){
-      if(!('serviceWorker'in navigator)||!('PushManager'in window))return;
-      try{var reg=await navigator.serviceWorker.register('/sw.js');var luba=await Notification.requestPermission();if(luba!=='granted')return;var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:'BJEpvd77iMyYAyYabKtylPU1eOgTG2px0GeXTqECJnUcCYYeaX36MkyQk7NuqJD3LMNBK88PEvxopNbRYe-a6TA'});await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':TOKEN},body:JSON.stringify({subscription:sub})});}catch(e){}
+      if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window))return;
+      var nupp=document.getElementById('pushLubaNupp');
+      try{
+        var reg=await navigator.serviceWorker.register('/sw.js');
+        var luba=await Notification.requestPermission();
+        if(luba!=='granted'){ if(nupp) nupp.style.display='none'; return; }
+        var sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:'BJEpvd77iMyYAyYabKtylPU1eOgTG2px0GeXTqECJnUcCYYeaX36MkyQk7NuqJD3LMNBK88PEvxopNbRYe-a6TA'});
+        await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':TOKEN},body:JSON.stringify({subscription:sub})});
+        if(nupp) nupp.style.display='none';
+      }catch(e){}
     }
 
+    // Teavituste luba tuleb küsida OTSE töötaja klõpsu peale (nupp), sest brauserid (eriti
+    // Chrome Androidil) ignoreerivad vaikimisi loa-küsimusi, mis tulevad automaatselt (nt setTimeout
+    // kaudu) ilma kasutaja enda vajutuseta. Seepärast kuvame nupu ja ei küsi luba iseenesest.
+    (function seadistaPushNupp(){
+      if(!('Notification'in window)) return;
+      var nupp=document.getElementById('pushLubaNupp');
+      if(!nupp) return;
+      if(Notification.permission==='default'){
+        nupp.style.display='inline-block';
+      } else if(Notification.permission==='granted'){
+        // Luba juba antud varem — uuenda vaikselt subscription (ei näita loa-akent uuesti)
+        registreeriPush();
+      }
+    })();
+
     init();
-    setTimeout(registreeriPush,2000);
   </script>
 </body>
 </html>
