@@ -126,6 +126,15 @@ async function laadiRyhmad() {
         + '<select id="lisa-sel-' + g.id + '" style="flex:1"><option value="">— vali töötaja —</option>' + valikud + '</select>'
         + '<button class="nupp hall pisike" onclick="lisaLiige(' + g.id + ')">+ Lisa</button></div>' : '<div style="color:var(--text3);font-size:12px">Grupp on täis (4/4)</div>')
       + '<div id="asend-maksed-' + g.id + '" style="margin-top:14px"></div>'
+      + '<div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">'
+      + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">📅 Genereeri mitu trenni korraga (iganädalaselt, alates valitud kuupäevast)</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      + '<input type="date" id="gen-kp-' + g.id + '">'
+      + '<input type="number" id="gen-arv-' + g.id + '" value="10" min="1" max="52" style="width:70px" title="Mitu nädalat">'
+      + '<button class="nupp hall pisike" onclick="genereeriNadalad(' + g.id + ')">Genereeri</button>'
+      + '</div>'
+      + '<div id="gen-teade-' + g.id + '" class="teade"></div>'
+      + '</div>'
       + '</div></div>';
   }).join('');
 }
@@ -157,6 +166,21 @@ async function vaataAsendajaMakseid(ryhmId) {
 }
 async function markiMakse(kohaId, makstud) {
   await api('/api/padel/admin/kohad/' + kohaId + '/makse', { method: 'PUT', body: JSON.stringify({ makstud: makstud }) });
+}
+
+async function genereeriNadalad(ryhmId) {
+  var kp = document.getElementById('gen-kp-' + ryhmId).value;
+  var arv = document.getElementById('gen-arv-' + ryhmId).value;
+  var teade = document.getElementById('gen-teade-' + ryhmId);
+  if (!kp) { teade.className = 'teade viga'; teade.textContent = 'Vali esimese trenni kuupäev'; return; }
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/genereeri-nadalad', { method: 'POST', body: JSON.stringify({ algus: kp, arv: arv }) });
+  if (r.ok) {
+    var uusi = r.tulemused.filter(function(t) { return t.uus; }).length;
+    teade.className = 'teade ok';
+    teade.textContent = '✅ ' + uusi + ' uut trenni loodud (' + r.tulemused[0].kuupaev + ' — ' + r.tulemused[r.tulemused.length-1].kuupaev + ')';
+  } else {
+    teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga';
+  }
 }
 
 async function laadiLubatud() {
