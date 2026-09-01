@@ -313,6 +313,14 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
   const { ettevote_id, algus, lopp, viis } = req.query;
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
   try {
+    const etR = await pool.query('SELECT arve_tunnihind FROM ettevotted WHERE id=$1', [ettevote_id]);
+    const arveTunnihind = etR.rows[0] && etR.rows[0].arve_tunnihind != null ? parseFloat(etR.rows[0].arve_tunnihind) : null;
+    // Kui kliendile ei ole veel arveldushinda seadistatud, kasutame vanemat (töötaja palgamäära)
+    // varianti tagavarana, aga anname sellest admin'ile selgelt teada, et vältida alahindamist.
+    const hoiatus = arveTunnihind == null
+      ? 'NB! Sellel kliendil pole arveldushinda seadistatud — kasutati töötaja palgamäära, mis VÕIB OLLA VALE. Palun kontrolli hinda enne saatmist ja seadista klienti "Arveldushind" väljal.'
+      : null;
+
     if (viis === 'tootajad') {
       const r = await pool.query(
         `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
@@ -329,11 +337,11 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       // mitte üldsõnalist "Tööd" — nii nagu päris arvetel. Kui objekti pole (harv juhus), jääb "Tööd" varuvariandiks.
       const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
         const kogus = parseFloat(row.tunnid);
-        const hind = parseFloat(row.tunnitasu || 0);
+        const hind = arveTunnihind != null ? arveTunnihind : parseFloat(row.tunnitasu || 0);
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
         return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
       });
-      return res.json({ ok: true, read });
+      return res.json({ ok: true, read, hoiatus });
     }
 
     const tR = await pool.query(
@@ -342,17 +350,33 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       [ettevote_id, algus, lopp]
     );
     const tunnid = parseFloat(tR.rows[0].tunnid), km = parseFloat(tR.rows[0].km);
-    const tasuR = await pool.query(
-      `SELECT tunnitasu, COUNT(*) c FROM worker_ettevotted WHERE ettevote_id=$1 AND tunnitasu > 0 GROUP BY tunnitasu ORDER BY c DESC LIMIT 1`,
-      [ettevote_id]
-    );
-    const tunnitasu = tasuR.rows[0] ? parseFloat(tasuR.rows[0].tunnitasu) : 0;
+    let tunnitasu = arveTunnihind;
+    if (tunnitasu == null) {
+      const tasuR = await pool.query(
+        `SELECT tunnitasu, COUNT(*) c FROM worker_ettevotted WHERE ettevote_id=$1 AND tunnitasu > 0 GROUP BY tunnitasu ORDER BY c DESC LIMIT 1`,
+        [ettevote_id]
+      );
+      tunnitasu = tasuR.rows[0] ? parseFloat(tasuR.rows[0].tunnitasu) : 0;
+    }
     const read = [];
     if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind: tunnitasu, summa: +(tunnid * tunnitasu).toFixed(2) });
     if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-    res.json({ ok: true, read });
+    res.json({ ok: true, read, hoiatus });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Salvesta/uuenda kliendile esitatav tunnihind (eraldi töötajate palgamäärast)
+router.put('/admin/ettevotted/:id/tunnihind', noudaAdmin, async (req, res) => {
+  const { arve_tunnihind } = req.body;
+  const hind = parseFloat(arve_tunnihind);
+  if (!Number.isFinite(hind) || hind < 0) return res.json({ ok: false, veateade: 'Sisesta korrektne hind' });
+  try {
+    await pool.query('UPDATE ettevotted SET arve_tunnihind=$1 WHERE id=$2', [hind, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
