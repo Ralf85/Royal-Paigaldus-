@@ -17,23 +17,28 @@ app.use(async (req, res, next) => {
   req.sessionToken = token;
   if (token) {
     try {
-      const r = await pool.query(
-        `SELECT * FROM admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${ADMIN_SESSIOON_PAEVI} days'`, [token]
-      );
-      if (r.rows.length > 0) req.session.isAdmin = true;
-      const w = await pool.query(
-        `SELECT * FROM worker_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'`, [token]
-      );
-      if (w.rows.length > 0) {
-        req.session.workerId = w.rows[0].worker_id;
-        req.session.workerNimi = w.rows[0].worker_nimi;
-      }
-      const ga = await pool.query(
-        `SELECT * FROM graafik_admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${GRAAFIK_ADMIN_SESSIOON_PAEVI} days'`, [token]
-      );
-      if (ga.rows.length > 0) {
-        req.session.isGraafikAdmin = true;
-        req.session.graafikAdminNimi = ga.rows[0].nimi;
+      // Üks päring kolme sessioonitabeli asemel — vähendab iga HTTP päringu
+      // andmebaasi round-trip'e kolmelt ühele.
+      const r = await pool.query(`
+        SELECT 'admin' AS tyyp, NULL::int AS worker_id, NULL::varchar AS worker_nimi, NULL::varchar AS nimi
+        FROM admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${ADMIN_SESSIOON_PAEVI} days'
+        UNION ALL
+        SELECT 'worker' AS tyyp, worker_id, worker_nimi, NULL::varchar AS nimi
+        FROM worker_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'
+        UNION ALL
+        SELECT 'graafik' AS tyyp, NULL::int AS worker_id, NULL::varchar AS worker_nimi, nimi
+        FROM graafik_admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${GRAAFIK_ADMIN_SESSIOON_PAEVI} days'
+      `, [token]);
+      for (const row of r.rows) {
+        if (row.tyyp === 'admin') req.session.isAdmin = true;
+        if (row.tyyp === 'worker') {
+          req.session.workerId = row.worker_id;
+          req.session.workerNimi = row.worker_nimi;
+        }
+        if (row.tyyp === 'graafik') {
+          req.session.isGraafikAdmin = true;
+          req.session.graafikAdminNimi = row.nimi;
+        }
       }
     } catch(e) {}
   }
