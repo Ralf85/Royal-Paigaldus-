@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Padel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #7a8290; --groen: #4ade80; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 60px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .topbar h1 { font-size: 18px; font-weight: 800; }
+  .topbar h1 span { color: var(--groen); }
+  a.tagasi { color: var(--text2); text-decoration: none; font-size: 13px; }
+  select, input { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+  .kaart-hdr { padding: 14px 18px; font-size: 15px; font-weight: 700; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .kaart-body { padding: 18px; }
+  .tyhi { padding: 24px 18px; text-align: center; color: var(--text3); }
+  .laadimine { padding: 24px; text-align: center; color: var(--text3); }
+  .nupp { background: var(--groen); color: #06240f; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .nupp.hall { background: var(--bg3); color: var(--text); border: 0.5px solid var(--border); }
+  .nupp.pisike { padding: 6px 10px; font-size: 12px; }
+  .teade { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
+  .teade.ok { background: rgba(74,222,128,0.12); color: #4ade80; display: block; }
+  .teade.viga { background: rgba(248,113,113,0.12); color: #f87171; display: block; }
+  .rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+  .rida:last-child { border-bottom: none; }
+  .saldo-summa { font-size: 26px; font-weight: 800; }
+  .saldo-summa.null { color: var(--groen); }
+  .saldo-summa.voolgu { color: #fbbf24; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 4px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 0.5px solid var(--border); }
+  td { padding: 8px 4px; border-bottom: 0.5px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .paar-blokk { background: var(--bg3); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .paar-pealkiri { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .liige-rida { display: flex; align-items: center; gap: 8px; padding: 6px 0; flex-wrap: wrap; }
+  .liige-nimi { flex: 1; min-width: 90px; font-weight: 600; }
+  .osalus-nupud { display: flex; gap: 6px; }
+  .osalus-nupp { background: var(--bg2); border: 0.5px solid var(--border); color: var(--text2); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  .osalus-nupp.aktiivne-jah { background: rgba(74,222,128,0.18); color: #4ade80; border-color: #166534; }
+  .osalus-nupp.aktiivne-ei { background: rgba(248,113,113,0.18); color: #f87171; border-color: #7f1d1d; }
+  .asendaja-rida { width: 100%; display: flex; gap: 6px; margin-top: 6px; }
+  .tulemus-vorm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tulemus-vorm input { width: 60px; text-align: center; font-weight: 700; }
+  .medal { font-size: 16px; margin-right: 4px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>🎾 <span>Padel</span></h1>
+      <a class="tagasi" href="/tootaja">← Tagasi pealehele</a>
+    </div>
+  </div>
+
+  <div id="lubamatuTeade" style="display:none" class="tyhi">Sul pole Padel mooduli ligipääsu. Palun küsi adminilt.</div>
+
+  <div id="sisu" style="display:none">
+    <div class="kaart">
+      <div class="kaart-hdr">💰 Minu saldo</div>
+      <div class="kaart-body" id="saldoSisu"><div class="laadimine">Laadimine...</div></div>
+    </div>
+
+    <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
+  </div>
+
+<script>
+var TOKEN = localStorage.getItem('workerToken') || '';
+if (!TOKEN) window.location.replace('/');
+
+function api(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-session-token': TOKEN }, opts.headers || {});
+  return fetch(url, opts).then(function(r) { return r.json(); });
+}
+function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
+function tanaISO() { return new Date().toISOString().split('T')[0]; }
+
+var mineRyhmad = [];
+var asendajateCache = {};
+
+async function init() {
+  var kontroll = await api('/api/padel/kontroll');
+  if (!kontroll.lubatud) {
+    document.getElementById('lubamatuTeade').style.display = 'block';
+    return;
+  }
+  document.getElementById('sisu').style.display = 'block';
+  await Promise.all([laadiSaldo(), laadiRyhmad()]);
+}
+
+async function laadiSaldo() {
+  var r = await api('/api/padel/minu-saldo');
+  var div = document.getElementById('saldoSisu');
+  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga saldo laadimisel</div>'; return; }
+  if (!r.vola.length) { div.innerHTML = '<div class="saldo-summa null">0,00 € — kõik makstud! ✅</div>'; return; }
+  div.innerHTML = '<div class="saldo-summa voolgu">' + fmtEur(r.kokku) + ' võlgu</div>'
+    + '<div style="margin-top:10px">' + r.vola.map(function(v) {
+      return '<div class="rida"><span>' + v.ryhm_nimi + ' — ' + fmtKp(v.kuupaev) + '</span><span style="font-weight:600">' + fmtEur(v.summa) + '</span></div>';
+    }).join('') + '</div>';
+}
+
+async function laadiRyhmad() {
+  var r = await api('/api/padel/minu');
+  var div = document.getElementById('ryhmadSisu');
+  mineRyhmad = (r.ok && r.ryhmad) ? r.ryhmad : [];
+  if (!mineRyhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Sind pole veel ühessegi Padeli gruppi lisatud.</div></div>'; return; }
+  div.innerHTML = mineRyhmad.map(function(g) {
+    return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '">'
+      + '<div class="kaart-hdr"><span>🎾 ' + g.ryhm_nimi + '</span>'
+      + '<button class="nupp hall pisike" onclick="saadaMeeldetuletus(' + g.ryhm_id + ')">🔔 Meeldetuleta kõigile</button></div>'
+      + '<div class="kaart-body" id="ryhm-sisu-' + g.ryhm_id + '"><div class="laadimine">Laadimine...</div></div>'
+      + '</div>';
+  }).join('');
+  mineRyhmad.forEach(function(g) { laadiRyhmSisu(g.ryhm_id); });
+}
+
+async function laadiRyhmSisu(ryhmId) {
+  var r = await api('/api/padel/ryhm/' + ryhmId);
+  var div = document.getElementById('ryhm-sisu-' + ryhmId);
+  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + (r.veateade || '') + '</div>'; return; }
+
+  var asendR = await api('/api/padel/ryhm/' + ryhmId + '/asendajad');
+  asendajateCache[ryhmId] = (asendR.ok && asendR.nimed) ? asendR.nimed : [];
+
+  var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Geimid</th><th style="text-align:right">Mänge</th></tr></thead><tbody>'
+    + r.edetabel.map(function(e, i) {
+      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
+      return '<tr><td>' + medal + '</td><td>' + e.nimi + '</td><td style="text-align:right;font-weight:700">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  div.innerHTML =
+    '<div class="paar-pealkiri">Trenni kuupäev</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:16px">'
+    + '<input type="date" id="kp-' + ryhmId + '" value="' + tanaISO() + '" style="flex:1">'
+    + '<button class="nupp pisike" onclick="avaNadal(' + ryhmId + ')">Ava/loo trenn</button>'
+    + '</div>'
+    + '<div id="nadal-' + ryhmId + '"></div>'
+    + '<div class="paar-pealkiri" style="margin-top:18px">Edetabel</div>'
+    + edetabelHtml;
+}
+
+async function avaNadal(ryhmId) {
+  var kuupaev = document.getElementById('kp-' + ryhmId).value;
+  if (!kuupaev) return;
+  var r = await api('/api/padel/ryhm/' + ryhmId + '/nadal', { method: 'POST', body: JSON.stringify({ kuupaev: kuupaev }) });
+  var div = document.getElementById('nadal-' + ryhmId);
+  if (!r.ok) { div.innerHTML = '<div class="teade viga">' + (r.veateade || 'Viga') + '</div>'; return; }
+  await naitaNadal(ryhmId, r.nadal_id);
+}
+
+async function naitaNadal(ryhmId, nadalId) {
+  var r = await api('/api/padel/ryhm/' + ryhmId);
+  var nadal = (r.nadalad || []).find(function(n) { return n.id === nadalId; });
+  var div = document.getElementById('nadal-' + ryhmId);
+  if (!nadal) { div.innerHTML = ''; return; }
+  var kohad = nadal.kohad || [];
+  var paar1 = kohad.filter(function(k) { return k.paar === 1; });
+  var paar2 = kohad.filter(function(k) { return k.paar === 2; });
+
+  function kohaRida(k) {
+    var asendajaValikud = (asendajateCache[ryhmId] || []).map(function(n) {
+      return '<option value="' + n + '"' + (k.asendaja_nimi === n ? ' selected' : '') + '>' + n + '</option>';
+    }).join('');
+    return '<div class="liige-rida">'
+      + '<span class="liige-nimi">' + k.nimi + '</span>'
+      + '<div class="osalus-nupud">'
+      + '<button class="osalus-nupp ' + (k.osaleb ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
+      + '<button class="osalus-nupp ' + (!k.osaleb ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
+      + '</div>'
+      + '<div class="asendaja-rida" id="asend-' + k.id + '" style="display:' + (!k.osaleb ? 'flex' : 'none') + '">'
+      + '<select id="asend-sel-' + k.id + '" onchange="document.getElementById(\'asend-txt-' + k.id + '\').value=this.value" style="flex:1"><option value="">— vali varasem —</option>' + asendajaValikud + '</select>'
+      + '<input id="asend-txt-' + k.id + '" placeholder="uus nimi" value="' + (k.asendaja_nimi || '') + '" style="flex:1">'
+      + '<button class="nupp hall pisike" onclick="salvestaAsendaja(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">💾</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  div.innerHTML =
+    '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + paar1.map(kohaRida).join('') + '</div>'
+    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + paar2.map(kohaRida).join('') + '</div>'
+    + '<div class="paar-pealkiri">Tulemus (geimid kokku)</div>'
+    + '<div class="tulemus-vorm">'
+    + '<input type="number" min="0" id="tul1-' + nadalId + '" value="' + (nadal.paar1_geimid != null ? nadal.paar1_geimid : '') + '" placeholder="Paar 1">'
+    + '<span>:</span>'
+    + '<input type="number" min="0" id="tul2-' + nadalId + '" value="' + (nadal.paar2_geimid != null ? nadal.paar2_geimid : '') + '" placeholder="Paar 2">'
+    + '<button class="nupp pisike" onclick="salvestaTulemus(' + ryhmId + ', ' + nadalId + ')">💾 Salvesta tulemus</button>'
+    + '</div>'
+    + '<div id="nadal-teade-' + nadalId + '" class="teade"></div>';
+}
+
+function naitaAsendajaValik(kohaId) {
+  var el = document.getElementById('asend-' + kohaId);
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function markOsalus(kohaId, osaleb, ryhmId, nadalId) {
+  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: osaleb }) });
+  await naitaNadal(ryhmId, nadalId);
+  laadiSaldo();
+}
+
+async function salvestaAsendaja(kohaId, ryhmId, nadalId) {
+  var nimi = document.getElementById('asend-txt-' + kohaId).value.trim();
+  if (!nimi) return;
+  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: false, asendaja_nimi: nimi }) });
+  await naitaNadal(ryhmId, nadalId);
+}
+
+async function salvestaTulemus(ryhmId, nadalId) {
+  var p1 = document.getElementById('tul1-' + nadalId).value;
+  var p2 = document.getElementById('tul2-' + nadalId).value;
+  var r = await api('/api/padel/nadalad/' + nadalId + '/tulemus', { method: 'PUT', body: JSON.stringify({ paar1_geimid: p1, paar2_geimid: p2 }) });
+  var teade = document.getElementById('nadal-teade-' + nadalId);
+  if (r.ok) { teade.className = 'teade ok'; teade.textContent = '✅ Tulemus salvestatud'; laadiRyhmSisu(ryhmId); }
+  else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
+}
+
+async function saadaMeeldetuletus(ryhmId) {
+  var r = await api('/api/padel/ryhm/' + ryhmId + '/meeldetuletus', { method: 'POST' });
+  if (r.ok) alert('✅ Meeldetuletus saadetud kõigile grupi liikmetele');
+  else alert('Viga: ' + (r.veateade || ''));
+}
+
+init();
+</script>
+</body>
+</html>

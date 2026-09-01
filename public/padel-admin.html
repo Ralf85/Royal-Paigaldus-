@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Padel haldus</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #7a8290; --groen: #4ade80; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 60px; max-width: 760px; margin: 0 auto; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .topbar h1 { font-size: 18px; font-weight: 800; }
+  .topbar h1 span { color: var(--groen); }
+  a.tagasi { color: var(--text2); text-decoration: none; font-size: 13px; }
+  select, input { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+  .kaart-hdr { padding: 14px 18px; font-size: 15px; font-weight: 700; border-bottom: 0.5px solid var(--border); }
+  .kaart-body { padding: 18px; }
+  .tyhi { padding: 24px 18px; text-align: center; color: var(--text3); }
+  .laadimine { padding: 24px; text-align: center; color: var(--text3); }
+  .nupp { background: var(--groen); color: #06240f; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .nupp.hall { background: var(--bg3); color: var(--text); border: 0.5px solid var(--border); }
+  .nupp.punane { background: #f87171; color: #3a0a0a; }
+  .nupp.pisike { padding: 6px 10px; font-size: 12px; }
+  .rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+  .rida:last-child { border-bottom: none; }
+  .teade { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
+  .teade.ok { background: rgba(74,222,128,0.12); color: #4ade80; display: block; }
+  .teade.viga { background: rgba(248,113,113,0.12); color: #f87171; display: block; }
+  .toggle { position: relative; width: 40px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track { position: absolute; inset: 0; background: var(--bg3); border: 0.5px solid var(--border); border-radius: 20px; cursor: pointer; transition: 0.15s; }
+  .toggle input:checked + .toggle-track { background: var(--groen); }
+  .toggle-track:before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 2px; background: #fff; border-radius: 50%; transition: 0.15s; }
+  .toggle input:checked + .toggle-track:before { transform: translateX(18px); }
+  .liige-tag { background: var(--bg3); border: 0.5px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 2px; }
+  .liige-tag button { background: none; border: none; color: #f87171; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>🎾 <span>Padel — haldus</span></h1>
+      <a class="tagasi" href="/admin">← Tagasi adminni</a>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <div class="kaart-hdr">➕ Uus grupp</div>
+    <div class="kaart-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="uus-nimi" placeholder="Grupi nimi (nt Esmaspäev)" style="flex:2;min-width:140px">
+        <input id="uus-hind" type="number" step="0.01" placeholder="Hind €/trenn" value="15.50" style="flex:1;min-width:100px">
+        <button class="nupp" onclick="looRyhm()">Loo grupp</button>
+      </div>
+      <div id="ryhm-teade" class="teade"></div>
+    </div>
+  </div>
+
+  <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
+
+  <div class="kaart">
+    <div class="kaart-hdr">🔓 Ligipääs Padel moodulile</div>
+    <div class="kaart-body">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Ainult siin lubatud töötajad näevad oma pealehel "Padel" kaarti.</div>
+      <div id="lubatudSisu"><div class="laadimine">Laadimine...</div></div>
+    </div>
+  </div>
+
+<script>
+let TOKEN = localStorage.getItem('adminToken') || '';
+setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
+
+function api(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'Content-Type': 'application/json', 'x-session-token': TOKEN }, opts.headers || {});
+  return fetch(url, opts).then(function(r) { return r.json(); });
+}
+function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
+
+var koikTootajad = [];
+
+async function init() {
+  if (!TOKEN) { window.location.replace('/admin-login'); return; }
+  await Promise.all([laadiRyhmad(), laadiLubatud()]);
+}
+
+async function looRyhm() {
+  var nimi = document.getElementById('uus-nimi').value.trim();
+  var hind = document.getElementById('uus-hind').value;
+  var teade = document.getElementById('ryhm-teade');
+  if (!nimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta grupi nimi'; return; }
+  var r = await api('/api/padel/admin/ryhmad', { method: 'POST', body: JSON.stringify({ nimi: nimi, hind: hind }) });
+  if (r.ok) {
+    teade.className = 'teade ok'; teade.textContent = '✅ Grupp loodud';
+    document.getElementById('uus-nimi').value = '';
+    laadiRyhmad();
+  } else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
+}
+
+async function laadiRyhmad() {
+  var r = await api('/api/padel/admin/ryhmad');
+  var div = document.getElementById('ryhmadSisu');
+  if (!r.ok) { div.innerHTML = '<div class="kaart"><div class="tyhi">Viga gruppide laadimisel</div></div>'; return; }
+  if (!koikTootajad.length) {
+    var lub = await api('/api/padel/admin/lubatud');
+    koikTootajad = Array.isArray(lub) ? lub : [];
+  }
+  if (!r.ryhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Gruppe pole veel loodud.</div></div>'; return; }
+
+  div.innerHTML = r.ryhmad.map(function(g) {
+    var liikmeteId = g.liikmed.map(function(l) { return l.worker_id; });
+    var valikud = koikTootajad.filter(function(t) { return liikmeteId.indexOf(t.id) === -1; })
+      .map(function(t) { return '<option value="' + t.id + '">' + t.nimi + '</option>'; }).join('');
+    return '<div class="kaart">'
+      + '<div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">'
+      + '<span>' + g.nimi + ' <span style="color:var(--text3);font-weight:400;font-size:12px">(' + fmtEur(g.hind) + '/trenn)</span></span>'
+      + '<a href="#" onclick="vaataAsendajaMakseid(' + g.id + ');return false;" style="font-size:12px;color:#fbbf24;text-decoration:none">💶 Asendajate maksed</a>'
+      + '</div>'
+      + '<div class="kaart-body">'
+      + '<div style="margin-bottom:12px">' + g.liikmed.map(function(l) {
+          return '<span class="liige-tag">' + l.nimi + '<button onclick="eemaldaLiige(' + l.id + ',' + g.id + ')" title="Eemalda">✕</button></span>';
+        }).join('') + (g.liikmed.length < 4 ? '<span style="color:var(--text3);font-size:12px;margin-left:6px">(' + (4 - g.liikmed.length) + ' kohta vaba)</span>' : '') + '</div>'
+      + (g.liikmed.length < 4 ? '<div style="display:flex;gap:8px">'
+        + '<select id="lisa-sel-' + g.id + '" style="flex:1"><option value="">— vali töötaja —</option>' + valikud + '</select>'
+        + '<button class="nupp hall pisike" onclick="lisaLiige(' + g.id + ')">+ Lisa</button></div>' : '<div style="color:var(--text3);font-size:12px">Grupp on täis (4/4)</div>')
+      + '<div id="asend-maksed-' + g.id + '" style="margin-top:14px"></div>'
+      + '</div></div>';
+  }).join('');
+}
+
+async function lisaLiige(ryhmId) {
+  var sel = document.getElementById('lisa-sel-' + ryhmId);
+  var workerId = sel.value;
+  if (!workerId) return;
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/liikmed', { method: 'POST', body: JSON.stringify({ worker_id: workerId }) });
+  if (r.ok) laadiRyhmad(); else alert(r.veateade || 'Viga');
+}
+async function eemaldaLiige(liigeId, ryhmId) {
+  if (!confirm('Eemaldada see liige grupist?')) return;
+  await api('/api/padel/admin/liikmed/' + liigeId, { method: 'DELETE' });
+  laadiRyhmad();
+}
+
+async function vaataAsendajaMakseid(ryhmId) {
+  var div = document.getElementById('asend-maksed-' + ryhmId);
+  if (div.innerHTML) { div.innerHTML = ''; return; }
+  div.innerHTML = '<div class="laadimine">Laadimine...</div>';
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/asendaja-maksed');
+  if (!r.ok || !r.kirjed.length) { div.innerHTML = '<div style="color:var(--text3);font-size:12px">Asendajate makseid pole.</div>'; return; }
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:10px 0 6px">Asendajate maksed (asendaja ise ei näe seda — ainult sina)</div>'
+    + r.kirjed.map(function(k) {
+      return '<div class="rida"><span>' + fmtKp(k.kuupaev) + ' — <b>' + k.asendaja_nimi + '</b> (' + k.asendas_keda + ' asemel) — ' + fmtEur(k.summa) + '</span>'
+        + '<label class="toggle"><input type="checkbox" ' + (k.makstud ? 'checked' : '') + ' onchange="markiMakse(' + k.id + ', this.checked)"><span class="toggle-track"></span></label></div>';
+    }).join('');
+}
+async function markiMakse(kohaId, makstud) {
+  await api('/api/padel/admin/kohad/' + kohaId + '/makse', { method: 'PUT', body: JSON.stringify({ makstud: makstud }) });
+}
+
+async function laadiLubatud() {
+  var r = await api('/api/padel/admin/lubatud');
+  var div = document.getElementById('lubatudSisu');
+  koikTootajad = Array.isArray(r) ? r : [];
+  if (!koikTootajad.length) { div.innerHTML = '<div class="tyhi">Töötajaid ei leitud</div>'; return; }
+  div.innerHTML = koikTootajad.map(function(t) {
+    return '<div class="rida"><span>' + t.nimi + '</span>'
+      + '<label class="toggle"><input type="checkbox" ' + (t.lubatud ? 'checked' : '') + ' onchange="muudaLubatud(' + t.id + ', this.checked)"><span class="toggle-track"></span></label></div>';
+  }).join('');
+}
+async function muudaLubatud(workerId, lubatud) {
+  await api('/api/padel/admin/lubatud/' + workerId, { method: 'POST', body: JSON.stringify({ lubatud: lubatud }) });
+}
+
+init();
+</script>
+</body>
+</html>
