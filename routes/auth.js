@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
@@ -53,8 +52,21 @@ router.post('/graafik-admin-login', async (req, res) => {
   }
 });
 
-router.post('/logout', (req, res) => {
-  res.json({ ok: true });
+router.post('/logout', async (req, res) => {
+  const token = req.sessionToken;
+  try {
+    if (token) {
+      // Ei tea, mis liiki sessioon see on — kustutame kõigist kolmest tabelist,
+      // token leidub ainult ühes, teistes ei toimu midagi.
+      await pool.query('DELETE FROM admin_sessions WHERE token=$1', [token]);
+      await pool.query('DELETE FROM worker_sessions WHERE token=$1', [token]);
+      await pool.query('DELETE FROM graafik_admin_sessions WHERE token=$1', [token]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
 });
 
 router.get('/sessioon', (req, res) => {
