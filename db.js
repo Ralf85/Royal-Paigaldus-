@@ -106,6 +106,18 @@ async function initDB() {
       );
     `);
 
+    // Käsitsi saadetud vabas vormis sõnumid — kuvatakse töötaja pealehel "Sinu teated" all,
+    // et sõnum jääks alles ka pärast telefoni teavituse kadumist.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS worker_teated (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        pealkiri VARCHAR(200) NOT NULL,
+        sonum TEXT NOT NULL,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // ── LIDL PROJEKTID ─────────────────────────────────────────────────
     // Kasutusel routes/tood.js ja routes/kristo.js — struktureeritud projektide nimekiri
     // Lidl töökirjete jaoks (vt tookirjed.lidl_projekt_id allpool). Samuti kunagi käsitsi loodud,
