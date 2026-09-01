@@ -3,11 +3,17 @@ const router = express.Router();
 const { pool } = require('../db');
 const webpush = require('web-push');
 
+// Muudab võtme "URL-safe base64 ilma täidiseta" kujule, mida web-push nõuab —
+// kaitseb juhul, kui Railway muutujasse on kogemata sattunud tavaline base64 (+, /, = täidis).
+function puhastaVapidVoti(voti) {
+  return (voti || '').trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 function getWebPush() {
   webpush.setVapidDetails(
     'mailto:admin@royalpaigaldus.ee',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
+    puhastaVapidVoti(process.env.VAPID_PUBLIC_KEY),
+    puhastaVapidVoti(process.env.VAPID_PRIVATE_KEY)
   );
   return webpush;
 }
