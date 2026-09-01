@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { saadaTeavitus } = require('./push');
 
 function getCloudinary() {
   cloudinary.config({
@@ -328,11 +329,18 @@ async function leiaKattuvusedEventis(eventId, algus, lopp, valjaArvatudAsukohtId
 }
 
 // Kirjutab üle pargi vastutajate nimekirja (kustutab vanad, lisab uued) — kasutatakse nii loomisel kui muutmisel.
-async function salvestaAsukohaVastutajad(asukohtId, vastutajad) {
+// Teavitust saadetakse ainult UUTELE vastutajatele (kes polnud varem nimekirjas), et vältida
+// kordusteateid iga korra, kui admin pargi muid andmeid (nimi, rajad) muudab ja sama nimekirja uuesti saadab.
+async function salvestaAsukohaVastutajad(asukohtId, vastutajad, parkNimi) {
+  const vanad = await pool.query('SELECT worker_id FROM xseeria_asukoha_vastutajad WHERE asukoht_id=$1', [asukohtId]);
+  const vanaSet = new Set(vanad.rows.map(r => String(r.worker_id)));
   await pool.query('DELETE FROM xseeria_asukoha_vastutajad WHERE asukoht_id=$1', [asukohtId]);
   const valitud = Array.isArray(vastutajad) ? vastutajad : [];
   for (const workerId of valitud) {
     await pool.query('INSERT INTO xseeria_asukoha_vastutajad (asukoht_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [asukohtId, workerId]);
+    if (!vanaSet.has(String(workerId))) {
+      saadaTeavitus(workerId, '🎯 Sind määrati pargi vastutajaks', parkNimi ? `Park: ${parkNimi}` : 'X-seeria park', '/xseeria');
+    }
   }
 }
 
@@ -363,7 +371,7 @@ router.post('/admin/asukohad', noudaAdmin, async (req, res) => {
     await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [asukohtId, String(n), i]);
     i++;
   }
-  await salvestaAsukohaVastutajad(asukohtId, vastutajad);
+  await salvestaAsukohaVastutajad(asukohtId, vastutajad, nimi);
   res.json({ ok: true, asukoht: r.rows[0] });
 });
 
@@ -398,7 +406,7 @@ router.put('/admin/asukohad/:id/tapsed', noudaAdmin, async (req, res) => {
     await pool.query('INSERT INTO xseeria_korvid (asukoht_id, number, jrk_nr) VALUES ($1,$2,$3)', [req.params.id, String(n), i]);
     i++;
   }
-  await salvestaAsukohaVastutajad(req.params.id, vastutajad);
+  await salvestaAsukohaVastutajad(req.params.id, vastutajad, nimi);
   res.json({ ok: true });
 });
 
@@ -467,6 +475,11 @@ router.post('/admin/events/:eventId/ulesanded', noudaAdmin, async (req, res) => 
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [req.params.eventId, tekst.trim(), kategooria || null, tahtaeg || null, vastutaja_id || null]
     );
+    if (vastutaja_id) {
+      const ev = await pool.query('SELECT nimi FROM xseeria_events WHERE id=$1', [req.params.eventId]);
+      const eventNimi = ev.rows[0] ? ev.rows[0].nimi : 'X-seeria';
+      saadaTeavitus(vastutaja_id, '📋 Uus ülesanne', `${eventNimi}: ${tekst.trim()}`, '/xseeria');
+    }
     res.json({ ok: true, ulesanne: r.rows[0] });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -477,10 +490,17 @@ router.put('/admin/ulesanded/:id', noudaAdmin, async (req, res) => {
   const { tekst, kategooria, tahtaeg, vastutaja_id } = req.body;
   if (!tekst || !tekst.trim()) return res.json({ ok: false, veateade: 'Kirjuta ülesande tekst' });
   try {
+    const vana = await pool.query('SELECT vastutaja_id, event_id FROM xseeria_ulesanded WHERE id=$1', [req.params.id]);
     await pool.query(
       `UPDATE xseeria_ulesanded SET tekst=$1, kategooria=$2, tahtaeg=$3, vastutaja_id=$4 WHERE id=$5`,
       [tekst.trim(), kategooria || null, tahtaeg || null, vastutaja_id || null, req.params.id]
     );
+    // Teavita ainult siis, kui vastutaja on UUS/muutunud — mitte iga tavalise teksti-muudatuse peale.
+    if (vastutaja_id && vana.rows.length && String(vana.rows[0].vastutaja_id) !== String(vastutaja_id)) {
+      const ev = await pool.query('SELECT nimi FROM xseeria_events WHERE id=$1', [vana.rows[0].event_id]);
+      const eventNimi = ev.rows[0] ? ev.rows[0].nimi : 'X-seeria';
+      saadaTeavitus(vastutaja_id, '📋 Sulle määrati ülesanne', `${eventNimi}: ${tekst.trim()}`, '/xseeria');
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -607,6 +627,10 @@ router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
 router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req, res) => {
   const { staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id } = req.body;
   try {
+    const vana = await pool.query(
+      'SELECT vastutaja_id FROM xseeria_event_sponsorid WHERE event_id=$1 AND sponsor_id=$2',
+      [req.params.eventId, req.params.sponsorId]
+    );
     await pool.query(
       `INSERT INTO xseeria_event_sponsorid (event_id, sponsor_id, staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id, uuendatud)
        VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
@@ -615,6 +639,16 @@ router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req
          markused=EXCLUDED.markused, vastutaja_id=EXCLUDED.vastutaja_id, uuendatud=NOW()`,
       [req.params.eventId, req.params.sponsorId, staatus || 'ootel', jargi_kp || null, tagastatud_kp || null, markused || null, vastutaja_id || null]
     );
+    const oliUus = !vana.rows.length || String(vana.rows[0].vastutaja_id) !== String(vastutaja_id);
+    if (vastutaja_id && oliUus) {
+      const [ev, sp] = await Promise.all([
+        pool.query('SELECT nimi FROM xseeria_events WHERE id=$1', [req.params.eventId]),
+        pool.query('SELECT nimi FROM xseeria_sponsorid WHERE id=$1', [req.params.sponsorId])
+      ]);
+      const eventNimi = ev.rows[0] ? ev.rows[0].nimi : 'X-seeria';
+      const sponsorNimi = sp.rows[0] ? sp.rows[0].nimi : 'Sponsor';
+      saadaTeavitus(vastutaja_id, '🤝 Sind määrati sponsori vastutajaks', `${eventNimi}: ${sponsorNimi}`, '/xseeria');
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -729,6 +763,7 @@ router.post('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => 
     const valitud = Array.isArray(inimesed) ? inimesed : [];
     for (const workerId of valitud) {
       await pool.query('INSERT INTO xseeria_tegevuse_inimesed (tegevus_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [tegevusId, workerId]);
+      saadaTeavitus(workerId, '🚚 Sind määrati tegevusele', tegevus.trim(), '/xseeria');
     }
     res.json({ ok: true, id: tegevusId });
   } catch (err) {
@@ -744,10 +779,16 @@ router.put('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
       'UPDATE xseeria_tegevused SET tegevus=$1, kuupaev=$2, kellaaeg=$3 WHERE id=$4',
       [tegevus.trim(), kuupaev || null, kellaaeg || null, req.params.id]
     );
+    // Teavitame ainult UUTELE inimestele (kes polnud varem sellel tegevusel), mitte kogu nimekirjale iga muudatuse peale.
+    const vanad = await pool.query('SELECT worker_id FROM xseeria_tegevuse_inimesed WHERE tegevus_id=$1', [req.params.id]);
+    const vanaSet = new Set(vanad.rows.map(r => String(r.worker_id)));
     await pool.query('DELETE FROM xseeria_tegevuse_inimesed WHERE tegevus_id=$1', [req.params.id]);
     const valitud = Array.isArray(inimesed) ? inimesed : [];
     for (const workerId of valitud) {
       await pool.query('INSERT INTO xseeria_tegevuse_inimesed (tegevus_id, worker_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, workerId]);
+      if (!vanaSet.has(String(workerId))) {
+        saadaTeavitus(workerId, '🚚 Sind määrati tegevusele', tegevus.trim(), '/xseeria');
+      }
     }
     res.json({ ok: true });
   } catch (err) {
