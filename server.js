@@ -74,6 +74,7 @@ app.use('/api/projektid', require('./routes/projektid'));
 app.use('/api/omaarved', require('./routes/omaarved'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
+app.use('/api/padel', require('./routes/padel'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -88,6 +89,8 @@ app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
+app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));
+app.get('/padel-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel-admin.html')));
 initDB().then(async () => {
   // Kustutame käivitumisel aegunud sessioonid, et tabelid ei kasvaks lõputult
   try {
