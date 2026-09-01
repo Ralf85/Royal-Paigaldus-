@@ -1,9 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const { initDB, pool } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 8080;
+// Sessioonide kehtivusajad — pärast seda aega token enam ei kehti (vt allpool WHERE loodud > ...)
+const ADMIN_SESSIOON_PAEVI = 14;
+const WORKER_SESSIOON_PAEVI = 180;
+const GRAAFIK_ADMIN_SESSIOON_PAEVI = 30;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(async (req, res, next) => {
@@ -12,14 +17,20 @@ app.use(async (req, res, next) => {
   req.sessionToken = token;
   if (token) {
     try {
-      const r = await pool.query('SELECT * FROM admin_sessions WHERE token=$1', [token]);
+      const r = await pool.query(
+        `SELECT * FROM admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${ADMIN_SESSIOON_PAEVI} days'`, [token]
+      );
       if (r.rows.length > 0) req.session.isAdmin = true;
-      const w = await pool.query('SELECT * FROM worker_sessions WHERE token=$1', [token]);
+      const w = await pool.query(
+        `SELECT * FROM worker_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'`, [token]
+      );
       if (w.rows.length > 0) {
         req.session.workerId = w.rows[0].worker_id;
         req.session.workerNimi = w.rows[0].worker_nimi;
       }
-      const ga = await pool.query('SELECT * FROM graafik_admin_sessions WHERE token=$1', [token]);
+      const ga = await pool.query(
+        `SELECT * FROM graafik_admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${GRAAFIK_ADMIN_SESSIOON_PAEVI} days'`, [token]
+      );
       if (ga.rows.length > 0) {
         req.session.isGraafikAdmin = true;
         req.session.graafikAdminNimi = ga.rows[0].nimi;
@@ -27,7 +38,8 @@ app.use(async (req, res, next) => {
     } catch(e) {}
   }
   req.saveSession = async (data) => {
-    const t = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    // Krüptograafiliselt turvaline juhuslik token (varem Math.random(), mis pole selleks otstarbeks turvaline)
+    const t = crypto.randomBytes(32).toString('hex');
     if (data.isAdmin) {
       await pool.query('INSERT INTO admin_sessions (token) VALUES ($1) ON CONFLICT DO NOTHING', [t]);
     }
@@ -71,6 +83,14 @@ app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
-initDB().then(() => {
+initDB().then(async () => {
+  // Kustutame käivitumisel aegunud sessioonid, et tabelid ei kasvaks lõputult
+  try {
+    await pool.query(`DELETE FROM admin_sessions WHERE loodud < NOW() - INTERVAL '${ADMIN_SESSIOON_PAEVI} days'`);
+    await pool.query(`DELETE FROM worker_sessions WHERE loodud < NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'`);
+    await pool.query(`DELETE FROM graafik_admin_sessions WHERE loodud < NOW() - INTERVAL '${GRAAFIK_ADMIN_SESSIOON_PAEVI} days'`);
+  } catch (e) {
+    console.error('Vananenud sessioonide koristus ebaõnnestus:', e.message);
+  }
   app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
 });
