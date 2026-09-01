@@ -75,6 +75,55 @@ async function initDB() {
     // Töötaja arhiveerimine — endised töötajad saab peita nimekirjast andmeid kaotamata.
     // Arhiveerimine lülitab automaatselt välja ka aktiivne (sisselogimisõiguse), vt routes/admin.js.
     await client.query(`ALTER TABLE workers ADD COLUMN IF NOT EXISTS arhiveeritud BOOLEAN DEFAULT false;`);
+    // Töötajate e-posti aadress (kasutusel routes/admin.js "Töötajad" haldusvaates).
+    await client.query(`ALTER TABLE workers ADD COLUMN IF NOT EXISTS email VARCHAR(200);`);
+
+    // ── SISSELOGIMISE SESSIOONID + AUDIT LOG ──────────────────────────
+    // Neid tabeleid kasutavad server.js (igal päringul, sessiooni kontrollimiseks) ja
+    // routes/auth.js, routes/admin.js, routes/tood.js (sisselogimine, väljalogimine, audit).
+    // Need on kunagi käsitsi andmebaasi loodud, aga ei olnud siin skeemis kirjas — kui rakendus
+    // kunagi tühjale/uuele andmebaasile käivitatakse, ilma selle lisata ebaõnnestuks sisselogimine täielikult.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(100) NOT NULL UNIQUE,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS worker_sessions (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(100) NOT NULL UNIQUE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        worker_nimi VARCHAR(100),
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        tegevus VARCHAR(100) NOT NULL,
+        details TEXT,
+        ip_aadress VARCHAR(100),
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // ── LIDL PROJEKTID ─────────────────────────────────────────────────
+    // Kasutusel routes/tood.js ja routes/kristo.js — struktureeritud projektide nimekiri
+    // Lidl töökirjete jaoks (vt tookirjed.lidl_projekt_id allpool). Samuti kunagi käsitsi loodud,
+    // aga db.js-is seni kirjas ei olnud.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lidl_projektid (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(200) NOT NULL UNIQUE,
+        jrk_nr INTEGER DEFAULT 0,
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    // Töökirje seos Lidl projektiga + lisakulu väljad (kasutusel routes/tood.js-is,
+    // aga puudusid siin skeemis).
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lidl_projekt_id INTEGER REFERENCES lidl_projektid(id);`);
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lisakulu_summa DECIMAL(10,2) DEFAULT 0;`);
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lisakulu_selgitus TEXT;`);
     await client.query(`
       INSERT INTO ettevotted (nimi, tyyp) VALUES
         ('EDGF 2026', 'edgf'),
