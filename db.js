@@ -647,6 +647,65 @@ async function initDB() {
       );
     `);
 
+    // ── PADEL ──────────────────────────────────────────────────────────
+    // Kes tohib Padel moodulit näha (sama muster nagu arve_lubatud) —
+    // eraldi ligipääsuõigus, nii et mängijad ei näe muid tööalaseid mooduleid.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS padel_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
+      -- Üks grupp = üks nädalapäev (nt "Esmaspäev", "Kolmapäev") koos oma 4 fikseeritud mängijaga.
+      CREATE TABLE IF NOT EXISTS padel_ryhmad (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(100) NOT NULL,
+        hind DECIMAL(10,2) NOT NULL DEFAULT 15.50,
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      -- Grupi fikseeritud liikmed, jrk_nr määrab paaride rotatsiooni järjekorra (A,B,C,D).
+      CREATE TABLE IF NOT EXISTS padel_liikmed (
+        id SERIAL PRIMARY KEY,
+        ryhm_id INTEGER REFERENCES padel_ryhmad(id) ON DELETE CASCADE,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        jrk_nr INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(ryhm_id, worker_id)
+      );
+      -- Varem kasutatud asendajate nimed grupi kohta, et need rippmenüüs uuesti pakkuda.
+      CREATE TABLE IF NOT EXISTS padel_asendajad (
+        id SERIAL PRIMARY KEY,
+        ryhm_id INTEGER REFERENCES padel_ryhmad(id) ON DELETE CASCADE,
+        nimi VARCHAR(100) NOT NULL,
+        UNIQUE(ryhm_id, nimi)
+      );
+      -- Üks nädala trenn ühe grupi kohta.
+      CREATE TABLE IF NOT EXISTS padel_nadalad (
+        id SERIAL PRIMARY KEY,
+        ryhm_id INTEGER REFERENCES padel_ryhmad(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        paar1_geimid INTEGER,
+        paar2_geimid INTEGER,
+        tulemus_sisestas INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        loodud TIMESTAMP DEFAULT NOW(),
+        UNIQUE(ryhm_id, kuupaev)
+      );
+      -- Iga fikseeritud liikme "koht" konkreetsel nädalal: osaleb ise või asendaja, millises paaris ja makse.
+      -- "paar" (1 või 2) määrab, kumba nädala tulemuse poolt (padel_nadalad.paar1_geimid/paar2_geimid)
+      -- see koht saab oma edetabeli-geimid. Geimid lähevad ALATI liige_id (fikseeritud mängija) edetabelisse,
+      -- ka siis, kui tegelikult mängis asendaja. Makse kuulub aga sellele, kes TEGELIKULT mängis.
+      CREATE TABLE IF NOT EXISTS padel_kohad (
+        id SERIAL PRIMARY KEY,
+        nadal_id INTEGER REFERENCES padel_nadalad(id) ON DELETE CASCADE,
+        liige_id INTEGER REFERENCES padel_liikmed(id) ON DELETE CASCADE,
+        paar INTEGER NOT NULL DEFAULT 1 CHECK (paar IN (1,2)),
+        osaleb BOOLEAN NOT NULL DEFAULT true,
+        asendaja_nimi VARCHAR(100),
+        makstud BOOLEAN NOT NULL DEFAULT false,
+        summa DECIMAL(10,2),
+        UNIQUE(nadal_id, liige_id)
+      );
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
