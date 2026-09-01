@@ -126,10 +126,10 @@ async function laadiRyhmSisu(ryhmId) {
   var asendR = await api('/api/padel/ryhm/' + ryhmId + '/asendajad');
   asendajateCache[ryhmId] = (asendR.ok && asendR.nimed) ? asendR.nimed : [];
 
-  var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Geimid</th><th style="text-align:right">Mänge</th></tr></thead><tbody>'
+  var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
     + r.edetabel.map(function(e, i) {
       var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
-      return '<tr><td>' + medal + '</td><td>' + e.nimi + '</td><td style="text-align:right;font-weight:700">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
+      return '<tr><td>' + medal + '</td><td>' + e.nimi + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
     }).join('') + '</tbody></table>';
 
   div.innerHTML =
@@ -179,17 +179,35 @@ async function naitaNadal(ryhmId, nadalId) {
       + '</div>';
   }
 
+  var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
+  var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
+
   div.innerHTML =
     '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + paar1.map(kohaRida).join('') + '</div>'
     + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + paar2.map(kohaRida).join('') + '</div>'
-    + '<div class="paar-pealkiri">Tulemus (geimid kokku)</div>'
-    + '<div class="tulemus-vorm">'
-    + '<input type="number" min="0" id="tul1-' + nadalId + '" value="' + (nadal.paar1_geimid != null ? nadal.paar1_geimid : '') + '" placeholder="Paar 1">'
-    + '<span>:</span>'
-    + '<input type="number" min="0" id="tul2-' + nadalId + '" value="' + (nadal.paar2_geimid != null ? nadal.paar2_geimid : '') + '" placeholder="Paar 2">'
-    + '<button class="nupp pisike" onclick="salvestaTulemus(' + ryhmId + ', ' + nadalId + ')">💾 Salvesta tulemus</button>'
+    + '<div class="paar-pealkiri">Tulemused (geim-geimilt, nt 6:3)</div>'
+    + '<div id="setid-' + nadalId + '">' + setiReadHtml + '</div>'
+    + '<div style="display:flex;gap:8px;margin:8px 0 12px">'
+    + '<button class="nupp hall pisike" onclick="lisaSetiRida(' + nadalId + ')">+ Lisa geim</button>'
     + '</div>'
+    + '<button class="nupp pisike" onclick="salvestaTulemus(' + ryhmId + ', ' + nadalId + ')">💾 Salvesta tulemus</button>'
     + '<div id="nadal-teade-' + nadalId + '" class="teade"></div>';
+}
+
+function setiRidaHtml(nadalId, idx, p1, p2) {
+  return '<div class="tulemus-vorm" id="set-' + nadalId + '-' + idx + '" style="margin-bottom:6px">'
+    + '<span style="color:var(--text3);font-size:12px;width:16px">' + (idx+1) + '.</span>'
+    + '<input type="number" min="0" id="tul1-' + nadalId + '-' + idx + '" value="' + (p1 != null ? p1 : '') + '" placeholder="Paar 1">'
+    + '<span>:</span>'
+    + '<input type="number" min="0" id="tul2-' + nadalId + '-' + idx + '" value="' + (p2 != null ? p2 : '') + '" placeholder="Paar 2">'
+    + '<button class="nupp hall pisike" onclick="document.getElementById(\'set-' + nadalId + '-' + idx + '\').remove()">✕</button>'
+    + '</div>';
+}
+
+function lisaSetiRida(nadalId) {
+  var kast = document.getElementById('setid-' + nadalId);
+  var idx = kast.children.length;
+  kast.insertAdjacentHTML('beforeend', setiRidaHtml(nadalId, idx, null, null));
 }
 
 function naitaAsendajaValik(kohaId) {
@@ -211,10 +229,18 @@ async function salvestaAsendaja(kohaId, ryhmId, nadalId) {
 }
 
 async function salvestaTulemus(ryhmId, nadalId) {
-  var p1 = document.getElementById('tul1-' + nadalId).value;
-  var p2 = document.getElementById('tul2-' + nadalId).value;
-  var r = await api('/api/padel/nadalad/' + nadalId + '/tulemus', { method: 'PUT', body: JSON.stringify({ paar1_geimid: p1, paar2_geimid: p2 }) });
+  var kast = document.getElementById('setid-' + nadalId);
+  var setid = [];
+  Array.prototype.forEach.call(kast.children, function(rida) {
+    var p1input = rida.querySelector('input[id^="tul1-"]');
+    var p2input = rida.querySelector('input[id^="tul2-"]');
+    if (p1input && p2input && p1input.value !== '' && p2input.value !== '') {
+      setid.push({ paar1_geimid: p1input.value, paar2_geimid: p2input.value });
+    }
+  });
   var teade = document.getElementById('nadal-teade-' + nadalId);
+  if (!setid.length) { teade.className = 'teade viga'; teade.textContent = 'Sisesta vähemalt ühe geimi tulemus'; return; }
+  var r = await api('/api/padel/nadalad/' + nadalId + '/setid', { method: 'PUT', body: JSON.stringify({ setid: setid }) });
   if (r.ok) { teade.className = 'teade ok'; teade.textContent = '✅ Tulemus salvestatud'; laadiRyhmSisu(ryhmId); }
   else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
 }
