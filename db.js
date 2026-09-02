@@ -660,6 +660,7 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(100) NOT NULL,
         hind DECIMAL(10,2) NOT NULL DEFAULT 15.50,
+        vaikimisi_kellaaeg TIME,
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
       );
@@ -685,9 +686,11 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         ryhm_id INTEGER REFERENCES padel_ryhmad(id) ON DELETE CASCADE,
         kuupaev DATE NOT NULL,
+        kellaaeg TIME,
         paar1_geimid INTEGER,
         paar2_geimid INTEGER,
         ukse_kood VARCHAR(4),
+        uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false,
         tulemus_sisestas INTEGER REFERENCES workers(id) ON DELETE SET NULL,
         loodud TIMESTAMP DEFAULT NOW(),
         UNIQUE(ryhm_id, kuupaev)
@@ -725,6 +728,9 @@ async function initDB() {
     await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
     await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_public_id TEXT;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS meeldetuletus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
+    await client.query(`ALTER TABLE padel_ryhmad ADD COLUMN IF NOT EXISTS vaikimisi_kellaaeg TIME;`);
+    await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS kellaaeg TIME;`);
+    await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
