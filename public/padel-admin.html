@@ -131,6 +131,14 @@ async function laadiRyhmad() {
         + '<button class="nupp hall pisike" onclick="lisaLiige(' + g.id + ')">+ Lisa</button></div>' : '<div style="color:var(--text3);font-size:12px">Grupp on täis (4/4)</div>')
       + '<div id="asend-maksed-' + g.id + '" style="margin-top:14px"></div>'
       + '<div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">'
+      + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">🕐 Vaikimisi trenni algusaeg (uutele trennidele; ka uksekoodi automaatteavituse jaoks)</div>'
+      + '<div style="display:flex;gap:8px;align-items:center">'
+      + '<input type="time" id="vk-' + g.id + '" value="' + (g.vaikimisi_kellaaeg ? g.vaikimisi_kellaaeg.slice(0,5) : '') + '" style="width:110px">'
+      + '<button class="nupp hall pisike" onclick="salvestaVaikimisiKellaaeg(' + g.id + ')">💾</button>'
+      + '<span id="vk-teade-' + g.id + '" style="font-size:12px"></span>'
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">'
       + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">📅 Genereeri mitu trenni korraga (iganädalaselt, alates valitud kuupäevast)</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
       + '<input type="date" id="gen-kp-' + g.id + '">'
@@ -191,6 +199,15 @@ async function vaataAsendajaMakseid(ryhmId) {
 }
 async function markiMakse(kohaId, makstud) {
   await api('/api/padel/admin/kohad/' + kohaId + '/makse', { method: 'PUT', body: JSON.stringify({ makstud: makstud }) });
+}
+
+async function salvestaVaikimisiKellaaeg(ryhmId) {
+  var kellaaeg = document.getElementById('vk-' + ryhmId).value.trim();
+  var teade = document.getElementById('vk-teade-' + ryhmId);
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/kellaaeg', { method: 'PUT', body: JSON.stringify({ kellaaeg: kellaaeg }) });
+  teade.style.color = r.ok ? '#4ade80' : '#f87171';
+  teade.textContent = r.ok ? '✅ Salvestatud' : (r.veateade || 'Viga');
+  setTimeout(function() { teade.textContent = ''; }, 2500);
 }
 
 async function genereeriNadalad(ryhmId) {
