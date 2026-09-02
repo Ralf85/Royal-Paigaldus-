@@ -135,9 +135,6 @@ async function laadiRyhmSisu(ryhmId) {
   var tanaISOval = tanaISO();
   var trennideNimekiri = (r.nadalad || []).slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
   var jargmine = trennideNimekiri.find(function(n) { return n.kuupaev >= tanaISOval; });
-  var jargmineHtml = jargmine
-    ? '<div class="teade ok" style="display:block">🗓️ Sinu järgmine trenn: <b>' + fmtKp(jargmine.kuupaev) + '</b></div>'
-    : (trennideNimekiri.length ? '' : '<div style="color:var(--text3);font-size:12px;margin-bottom:10px">Admin pole veel trenne genereerinud.</div>');
 
   var valikudHtml = trennideNimekiri.map(function(n) {
     var tulemusOlemas = n.setid && n.setid.length;
@@ -148,14 +145,13 @@ async function laadiRyhmSisu(ryhmId) {
   div.innerHTML =
     '<div class="paar-pealkiri">Edetabel</div>'
     + edetabelHtml
-    + '<div style="margin-top:18px">' + jargmineHtml + '</div>'
     + (trennideNimekiri.length
-      ? '<div id="nadal-' + ryhmId + '"></div>'
+      ? '<div id="nadal-' + ryhmId + '" style="margin-top:18px"></div>'
         + '<div style="margin-top:14px"><a href="#" onclick="lylitaTrennideValik(' + ryhmId + ');return false;" style="font-size:12px;color:var(--text3)" id="trennide-link-' + ryhmId + '">📜 Vaata teisi trenne</a></div>'
         + '<div id="trennide-valik-' + ryhmId + '" style="display:none;margin-top:8px">'
         + '<select id="kp-' + ryhmId + '" style="width:100%" onchange="avaNadal(' + ryhmId + ')">' + valikudHtml + '</select>'
         + '</div>'
-      : '');
+      : '<div style="color:var(--text3);font-size:12px;margin-top:14px">Admin pole veel trenne genereerinud.</div>');
 
   if (vaikimisiValik) { document.getElementById('kp-' + ryhmId).value = vaikimisiValik; avaNadal(ryhmId); }
 }
@@ -209,8 +205,11 @@ async function naitaNadal(ryhmId, nadalId) {
   var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
   var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
 
+  var margis = nadal.kuupaev === tanaISO() ? '🟢 TÄNA' : (nadal.kuupaev > tanaISO() ? '📅 JÄRGMINE TRENN' : '📋 VARASEM TRENN');
+
   div.innerHTML =
-    '<div class="paar-pealkiri">' + fmtKp(nadal.kuupaev) + '</div>'
+    '<div style="font-size:16px;font-weight:800;margin-bottom:2px">' + margis + '</div>'
+    + '<div class="paar-pealkiri" style="margin-bottom:10px">' + fmtKp(nadal.kuupaev) + '</div>'
     + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'
     + '<span style="font-size:12px;color:var(--text3)">🔑 Uksekood (Playtomic):</span>'
     + '<input type="text" inputmode="numeric" maxlength="4" id="uks-' + nadalId + '" value="' + (nadal.ukse_kood || '') + '" placeholder="0000" style="width:70px;text-align:center;font-weight:700;letter-spacing:2px">'
