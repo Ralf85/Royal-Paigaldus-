@@ -3457,15 +3457,15 @@ function tjRenderDetailTabSisu(w, we) {
       </div>
       <div class="tj-ligipaas-rida">
         <span>🥏 X-seeria (võistlused, kulude sisestus)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this)"><span class="toggle-slider"></span></label>
       </div>
       <div class="tj-ligipaas-rida">
         <span>🧾 Minu Arved (isiklik arvete moodul)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onOmaarved?'checked':''} onchange="tjToggleOmaarved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onOmaarved?'checked':''} onchange="tjToggleOmaarved(${w.id}, this)"><span class="toggle-slider"></span></label>
       </div>
       <div class="tj-ligipaas-rida">
         <span>👤 Kogu ettevõtte arved (raamatupidaja täisligipääs)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onArved?'checked':''} onchange="tjToggleArved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onArved?'checked':''} onchange="tjToggleArved(${w.id}, this)"><span class="toggle-slider"></span></label>
       </div>
       <div class="teade" id="tj-detail-teade" style="margin-top:10px"></div>
       <div style="display:flex;gap:10px;margin-top:14px">
@@ -3521,17 +3521,23 @@ async function tjLaadiAjalugu(workerId) {
   }
 }
 
-async function tjToggleXs(workerId, lubatud) {
+async function tjToggleXs(workerId, checkboxEl) {
+  const lubatud = checkboxEl.checked;
+  if (lubatud && !confirm('Anda sellele töötajale X-seeria ligipääs (võistlused, kulude sisestus)?')) { checkboxEl.checked = false; return; }
   await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikXs[workerId] = lubatud;
   tjRenderStatid(); tjRenderList();
 }
-async function tjToggleArved(workerId, lubatud) {
+async function tjToggleArved(workerId, checkboxEl) {
+  const lubatud = checkboxEl.checked;
+  if (lubatud && !confirm('Anda sellele töötajale KOGU ETTEVÕTTE ARVETE ligipääs (raamatupidaja täisligipääs)? See on tundlik õigus.')) { checkboxEl.checked = false; return; }
   await api(`/api/arved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikArved[workerId] = lubatud;
   tjRenderStatid();
 }
-async function tjToggleOmaarved(workerId, lubatud) {
+async function tjToggleOmaarved(workerId, checkboxEl) {
+  const lubatud = checkboxEl.checked;
+  if (lubatud && !confirm('Anda sellele töötajale Minu Arved ligipääs (isiklik arvete moodul)?')) { checkboxEl.checked = false; return; }
   await api(`/api/omaarved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikOmaarved[workerId] = lubatud;
   tjRenderStatid();
