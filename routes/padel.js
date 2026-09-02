@@ -129,6 +129,17 @@ router.put('/admin/ryhmad/:id', noudaAdmin, async (req, res) => {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+// Grupi vaikimisi trenni algusaeg (kohaldub uutele genereeritud/loodud trennidele)
+router.put('/admin/ryhmad/:id/kellaaeg', noudaAdmin, async (req, res) => {
+  const kellaaeg = (req.body.kellaaeg || '').trim();
+  if (kellaaeg && !/^([01]\d|2[0-3]):[0-5]\d$/.test(kellaaeg)) return res.json({ ok: false, veateade: 'Vale kellaaja formaat (nt 18:30)' });
+  try {
+    await pool.query('UPDATE padel_ryhmad SET vaikimisi_kellaaeg=$1 WHERE id=$2', [kellaaeg || null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
 router.post('/admin/ryhmad/:id/liikmed', noudaAdmin, async (req, res) => {
   const { worker_id } = req.body;
   if (!worker_id) return res.json({ ok: false, veateade: 'Vali töötaja' });
@@ -305,7 +316,10 @@ async function looNadalKuiPuudub(ryhmId, kuupaev) {
   const indeks = parseInt(arvR.rows[0].c, 10);
   const [paar1, paar2] = paaridRotatsioon(liikmedR.rows, indeks);
 
-  const nadalR = await pool.query('INSERT INTO padel_nadalad (ryhm_id, kuupaev) VALUES ($1,$2) RETURNING id', [ryhmId, kuupaev]);
+  const ryhmR = await pool.query('SELECT vaikimisi_kellaaeg FROM padel_ryhmad WHERE id=$1', [ryhmId]);
+  const kellaaeg = ryhmR.rows[0] ? ryhmR.rows[0].vaikimisi_kellaaeg : null;
+
+  const nadalR = await pool.query('INSERT INTO padel_nadalad (ryhm_id, kuupaev, kellaaeg) VALUES ($1,$2,$3) RETURNING id', [ryhmId, kuupaev, kellaaeg]);
   const nadalId = nadalR.rows[0].id;
   for (const liige of paar1) {
     await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,1)', [nadalId, liige.id]);
@@ -394,7 +408,20 @@ router.put('/nadalad/:id/uksekood', noudaPadelLigipaas, async (req, res) => {
   const kood = (req.body.kood || '').trim();
   if (kood && !/^[0-9]{1,4}$/.test(kood)) return res.json({ ok: false, veateade: 'Uksekood peab olema kuni 4 numbrit' });
   try {
-    await pool.query('UPDATE padel_nadalad SET ukse_kood=$1 WHERE id=$2', [kood || null, req.params.id]);
+    // Kui koodi muudetakse, lubame automaatsel teavitusel uuesti saata (nt kui kood parandati viimasel hetkel).
+    await pool.query('UPDATE padel_nadalad SET ukse_kood=$1, uksekoodi_teavitus_saadetud=false WHERE id=$2', [kood || null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Selle konkreetse trenni algusaeg (kui erineb grupi vaikimisi kellaajast)
+router.put('/nadalad/:id/kellaaeg', noudaPadelLigipaas, async (req, res) => {
+  const kellaaeg = (req.body.kellaaeg || '').trim();
+  if (kellaaeg && !/^([01]\d|2[0-3]):[0-5]\d$/.test(kellaaeg)) return res.json({ ok: false, veateade: 'Vale kellaaja formaat (nt 18:30)' });
+  try {
+    await pool.query('UPDATE padel_nadalad SET kellaaeg=$1, uksekoodi_teavitus_saadetud=false WHERE id=$2', [kellaaeg || null, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -506,5 +533,32 @@ async function kontrolliAutomaatseidMeeldetuletusi() {
   }
 }
 setInterval(kontrolliAutomaatseidMeeldetuletusi, 15 * 60 * 1000);
+
+// Automaatne uksekoodi teavitus 30 min enne trenni algust — kontrollitakse iga 5 min tagant.
+async function kontrolliUksekoodiTeavitusi() {
+  try {
+    const r = await pool.query(
+      `SELECT pn.id, pn.ryhm_id, pn.ukse_kood, r.nimi AS ryhm_nimi
+       FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id
+       WHERE pn.kuupaev = CURRENT_DATE
+         AND pn.kellaaeg IS NOT NULL
+         AND pn.ukse_kood IS NOT NULL AND pn.ukse_kood <> ''
+         AND pn.uksekoodi_teavitus_saadetud = false
+         AND (pn.kuupaev + pn.kellaaeg) - INTERVAL '30 minutes' <= (NOW() AT TIME ZONE 'Europe/Tallinn')
+         AND (pn.kuupaev + pn.kellaaeg) > (NOW() AT TIME ZONE 'Europe/Tallinn')
+         AND r.aktiivne = true`
+    );
+    for (const nadal of r.rows) {
+      const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [nadal.ryhm_id]);
+      for (const l of liikmedR.rows) {
+        saadaTeavitus(l.worker_id, `🔑 ${nadal.ryhm_nimi} — uksekood`, `Trenn algab 30 minuti pärast. Uksekood: ${nadal.ukse_kood}`, '/padel');
+      }
+      await pool.query('UPDATE padel_nadalad SET uksekoodi_teavitus_saadetud=true WHERE id=$1', [nadal.id]);
+    }
+  } catch (err) {
+    console.error('Automaatne uksekoodi teavitus ebaõnnestus:', err.message);
+  }
+}
+setInterval(kontrolliUksekoodiTeavitusi, 5 * 60 * 1000);
 
 module.exports = router;
