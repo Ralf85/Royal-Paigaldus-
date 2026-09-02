@@ -151,6 +151,16 @@ router.get('/admin/ryhmad/:id/asendaja-maksed', noudaAdmin, async (req, res) => 
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+// Kustuta üks trenn täielikult (nt kogemata loodud/testitud trenn)
+router.delete('/admin/nadalad/:id', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM padel_nadalad WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.put('/admin/kohad/:id/makse', noudaAdmin, async (req, res) => {
   const { makstud } = req.body;
   try {
