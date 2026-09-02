@@ -699,6 +699,7 @@ async function initDB() {
         liige_id INTEGER REFERENCES padel_liikmed(id) ON DELETE CASCADE,
         paar INTEGER NOT NULL DEFAULT 1 CHECK (paar IN (1,2)),
         osaleb BOOLEAN NOT NULL DEFAULT true,
+        kinnitatud BOOLEAN NOT NULL DEFAULT false,
         asendaja_nimi VARCHAR(100),
         makstud BOOLEAN NOT NULL DEFAULT false,
         summa DECIMAL(10,2),
@@ -715,6 +716,8 @@ async function initDB() {
         paar2_geimid INTEGER NOT NULL
       );
     `);
+    // Kui padel_kohad on juba varem loodud (ilma kinnitatud veeruta), lisame selle siia.
+    await client.query(`ALTER TABLE padel_kohad ADD COLUMN IF NOT EXISTS kinnitatud BOOLEAN NOT NULL DEFAULT false;`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
