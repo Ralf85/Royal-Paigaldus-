@@ -114,11 +114,15 @@ async function laadiRyhmad() {
     var valikud = koikTootajad.filter(function(t) { return liikmeteId.indexOf(t.id) === -1; })
       .map(function(t) { return '<option value="' + t.id + '">' + t.nimi + '</option>'; }).join('');
     return '<div class="kaart">'
-      + '<div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center">'
+      + '<div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
       + '<span>' + g.nimi + ' <span style="color:var(--text3);font-weight:400;font-size:12px">(' + fmtEur(g.hind) + '/trenn)</span></span>'
+      + '<span style="display:flex;gap:14px">'
+      + '<a href="#" onclick="vaataTrennid(' + g.id + ');return false;" style="font-size:12px;color:#60a5fa;text-decoration:none">📅 Trennid</a>'
       + '<a href="#" onclick="vaataAsendajaMakseid(' + g.id + ');return false;" style="font-size:12px;color:#fbbf24;text-decoration:none">💶 Asendajate maksed</a>'
+      + '</span>'
       + '</div>'
       + '<div class="kaart-body">'
+      + '<div id="trennid-' + g.id + '"></div>'
       + '<div style="margin-bottom:12px">' + g.liikmed.map(function(l) {
           return '<span class="liige-tag">' + l.nimi + '<button onclick="eemaldaLiige(' + l.id + ',' + g.id + ')" title="Eemalda">✕</button></span>';
         }).join('') + (g.liikmed.length < 4 ? '<span style="color:var(--text3);font-size:12px;margin-left:6px">(' + (4 - g.liikmed.length) + ' kohta vaba)</span>' : '') + '</div>'
@@ -150,6 +154,27 @@ async function eemaldaLiige(liigeId, ryhmId) {
   if (!confirm('Eemaldada see liige grupist?')) return;
   await api('/api/padel/admin/liikmed/' + liigeId, { method: 'DELETE' });
   laadiRyhmad();
+}
+
+async function vaataTrennid(ryhmId) {
+  var div = document.getElementById('trennid-' + ryhmId);
+  if (div.innerHTML) { div.innerHTML = ''; return; }
+  div.innerHTML = '<div class="laadimine">Laadimine...</div>';
+  var r = await api('/api/padel/ryhm/' + ryhmId);
+  if (!r.ok || !r.nadalad || !r.nadalad.length) { div.innerHTML = '<div style="color:var(--text3);font-size:12px;margin-bottom:10px">Trenne pole veel loodud.</div>'; return; }
+  var nimekiri = r.nadalad.slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:6px 0">Trennid (kustuta kogemata loodud/valed)</div>'
+    + nimekiri.map(function(n) {
+      var tulemus = n.setid && n.setid.length ? ' — tulemus sees' : '';
+      return '<div class="rida"><span>' + fmtKp(n.kuupaev) + tulemus + '</span>'
+        + '<button class="nupp punane pisike" onclick="kustutaTrenn(' + n.id + ',' + ryhmId + ')">🗑 Kustuta</button></div>';
+    }).join('') + '<div style="margin-top:8px"></div>';
+}
+async function kustutaTrenn(nadalId, ryhmId) {
+  if (!confirm('Kustutada see trenn jäädavalt (koos tulemuste ja osalustega)?')) return;
+  await api('/api/padel/admin/nadalad/' + nadalId, { method: 'DELETE' });
+  document.getElementById('trennid-' + ryhmId).innerHTML = '';
+  vaataTrennid(ryhmId);
 }
 
 async function vaataAsendajaMakseid(ryhmId) {
