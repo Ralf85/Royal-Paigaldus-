@@ -225,7 +225,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
 
     const nadaladR = await pool.query(
       `SELECT pn.*,
-              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
+              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
                 FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
                 WHERE pk.nadal_id = pn.id) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
@@ -314,7 +314,7 @@ router.put('/kohad/:id/osalus', noudaPadelLigipaas, async (req, res) => {
     const { ryhm_id, hind } = ryhmHinnaR.rows[0];
     const nimi = osaleb ? null : (asendaja_nimi || '').trim() || null;
     await pool.query(
-      'UPDATE padel_kohad SET osaleb=$1, asendaja_nimi=$2, summa=$3 WHERE id=$4',
+      'UPDATE padel_kohad SET osaleb=$1, asendaja_nimi=$2, summa=$3, kinnitatud=true WHERE id=$4',
       [!!osaleb, nimi, hind, req.params.id]
     );
     if (nimi) {
