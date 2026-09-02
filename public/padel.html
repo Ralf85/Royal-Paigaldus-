@@ -382,13 +382,13 @@ async function laeUlesFoto(liigeId, sisend, ryhmId, nadalId) {
 async function saadaSonum(ryhmId) {
   var r = await api('/api/padel/ryhm/' + ryhmId);
   if (!r.ok) return;
-  var valikud = r.liikmed.map(function(l) { return l.nimi; }).join(', ');
-  var saaja = (prompt('Kellele saata? Kirjuta nimi (' + valikud + ') või jäta tühjaks, et saata KÕIGILE grupi liikmetele:') || '').trim();
+  var nimekiri = r.liikmed.map(function(l, i) { return (i + 1) + '. ' + l.nimi; }).join('\n');
+  var valik = (prompt('Kellele saata?\n\n' + nimekiri + '\n\nKirjuta number (nt 1), või jäta tühjaks, et saata KÕIGILE:') || '').trim();
   var liigeId = null;
-  if (saaja) {
-    var leitud = r.liikmed.find(function(l) { return l.nimi.toLowerCase() === saaja.toLowerCase(); });
-    if (!leitud) return alert('Sellise nimega liiget ei leitud selles grupis.');
-    liigeId = leitud.id;
+  if (valik) {
+    var idx = parseInt(valik, 10);
+    if (!Number.isInteger(idx) || idx < 1 || idx > r.liikmed.length) return alert('Vigane number — proovi uuesti ja kirjuta ainult number (nt 1).');
+    liigeId = r.liikmed[idx - 1].id;
   }
   var pealkiri = (prompt('Pealkiri (nt "Palju õnne!" või "Maksa võlg ära"):') || '').trim();
   if (!pealkiri) return;
