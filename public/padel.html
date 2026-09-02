@@ -3,74 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Royal Paigaldus — Padel</title>
+<title>Royal Paigaldus — Padel haldus</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --border: rgba(255,255,255,0.06); --text: #e2e8f0; --text2: #bbb; --text3: #7a8290; --groen: #4ade80; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 60px; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 60px; max-width: 760px; margin: 0 auto; }
   .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
   .topbar h1 { font-size: 18px; font-weight: 800; }
   .topbar h1 span { color: var(--groen); }
   a.tagasi { color: var(--text2); text-decoration: none; font-size: 13px; }
   select, input { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
   .kaart { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
-  .kaart-hdr { padding: 14px 18px; font-size: 15px; font-weight: 700; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .kaart-hdr { padding: 14px 18px; font-size: 15px; font-weight: 700; border-bottom: 0.5px solid var(--border); }
   .kaart-body { padding: 18px; }
   .tyhi { padding: 24px 18px; text-align: center; color: var(--text3); }
   .laadimine { padding: 24px; text-align: center; color: var(--text3); }
   .nupp { background: var(--groen); color: #06240f; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .nupp.hall { background: var(--bg3); color: var(--text); border: 0.5px solid var(--border); }
+  .nupp.punane { background: #f87171; color: #3a0a0a; }
   .nupp.pisike { padding: 6px 10px; font-size: 12px; }
+  .rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+  .rida:last-child { border-bottom: none; }
   .teade { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
   .teade.ok { background: rgba(74,222,128,0.12); color: #4ade80; display: block; }
   .teade.viga { background: rgba(248,113,113,0.12); color: #f87171; display: block; }
-  .rida { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
-  .rida:last-child { border-bottom: none; }
-  .saldo-summa { font-size: 26px; font-weight: 800; }
-  .saldo-summa.null { color: var(--groen); }
-  .saldo-summa.voolgu { color: #fbbf24; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 8px 4px; color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 0.5px solid var(--border); }
-  td { padding: 8px 4px; border-bottom: 0.5px solid var(--border); }
-  tr:last-child td { border-bottom: none; }
-  .paar-blokk { background: var(--bg3); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
-  .paar-pealkiri { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-  .liige-rida { display: flex; align-items: center; gap: 8px; padding: 6px 0; flex-wrap: wrap; }
-  .liige-nimi { flex: 1; min-width: 90px; font-weight: 600; }
-  .osalus-nupud { display: flex; gap: 6px; }
-  .osalus-nupp { background: var(--bg2); border: 0.5px solid var(--border); color: var(--text2); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
-  .osalus-nupp.aktiivne-jah { background: rgba(74,222,128,0.18); color: #4ade80; border-color: #166534; }
-  .osalus-nupp.aktiivne-ei { background: rgba(248,113,113,0.18); color: #f87171; border-color: #7f1d1d; }
-  .asendaja-rida { width: 100%; display: flex; gap: 6px; margin-top: 6px; }
-  .tulemus-vorm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .tulemus-vorm input { width: 60px; text-align: center; font-weight: 700; }
-  .medal { font-size: 16px; margin-right: 4px; }
+  .toggle { position: relative; width: 40px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track { position: absolute; inset: 0; background: var(--bg3); border: 0.5px solid var(--border); border-radius: 20px; cursor: pointer; transition: 0.15s; }
+  .toggle input:checked + .toggle-track { background: var(--groen); }
+  .toggle-track:before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 2px; background: #fff; border-radius: 50%; transition: 0.15s; }
+  .toggle input:checked + .toggle-track:before { transform: translateX(18px); }
+  .liige-tag { background: var(--bg3); border: 0.5px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 2px; }
+  .liige-tag button { background: none; border: none; color: #f87171; cursor: pointer; font-size: 13px; }
 </style>
 </head>
 <body>
   <div class="topbar">
     <div>
-      <h1>🎾 <span>Padel</span></h1>
-      <a class="tagasi" href="/tootaja">← Tagasi pealehele</a>
+      <h1>🎾 <span>Padel — haldus</span></h1>
+      <a class="tagasi" href="/admin">← Tagasi adminni</a>
     </div>
   </div>
 
-  <div id="lubamatuTeade" style="display:none" class="tyhi">Sul pole Padel mooduli ligipääsu. Palun küsi adminilt.</div>
-
-  <div id="sisu" style="display:none">
-    <div class="kaart">
-      <div class="kaart-hdr">💰 Minu saldo</div>
-      <div class="kaart-body" id="saldoSisu"><div class="laadimine">Laadimine...</div></div>
+  <div class="kaart">
+    <div class="kaart-hdr">➕ Uus grupp</div>
+    <div class="kaart-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="uus-nimi" placeholder="Grupi nimi (nt Esmaspäev)" style="flex:2;min-width:140px">
+        <input id="uus-hind" type="number" step="0.01" placeholder="Hind €/trenn" value="15.50" style="flex:1;min-width:100px">
+        <button class="nupp" onclick="looRyhm()">Loo grupp</button>
+      </div>
+      <div id="ryhm-teade" class="teade"></div>
     </div>
+  </div>
 
-    <div id="tanaBanner"></div>
+  <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
 
-    <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
+  <div class="kaart">
+    <div class="kaart-hdr">🔓 Ligipääs Padel moodulile</div>
+    <div class="kaart-body">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Ainult siin lubatud töötajad näevad oma pealehel "Padel" kaarti.</div>
+      <div id="lubatudSisu"><div class="laadimine">Laadimine...</div></div>
+    </div>
   </div>
 
 <script>
-var TOKEN = localStorage.getItem('workerToken') || '';
-if (!TOKEN) window.location.replace('/');
+let TOKEN = localStorage.getItem('adminToken') || '';
+setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
 
 function api(url, opts) {
   opts = opts || {};
@@ -79,271 +78,148 @@ function api(url, opts) {
 }
 function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
-function tanaISO() { return new Date().toISOString().split('T')[0]; }
-// Server tagastab kuupäeva mõnikord täispika ISO stringina (nt "2026-09-02T00:00:00.000Z") —
-// normaliseerime alati "YYYY-MM-DD" kujule, enne kui kuupäevi omavahel võrdleme.
-function kpOsa(d) { return (d || '').toString().slice(0, 10); }
 
-var mineRyhmad = [];
-var asendajateCache = {};
-var tananeTrenniLeitud = [];
-var ryhmiVarvid = {};
+var koikTootajad = [];
 
-function renderTanaBanner() {
-  var div = document.getElementById('tanaBanner');
-  if (!tananeTrenniLeitud.length) { div.innerHTML = ''; return; }
-  div.innerHTML = tananeTrenniLeitud.map(function(t) {
-    var varv = ryhmiVarvid[t.ryhmId] || '#4ade80';
-    return '<div class="kaart" style="border-left:4px solid ' + varv + ';background:#0d1f13">'
-      + '<div class="kaart-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
-      + '<span style="font-weight:700">🟢 Täna on trenn: <span style="color:' + varv + '">' + t.nimi + '</span></span>'
-      + '<a href="#ryhm-kaart-' + t.ryhmId + '" class="nupp pisike" onclick="document.getElementById(\'ryhm-kaart-' + t.ryhmId + '\').scrollIntoView({behavior:\'smooth\'})" style="text-decoration:none">Ava ↓</a>'
+async function init() {
+  if (!TOKEN) { window.location.replace('/admin-login'); return; }
+  await Promise.all([laadiRyhmad(), laadiLubatud()]);
+}
+
+async function looRyhm() {
+  var nimi = document.getElementById('uus-nimi').value.trim();
+  var hind = document.getElementById('uus-hind').value;
+  var teade = document.getElementById('ryhm-teade');
+  if (!nimi) { teade.className = 'teade viga'; teade.textContent = 'Sisesta grupi nimi'; return; }
+  var r = await api('/api/padel/admin/ryhmad', { method: 'POST', body: JSON.stringify({ nimi: nimi, hind: hind }) });
+  if (r.ok) {
+    teade.className = 'teade ok'; teade.textContent = '✅ Grupp loodud';
+    document.getElementById('uus-nimi').value = '';
+    laadiRyhmad();
+  } else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
+}
+
+async function laadiRyhmad() {
+  var r = await api('/api/padel/admin/ryhmad');
+  var div = document.getElementById('ryhmadSisu');
+  if (!r.ok) { div.innerHTML = '<div class="kaart"><div class="tyhi">Viga gruppide laadimisel</div></div>'; return; }
+  if (!koikTootajad.length) {
+    var lub = await api('/api/padel/admin/lubatud');
+    koikTootajad = Array.isArray(lub) ? lub : [];
+  }
+  if (!r.ryhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Gruppe pole veel loodud.</div></div>'; return; }
+
+  div.innerHTML = r.ryhmad.map(function(g) {
+    var liikmeteId = g.liikmed.map(function(l) { return l.worker_id; });
+    var valikud = koikTootajad.filter(function(t) { return liikmeteId.indexOf(t.id) === -1; })
+      .map(function(t) { return '<option value="' + t.id + '">' + t.nimi + '</option>'; }).join('');
+    return '<div class="kaart">'
+      + '<div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      + '<span>' + g.nimi + ' <span style="color:var(--text3);font-weight:400;font-size:12px">(' + fmtEur(g.hind) + '/trenn)</span></span>'
+      + '<span style="display:flex;gap:14px">'
+      + '<a href="#" onclick="vaataTrennid(' + g.id + ');return false;" style="font-size:12px;color:#60a5fa;text-decoration:none">📅 Trennid</a>'
+      + '<a href="#" onclick="vaataAsendajaMakseid(' + g.id + ');return false;" style="font-size:12px;color:#fbbf24;text-decoration:none">💶 Asendajate maksed</a>'
+      + '</span>'
+      + '</div>'
+      + '<div class="kaart-body">'
+      + '<div id="trennid-' + g.id + '"></div>'
+      + '<div style="margin-bottom:12px">' + g.liikmed.map(function(l) {
+          return '<span class="liige-tag">' + l.nimi + '<button onclick="eemaldaLiige(' + l.id + ',' + g.id + ')" title="Eemalda">✕</button></span>';
+        }).join('') + (g.liikmed.length < 4 ? '<span style="color:var(--text3);font-size:12px;margin-left:6px">(' + (4 - g.liikmed.length) + ' kohta vaba)</span>' : '') + '</div>'
+      + (g.liikmed.length < 4 ? '<div style="display:flex;gap:8px">'
+        + '<select id="lisa-sel-' + g.id + '" style="flex:1"><option value="">— vali töötaja —</option>' + valikud + '</select>'
+        + '<button class="nupp hall pisike" onclick="lisaLiige(' + g.id + ')">+ Lisa</button></div>' : '<div style="color:var(--text3);font-size:12px">Grupp on täis (4/4)</div>')
+      + '<div id="asend-maksed-' + g.id + '" style="margin-top:14px"></div>'
+      + '<div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">'
+      + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">📅 Genereeri mitu trenni korraga (iganädalaselt, alates valitud kuupäevast)</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      + '<input type="date" id="gen-kp-' + g.id + '">'
+      + '<input type="number" id="gen-arv-' + g.id + '" value="10" min="1" max="52" style="width:70px" title="Mitu nädalat">'
+      + '<button class="nupp hall pisike" onclick="genereeriNadalad(' + g.id + ')">Genereeri</button>'
+      + '</div>'
+      + '<div id="gen-teade-' + g.id + '" class="teade"></div>'
+      + '</div>'
       + '</div></div>';
   }).join('');
 }
 
-async function init() {
-  var kontroll = await api('/api/padel/kontroll');
-  if (!kontroll.lubatud) {
-    document.getElementById('lubamatuTeade').style.display = 'block';
-    return;
-  }
-  document.getElementById('sisu').style.display = 'block';
-  await Promise.all([laadiSaldo(), laadiRyhmad()]);
+async function lisaLiige(ryhmId) {
+  var sel = document.getElementById('lisa-sel-' + ryhmId);
+  var workerId = sel.value;
+  if (!workerId) return;
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/liikmed', { method: 'POST', body: JSON.stringify({ worker_id: workerId }) });
+  if (r.ok) laadiRyhmad(); else alert(r.veateade || 'Viga');
+}
+async function eemaldaLiige(liigeId, ryhmId) {
+  if (!confirm('Eemaldada see liige grupist?')) return;
+  await api('/api/padel/admin/liikmed/' + liigeId, { method: 'DELETE' });
+  laadiRyhmad();
 }
 
-async function laadiSaldo() {
-  var r = await api('/api/padel/minu-saldo');
-  var div = document.getElementById('saldoSisu');
-  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga saldo laadimisel</div>'; return; }
-  if (!r.vola.length) { div.innerHTML = '<div class="saldo-summa null">0,00 € — kõik makstud! ✅</div>'; return; }
-  div.innerHTML = '<div class="saldo-summa voolgu">' + fmtEur(r.kokku) + ' võlgu</div>'
-    + '<div style="margin-top:10px">' + r.vola.map(function(v) {
-      return '<div class="rida"><span>' + v.ryhm_nimi + ' — ' + fmtKp(v.kuupaev) + '</span><span style="font-weight:600">' + fmtEur(v.summa) + '</span></div>';
-    }).join('') + '</div>';
-}
-
-async function laadiRyhmad() {
-  var r = await api('/api/padel/minu');
-  var div = document.getElementById('ryhmadSisu');
-  mineRyhmad = (r.ok && r.ryhmad) ? r.ryhmad : [];
-  tananeTrenniLeitud = [];
-  renderTanaBanner();
-  if (!mineRyhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Sind pole veel ühessegi Padeli gruppi lisatud.</div></div>'; return; }
-
-  // Laadime kõigi gruppide andmed korraga, et saaksime tänase trenniga grupi kõige ette tõsta.
-  var koikAndmed = await Promise.all(mineRyhmad.map(function(g) { return api('/api/padel/ryhm/' + g.ryhm_id); }));
-  var tanaISOval = tanaISO();
-  var jarjestatud = mineRyhmad.map(function(g, i) { return { g: g, r: koikAndmed[i] }; }).sort(function(a, b) {
-    var aTana = leiaTana(a.r, tanaISOval) ? 0 : 1;
-    var bTana = leiaTana(b.r, tanaISOval) ? 0 : 1;
-    return aTana - bTana;
-  });
-
-  var varvid = ['#4ade80', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#fb7185', '#2dd4bf'];
-  div.innerHTML = jarjestatud.map(function(item, i) {
-    var g = item.g;
-    var varv = varvid[i % varvid.length];
-    ryhmiVarvid[g.ryhm_id] = varv;
-    return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '" style="border-left:4px solid ' + varv + '">'
-      + '<div class="kaart-hdr"><span style="color:' + varv + '">🎾 ' + g.ryhm_nimi + '</span>'
-      + '<button class="nupp hall pisike" onclick="saadaMeeldetuletus(' + g.ryhm_id + ')">🔔 Meeldetuleta kõigile</button></div>'
-      + '<div class="kaart-body" id="ryhm-sisu-' + g.ryhm_id + '"><div class="laadimine">Laadimine...</div></div>'
-      + '</div>';
-  }).join('');
-  jarjestatud.forEach(function(item) { taidaRyhmSisu(item.g.ryhm_id, item.r); });
-}
-
-// Kas selle grupi JÄRGMINE trenn on täna?
-function leiaTana(r, tanaISOval) {
-  if (!r || !r.ok || !r.nadalad) return false;
+async function vaataTrennid(ryhmId) {
+  var div = document.getElementById('trennid-' + ryhmId);
+  if (div.innerHTML) { div.innerHTML = ''; return; }
+  div.innerHTML = '<div class="laadimine">Laadimine...</div>';
+  var r = await api('/api/padel/ryhm/' + ryhmId);
+  if (!r.ok || !r.nadalad || !r.nadalad.length) { div.innerHTML = '<div style="color:var(--text3);font-size:12px;margin-bottom:10px">Trenne pole veel loodud.</div>'; return; }
   var nimekiri = r.nadalad.slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
-  var jargmine = nimekiri.find(function(n) { return kpOsa(n.kuupaev) >= tanaISOval; });
-  return jargmine && kpOsa(jargmine.kuupaev) === tanaISOval;
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:6px 0">Trennid (kustuta kogemata loodud/valed)</div>'
+    + nimekiri.map(function(n) {
+      var tulemus = n.setid && n.setid.length ? ' — tulemus sees' : '';
+      return '<div class="rida"><span>' + fmtKp(n.kuupaev) + tulemus + '</span>'
+        + '<button class="nupp punane pisike" onclick="kustutaTrenn(' + n.id + ',' + ryhmId + ')">🗑 Kustuta</button></div>';
+    }).join('') + '<div style="margin-top:8px"></div>';
+}
+async function kustutaTrenn(nadalId, ryhmId) {
+  if (!confirm('Kustutada see trenn jäädavalt (koos tulemuste ja osalustega)?')) return;
+  await api('/api/padel/admin/nadalad/' + nadalId, { method: 'DELETE' });
+  document.getElementById('trennid-' + ryhmId).innerHTML = '';
+  vaataTrennid(ryhmId);
 }
 
-async function laadiRyhmSisu(ryhmId) {
-  var r = await api('/api/padel/ryhm/' + ryhmId);
-  await taidaRyhmSisu(ryhmId, r);
-}
-
-async function taidaRyhmSisu(ryhmId, r) {
-  var div = document.getElementById('ryhm-sisu-' + ryhmId);
-  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + (r.veateade || '') + '</div>'; return; }
-
-  var asendR = await api('/api/padel/ryhm/' + ryhmId + '/asendajad');
-  asendajateCache[ryhmId] = (asendR.ok && asendR.nimed) ? asendR.nimed : [];
-
-  var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
-    + r.edetabel.map(function(e, i) {
-      var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
-      return '<tr><td>' + medal + '</td><td>' + e.nimi + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
-    }).join('') + '</tbody></table>';
-
-  var tanaISOval = tanaISO();
-  var trennideNimekiri = (r.nadalad || []).slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
-  var jargmine = trennideNimekiri.find(function(n) { return kpOsa(n.kuupaev) >= tanaISOval; });
-
-  var valikudHtml = trennideNimekiri.map(function(n) {
-    var tulemusOlemas = n.setid && n.setid.length;
-    return '<option value="' + kpOsa(n.kuupaev) + '">' + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓ tulemus sees' : (kpOsa(n.kuupaev) >= tanaISOval ? ' — tulevane' : ' — tulemus puudub')) + '</option>';
-  }).join('');
-  var vaikimisiValik = jargmine ? kpOsa(jargmine.kuupaev) : (trennideNimekiri.length ? kpOsa(trennideNimekiri[trennideNimekiri.length - 1].kuupaev) : '');
-
-  if (jargmine && kpOsa(jargmine.kuupaev) === tanaISOval && !tananeTrenniLeitud.some(function(t) { return t.ryhmId === ryhmId; })) {
-    tananeTrenniLeitud.push({ ryhmId: ryhmId, nimi: r.ryhm.nimi });
-    renderTanaBanner();
-  }
-
-  div.innerHTML =
-    '<div class="paar-pealkiri">Edetabel</div>'
-    + edetabelHtml
-    + (trennideNimekiri.length
-      ? '<div id="nadal-' + ryhmId + '" style="margin-top:18px"></div>'
-        + '<div style="margin-top:14px"><a href="#" onclick="lylitaTrennideValik(' + ryhmId + ');return false;" style="font-size:12px;color:var(--text3)" id="trennide-link-' + ryhmId + '">📜 Vaata teisi trenne</a></div>'
-        + '<div id="trennide-valik-' + ryhmId + '" style="display:none;margin-top:8px">'
-        + '<select id="kp-' + ryhmId + '" style="width:100%" onchange="avaNadal(' + ryhmId + ')">' + valikudHtml + '</select>'
-        + '</div>'
-      : '<div style="color:var(--text3);font-size:12px;margin-top:14px">Admin pole veel trenne genereerinud.</div>');
-
-  if (vaikimisiValik) { document.getElementById('kp-' + ryhmId).value = vaikimisiValik; avaNadal(ryhmId); }
-}
-
-function lylitaTrennideValik(ryhmId) {
-  var el = document.getElementById('trennide-valik-' + ryhmId);
-  var link = document.getElementById('trennide-link-' + ryhmId);
-  var avatud = el.style.display !== 'none';
-  el.style.display = avatud ? 'none' : 'block';
-  link.textContent = avatud ? '📜 Vaata teisi trenne' : '📜 Peida teised trennid';
-}
-
-async function avaNadal(ryhmId) {
-  var kuupaev = document.getElementById('kp-' + ryhmId).value;
-  if (!kuupaev) return;
-  var r = await api('/api/padel/ryhm/' + ryhmId + '/nadal', { method: 'POST', body: JSON.stringify({ kuupaev: kuupaev }) });
-  var div = document.getElementById('nadal-' + ryhmId);
-  if (!r.ok) { div.innerHTML = '<div class="teade viga">' + (r.veateade || 'Viga') + '</div>'; return; }
-  await naitaNadal(ryhmId, r.nadal_id);
-}
-
-async function naitaNadal(ryhmId, nadalId) {
-  var r = await api('/api/padel/ryhm/' + ryhmId);
-  var nadal = (r.nadalad || []).find(function(n) { return n.id === nadalId; });
-  var div = document.getElementById('nadal-' + ryhmId);
-  if (!nadal) { div.innerHTML = ''; return; }
-  var kohad = nadal.kohad || [];
-  var paar1 = kohad.filter(function(k) { return k.paar === 1; });
-  var paar2 = kohad.filter(function(k) { return k.paar === 2; });
-
-  function kohaRida(k) {
-    var asendajaValikud = (asendajateCache[ryhmId] || []).map(function(n) {
-      return '<option value="' + n + '"' + (k.asendaja_nimi === n ? ' selected' : '') + '>' + n + '</option>';
+async function vaataAsendajaMakseid(ryhmId) {
+  var div = document.getElementById('asend-maksed-' + ryhmId);
+  if (div.innerHTML) { div.innerHTML = ''; return; }
+  div.innerHTML = '<div class="laadimine">Laadimine...</div>';
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/asendaja-maksed');
+  if (!r.ok || !r.kirjed.length) { div.innerHTML = '<div style="color:var(--text3);font-size:12px">Asendajate makseid pole.</div>'; return; }
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:10px 0 6px">Asendajate maksed (asendaja ise ei näe seda — ainult sina)</div>'
+    + r.kirjed.map(function(k) {
+      return '<div class="rida"><span>' + fmtKp(k.kuupaev) + ' — <b>' + k.asendaja_nimi + '</b> (' + k.asendas_keda + ' asemel) — ' + fmtEur(k.summa) + '</span>'
+        + '<label class="toggle"><input type="checkbox" ' + (k.makstud ? 'checked' : '') + ' onchange="markiMakse(' + k.id + ', this.checked)"><span class="toggle-track"></span></label></div>';
     }).join('');
-    var jahAktiivne = k.kinnitatud && k.osaleb;
-    var eiAktiivne = k.kinnitatud && !k.osaleb;
-    return '<div class="liige-rida">'
-      + '<span class="liige-nimi">' + k.nimi + (!k.kinnitatud ? ' <span style="color:#fbbf24;font-size:11px;font-weight:400">● kinnitamata</span>' : '') + '</span>'
-      + '<div class="osalus-nupud">'
-      + '<button class="osalus-nupp ' + (jahAktiivne ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
-      + '<button class="osalus-nupp ' + (eiAktiivne ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
-      + '</div>'
-      + '<div class="asendaja-rida" id="asend-' + k.id + '" style="display:' + (eiAktiivne ? 'flex' : 'none') + '">'
-      + '<select id="asend-sel-' + k.id + '" onchange="document.getElementById(\'asend-txt-' + k.id + '\').value=this.value" style="flex:1"><option value="">— vali varasem —</option>' + asendajaValikud + '</select>'
-      + '<input id="asend-txt-' + k.id + '" placeholder="uus nimi" value="' + (k.asendaja_nimi || '') + '" style="flex:1">'
-      + '<button class="nupp hall pisike" onclick="salvestaAsendaja(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">💾</button>'
-      + '</div>'
-      + '</div>';
+}
+async function markiMakse(kohaId, makstud) {
+  await api('/api/padel/admin/kohad/' + kohaId + '/makse', { method: 'PUT', body: JSON.stringify({ makstud: makstud }) });
+}
+
+async function genereeriNadalad(ryhmId) {
+  var kp = document.getElementById('gen-kp-' + ryhmId).value;
+  var arv = document.getElementById('gen-arv-' + ryhmId).value;
+  var teade = document.getElementById('gen-teade-' + ryhmId);
+  if (!kp) { teade.className = 'teade viga'; teade.textContent = 'Vali esimese trenni kuupäev'; return; }
+  var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/genereeri-nadalad', { method: 'POST', body: JSON.stringify({ algus: kp, arv: arv }) });
+  if (r.ok) {
+    var uusi = r.tulemused.filter(function(t) { return t.uus; }).length;
+    teade.className = 'teade ok';
+    teade.textContent = '✅ ' + uusi + ' uut trenni loodud (' + r.tulemused[0].kuupaev + ' — ' + r.tulemused[r.tulemused.length-1].kuupaev + ')';
+  } else {
+    teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga';
   }
-
-  var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
-  var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
-
-  var margis = kpOsa(nadal.kuupaev) === tanaISO() ? '🟢 TÄNA' : (kpOsa(nadal.kuupaev) > tanaISO() ? '📅 JÄRGMINE TRENN' : '📋 VARASEM TRENN');
-
-  div.innerHTML =
-    '<div style="font-size:16px;font-weight:800;margin-bottom:2px">' + margis + '</div>'
-    + '<div class="paar-pealkiri" style="margin-bottom:10px">' + fmtKp(nadal.kuupaev) + '</div>'
-    + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'
-    + '<span style="font-size:12px;color:var(--text3)">🔑 Uksekood (Playtomic):</span>'
-    + '<input type="text" inputmode="numeric" maxlength="4" id="uks-' + nadalId + '" value="' + (nadal.ukse_kood || '') + '" placeholder="0000" style="width:70px;text-align:center;font-weight:700;letter-spacing:2px">'
-    + '<button class="nupp hall pisike" onclick="salvestaUksekood(' + ryhmId + ', ' + nadalId + ')">💾</button>'
-    + '<span id="uks-teade-' + nadalId + '" style="font-size:12px"></span>'
-    + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + paar1.map(kohaRida).join('') + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + paar2.map(kohaRida).join('') + '</div>'
-    + '<div class="paar-pealkiri">Tulemused (geim-geimilt, nt 6:3)</div>'
-    + '<div id="setid-' + nadalId + '">' + setiReadHtml + '</div>'
-    + '<div style="display:flex;gap:8px;margin:8px 0 12px">'
-    + '<button class="nupp hall pisike" onclick="lisaSetiRida(' + nadalId + ')">+ Lisa geim</button>'
-    + '</div>'
-    + '<button class="nupp pisike" onclick="salvestaTulemus(' + ryhmId + ', ' + nadalId + ')">💾 Salvesta tulemus</button>'
-    + '<div id="nadal-teade-' + nadalId + '" class="teade"></div>';
 }
 
-function setiRidaHtml(nadalId, idx, p1, p2) {
-  return '<div class="tulemus-vorm" id="set-' + nadalId + '-' + idx + '" style="margin-bottom:6px">'
-    + '<span style="color:var(--text3);font-size:12px;width:16px">' + (idx+1) + '.</span>'
-    + '<input type="number" min="0" id="tul1-' + nadalId + '-' + idx + '" value="' + (p1 != null ? p1 : '') + '" placeholder="Paar 1">'
-    + '<span>:</span>'
-    + '<input type="number" min="0" id="tul2-' + nadalId + '-' + idx + '" value="' + (p2 != null ? p2 : '') + '" placeholder="Paar 2">'
-    + '<button class="nupp hall pisike" onclick="document.getElementById(\'set-' + nadalId + '-' + idx + '\').remove()">✕</button>'
-    + '</div>';
+async function laadiLubatud() {
+  var r = await api('/api/padel/admin/lubatud');
+  var div = document.getElementById('lubatudSisu');
+  koikTootajad = Array.isArray(r) ? r : [];
+  if (!koikTootajad.length) { div.innerHTML = '<div class="tyhi">Töötajaid ei leitud</div>'; return; }
+  div.innerHTML = koikTootajad.map(function(t) {
+    return '<div class="rida"><span>' + t.nimi + '</span>'
+      + '<label class="toggle"><input type="checkbox" ' + (t.lubatud ? 'checked' : '') + ' onchange="muudaLubatud(' + t.id + ', this.checked)"><span class="toggle-track"></span></label></div>';
+  }).join('');
 }
-
-function lisaSetiRida(nadalId) {
-  var kast = document.getElementById('setid-' + nadalId);
-  var idx = kast.children.length;
-  kast.insertAdjacentHTML('beforeend', setiRidaHtml(nadalId, idx, null, null));
-}
-
-async function salvestaUksekood(ryhmId, nadalId) {
-  var kood = document.getElementById('uks-' + nadalId).value.trim();
-  var teade = document.getElementById('uks-teade-' + nadalId);
-  var r = await api('/api/padel/nadalad/' + nadalId + '/uksekood', { method: 'PUT', body: JSON.stringify({ kood: kood }) });
-  teade.textContent = r.ok ? '✅ Salvestatud' : (r.veateade || 'Viga');
-  teade.style.color = r.ok ? 'var(--groen)' : '#f87171';
-  setTimeout(function() { teade.textContent = ''; }, 2500);
-}
-
-function naitaAsendajaValik(kohaId) {
-  var el = document.getElementById('asend-' + kohaId);
-  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
-}
-
-async function markOsalus(kohaId, osaleb, ryhmId, nadalId) {
-  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: osaleb }) });
-  await naitaNadal(ryhmId, nadalId);
-  laadiSaldo();
-}
-
-async function salvestaAsendaja(kohaId, ryhmId, nadalId) {
-  var nimi = document.getElementById('asend-txt-' + kohaId).value.trim();
-  if (!nimi) return;
-  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: false, asendaja_nimi: nimi }) });
-  await naitaNadal(ryhmId, nadalId);
-}
-
-async function salvestaTulemus(ryhmId, nadalId) {
-  var kast = document.getElementById('setid-' + nadalId);
-  var setid = [];
-  Array.prototype.forEach.call(kast.children, function(rida) {
-    var p1input = rida.querySelector('input[id^="tul1-"]');
-    var p2input = rida.querySelector('input[id^="tul2-"]');
-    if (p1input && p2input && p1input.value !== '' && p2input.value !== '') {
-      setid.push({ paar1_geimid: p1input.value, paar2_geimid: p2input.value });
-    }
-  });
-  var teade = document.getElementById('nadal-teade-' + nadalId);
-  if (!setid.length) { teade.className = 'teade viga'; teade.textContent = 'Sisesta vähemalt ühe geimi tulemus'; return; }
-  var r = await api('/api/padel/nadalad/' + nadalId + '/setid', { method: 'PUT', body: JSON.stringify({ setid: setid }) });
-  if (r.ok) { teade.className = 'teade ok'; teade.textContent = '✅ Tulemus salvestatud'; laadiRyhmSisu(ryhmId); }
-  else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
-}
-
-async function saadaMeeldetuletus(ryhmId) {
-  var r = await api('/api/padel/ryhm/' + ryhmId + '/meeldetuletus', { method: 'POST' });
-  if (r.ok) alert('✅ Meeldetuletus saadetud kõigile grupi liikmetele');
-  else alert('Viga: ' + (r.veateade || ''));
+async function muudaLubatud(workerId, lubatud) {
+  await api('/api/padel/admin/lubatud/' + workerId, { method: 'POST', body: JSON.stringify({ lubatud: lubatud }) });
 }
 
 init();
