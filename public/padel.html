@@ -82,6 +82,13 @@ function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt
 function tanaISO() { return new Date().toISOString().split('T')[0]; }
 // Server tagastab kuupäeva mõnikord täispika ISO stringina (nt "2026-09-02T00:00:00.000Z") —
 // normaliseerime alati "YYYY-MM-DD" kujule, enne kui kuupäevi omavahel võrdleme.
+function avatarHtml(fotoUrl, nimi, suurus) {
+  suurus = suurus || 28;
+  if (fotoUrl) return '<img src="' + fotoUrl + '" style="width:' + suurus + 'px;height:' + suurus + 'px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px">';
+  var initsiaal = (nimi || '?').charAt(0).toUpperCase();
+  return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + suurus + 'px;height:' + suurus + 'px;border-radius:50%;background:var(--bg3);color:var(--text3);font-size:' + (suurus*0.4) + 'px;font-weight:700;vertical-align:middle;margin-right:8px">' + initsiaal + '</span>';
+}
+
 function kpOsa(d) { return (d || '').toString().slice(0, 10); }
 
 var mineRyhmad = [];
@@ -147,7 +154,10 @@ async function laadiRyhmad() {
     ryhmiVarvid[g.ryhm_id] = varv;
     return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '" style="border-left:4px solid ' + varv + '">'
       + '<div class="kaart-hdr"><span style="color:' + varv + '">🎾 ' + g.ryhm_nimi + '</span>'
-      + '<button class="nupp hall pisike" onclick="saadaMeeldetuletus(' + g.ryhm_id + ')">🔔 Meeldetuleta kõigile</button></div>'
+      + '<span style="display:flex;gap:8px">'
+      + '<button class="nupp hall pisike" onclick="saadaSonum(' + g.ryhm_id + ')">📨 Saada sõnum</button>'
+      + '<button class="nupp hall pisike" onclick="saadaMeeldetuletus(' + g.ryhm_id + ')">🔔 Meeldetuleta kõigile</button>'
+      + '</span></div>'
       + '<div class="kaart-body" id="ryhm-sisu-' + g.ryhm_id + '"><div class="laadimine">Laadimine...</div></div>'
       + '</div>';
   }).join('');
@@ -174,10 +184,10 @@ async function taidaRyhmSisu(ryhmId, r) {
   var asendR = await api('/api/padel/ryhm/' + ryhmId + '/asendajad');
   asendajateCache[ryhmId] = (asendR.ok && asendR.nimed) ? asendR.nimed : [];
 
-  var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
+var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
     + r.edetabel.map(function(e, i) {
       var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
-      return '<tr><td>' + medal + '</td><td>' + e.nimi + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
+      return '<tr><td>' + medal + '</td><td>' + avatarHtml(e.foto_url, e.nimi, 24) + e.nimi + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
     }).join('') + '</tbody></table>';
 
   var tanaISOval = tanaISO();
@@ -242,7 +252,11 @@ async function naitaNadal(ryhmId, nadalId) {
     var jahAktiivne = k.kinnitatud && k.osaleb;
     var eiAktiivne = k.kinnitatud && !k.osaleb;
     return '<div class="liige-rida">'
-      + '<span class="liige-nimi">' + k.nimi + (!k.kinnitatud ? ' <span style="color:#fbbf24;font-size:11px;font-weight:400">● kinnitamata</span>' : '') + '</span>'
+      + '<span class="liige-nimi">' + avatarHtml(k.foto_url, k.nimi, 26)
+      + k.nimi + (!k.kinnitatud ? ' <span style="color:#fbbf24;font-size:11px;font-weight:400">● kinnitamata</span>' : '')
+      + ' <a href="#" onclick="document.getElementById(\'foto-sisend-' + k.liige_id + '\').click();return false;" style="font-size:11px;color:var(--text3);text-decoration:none">📷</a>'
+      + '<input type="file" accept="image/*" id="foto-sisend-' + k.liige_id + '" style="display:none" onchange="laeUlesFoto(' + k.liige_id + ', this, ' + ryhmId + ', ' + nadalId + ')">'
+      + '</span>'
       + '<div class="osalus-nupud">'
       + '<button class="osalus-nupp ' + (jahAktiivne ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
       + '<button class="osalus-nupp ' + (eiAktiivne ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
@@ -344,6 +358,45 @@ async function saadaMeeldetuletus(ryhmId) {
   var r = await api('/api/padel/ryhm/' + ryhmId + '/meeldetuletus', { method: 'POST' });
   if (r.ok) alert('✅ Meeldetuletus saadetud kõigile grupi liikmetele');
   else alert('Viga: ' + (r.veateade || ''));
+}
+
+async function laeUlesFoto(liigeId, sisend, ryhmId, nadalId) {
+  var fail = sisend.files[0];
+  if (!fail) return;
+  var vorm = new FormData();
+  vorm.append('foto', fail);
+  try {
+    var vastus = await fetch('/api/padel/liikmed/' + liigeId + '/foto', {
+      method: 'POST',
+      headers: { 'x-session-token': TOKEN },
+      body: vorm
+    });
+    var r = await vastus.json();
+    if (r.ok) { if (nadalId) naitaNadal(ryhmId, nadalId); laadiRyhmSisu(ryhmId); }
+    else alert('Viga: ' + (r.veateade || 'Pildi üleslaadimine ebaõnnestus'));
+  } catch (e) {
+    alert('Viga pildi üleslaadimisel');
+  }
+}
+
+async function saadaSonum(ryhmId) {
+  var r = await api('/api/padel/ryhm/' + ryhmId);
+  if (!r.ok) return;
+  var valikud = r.liikmed.map(function(l) { return l.nimi; }).join(', ');
+  var saaja = (prompt('Kellele saata? Kirjuta nimi (' + valikud + ') või jäta tühjaks, et saata KÕIGILE grupi liikmetele:') || '').trim();
+  var liigeId = null;
+  if (saaja) {
+    var leitud = r.liikmed.find(function(l) { return l.nimi.toLowerCase() === saaja.toLowerCase(); });
+    if (!leitud) return alert('Sellise nimega liiget ei leitud selles grupis.');
+    liigeId = leitud.id;
+  }
+  var pealkiri = (prompt('Pealkiri (nt "Palju õnne!" või "Maksa võlg ära"):') || '').trim();
+  if (!pealkiri) return;
+  var sonum = (prompt('Sõnumi tekst:') || '').trim();
+  if (!sonum) return;
+  var res = await api('/api/padel/ryhm/' + ryhmId + '/sonum', { method: 'POST', body: JSON.stringify({ pealkiri: pealkiri, sonum: sonum, liige_id: liigeId }) });
+  if (res.ok) alert('✅ Sõnum saadetud (' + res.saadeti + ' saajale)');
+  else alert('Viga: ' + (res.veateade || ''));
 }
 
 init();
