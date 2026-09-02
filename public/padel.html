@@ -63,6 +63,8 @@
       <div class="kaart-body" id="saldoSisu"><div class="laadimine">Laadimine...</div></div>
     </div>
 
+    <div id="tanaBanner"></div>
+
     <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
   </div>
 
@@ -81,6 +83,19 @@ function tanaISO() { return new Date().toISOString().split('T')[0]; }
 
 var mineRyhmad = [];
 var asendajateCache = {};
+var tananeTrenniLeitud = [];
+
+function renderTanaBanner() {
+  var div = document.getElementById('tanaBanner');
+  if (!tananeTrenniLeitud.length) { div.innerHTML = ''; return; }
+  div.innerHTML = tananeTrenniLeitud.map(function(t) {
+    return '<div class="kaart" style="border-color:#166534;background:#0d1f13">'
+      + '<div class="kaart-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
+      + '<span style="font-weight:700">🟢 Täna on trenn: ' + t.nimi + '</span>'
+      + '<a href="#ryhm-kaart-' + t.ryhmId + '" class="nupp pisike" onclick="document.getElementById(\'ryhm-kaart-' + t.ryhmId + '\').scrollIntoView({behavior:\'smooth\'})" style="text-decoration:none">Ava ↓</a>'
+      + '</div></div>';
+  }).join('');
+}
 
 async function init() {
   var kontroll = await api('/api/padel/kontroll');
@@ -107,6 +122,8 @@ async function laadiRyhmad() {
   var r = await api('/api/padel/minu');
   var div = document.getElementById('ryhmadSisu');
   mineRyhmad = (r.ok && r.ryhmad) ? r.ryhmad : [];
+  tananeTrenniLeitud = [];
+  renderTanaBanner();
   if (!mineRyhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Sind pole veel ühessegi Padeli gruppi lisatud.</div></div>'; return; }
   div.innerHTML = mineRyhmad.map(function(g) {
     return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '">'
@@ -141,6 +158,11 @@ async function laadiRyhmSisu(ryhmId) {
     return '<option value="' + n.kuupaev + '">' + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓ tulemus sees' : (n.kuupaev >= tanaISOval ? ' — tulevane' : ' — tulemus puudub')) + '</option>';
   }).join('');
   var vaikimisiValik = jargmine ? jargmine.kuupaev : (trennideNimekiri.length ? trennideNimekiri[trennideNimekiri.length - 1].kuupaev : '');
+
+  if (jargmine && jargmine.kuupaev === tanaISOval && !tananeTrenniLeitud.some(function(t) { return t.ryhmId === ryhmId; })) {
+    tananeTrenniLeitud.push({ ryhmId: ryhmId, nimi: r.ryhm.nimi });
+    renderTanaBanner();
+  }
 
   div.innerHTML =
     '<div class="paar-pealkiri">Edetabel</div>'
