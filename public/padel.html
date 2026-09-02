@@ -134,30 +134,28 @@ async function laadiRyhmSisu(ryhmId) {
 
   var tanaISOval = tanaISO();
   var trennideNimekiri = (r.nadalad || []).slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
-  var trennideHtml = !trennideNimekiri.length ? '<div style="color:var(--text3);font-size:12px">Trenne pole veel loodud.</div>'
-    : trennideNimekiri.map(function(n) {
-        var tulemusOlemas = n.setid && n.setid.length;
-        var tulevik = n.kuupaev >= tanaISOval;
-        return '<span class="liige-tag" style="cursor:pointer' + (tulevik ? ';border-color:#166534' : '') + '" onclick="avaNadalKuupaevaga(' + ryhmId + ',\'' + n.kuupaev + '\')">'
-          + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓' : '') + '</span>';
-      }).join('');
+  var jargmine = trennideNimekiri.find(function(n) { return n.kuupaev >= tanaISOval; });
+  var jargmineHtml = jargmine
+    ? '<div class="teade ok" style="display:block">🗓️ Sinu järgmine trenn: <b>' + fmtKp(jargmine.kuupaev) + '</b></div>'
+    : (trennideNimekiri.length ? '' : '<div style="color:var(--text3);font-size:12px;margin-bottom:10px">Admin pole veel trenne genereerinud.</div>');
+
+  var valikudHtml = trennideNimekiri.map(function(n) {
+    var tulemusOlemas = n.setid && n.setid.length;
+    return '<option value="' + n.kuupaev + '">' + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓ tulemus sees' : (n.kuupaev >= tanaISOval ? ' — tulevane' : ' — tulemus puudub')) + '</option>';
+  }).join('');
+  var vaikimisiValik = jargmine ? jargmine.kuupaev : (trennideNimekiri.length ? trennideNimekiri[trennideNimekiri.length - 1].kuupaev : '');
 
   div.innerHTML =
-    '<div class="paar-pealkiri">Trenni kuupäev</div>'
-    + '<div style="display:flex;gap:8px;margin-bottom:10px">'
-    + '<input type="date" id="kp-' + ryhmId + '" value="' + tanaISOval + '" style="flex:1">'
-    + '<button class="nupp pisike" onclick="avaNadal(' + ryhmId + ')">Ava/loo trenn</button>'
-    + '</div>'
-    + '<div class="paar-pealkiri">Loodud trennid (klõpsa, et avada)</div>'
-    + '<div style="margin-bottom:16px">' + trennideHtml + '</div>'
-    + '<div id="nadal-' + ryhmId + '"></div>'
-    + '<div class="paar-pealkiri" style="margin-top:18px">Edetabel</div>'
-    + edetabelHtml;
-}
+    '<div class="paar-pealkiri">Edetabel</div>'
+    + edetabelHtml
+    + '<div style="margin-top:18px">' + jargmineHtml + '</div>'
+    + (trennideNimekiri.length
+      ? '<div class="paar-pealkiri" style="margin-top:14px">Vali trenn</div>'
+        + '<select id="kp-' + ryhmId + '" style="width:100%;margin-bottom:14px" onchange="avaNadal(' + ryhmId + ')">' + valikudHtml + '</select>'
+        + '<div id="nadal-' + ryhmId + '"></div>'
+      : '');
 
-function avaNadalKuupaevaga(ryhmId, kuupaev) {
-  document.getElementById('kp-' + ryhmId).value = kuupaev;
-  avaNadal(ryhmId);
+  if (vaikimisiValik) { document.getElementById('kp-' + ryhmId).value = vaikimisiValik; avaNadal(ryhmId); }
 }
 
 async function avaNadal(ryhmId) {
