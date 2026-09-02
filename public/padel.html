@@ -180,13 +180,15 @@ async function naitaNadal(ryhmId, nadalId) {
     var asendajaValikud = (asendajateCache[ryhmId] || []).map(function(n) {
       return '<option value="' + n + '"' + (k.asendaja_nimi === n ? ' selected' : '') + '>' + n + '</option>';
     }).join('');
+    var jahAktiivne = k.kinnitatud && k.osaleb;
+    var eiAktiivne = k.kinnitatud && !k.osaleb;
     return '<div class="liige-rida">'
-      + '<span class="liige-nimi">' + k.nimi + '</span>'
+      + '<span class="liige-nimi">' + k.nimi + (!k.kinnitatud ? ' <span style="color:#fbbf24;font-size:11px;font-weight:400">● kinnitamata</span>' : '') + '</span>'
       + '<div class="osalus-nupud">'
-      + '<button class="osalus-nupp ' + (k.osaleb ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
-      + '<button class="osalus-nupp ' + (!k.osaleb ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
+      + '<button class="osalus-nupp ' + (jahAktiivne ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
+      + '<button class="osalus-nupp ' + (eiAktiivne ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
       + '</div>'
-      + '<div class="asendaja-rida" id="asend-' + k.id + '" style="display:' + (!k.osaleb ? 'flex' : 'none') + '">'
+      + '<div class="asendaja-rida" id="asend-' + k.id + '" style="display:' + (eiAktiivne ? 'flex' : 'none') + '">'
       + '<select id="asend-sel-' + k.id + '" onchange="document.getElementById(\'asend-txt-' + k.id + '\').value=this.value" style="flex:1"><option value="">— vali varasem —</option>' + asendajaValikud + '</select>'
       + '<input id="asend-txt-' + k.id + '" placeholder="uus nimi" value="' + (k.asendaja_nimi || '') + '" style="flex:1">'
       + '<button class="nupp hall pisike" onclick="salvestaAsendaja(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">💾</button>'
