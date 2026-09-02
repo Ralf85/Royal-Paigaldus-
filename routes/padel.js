@@ -2,6 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { saadaTeavitus } = require('./push');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  return cloudinary;
+}
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Ainult pildifailid!'));
+  }
+});
 
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
@@ -80,7 +99,7 @@ router.get('/admin/ryhmad', noudaAdmin, async (req, res) => {
   try {
     const ryhmadR = await pool.query('SELECT * FROM padel_ryhmad ORDER BY nimi');
     const liikmedR = await pool.query(
-      `SELECT pl.id, pl.ryhm_id, pl.worker_id, pl.jrk_nr, w.nimi
+      `SELECT pl.id, pl.ryhm_id, pl.worker_id, pl.jrk_nr, pl.foto_url, w.nimi
        FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
        ORDER BY pl.ryhm_id, pl.jrk_nr`
     );
@@ -128,6 +147,29 @@ router.delete('/admin/liikmed/:id', noudaAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM padel_liikmed WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Liikme profiilipilt — admin või liige ise (noudaPadelLigipaas piisab, sama loogika mis mujal Padelis)
+router.post('/liikmed/:id/foto', noudaPadelLigipaas, upload.single('foto'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
+  try {
+    const vana = await pool.query('SELECT foto_public_id FROM padel_liikmed WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Liiget ei leitud' });
+    if (vana.rows[0].foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
+    }
+    const result = await new Promise((resolve, reject) => {
+      const stream = getCloudinary().uploader.upload_stream(
+        { folder: 'royal-paigaldus/padel', resource_type: 'image', quality: 'auto', transformation: [{ width: 200, height: 200, crop: 'fill', gravity: 'face' }] },
+        (err, result) => err ? reject(err) : resolve(result)
+      );
+      stream.end(req.file.buffer);
+    });
+    await pool.query('UPDATE padel_liikmed SET foto_url=$1, foto_public_id=$2 WHERE id=$3', [result.secure_url, result.public_id, req.params.id]);
+    res.json({ ok: true, foto_url: result.secure_url });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -194,7 +236,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
     const ryhmR = await pool.query('SELECT * FROM padel_ryhmad WHERE id=$1', [req.params.id]);
     if (!ryhmR.rows.length) return res.json({ ok: false, veateade: 'Gruppi ei leitud' });
     const liikmedR = await pool.query(
-      `SELECT pl.id, pl.worker_id, pl.jrk_nr, w.nimi
+      `SELECT pl.id, pl.worker_id, pl.jrk_nr, pl.foto_url, w.nimi
        FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
        WHERE pl.ryhm_id=$1 ORDER BY pl.jrk_nr`,
       [req.params.id]
@@ -226,7 +268,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
     const edetabel = liikmedR.rows.map(l => {
       const rida = edetabelR.rows.find(e => e.liige_id === l.id);
       return {
-        liige_id: l.id, nimi: l.nimi,
+        liige_id: l.id, nimi: l.nimi, foto_url: l.foto_url,
         punktid: rida ? parseInt(rida.punktid, 10) : 0,
         geimid: rida ? parseInt(rida.geimid_kokku, 10) : 0,
         mange: rida ? parseInt(rida.mange, 10) : 0
@@ -235,7 +277,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
 
     const nadaladR = await pool.query(
       `SELECT pn.*,
-              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
+              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'foto_url', pl2.foto_url, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
                 FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
                 WHERE pk.nadal_id = pn.id) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
@@ -416,5 +458,53 @@ router.post('/ryhm/:id/meeldetuletus', noudaPadelLigipaas, async (req, res) => {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+
+// Vabas vormis sõnum grupikaaslas(t)ele (nt "maksa võlg ära", "palju õnne võidu puhul!") —
+// iga Padel-liige tohib saata, mitte ainult admin. Saab valida kogu grupile või ühele liikmele.
+router.post('/ryhm/:id/sonum', noudaPadelLigipaas, async (req, res) => {
+  const { pealkiri, sonum, liige_id } = req.body;
+  if (!pealkiri || !sonum) return res.json({ ok: false, veateade: 'Kirjuta pealkiri ja sõnum' });
+  try {
+    let saajad;
+    if (liige_id) {
+      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE id=$1 AND ryhm_id=$2', [liige_id, req.params.id]);
+      if (!r.rows.length) return res.json({ ok: false, veateade: 'Liiget ei leitud' });
+      saajad = r.rows;
+    } else {
+      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
+      saajad = r.rows;
+    }
+    for (const s of saajad) {
+      saadaTeavitus(s.worker_id, `🎾 ${pealkiri}`, sonum, '/padel');
+    }
+    res.json({ ok: true, saadeti: saajad.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Automaatne hommikune meeldetuletus trenni päeval — kontrollitakse iga 15 min tagant.
+// Saadab ainult üks kord (meeldetuletus_saadetud lipp), akna sees 08:00-08:29 serveri kellaaja järgi.
+async function kontrolliAutomaatseidMeeldetuletusi() {
+  try {
+    const tallinnaTund = parseInt(new Intl.DateTimeFormat('et-EE', { timeZone: 'Europe/Tallinn', hour: '2-digit', hour12: false }).format(new Date()), 10);
+    if (tallinnaTund !== 8) return; // ainult kell 8 paiku hommikul (Eesti aja järgi)
+    const tanaR = await pool.query(
+      `SELECT pn.id, pn.ryhm_id, r.nimi AS ryhm_nimi
+       FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id
+       WHERE pn.kuupaev = CURRENT_DATE AND pn.meeldetuletus_saadetud = false AND r.aktiivne = true`
+    );
+    for (const nadal of tanaR.rows) {
+      const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [nadal.ryhm_id]);
+      for (const l of liikmedR.rows) {
+        saadaTeavitus(l.worker_id, '🎾 Padel', `Täna on trenn (${nadal.ryhm_nimi})! Kas tuled?`, '/padel');
+      }
+      await pool.query('UPDATE padel_nadalad SET meeldetuletus_saadetud=true WHERE id=$1', [nadal.id]);
+    }
+  } catch (err) {
+    console.error('Automaatne Padeli meeldetuletus ebaõnnestus:', err.message);
+  }
+}
+setInterval(kontrolliAutomaatseidMeeldetuletusi, 15 * 60 * 1000);
 
 module.exports = router;
