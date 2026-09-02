@@ -669,6 +669,8 @@ async function initDB() {
         ryhm_id INTEGER REFERENCES padel_ryhmad(id) ON DELETE CASCADE,
         worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
         jrk_nr INTEGER NOT NULL DEFAULT 0,
+        foto_url TEXT,
+        foto_public_id TEXT,
         UNIQUE(ryhm_id, worker_id)
       );
       -- Varem kasutatud asendajate nimed grupi kohta, et need rippmenüüs uuesti pakkuda.
@@ -720,6 +722,9 @@ async function initDB() {
     // Kui padel_kohad on juba varem loodud (ilma kinnitatud veeruta), lisame selle siia.
     await client.query(`ALTER TABLE padel_kohad ADD COLUMN IF NOT EXISTS kinnitatud BOOLEAN NOT NULL DEFAULT false;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS ukse_kood VARCHAR(4);`);
+    await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
+    await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_public_id TEXT;`);
+    await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS meeldetuletus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
