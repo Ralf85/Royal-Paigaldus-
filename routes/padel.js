@@ -337,6 +337,18 @@ router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Sisesta/muuda nädala setid (kehtib kohe, ei vaja kinnitust). Asendab kõik setid korraga.
+// Playtomicust saadud uksekood selle trenni jaoks (4 kohta, kõik grupi liikmed näevad/saavad muuta)
+router.put('/nadalad/:id/uksekood', noudaPadelLigipaas, async (req, res) => {
+  const kood = (req.body.kood || '').trim();
+  if (kood && !/^[0-9]{1,4}$/.test(kood)) return res.json({ ok: false, veateade: 'Uksekood peab olema kuni 4 numbrit' });
+  try {
+    await pool.query('UPDATE padel_nadalad SET ukse_kood=$1 WHERE id=$2', [kood || null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.put('/nadalad/:id/setid', noudaPadelLigipaas, async (req, res) => {
   const { setid } = req.body;
   if (!Array.isArray(setid) || !setid.length) return res.json({ ok: false, veateade: 'Lisa vähemalt üks geimi tulemus' });
