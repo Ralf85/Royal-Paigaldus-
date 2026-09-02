@@ -87,14 +87,16 @@ function kpOsa(d) { return (d || '').toString().slice(0, 10); }
 var mineRyhmad = [];
 var asendajateCache = {};
 var tananeTrenniLeitud = [];
+var ryhmiVarvid = {};
 
 function renderTanaBanner() {
   var div = document.getElementById('tanaBanner');
   if (!tananeTrenniLeitud.length) { div.innerHTML = ''; return; }
   div.innerHTML = tananeTrenniLeitud.map(function(t) {
-    return '<div class="kaart" style="border-color:#166534;background:#0d1f13">'
+    var varv = ryhmiVarvid[t.ryhmId] || '#4ade80';
+    return '<div class="kaart" style="border-left:4px solid ' + varv + ';background:#0d1f13">'
       + '<div class="kaart-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'
-      + '<span style="font-weight:700">🟢 Täna on trenn: ' + t.nimi + '</span>'
+      + '<span style="font-weight:700">🟢 Täna on trenn: <span style="color:' + varv + '">' + t.nimi + '</span></span>'
       + '<a href="#ryhm-kaart-' + t.ryhmId + '" class="nupp pisike" onclick="document.getElementById(\'ryhm-kaart-' + t.ryhmId + '\').scrollIntoView({behavior:\'smooth\'})" style="text-decoration:none">Ava ↓</a>'
       + '</div></div>';
   }).join('');
@@ -128,9 +130,12 @@ async function laadiRyhmad() {
   tananeTrenniLeitud = [];
   renderTanaBanner();
   if (!mineRyhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Sind pole veel ühessegi Padeli gruppi lisatud.</div></div>'; return; }
-  div.innerHTML = mineRyhmad.map(function(g) {
-    return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '">'
-      + '<div class="kaart-hdr"><span>🎾 ' + g.ryhm_nimi + '</span>'
+  var varvid = ['#4ade80', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#fb7185', '#2dd4bf'];
+  div.innerHTML = mineRyhmad.map(function(g, i) {
+    var varv = varvid[i % varvid.length];
+    ryhmiVarvid[g.ryhm_id] = varv;
+    return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '" style="border-left:4px solid ' + varv + '">'
+      + '<div class="kaart-hdr"><span style="color:' + varv + '">🎾 ' + g.ryhm_nimi + '</span>'
       + '<button class="nupp hall pisike" onclick="saadaMeeldetuletus(' + g.ryhm_id + ')">🔔 Meeldetuleta kõigile</button></div>'
       + '<div class="kaart-body" id="ryhm-sisu-' + g.ryhm_id + '"><div class="laadimine">Laadimine...</div></div>'
       + '</div>';
