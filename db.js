@@ -685,6 +685,7 @@ async function initDB() {
         kuupaev DATE NOT NULL,
         paar1_geimid INTEGER,
         paar2_geimid INTEGER,
+        ukse_kood VARCHAR(4),
         tulemus_sisestas INTEGER REFERENCES workers(id) ON DELETE SET NULL,
         loodud TIMESTAMP DEFAULT NOW(),
         UNIQUE(ryhm_id, kuupaev)
@@ -718,6 +719,7 @@ async function initDB() {
     `);
     // Kui padel_kohad on juba varem loodud (ilma kinnitatud veeruta), lisame selle siia.
     await client.query(`ALTER TABLE padel_kohad ADD COLUMN IF NOT EXISTS kinnitatud BOOLEAN NOT NULL DEFAULT false;`);
+    await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS ukse_kood VARCHAR(4);`);
 
     console.log('✅ Andmebaas valmis');
   } finally {
