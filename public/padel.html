@@ -80,6 +80,9 @@ function api(url, opts) {
 function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
 function tanaISO() { return new Date().toISOString().split('T')[0]; }
+// Server tagastab kuupäeva mõnikord täispika ISO stringina (nt "2026-09-02T00:00:00.000Z") —
+// normaliseerime alati "YYYY-MM-DD" kujule, enne kui kuupäevi omavahel võrdleme.
+function kpOsa(d) { return (d || '').toString().slice(0, 10); }
 
 var mineRyhmad = [];
 var asendajateCache = {};
@@ -151,15 +154,15 @@ async function laadiRyhmSisu(ryhmId) {
 
   var tanaISOval = tanaISO();
   var trennideNimekiri = (r.nadalad || []).slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
-  var jargmine = trennideNimekiri.find(function(n) { return n.kuupaev >= tanaISOval; });
+  var jargmine = trennideNimekiri.find(function(n) { return kpOsa(n.kuupaev) >= tanaISOval; });
 
   var valikudHtml = trennideNimekiri.map(function(n) {
     var tulemusOlemas = n.setid && n.setid.length;
-    return '<option value="' + n.kuupaev + '">' + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓ tulemus sees' : (n.kuupaev >= tanaISOval ? ' — tulevane' : ' — tulemus puudub')) + '</option>';
+    return '<option value="' + kpOsa(n.kuupaev) + '">' + fmtKp(n.kuupaev) + (tulemusOlemas ? ' ✓ tulemus sees' : (kpOsa(n.kuupaev) >= tanaISOval ? ' — tulevane' : ' — tulemus puudub')) + '</option>';
   }).join('');
-  var vaikimisiValik = jargmine ? jargmine.kuupaev : (trennideNimekiri.length ? trennideNimekiri[trennideNimekiri.length - 1].kuupaev : '');
+  var vaikimisiValik = jargmine ? kpOsa(jargmine.kuupaev) : (trennideNimekiri.length ? kpOsa(trennideNimekiri[trennideNimekiri.length - 1].kuupaev) : '');
 
-  if (jargmine && jargmine.kuupaev === tanaISOval && !tananeTrenniLeitud.some(function(t) { return t.ryhmId === ryhmId; })) {
+  if (jargmine && kpOsa(jargmine.kuupaev) === tanaISOval && !tananeTrenniLeitud.some(function(t) { return t.ryhmId === ryhmId; })) {
     tananeTrenniLeitud.push({ ryhmId: ryhmId, nimi: r.ryhm.nimi });
     renderTanaBanner();
   }
@@ -227,7 +230,7 @@ async function naitaNadal(ryhmId, nadalId) {
   var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
   var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
 
-  var margis = nadal.kuupaev === tanaISO() ? '🟢 TÄNA' : (nadal.kuupaev > tanaISO() ? '📅 JÄRGMINE TRENN' : '📋 VARASEM TRENN');
+  var margis = kpOsa(nadal.kuupaev) === tanaISO() ? '🟢 TÄNA' : (kpOsa(nadal.kuupaev) > tanaISO() ? '📅 JÄRGMINE TRENN' : '📋 VARASEM TRENN');
 
   div.innerHTML =
     '<div style="font-size:16px;font-weight:800;margin-bottom:2px">' + margis + '</div>'
