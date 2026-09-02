@@ -277,11 +277,18 @@ async function naitaNadal(ryhmId, nadalId) {
   div.innerHTML =
     '<div style="font-size:16px;font-weight:800;margin-bottom:2px">' + margis + '</div>'
     + '<div class="paar-pealkiri" style="margin-bottom:10px">' + fmtKp(nadal.kuupaev) + '</div>'
-    + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'
+    + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+    + '<span style="font-size:12px;color:var(--text3)">🕐 Algusaeg:</span>'
+    + '<input type="time" id="kell-' + nadalId + '" value="' + (nadal.kellaaeg ? nadal.kellaaeg.slice(0,5) : '') + '" style="width:100px">'
+    + '<button class="nupp hall pisike" onclick="salvestaKellaaeg(' + ryhmId + ', ' + nadalId + ')">💾</button>'
+    + '<span id="kell-teade-' + nadalId + '" style="font-size:12px"></span>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
     + '<span style="font-size:12px;color:var(--text3)">🔑 Uksekood (Playtomic):</span>'
     + '<input type="text" inputmode="numeric" maxlength="4" id="uks-' + nadalId + '" value="' + (nadal.ukse_kood || '') + '" placeholder="0000" style="width:70px;text-align:center;font-weight:700;letter-spacing:2px">'
     + '<button class="nupp hall pisike" onclick="salvestaUksekood(' + ryhmId + ', ' + nadalId + ')">💾</button>'
     + '<span id="uks-teade-' + nadalId + '" style="font-size:12px"></span>'
+    + (nadal.kellaaeg ? '<span style="font-size:11px;color:var(--text3)">📲 Kood saadetakse automaatselt kõigile 30 min enne algust</span>' : '<span style="font-size:11px;color:#fbbf24">⚠ Sisesta algusaeg, et kood automaatselt saadetaks</span>')
     + '</div>'
     + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + paar1.map(kohaRida).join('') + '</div>'
     + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + paar2.map(kohaRida).join('') + '</div>'
@@ -316,6 +323,15 @@ async function salvestaUksekood(ryhmId, nadalId) {
   var r = await api('/api/padel/nadalad/' + nadalId + '/uksekood', { method: 'PUT', body: JSON.stringify({ kood: kood }) });
   teade.textContent = r.ok ? '✅ Salvestatud' : (r.veateade || 'Viga');
   teade.style.color = r.ok ? 'var(--groen)' : '#f87171';
+  setTimeout(function() { teade.textContent = ''; }, 2500);
+}
+
+async function salvestaKellaaeg(ryhmId, nadalId) {
+  var kellaaeg = document.getElementById('kell-' + nadalId).value.trim();
+  var teade = document.getElementById('kell-teade-' + nadalId);
+  var r = await api('/api/padel/nadalad/' + nadalId + '/kellaaeg', { method: 'PUT', body: JSON.stringify({ kellaaeg: kellaaeg }) });
+  teade.style.color = r.ok ? 'var(--groen)' : '#f87171';
+  teade.textContent = r.ok ? '✅ Salvestatud' : (r.veateade || 'Viga');
   setTimeout(function() { teade.textContent = ''; }, 2500);
 }
 
