@@ -2877,6 +2877,7 @@ let dashViimatiLaaditud = [];
 let dashOtsing = '';
 let dashStaatusFilter = 'kõik';
 let dashLehekülg = 1;
+let dashNaitaKoiki = false;
 const DASH_LEHE_SUURUS = 8;
 
 async function laadiKokkuvote() {
@@ -2892,6 +2893,7 @@ async function laadiKokkuvote() {
 function dashOtsiMuutus(v) { dashOtsing = (v||'').toLowerCase(); dashLehekülg = 1; renderKokkuvoteTable(); }
 function dashStaatusMuutus(f) { dashStaatusFilter = f; dashLehekülg = 1; renderKokkuvoteTable(); }
 function dashLeheVaheta(delta) { dashLehekülg += delta; renderKokkuvoteTable(); }
+function dashNaitaKoikiMuutus() { dashNaitaKoiki = !dashNaitaKoiki; dashLehekülg = 1; renderKokkuvoteTable(); }
 
 function renderKokkuvoteTable() {
   const kuu = document.getElementById('kv-kuu').value;
@@ -2916,7 +2918,7 @@ function renderKokkuvoteTable() {
 
   const kokkuLeheküljed = Math.max(1, Math.ceil(filtreeritud.length / DASH_LEHE_SUURUS));
   if (dashLehekülg > kokkuLeheküljed) dashLehekülg = kokkuLeheküljed;
-  const lehelised = filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
+  const lehelised = dashNaitaKoiki ? filtreeritud : filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
 
   const filtriRida = `<div class="tabel-filtri-riba">
     <input type="text" placeholder="🔍 Otsi töötajat..." value="${dashOtsing.replace(/"/g,'&quot;')}" oninput="dashOtsiMuutus(this.value)" class="tabel-otsi">
@@ -2924,6 +2926,7 @@ function renderKokkuvoteTable() {
       ${[['kõik','Kõik'],['makstud','Makstud'],['osaline','Osaliselt'],['tasumata','Tasumata'],['ettemakse','Ettemakse']].map(([f,l]) =>
         `<button type="button" class="dash-staatus-pill${dashStaatusFilter===f?' aktiivne':''}" onclick="dashStaatusMuutus('${f}')">${l}</button>`
       ).join('')}
+      <button type="button" class="dash-staatus-pill${dashNaitaKoiki?' aktiivne':''}" onclick="dashNaitaKoikiMuutus()">${dashNaitaKoiki?'📄 Näita lehitsedes':'📋 Näita kõiki'}</button>
     </div>
   </div>`;
 
@@ -2989,7 +2992,7 @@ function renderKokkuvoteTable() {
     <td style="text-align:right;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
     <td></td><td></td>
   </tr></tbody></table></div>`;
-  if (kokkuLeheküljed > 1) {
+  if (kokkuLeheküljed > 1 && !dashNaitaKoiki) {
     html += `<div class="tabel-pager">
       <button type="button" onclick="dashLeheVaheta(-1)" ${dashLehekülg<=1?'disabled':''}>‹ Eelmine</button>
       <span>Lehekülg ${dashLehekülg} / ${kokkuLeheküljed}</span>
