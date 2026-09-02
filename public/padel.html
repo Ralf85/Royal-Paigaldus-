@@ -130,8 +130,19 @@ async function laadiRyhmad() {
   tananeTrenniLeitud = [];
   renderTanaBanner();
   if (!mineRyhmad.length) { div.innerHTML = '<div class="kaart"><div class="tyhi">Sind pole veel ühessegi Padeli gruppi lisatud.</div></div>'; return; }
+
+  // Laadime kõigi gruppide andmed korraga, et saaksime tänase trenniga grupi kõige ette tõsta.
+  var koikAndmed = await Promise.all(mineRyhmad.map(function(g) { return api('/api/padel/ryhm/' + g.ryhm_id); }));
+  var tanaISOval = tanaISO();
+  var jarjestatud = mineRyhmad.map(function(g, i) { return { g: g, r: koikAndmed[i] }; }).sort(function(a, b) {
+    var aTana = leiaTana(a.r, tanaISOval) ? 0 : 1;
+    var bTana = leiaTana(b.r, tanaISOval) ? 0 : 1;
+    return aTana - bTana;
+  });
+
   var varvid = ['#4ade80', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#fb7185', '#2dd4bf'];
-  div.innerHTML = mineRyhmad.map(function(g, i) {
+  div.innerHTML = jarjestatud.map(function(item, i) {
+    var g = item.g;
     var varv = varvid[i % varvid.length];
     ryhmiVarvid[g.ryhm_id] = varv;
     return '<div class="kaart" id="ryhm-kaart-' + g.ryhm_id + '" style="border-left:4px solid ' + varv + '">'
@@ -140,11 +151,23 @@ async function laadiRyhmad() {
       + '<div class="kaart-body" id="ryhm-sisu-' + g.ryhm_id + '"><div class="laadimine">Laadimine...</div></div>'
       + '</div>';
   }).join('');
-  mineRyhmad.forEach(function(g) { laadiRyhmSisu(g.ryhm_id); });
+  jarjestatud.forEach(function(item) { taidaRyhmSisu(item.g.ryhm_id, item.r); });
+}
+
+// Kas selle grupi JÄRGMINE trenn on täna?
+function leiaTana(r, tanaISOval) {
+  if (!r || !r.ok || !r.nadalad) return false;
+  var nimekiri = r.nadalad.slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
+  var jargmine = nimekiri.find(function(n) { return kpOsa(n.kuupaev) >= tanaISOval; });
+  return jargmine && kpOsa(jargmine.kuupaev) === tanaISOval;
 }
 
 async function laadiRyhmSisu(ryhmId) {
   var r = await api('/api/padel/ryhm/' + ryhmId);
+  await taidaRyhmSisu(ryhmId, r);
+}
+
+async function taidaRyhmSisu(ryhmId, r) {
   var div = document.getElementById('ryhm-sisu-' + ryhmId);
   if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + (r.veateade || '') + '</div>'; return; }
 
