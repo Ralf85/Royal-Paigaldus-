@@ -39,6 +39,11 @@
     <p class="alapealkirjad">Sisesta oma PIN-kood</p>
     <label>PIN-kood</label>
     <input type="password" id="pin" maxlength="6" placeholder="••••" autocomplete="off" readonly>
+    <!-- Nähtamatu väli, mida brauser kasutab Face ID/passkey automaatseks pakkumiseks
+         (nn "Conditional UI") — kasutajale ei kuvata seda välja ennast, ainult telefoni
+         enda pakutud kiirvalikut. -->
+    <input type="text" id="webauthnCondInput" autocomplete="username webauthn" inputmode="none"
+      style="position:absolute;width:1px;height:1px;opacity:0.01;pointer-events:none;left:-9999px">
     <div class="numbriklahvistik">
       <div class="klahv" onclick="lisaNumber('1')">1</div>
       <div class="klahv" onclick="lisaNumber('2')">2</div>
@@ -78,9 +83,42 @@
       document.getElementById('faceIdNupp').style.display = 'block';
     }
 
+    // Ühine osa: WebAuthn vastuse teisendamine ja serverisse saatmine (kasutab nii nupu-
+    // vajutus kui ka automaatse pakkumise voog).
+    async function saadaFaceIdVastus(valjakutseId, kinnitus) {
+      const vigaEl = document.getElementById('viga');
+      const vastus = {
+        id: kinnitus.id,
+        rawId: bufferToBase64url(kinnitus.rawId),
+        type: kinnitus.type,
+        response: {
+          clientDataJSON: bufferToBase64url(kinnitus.response.clientDataJSON),
+          authenticatorData: bufferToBase64url(kinnitus.response.authenticatorData),
+          signature: bufferToBase64url(kinnitus.response.signature),
+          userHandle: kinnitus.response.userHandle ? bufferToBase64url(kinnitus.response.userHandle) : undefined
+        },
+        clientExtensionResults: kinnitus.getClientExtensionResults()
+      };
+      const r = await fetch('/api/webauthn/login-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valjakutseId, response: vastus })
+      }).then(r => r.json());
+      if (r.ok) {
+        localStorage.setItem('workerToken', r.token);
+        window.location = '/tootaja';
+      } else {
+        vigaEl.style.display = 'block';
+        vigaEl.textContent = r.veateade || 'Face ID sisselogimine ebaõnnestus';
+      }
+    }
+
+    // Käsitsi nupu-vajutus (varuvariant, kui automaatne pakkumine ei toimi antud seadmel/brauseris).
+    var kaimasolevKontroller = null;
     async function logiFaceId() {
       const vigaEl = document.getElementById('viga');
       vigaEl.style.display = 'none';
+      if (kaimasolevKontroller) kaimasolevKontroller.abort();
       try {
         const optR = await fetch('/api/webauthn/login-options').then(r => r.json());
         if (!optR.ok) throw new Error(optR.veateade || 'Viga');
@@ -90,38 +128,45 @@
           options.allowCredentials = options.allowCredentials.map(c => ({ ...c, id: base64urlToBuffer(c.id) }));
         }
         const kinnitus = await navigator.credentials.get({ publicKey: options });
-        const vastus = {
-          id: kinnitus.id,
-          rawId: bufferToBase64url(kinnitus.rawId),
-          type: kinnitus.type,
-          response: {
-            clientDataJSON: bufferToBase64url(kinnitus.response.clientDataJSON),
-            authenticatorData: bufferToBase64url(kinnitus.response.authenticatorData),
-            signature: bufferToBase64url(kinnitus.response.signature),
-            userHandle: kinnitus.response.userHandle ? bufferToBase64url(kinnitus.response.userHandle) : undefined
-          },
-          clientExtensionResults: kinnitus.getClientExtensionResults()
-        };
-        const r = await fetch('/api/webauthn/login-verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ valjakutseId: optR.valjakutseId, response: vastus })
-        }).then(r => r.json());
-        if (r.ok) {
-          localStorage.setItem('workerToken', r.token);
-          window.location = '/tootaja';
-        } else {
-          vigaEl.style.display = 'block';
-          vigaEl.textContent = r.veateade || 'Face ID sisselogimine ebaõnnestus';
-        }
+        await saadaFaceIdVastus(optR.valjakutseId, kinnitus);
       } catch (e) {
         // Kasutaja tühistas (nt vajutas "Cancel") — ei näita seda veana
-        if (e.name !== 'NotAllowedError') {
+        if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           vigaEl.style.display = 'block';
           vigaEl.textContent = 'Face ID sisselogimine ebaõnnestus. Kasuta PIN-koodi.';
         }
       }
     }
+
+    // Automaatne pakkumine ("Conditional UI") — käivitub kohe lehe laadimisel, ilma et
+    // kasutaja peaks eraldi nuppu vajutama. Telefon näitab Face ID/passkey kiirvalikut
+    // ise, tavaliselt klaviatuuri kohal, ja üks puudutus (Face ID) piisab sisselogimiseks.
+    async function algataAutomaatnePakkumine() {
+      try {
+        if (!window.PublicKeyCredential || !PublicKeyCredential.isConditionalMediationAvailable) return;
+        const toetatud = await PublicKeyCredential.isConditionalMediationAvailable();
+        if (!toetatud) return;
+        const sisend = document.getElementById('webauthnCondInput');
+        if (sisend) sisend.focus({ preventScroll: true });
+        const optR = await fetch('/api/webauthn/login-options').then(r => r.json());
+        if (!optR.ok) return;
+        const options = optR.options;
+        options.challenge = base64urlToBuffer(options.challenge);
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map(c => ({ ...c, id: base64urlToBuffer(c.id) }));
+        }
+        kaimasolevKontroller = new AbortController();
+        const kinnitus = await navigator.credentials.get({
+          publicKey: options,
+          mediation: 'conditional',
+          signal: kaimasolevKontroller.signal
+        });
+        await saadaFaceIdVastus(optR.valjakutseId, kinnitus);
+      } catch (e) {
+        // Vaikimisi ei tehta midagi — kasutaja saab ikka PIN-koodi või nuppu kasutada.
+      }
+    }
+    algataAutomaatnePakkumine();
 
     function lisaNumber(n) {
       const p = document.getElementById('pin');
