@@ -24,6 +24,7 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS objektid (
         id SERIAL PRIMARY KEY,
         nimi VARCHAR(200) NOT NULL,
+        pood_number VARCHAR(20),
         ettevote_id INTEGER REFERENCES ettevotted(id),
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
@@ -733,6 +734,7 @@ async function initDB() {
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS kreedit_algne_arve_id INTEGER REFERENCES arved(id) ON DELETE SET NULL;`);
+    await client.query(`ALTER TABLE objektid ADD COLUMN IF NOT EXISTS pood_number VARCHAR(20);`);
 
     // ── FACE ID / SÕRMEJÄLG (WebAuthn) ────────────────────────────────
     // Salvestab ainult krüptograafilise avaliku võtme, MITTE kunagi näofotot/biomeetriat —
