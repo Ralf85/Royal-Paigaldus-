@@ -325,8 +325,11 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       // Lidli-tüüpi arved: kokkuvõte POE (objekti) kaupa, kõigi töötajate tunnid kokku liidetud
       // ühe poe sees. Kirjelduses näidatakse poe NUMBRIT (kui see on objektile seadistatud),
       // mitte objekti nime — kilomeetrid jäävad üheks koondreaks (mitte poodide kaupa).
+      // Lisaks liidetakse kirjelduse alla töötajate endi jäetud kommentaarid (tookirjed.kommentaar),
+      // et raamatupidajal/kliendil oleks näha, mida tegelikult tehti, mitte ainult tunniarv.
       const r = await pool.query(
-        `SELECT o.nimi as objekt_nimi, o.pood_number, SUM(t.tunnid) as tunnid
+        `SELECT o.nimi as objekt_nimi, o.pood_number, SUM(t.tunnid) as tunnid,
+                STRING_AGG(DISTINCT NULLIF(TRIM(t.kommentaar), ''), ' | ') as kommentaarid
          FROM tookirjed t
          LEFT JOIN objektid o ON t.objekt_id = o.id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
@@ -338,7 +341,8 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
         const kogus = parseFloat(row.tunnid);
         const hind = arveTunnihind != null ? arveTunnihind : 0;
         const siltAlus = row.pood_number ? `Pood nr ${row.pood_number}` : (row.objekt_nimi || 'Tundmatu pood');
-        return { kirjeldus: `Tehtud tööd (${siltAlus})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
+        const kirjeldus = `Tehtud tööd (${siltAlus})` + (row.kommentaarid ? `\n${row.kommentaarid}` : '');
+        return { kirjeldus, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
       });
       const kmR = await pool.query(
         `SELECT COALESCE(SUM(kilomeetrid),0) as km FROM tookirjed WHERE ettevote_id=$1 AND kuupaev BETWEEN $2 AND $3`,
