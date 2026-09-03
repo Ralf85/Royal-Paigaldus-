@@ -2055,9 +2055,11 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="av-po" placeholder="nt 4501439102" style="flex:1">
-              <button type="button" class="nupp hall" title="Lisa see viide salvestatud valikute nimekirja" style="padding:6px 12px;font-weight:700" onclick="avSalvestaPoValik()">➕</button>
+              <button type="button" class="nupp hall" title="Salvesta see viide valikusse" style="padding:6px 10px" onclick="avSalvestaPoValik()">💾</button>
+              <button type="button" class="nupp hall" title="Lisa veel üks projektinumber/PO number sellele arvele" style="padding:6px 10px" onclick="avLisaViideRida()">➕</button>
             </div>
-            <div style="font-size:10px;color:var(--hall);margin-top:4px">Vajuta "➕", et lisada see väärtus tuleviku jaoks salvestatud valikute nimekirja (rippmenüüsse ülal).</div>
+            <div id="av-viide-lisad"></div>
+            <div style="font-size:10px;color:var(--hall);margin-top:4px">Arve loomisel salvestub see automaatselt ka selle ostja valikute alla. Vajuta "➕", kui sellel arvel on mitu projektinumbrit/PO numbrit korraga.</div>
           </div>
         </div>
         <div class="vorm-rida col2">
@@ -2069,9 +2071,9 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="av-kontaktisik" placeholder="nt Kristo Allikas" style="flex:1">
-              <button type="button" class="nupp hall" title="Lisa see kontaktisik salvestatud valikute nimekirja" style="padding:6px 12px;font-weight:700" onclick="avSalvestaKontaktValik()">➕</button>
+              <button type="button" class="nupp hall" title="Salvesta see kontaktisik valikusse" style="padding:6px 10px" onclick="avSalvestaKontaktValik()">💾</button>
             </div>
-            <div style="font-size:10px;color:var(--hall);margin-top:4px">Vajuta "➕", et lisada see kontaktisik tuleviku jaoks salvestatud valikute nimekirja (rippmenüüsse ülal). PO/Projektinumbrit siia ÄRA kirjuta — selleks on kõrval eraldi väli.</div>
+            <div style="font-size:10px;color:var(--hall);margin-top:4px">PO/Projektinumbrit siia ÄRA kirjuta — selleks on kõrval eraldi väli.</div>
           </div>
         </div>
         <div class="vorm-rida col2">
@@ -5868,6 +5870,32 @@ function avPoValikMuutus() {
   const item = avPoList.find(x => String(x.id) === id);
   if (item) document.getElementById('av-po').value = item.vaartus;
 }
+// Mõnel arvel on korraga mitu PO/projektinumbrit (nt kaks tellimust samal arvel) —
+// need lisatakse põhivälja kõrvale eraldi väikeste ridadena ja pannakse arve loomisel
+// kokku üheks komadega eraldatud väärtuseks.
+var avViideLisad = [];
+function avLisaViideRida() {
+  avViideLisad.push('');
+  avJoonistaViideLisad();
+}
+function avEemaldaViideRida(idx) {
+  avViideLisad.splice(idx, 1);
+  avJoonistaViideLisad();
+}
+function avJoonistaViideLisad() {
+  const el = document.getElementById('av-viide-lisad');
+  el.innerHTML = avViideLisad.map((v, idx) => `
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <input type="text" value="${(v||'').replace(/"/g,'&quot;')}" placeholder="veel üks viide" style="flex:1" oninput="avViideLisad[${idx}]=this.value">
+      <button type="button" class="nupp hall" title="Eemalda" style="padding:6px 10px" onclick="avEemaldaViideRida(${idx})">✕</button>
+    </div>`).join('');
+}
+function avKogutudViide() {
+  const pohi = document.getElementById('av-po').value.trim();
+  const koik = [pohi, ...avViideLisad.map(v => (v||'').trim())].filter(v => v);
+  return koik.join(', ');
+}
+
 async function avSalvestaPoValik() {
   const { tyyp, id: ettevoteId } = avKlientValik();
   const vaartus = document.getElementById('av-po').value.trim();
@@ -6051,7 +6079,7 @@ async function avSalvestaArve() {
     ostja_rg_kood: document.getElementById('av-ostja-rgkood').value,
     ostja_kmkr: document.getElementById('av-ostja-kmkr').value,
     kontaktisik: document.getElementById('av-kontaktisik').value,
-    po_number: document.getElementById('av-po').value,
+    po_number: avKogutudViide(),
     viide_tyyp: avViideTyyp(),
     kuupaev: document.getElementById('av-kuupaev').value,
     maksetahtaeg_paevad: document.getElementById('av-maksetahtaeg-paevad').value,
@@ -6066,6 +6094,8 @@ async function avSalvestaArve() {
   avRead = [];
   avLisaRida();
   document.getElementById('av-po').value = '';
+  avViideLisad = [];
+  avJoonistaViideLisad();
   document.getElementById('av-viide-tyyp').value = 'po';
   avViideTyypMuutus();
   document.getElementById('av-ostja-nimi').value = '';
