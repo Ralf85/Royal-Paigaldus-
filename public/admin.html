@@ -6145,20 +6145,32 @@ function avJoonistaArvedTabel() {
     arved.map(a => `
       <tr>
         <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
-        <td style="font-weight:600">${a.number}</td>
+        <td style="font-weight:600">${a.number}${a.kreedit_algne_arve_id ? ' <span style="color:#f87171;font-size:10px;font-weight:700">KREEDIT</span>' : ''}</td>
         <td>${formatKp(a.kuupaev)}</td>
         <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
-        <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
+        <td style="text-align:right;font-weight:600${a.kokku < 0 ? ';color:#f87171' : ''}">${avFmtEur(a.kokku)}</td>
         <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
           ${a.fail_url
             ? `<a href="${a.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
           <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
+          ${!a.kreedit_algne_arve_id ? `<button onclick="avLooKreedit(${a.id},'${a.number}')" class="av-tegevus-ikoon" title="Loo kreeditarve" style="color:#f87171"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>` : ''}
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
       </tr>`).join('') + '</tbody></table></div>';
   avUuendaArvedZipNupp();
+}
+
+async function avLooKreedit(id, number) {
+  if (!confirm(`Luua kreeditarve arve nr ${number} kohta? See loob uue arve, mis tühistab kogu algse arve summa (negatiivsete ridadega). Seda ei saa hiljem tagasi võtta, aga saad soovi korral hiljem kreeditarve endagi kustutada.`)) return;
+  const r = await api(`/api/arved/${id}/kreedit`, { method: 'POST' });
+  if (r.ok) {
+    alert(`✅ Kreeditarve nr ${r.number} loodud.`);
+    await laadiArvedTabel();
+  } else {
+    alert('❌ ' + (r.veateade || 'Kreeditarve loomine ebaõnnestus'));
+  }
 }
 
 async function avMuudaStaatus(id, uusStaatus) {
