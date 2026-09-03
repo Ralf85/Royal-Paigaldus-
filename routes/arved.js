@@ -855,6 +855,55 @@ router.get('/:id', noudaAdmin, async (req, res) => {
   }
 });
 
+// Loo kreeditarve algse arve alusel — koopia kõigist ridadest, aga NEGATIIVSETE summadega,
+// ja viide algsele arvele (nii arve enda peal kui PDF-il "KREEDITARVE" tiitlina).
+router.post('/:id/kreedit', noudaAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const algneR = await client.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
+    if (!algneR.rows.length) return res.json({ ok: false, veateade: 'Algset arvet ei leitud' });
+    const algne = algneR.rows[0];
+    if (algne.kreedit_algne_arve_id) return res.json({ ok: false, veateade: 'See on juba ise kreeditarve — ei saa kreeditarvele kreeditarvet teha' });
+    const readR = await client.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
+    if (!readR.rows.length) return res.json({ ok: false, veateade: 'Algsel arvel pole ridu' });
+
+    await client.query('BEGIN');
+    const number = await reserveeriJargmineNumber(client, new Date());
+    const kp = new Date();
+    const tahtaeg = new Date(kp);
+    tahtaeg.setDate(tahtaeg.getDate() + 14);
+    const viitenumber = arveViitenumber(number);
+
+    const summaKmTa = -parseFloat(algne.summa_km_ta);
+    const kaibemaks = -parseFloat(algne.kaibemaks);
+    const kokku = -parseFloat(algne.kokku);
+
+    const uusR = await client.query(
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, muuja_id, kreedit_algne_arve_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
+      [number, kp, tahtaeg, viitenumber, algne.ettevote_id, algne.ostja_nimi, algne.ostja_aadress, algne.ostja_rg_kood, algne.ostja_kmkr, algne.kontaktisik, algne.po_number, algne.viide_tyyp, algne.algus, algne.lopp, summaKmTa, algne.kaibemaks_protsent, kaibemaks, kokku, algne.muuja_id, algne.id]
+    );
+    const uusId = uusR.rows[0].id;
+
+    let jrk = 0;
+    for (const rida of readR.rows) {
+      jrk++;
+      await client.query(
+        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [uusId, jrk, rida.kirjeldus, -parseFloat(rida.kogus), rida.uhik, parseFloat(rida.hind), -parseFloat(rida.summa)]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, arve_id: uusId, number });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ── UUE ARVE LOOMINE ─────────────────────────────────────────────────────
 router.post('/', noudaAdmin, async (req, res) => {
   const client = await pool.connect();
@@ -1254,11 +1303,17 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
 
     // Parem veerg — arve number + kuupäevad + müüja
     let ry = MARGIN;
-    doc.rect(rightColX, ry, rightColW, 20).fill('#cfe2f3');
+    const onKreedit = !!arve.kreedit_algne_arve_id;
+    doc.rect(rightColX, ry, rightColW, 20).fill(onKreedit ? '#f8d7da' : '#cfe2f3');
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(10)
-      .text(`Arve nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
+      .text(onKreedit ? `KREEDITARVE nr ${arve.number}` : `Arve nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
     ry += 30;
     doc.font('Helvetica').fontSize(9);
+    if (onKreedit && arve.algse_arve_number) {
+      doc.fillColor('#b91c1c').text(`Viide: krediteerib arvet nr ${arve.algse_arve_number}`, rightColX, ry, { width: rightColW, align: 'right' });
+      doc.fillColor('#000');
+      ry += 14;
+    }
     const paar = (label, val) => {
       doc.text(label, rightColX, ry, { width: rightColW * 0.5 });
       doc.text(val, rightColX, ry, { width: rightColW, align: 'right' });
@@ -1347,6 +1402,10 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
+    if (arve.kreedit_algne_arve_id) {
+      const algneR = await pool.query('SELECT number FROM arved WHERE id=$1', [arve.kreedit_algne_arve_id]);
+      if (algneR.rows.length) arve.algse_arve_number = algneR.rows[0].number;
+    }
     const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
     const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
     const muuja = muujaR.rows[0];
