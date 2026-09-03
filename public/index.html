@@ -54,9 +54,75 @@
       <div class="klahv kinnita" onclick="logi()">✓</div>
     </div>
     <div class="veateade" id="viga"></div>
+    <button class="admin-nupp" id="faceIdNupp" style="display:none;border-color:#c9a84c;color:#c9a84c;margin-top:8px" onclick="logiFaceId()">🔐 Logi sisse Face ID / sõrmejäljega</button>
     <button class="admin-nupp" onclick="window.location='/admin-login'">🔐 Admin sisenemine</button>
   </div>
   <script>
+    // Base64url <-> ArrayBuffer teisendused (WebAuthn kasutab base64url kodeeringut)
+    function base64urlToBuffer(base64url) {
+      const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+      const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(base64);
+      const buf = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+      return buf.buffer;
+    }
+    function bufferToBase64url(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let str = '';
+      for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    if (window.PublicKeyCredential) {
+      document.getElementById('faceIdNupp').style.display = 'block';
+    }
+
+    async function logiFaceId() {
+      const vigaEl = document.getElementById('viga');
+      vigaEl.style.display = 'none';
+      try {
+        const optR = await fetch('/api/webauthn/login-options').then(r => r.json());
+        if (!optR.ok) throw new Error(optR.veateade || 'Viga');
+        const options = optR.options;
+        options.challenge = base64urlToBuffer(options.challenge);
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map(c => ({ ...c, id: base64urlToBuffer(c.id) }));
+        }
+        const kinnitus = await navigator.credentials.get({ publicKey: options });
+        const vastus = {
+          id: kinnitus.id,
+          rawId: bufferToBase64url(kinnitus.rawId),
+          type: kinnitus.type,
+          response: {
+            clientDataJSON: bufferToBase64url(kinnitus.response.clientDataJSON),
+            authenticatorData: bufferToBase64url(kinnitus.response.authenticatorData),
+            signature: bufferToBase64url(kinnitus.response.signature),
+            userHandle: kinnitus.response.userHandle ? bufferToBase64url(kinnitus.response.userHandle) : undefined
+          },
+          clientExtensionResults: kinnitus.getClientExtensionResults()
+        };
+        const r = await fetch('/api/webauthn/login-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valjakutseId: optR.valjakutseId, response: vastus })
+        }).then(r => r.json());
+        if (r.ok) {
+          localStorage.setItem('workerToken', r.token);
+          window.location = '/tootaja';
+        } else {
+          vigaEl.style.display = 'block';
+          vigaEl.textContent = r.veateade || 'Face ID sisselogimine ebaõnnestus';
+        }
+      } catch (e) {
+        // Kasutaja tühistas (nt vajutas "Cancel") — ei näita seda veana
+        if (e.name !== 'NotAllowedError') {
+          vigaEl.style.display = 'block';
+          vigaEl.textContent = 'Face ID sisselogimine ebaõnnestus. Kasuta PIN-koodi.';
+        }
+      }
+    }
+
     function lisaNumber(n) {
       const p = document.getElementById('pin');
       if (p.value.length < 6) p.value += n;
