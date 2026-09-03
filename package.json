@@ -22,6 +22,6 @@
 		"resend": "^3.2.0",
 		"exceljs": "^4.4.0",
 		"pdfkit": "^0.15.0",
-		"@simplewebauthn/server": "^14.0.0"
+		"@simplewebauthn/server": "^9.0.3"
 	}
 }
