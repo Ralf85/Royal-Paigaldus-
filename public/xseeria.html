@@ -60,7 +60,6 @@
     <button type="button" onclick="suletaRajakaart()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:20px;width:40px;height:40px;font-size:20px;cursor:pointer">✕</button>
   </div>
   <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:0 8px 16px">
-    <iframe id="rajakaartIframe" style="width:100%;height:100%;border:none;background:#fff;border-radius:8px;display:none"></iframe>
     <img id="rajakaartImg" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;display:none">
   </div>
 </div>
@@ -210,9 +209,10 @@ async function naitaAsukohad(eventId, eventNimi) {
       </div>
     </div>`;
   const rajakaartUrl = d.event && d.event.rajakaart_url;
-  const rajakaartHtml = rajakaartUrl
+  const rajakaartOnPilt = rajakaartUrl && (/\.(jpe?g|png|gif|webp|bmp|heic)(\?|#|$)/i.test(rajakaartUrl) || rajakaartUrl.includes('cloudinary.com'));
+  const rajakaartHtml = !rajakaartUrl ? '' : rajakaartOnPilt
     ? `<button type="button" class="rajakaart-suur" style="border:none;width:100%;cursor:pointer;font-family:inherit" onclick="avaRajakaart('${escapeAttr(rajakaartUrl)}')">🗺️ RAJAKAART</button>`
-    : '';
+    : `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank" rel="noopener noreferrer">🗺️ RAJAKAART</a>`;
   if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
   sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
@@ -628,21 +628,16 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/'/g, "\\'");
 }
 
-// Rajakaart avaneb ekraanitäie ülekattena, mitte eraldi vahelehena. Seda saab "peita" (minimeerida)
-// väikeseks mulliks, mis jääb rakenduse peale nähtavale — mullile vajutades avaneb kaart KOHE
-// tagasi, ilma uuesti laadimata, täpselt nagu vahelehtede vahel liikudes.
+// Rajakaart avaneb ekraanitäie ülekattena, kui see on pilt (see on turvaline, ei riku
+// sisselogimist). Kui see on väline link (nt Eventhosi jagamislink), kasutatakse selle asemel
+// päris HTML linki (vt üleval rajakaartHtml) — see on ainus usaldusväärne viis, kuidas
+// selliseid linke uue vahelehena avada ilma sisselogimist rikkumata.
 var praeguneRajakaartUrl = null;
 function avaRajakaart(url) {
   if (praeguneRajakaartUrl === url) { taastaRajakaart(); return; }
   praeguneRajakaartUrl = url;
   var img = document.getElementById('rajakaartImg');
-  var iframe = document.getElementById('rajakaartIframe');
-  var onPilt = /\.(jpe?g|png|gif|webp|bmp|heic)(\?|#|$)/i.test(url) || url.includes('cloudinary.com');
-  if (onPilt) {
-    img.src = url; img.style.display = 'block'; iframe.style.display = 'none'; iframe.src = '';
-  } else {
-    iframe.src = url; iframe.style.display = 'block'; img.style.display = 'none'; img.src = '';
-  }
+  img.src = url; img.style.display = 'block';
   document.getElementById('rajakaartUlekate').style.display = 'flex';
   document.getElementById('rajakaartMull').style.display = 'none';
 }
@@ -660,7 +655,6 @@ function suletaRajakaart() {
   document.getElementById('rajakaartUlekate').style.display = 'none';
   document.getElementById('rajakaartMull').style.display = 'none';
   document.getElementById('rajakaartImg').src = '';
-  document.getElementById('rajakaartIframe').src = '';
   praeguneRajakaartUrl = null;
 }
 </script>
