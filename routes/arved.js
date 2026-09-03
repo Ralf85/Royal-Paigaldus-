@@ -321,6 +321,35 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       ? 'NB! Sellel kliendil pole arveldushinda seadistatud — kasutati töötaja palgamäära, mis VÕIB OLLA VALE. Palun kontrolli hinda enne saatmist ja seadista klienti "Arveldushind" väljal.'
       : null;
 
+    if (viis === 'poed') {
+      // Lidli-tüüpi arved: kokkuvõte POE (objekti) kaupa, kõigi töötajate tunnid kokku liidetud
+      // ühe poe sees. Kirjelduses näidatakse poe NUMBRIT (kui see on objektile seadistatud),
+      // mitte objekti nime — kilomeetrid jäävad üheks koondreaks (mitte poodide kaupa).
+      const r = await pool.query(
+        `SELECT o.nimi as objekt_nimi, o.pood_number, SUM(t.tunnid) as tunnid
+         FROM tookirjed t
+         LEFT JOIN objektid o ON t.objekt_id = o.id
+         WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
+         GROUP BY o.nimi, o.pood_number
+         ORDER BY o.pood_number, o.nimi`,
+        [ettevote_id, algus, lopp]
+      );
+      const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
+        const kogus = parseFloat(row.tunnid);
+        const hind = arveTunnihind != null ? arveTunnihind : 0;
+        const siltAlus = row.pood_number ? `Pood nr ${row.pood_number}` : (row.objekt_nimi || 'Tundmatu pood');
+        return { kirjeldus: `Tehtud tööd (${siltAlus})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
+      });
+      const kmR = await pool.query(
+        `SELECT COALESCE(SUM(kilomeetrid),0) as km FROM tookirjed WHERE ettevote_id=$1 AND kuupaev BETWEEN $2 AND $3`,
+        [ettevote_id, algus, lopp]
+      );
+      const km = parseFloat(kmR.rows[0].km);
+      if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
+      const poeHoiatus = r.rows.some(row => !row.pood_number) ? 'NB! Osadel objektidel pole poe number seadistatud — kirjelduses kasutati objekti nime. Poe numbri saab lisada "Objektid" alt.' : null;
+      return res.json({ ok: true, read, hoiatus: hoiatus || poeHoiatus });
+    }
+
     if (viis === 'tootajad') {
       const r = await pool.query(
         `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
