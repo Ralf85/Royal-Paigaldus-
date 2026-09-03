@@ -163,9 +163,9 @@ router.get('/objektid', async (req, res) => {
 });
 
 router.post('/objektid', noudaAdmin, async (req, res) => {
-  const { nimi, ettevote_id } = req.body;
+  const { nimi, ettevote_id, pood_number } = req.body;
   try {
-    await pool.query('INSERT INTO objektid (nimi, ettevote_id) VALUES ($1, $2)', [nimi, ettevote_id]);
+    await pool.query('INSERT INTO objektid (nimi, ettevote_id, pood_number) VALUES ($1, $2, $3)', [nimi, ettevote_id, pood_number || null]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -173,8 +173,8 @@ router.post('/objektid', noudaAdmin, async (req, res) => {
 });
 
 router.put('/objektid/:id', noudaAdmin, async (req, res) => {
-  const { nimi, aktiivne } = req.body;
-  await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2 WHERE id=$3', [nimi, aktiivne, req.params.id]);
+  const { nimi, aktiivne, pood_number } = req.body;
+  await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2, pood_number=$3 WHERE id=$4', [nimi, aktiivne, pood_number || null, req.params.id]);
   res.json({ ok: true });
 });
 
