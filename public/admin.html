@@ -2093,6 +2093,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <input type="date" id="av-lopp" style="width:auto">
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('koond')">⚡ Täida tundide+km järgi</button>
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('tootajad')">⚡ Täida töötajate kaupa</button>
+            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('poed')">⚡ Täida poodide kaupa</button>
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avSeadistaArveldushind()" title="Kliendile esitatav tunnihind — eraldi töötaja palgamäärast">💶 Arveldushind</button>
           </div>
         </div>
@@ -3675,9 +3676,9 @@ async function laadiObjektid(filter) {
     </div>`;
 
   const svgSalvesta='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
-  let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Aktiivne</th><th></th></tr></thead><tbody>';
-  if(!nimekiri.length) html+=`<tr><td colspan="${objAktiivneFilter?3:4}" style="text-align:center;color:var(--hall);padding:24px">Objekte pole</td></tr>`;
-  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
+  let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Poe number</th><th>Aktiivne</th><th></th></tr></thead><tbody>';
+  if(!nimekiri.length) html+=`<tr><td colspan="${objAktiivneFilter?4:5}" style="text-align:center;color:var(--hall);padding:24px">Objekte pole</td></tr>`;
+  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="text" value="${o.pood_number||''}" id="opn-${o.id}" placeholder="nt 1234" style="width:100px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
   document.getElementById('objektidTabel').innerHTML=html+'</tbody></table>';
 }
 
@@ -3691,7 +3692,7 @@ async function lisaObjekt() {
 }
 
 async function uuendaObjekt(id) {
-  await api(`/api/admin/objektid/${id}`,{method:'PUT',body:JSON.stringify({nimi:document.getElementById(`on-${id}`).value,aktiivne:document.getElementById(`oa-${id}`).checked})});
+  await api(`/api/admin/objektid/${id}`,{method:'PUT',body:JSON.stringify({nimi:document.getElementById(`on-${id}`).value,aktiivne:document.getElementById(`oa-${id}`).checked,pood_number:document.getElementById(`opn-${id}`).value})});
   laadiObjektid();
 }
 
