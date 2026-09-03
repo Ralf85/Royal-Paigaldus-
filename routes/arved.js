@@ -865,7 +865,15 @@ router.post('/:id/kreedit', noudaAdmin, async (req, res) => {
     const algne = algneR.rows[0];
     if (algne.kreedit_algne_arve_id) return res.json({ ok: false, veateade: 'See on juba ise kreeditarve — ei saa kreeditarvele kreeditarvet teha' });
     const readR = await client.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
-    if (!readR.rows.length) return res.json({ ok: false, veateade: 'Algsel arvel pole ridu' });
+
+    // Vanad, üleslaetud (skaneeritud) arved ei pruugi omada üksikasjalikke ridu ega müüja-viidet
+    // (need lisati ainult kogusummaga) — kreediti loomisel katame need mõistlike vaikeväärtustega.
+    let muujaId = algne.muuja_id;
+    if (!muujaId) {
+      const vaikeMuuja = await client.query('SELECT id FROM arve_muujad WHERE vaikimisi=true');
+      if (!vaikeMuuja.rows.length) return res.json({ ok: false, veateade: 'Vali enne müüja-ettevõte — halda neid "Müüjad" nupu alt' });
+      muujaId = vaikeMuuja.rows[0].id;
+    }
 
     await client.query('BEGIN');
     const number = await reserveeriJargmineNumber(client, new Date());
@@ -881,16 +889,24 @@ router.post('/:id/kreedit', noudaAdmin, async (req, res) => {
     const uusR = await client.query(
       `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, muuja_id, kreedit_algne_arve_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
-      [number, kp, tahtaeg, viitenumber, algne.ettevote_id, algne.ostja_nimi, algne.ostja_aadress, algne.ostja_rg_kood, algne.ostja_kmkr, algne.kontaktisik, algne.po_number, algne.viide_tyyp, algne.algus, algne.lopp, summaKmTa, algne.kaibemaks_protsent, kaibemaks, kokku, algne.muuja_id, algne.id]
+      [number, kp, tahtaeg, viitenumber, algne.ettevote_id, algne.ostja_nimi, algne.ostja_aadress, algne.ostja_rg_kood, algne.ostja_kmkr, algne.kontaktisik, algne.po_number, algne.viide_tyyp, algne.algus, algne.lopp, summaKmTa, algne.kaibemaks_protsent, kaibemaks, kokku, muujaId, algne.id]
     );
     const uusId = uusR.rows[0].id;
 
-    let jrk = 0;
-    for (const rida of readR.rows) {
-      jrk++;
+    if (readR.rows.length) {
+      let jrk = 0;
+      for (const rida of readR.rows) {
+        jrk++;
+        await client.query(
+          `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [uusId, jrk, rida.kirjeldus, -parseFloat(rida.kogus), rida.uhik, parseFloat(rida.hind), -parseFloat(rida.summa)]
+        );
+      }
+    } else {
+      // Üleslaetud arvel polnud ridu — teeme ühe rea, mis viitab selgelt algsele arvele.
       await client.query(
-        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [uusId, jrk, rida.kirjeldus, -parseFloat(rida.kogus), rida.uhik, parseFloat(rida.hind), -parseFloat(rida.summa)]
+        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,1,$2,1,'',$3,$3)`,
+        [uusId, `Kreedit — arve nr ${algne.number}`, summaKmTa]
       );
     }
     await client.query('COMMIT');
