@@ -1391,27 +1391,43 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
     }
 
     // Tabeli päis
+    const PAGE_BOTTOM = 780; // ala, kus jalus algab — sinna alla ei tohi enam ridu joonistada
     const col = { kirjeldus: leftX, kogus: leftX + 300, uhik: leftX + 350, hind: leftX + 390, summa: leftX + 440 };
-    doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
-    doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
-    doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
-    doc.text('Kogus', col.kogus, y + 5, { width: 40, align: 'right' });
-    doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
-    doc.text('Hind', col.hind, y + 5, { width: 40, align: 'right' });
-    doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
-    y += 18;
+    const joonistaTabeliPais = () => {
+      doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
+      doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
+      doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
+      doc.text('Kogus', col.kogus, y + 5, { width: 40, align: 'right' });
+      doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
+      doc.text('Hind', col.hind, y + 5, { width: 40, align: 'right' });
+      doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
+      y += 18;
+    };
+    joonistaTabeliPais();
 
     doc.font('Helvetica').fontSize(9);
     read.forEach(r => {
       const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 290 });
+      const reaKorgus = Math.max(kirjeldusH, 12) + 6;
+      // Kui see rida antud lehele enam ei mahu, alusta uuelt leheküljelt (koos tabeli päisega),
+      // selle asemel et lasta PDFKit-il vaikimisi käitumisel korduvalt tühje lehti juurde tekitada.
+      if (y + reaKorgus > PAGE_BOTTOM) {
+        doc.addPage();
+        y = MARGIN;
+        joonistaTabeliPais();
+        doc.font('Helvetica').fontSize(9);
+      }
       doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 290 });
       doc.text(fmtNum(r.kogus), col.kogus, y, { width: 40, align: 'right' });
       doc.text(r.uhik || '', col.uhik, y, { width: 30, align: 'right' });
       doc.text(fmtEur(r.hind), col.hind, y, { width: 40, align: 'right' });
       doc.text(fmtEur(r.summa), col.summa, y, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
-      y += Math.max(kirjeldusH, 12) + 6;
+      y += reaKorgus;
       doc.moveTo(leftX, y - 3).lineTo(leftX + CONTENT_W, y - 3).strokeColor('#dddddd').stroke();
     });
+
+    // Kokkuvõtte rida vajab ka ruumi — kui ei mahu, mine samuti uuele leheküljele.
+    if (y + 70 > PAGE_BOTTOM) { doc.addPage(); y = MARGIN; }
 
     y += 8;
     const totRight = (label, val, bold) => {
