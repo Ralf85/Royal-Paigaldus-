@@ -217,7 +217,7 @@ async function naitaAsukohad(eventId, eventNimi) {
   seadistaRajakaartMull(rajakaartUrl, rajakaartOnPilt);
   const rajakaartHtml = !rajakaartUrl ? '' : rajakaartOnPilt
     ? `<button type="button" class="rajakaart-suur" style="border:none;width:100%;cursor:pointer;font-family:inherit" onclick="avaRajakaart('${escapeAttr(rajakaartUrl)}')">🗺️ RAJAKAART</button>`
-    : `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank" rel="noopener noreferrer">🗺️ RAJAKAART</a>`;
+    : `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="rajakaartAken" rel="noopener noreferrer">🗺️ RAJAKAART</a>`;
   if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
   sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + d.asukohad.map(a => {
     const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
@@ -645,7 +645,7 @@ function seadistaRajakaartMull(url, onPilt) {
     mull.onclick = function(e) { e.preventDefault(); avaRajakaart(url); };
   } else {
     mull.href = url;
-    mull.target = '_blank';
+    mull.target = 'rajakaartAken';
     mull.rel = 'noopener noreferrer';
     mull.onclick = null;
   }
