@@ -444,6 +444,7 @@ async function initDB() {
         kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0,
         kokku DECIMAL(10,2) NOT NULL DEFAULT 0,
         staatus VARCHAR(20) NOT NULL DEFAULT 'maksmata',
+        kreedit_algne_arve_id INTEGER REFERENCES arved(id) ON DELETE SET NULL,
         fail_url TEXT,
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
@@ -731,6 +732,7 @@ async function initDB() {
     await client.query(`ALTER TABLE padel_ryhmad ADD COLUMN IF NOT EXISTS vaikimisi_kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS kreedit_algne_arve_id INTEGER REFERENCES arved(id) ON DELETE SET NULL;`);
 
     // ── FACE ID / SÕRMEJÄLG (WebAuthn) ────────────────────────────────
     // Salvestab ainult krüptograafilise avaliku võtme, MITTE kunagi näofotot/biomeetriat —
