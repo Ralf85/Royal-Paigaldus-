@@ -4,6 +4,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { initDB, pool } = require('./db');
 const app = express();
+// Railway tõlgib liikluse HTTPS -> HTTP oma serverisse; see seadistus laseb Expressil
+// õigesti tuvastada, et algne päring OLI HTTPS (vajalik nt WebAuthn/Face ID turvakontrolliks).
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 8080;
 // Sessioonide kehtivusajad — pärast seda aega token enam ei kehti (vt allpool WHERE loodud > ...)
 const ADMIN_SESSIOON_PAEVI = 14;
@@ -75,6 +78,7 @@ app.use('/api/omaarved', require('./routes/omaarved'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
 app.use('/api/padel', require('./routes/padel'));
+app.use('/api/webauthn', require('./routes/webauthn'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
