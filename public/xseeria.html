@@ -64,7 +64,7 @@
   </div>
 </div>
 
-<button type="button" id="rajakaartMull" onclick="taastaRajakaart()" style="display:none;position:fixed;bottom:20px;right:20px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#a6842e);border:none;box-shadow:0 4px 14px rgba(0,0,0,0.4);font-size:26px;cursor:pointer;z-index:9998">🗺️</button>
+<a id="rajakaartMull" href="#" style="display:none;align-items:center;justify-content:center;position:fixed;bottom:20px;right:20px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#a6842e);box-shadow:0 4px 14px rgba(0,0,0,0.4);font-size:26px;cursor:pointer;z-index:9998;text-decoration:none">🗺️</a>
 
 <header>
   <div class="hdr-top">
@@ -131,6 +131,8 @@ function tagasi() {
 async function naitaVoistlused() {
   seaTagasiSamm(null); // esimene tase — "Tagasi" väljub töötaja rakendusse
   breadcrumb([]);
+  praeguneEvent = null;
+  seadistaRajakaartMull(null);
   const sisu = document.getElementById('sisu');
   const kontroll = await api('/kontroll');
   if (kontroll.ok === false && kontroll.veateade === 'Palun logi sisse') {
@@ -210,6 +212,9 @@ async function naitaAsukohad(eventId, eventNimi) {
     </div>`;
   const rajakaartUrl = d.event && d.event.rajakaart_url;
   const rajakaartOnPilt = rajakaartUrl && (/\.(jpe?g|png|gif|webp|bmp|heic)(\?|#|$)/i.test(rajakaartUrl) || rajakaartUrl.includes('cloudinary.com'));
+  praeguneEvent.rajakaartUrl = rajakaartUrl || null;
+  praeguneEvent.rajakaartOnPilt = rajakaartOnPilt;
+  seadistaRajakaartMull(rajakaartUrl, rajakaartOnPilt);
   const rajakaartHtml = !rajakaartUrl ? '' : rajakaartOnPilt
     ? `<button type="button" class="rajakaart-suur" style="border:none;width:100%;cursor:pointer;font-family:inherit" onclick="avaRajakaart('${escapeAttr(rajakaartUrl)}')">🗺️ RAJAKAART</button>`
     : `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="_blank" rel="noopener noreferrer">🗺️ RAJAKAART</a>`;
@@ -628,6 +633,25 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/'/g, "\\'");
 }
 
+// Seadistab püsiva "🗺️" mulli (paremal all), mis on nähtav KÕIGIS X-seeria vaadetes ühe
+// ürituse sees (nii pargi valikus kui ka üksiku pargi korvide märkimise vaates) — nii ei pea
+// töötaja kunagi kaardi vaatamiseks tagasi peavaatesse navigeerima.
+function seadistaRajakaartMull(url, onPilt) {
+  const mull = document.getElementById('rajakaartMull');
+  if (!url) { mull.style.display = 'none'; return; }
+  if (onPilt) {
+    mull.href = 'javascript:void(0)';
+    mull.removeAttribute('target');
+    mull.onclick = function(e) { e.preventDefault(); avaRajakaart(url); };
+  } else {
+    mull.href = url;
+    mull.target = '_blank';
+    mull.rel = 'noopener noreferrer';
+    mull.onclick = null;
+  }
+  mull.style.display = 'flex';
+}
+
 // Rajakaart avaneb ekraanitäie ülekattena, kui see on pilt (see on turvaline, ei riku
 // sisselogimist). Kui see on väline link (nt Eventhosi jagamislink), kasutatakse selle asemel
 // päris HTML linki (vt üleval rajakaartHtml) — see on ainus usaldusväärne viis, kuidas
@@ -653,9 +677,10 @@ function taastaRajakaart() {
 }
 function suletaRajakaart() {
   document.getElementById('rajakaartUlekate').style.display = 'none';
-  document.getElementById('rajakaartMull').style.display = 'none';
   document.getElementById('rajakaartImg').src = '';
   praeguneRajakaartUrl = null;
+  // Mull jääb nähtavale (uuesti avatavana) — üritusel on ju rajakaart endiselt olemas.
+  if (praeguneEvent && praeguneEvent.rajakaartUrl) seadistaRajakaartMull(praeguneEvent.rajakaartUrl, praeguneEvent.rajakaartOnPilt);
 }
 </script>
 </body>
