@@ -5984,8 +5984,9 @@ function avUuendaRida(idx, valjs, val) {
   avRead[idx][valjs] = val;
   if (valjs === 'kogus' || valjs === 'hind') {
     avRead[idx].summa = +((parseFloat(avRead[idx].kogus) || 0) * (parseFloat(avRead[idx].hind) || 0)).toFixed(2);
+    avJoonistaRead(); // ainult siis, kui summa/kogusumma tegelikult muutub — vastasel juhul
+    // kustutaks iga täheklõps kirjelduse/ühiku väljal terve tabelduse uuesti, mis viib fookuse ära.
   }
-  avJoonistaRead();
 }
 
 function avJoonistaRead() {
@@ -6735,3 +6736,4 @@ init();
 </script>
 </body>
 </html>
+  
