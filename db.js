@@ -732,6 +732,22 @@ async function initDB() {
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
 
+    // ── FACE ID / SÕRMEJÄLG (WebAuthn) ────────────────────────────────
+    // Salvestab ainult krüptograafilise avaliku võtme, MITTE kunagi näofotot/biomeetriat —
+    // see jääb alati kasutaja enda telefoni/arvutisse (Face ID, Touch ID, Windows Hello).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS worker_webauthn (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        credential_id TEXT NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        counter BIGINT NOT NULL DEFAULT 0,
+        device_name VARCHAR(100),
+        transports TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
