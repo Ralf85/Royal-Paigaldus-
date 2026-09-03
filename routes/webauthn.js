@@ -13,8 +13,6 @@ function noudaSisslogimist(req, res, next) {
   next();
 }
 
-// RP ID peab olema domeen ILMA https:// ja pordita — tuletame selle iga päringu enda hostist,
-// nii et see töötab nii Railway domeenil kui hilisemal oma domeenil ilma koodi muutmata.
 function rpID(req) {
   return req.hostname;
 }
@@ -22,10 +20,8 @@ function origin(req) {
   return req.protocol + '://' + req.get('host');
 }
 
-// Registreerimise (ja sisselogimise) väljakutsed on lühiajalised — hoiame neid mälus, mitte
-// andmebaasis, kuna neid on vaja vaid mõneks sekundiks ühe brauseritoimingu jooksul.
-const registreerimiseValjakutsed = new Map(); // workerId -> { challenge, aegub }
-const sisselogimiseValjakutsed = new Map();   // id -> { challenge, aegub }
+const registreerimiseValjakutsed = new Map();
+const sisselogimiseValjakutsed = new Map();
 
 function puhastaAegunudValjakutsed() {
   const nyyd = Date.now();
@@ -34,19 +30,22 @@ function puhastaAegunudValjakutsed() {
 }
 setInterval(puhastaAegunudValjakutsed, 5 * 60 * 1000);
 
-// ── REGISTREERIMINE (töötaja on juba PIN-koodiga sisse loginud) ──────
 router.get('/register-options', noudaSisslogimist, async (req, res) => {
   try {
     const olemasoleva = await pool.query('SELECT credential_id, transports FROM worker_webauthn WHERE worker_id=$1', [req.session.workerId]);
     const options = await generateRegistrationOptions({
       rpName: 'Royal Paigaldus',
       rpID: rpID(req),
+      userID: String(req.session.workerId),
       userName: req.session.workerNimi || 'töötaja',
-      userID: Buffer.from(String(req.session.workerId)),
       userDisplayName: req.session.workerNimi || 'töötaja',
       attestationType: 'none',
-      excludeCredentials: olemasoleva.rows.map(r => ({ id: r.credential_id, transports: r.transports ? r.transports.split(',') : undefined })),
-      authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' }
+      excludeCredentials: olemasoleva.rows.map(r => ({
+        id: Buffer.from(r.credential_id, 'base64url'),
+        type: 'public-key',
+        transports: r.transports ? r.transports.split(',') : undefined
+      })),
+      authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' }
     });
     registreerimiseValjakutsed.set(req.session.workerId, { challenge: options.challenge, aegub: Date.now() + 5 * 60 * 1000 });
     res.json({ ok: true, options });
@@ -68,17 +67,17 @@ router.post('/register-verify', noudaSisslogimist, async (req, res) => {
     });
     registreerimiseValjakutsed.delete(req.session.workerId);
     if (!tulemus.verified || !tulemus.registrationInfo) return res.json({ ok: false, veateade: 'Kinnitamine ebaõnnestus' });
-    const { credential } = tulemus.registrationInfo;
+    const { credentialID, credentialPublicKey, counter } = tulemus.registrationInfo;
     await pool.query(
       `INSERT INTO worker_webauthn (worker_id, credential_id, public_key, counter, device_name, transports)
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [
         req.session.workerId,
-        credential.id,
-        Buffer.from(credential.publicKey).toString('base64'),
-        credential.counter,
+        Buffer.from(credentialID).toString('base64url'),
+        Buffer.from(credentialPublicKey).toString('base64'),
+        counter,
         (req.body.deviceName || 'Telefon/arvuti').slice(0, 100),
-        (credential.transports || []).join(',')
+        (req.body.response && req.body.response.transports || []).join(',')
       ]
     );
     res.json({ ok: true });
@@ -88,7 +87,6 @@ router.post('/register-verify', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// Töötaja enda registreeritud seadmete nimekiri + eemaldamine
 router.get('/minu-seadmed', noudaSisslogimist, async (req, res) => {
   try {
     const r = await pool.query('SELECT id, device_name, loodud FROM worker_webauthn WHERE worker_id=$1 ORDER BY loodud DESC', [req.session.workerId]);
@@ -106,7 +104,6 @@ router.delete('/seadmed/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
-// ── SISSELOGIMINE (Face ID/sõrmejälg, ilma PIN-ita) ───────────────────
 router.get('/login-options', async (req, res) => {
   try {
     const options = await generateAuthenticationOptions({
@@ -137,9 +134,9 @@ router.post('/login-verify', async (req, res) => {
       expectedChallenge: salvestatud.challenge,
       expectedOrigin: origin(req),
       expectedRPID: rpID(req),
-      credential: {
-        id: kred.credential_id,
-        publicKey: Buffer.from(kred.public_key, 'base64'),
+      authenticator: {
+        credentialID: Buffer.from(kred.credential_id, 'base64url'),
+        credentialPublicKey: Buffer.from(kred.public_key, 'base64'),
         counter: Number(kred.counter),
         transports: kred.transports ? kred.transports.split(',') : undefined
       }
