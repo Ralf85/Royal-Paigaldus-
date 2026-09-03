@@ -2,6 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+// Node.js 18-l pole globalThis.crypto vaikimisi olemas (alles Node 20+ vaikimisi) —
+// @simplewebauthn/server (Face ID/sõrmejälje tugi) eeldab seda. Täidame selle ise.
+if (!globalThis.crypto) globalThis.crypto = crypto.webcrypto;
 const { initDB, pool } = require('./db');
 const app = express();
 // Railway tõlgib liikluse HTTPS -> HTTP oma serverisse; see seadistus laseb Expressil
