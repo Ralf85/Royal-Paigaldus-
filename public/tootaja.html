@@ -197,6 +197,7 @@
     <div class="topbar-right">
       <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
       <button onclick="registreeriPush()" id="pushLubaNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔔 Luba teavitused</button>
+      <button onclick="registreeriFaceId()" id="faceIdLubaNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔐 Luba Face ID</button>
       <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--text2)">&#127769;</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
@@ -1022,6 +1023,48 @@
         // Luba juba antud varem — uuenda vaikselt subscription (ei näita loa-akent uuesti)
         registreeriPush();
       }
+    })();
+
+    // Face ID / sõrmejälg — samadel põhjustel nagu teavitused, peab käivituma OTSE klõpsu peale.
+    function b64uToBuf(s){var p='='.repeat((4-(s.length%4))%4);var b=(s+p).replace(/-/g,'+').replace(/_/g,'/');var raw=atob(b);var buf=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)buf[i]=raw.charCodeAt(i);return buf.buffer;}
+    function bufToB64u(buf){var bytes=new Uint8Array(buf);var s='';for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+
+    async function registreeriFaceId(){
+      var nupp=document.getElementById('faceIdLubaNupp');
+      try{
+        var optR=await api('/api/webauthn/register-options');
+        if(!optR.ok) throw new Error(optR.veateade||'Viga');
+        var options=optR.options;
+        options.challenge=b64uToBuf(options.challenge);
+        options.user.id=b64uToBuf(options.user.id);
+        if(options.excludeCredentials) options.excludeCredentials=options.excludeCredentials.map(function(c){return Object.assign({},c,{id:b64uToBuf(c.id)});});
+        var kred=await navigator.credentials.create({publicKey:options});
+        var vastus={
+          id:kred.id,
+          rawId:bufToB64u(kred.rawId),
+          type:kred.type,
+          response:{
+            clientDataJSON:bufToB64u(kred.response.clientDataJSON),
+            attestationObject:bufToB64u(kred.response.attestationObject),
+            transports:kred.response.getTransports?kred.response.getTransports():[]
+          },
+          clientExtensionResults:kred.getClientExtensionResults(),
+          deviceName:(navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||'Telefon/arvuti'
+        };
+        var r=await api('/api/webauthn/register-verify',{method:'POST',body:JSON.stringify(vastus)});
+        if(r.ok){ if(nupp) nupp.style.display='none'; alert('✅ Face ID/sõrmejälg on nüüd seadistatud! Järgmisel korral saad kohe sellega sisse logida.'); }
+        else alert('❌ '+(r.veateade||'Ei õnnestunud'));
+      }catch(e){
+        if(e.name!=='NotAllowedError') alert('❌ Face ID seadistamine ebaõnnestus.');
+      }
+    }
+
+    (function seadistaFaceIdNupp(){
+      var nupp=document.getElementById('faceIdLubaNupp');
+      if(!nupp||!window.PublicKeyCredential) return;
+      api('/api/webauthn/minu-seadmed').then(function(r){
+        if(r.ok && (!r.seadmed || !r.seadmed.length)) nupp.style.display='inline-block';
+      }).catch(function(){});
     })();
 
     init();
