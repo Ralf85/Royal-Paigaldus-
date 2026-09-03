@@ -1036,7 +1036,7 @@
         if(!optR.ok) throw new Error(optR.veateade||'Viga');
         var options=optR.options;
         options.challenge=b64uToBuf(options.challenge);
-        options.user.id=b64uToBuf(options.user.id);
+        options.user.id=new TextEncoder().encode(options.user.id);
         if(options.excludeCredentials) options.excludeCredentials=options.excludeCredentials.map(function(c){return Object.assign({},c,{id:b64uToBuf(c.id)});});
         var kred=await navigator.credentials.create({publicKey:options});
         var vastus={
