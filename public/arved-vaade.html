@@ -34,7 +34,10 @@
   </div>
 
   <div class="kaart">
-    <div class="kaart-hdr" title="Meie väljastatud arved — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta">📤 Väljaminevad (esitatud arved — müük, raha tuleb sisse, käibemaks riigile)</div>
+    <div class="kaart-hdr" title="Meie väljastatud arved — raha tuleb Royalile SISSE, käibemaks tuleb riigile maksta" style="justify-content:flex-start;gap:16px">
+      <span>📤 Väljaminevad (esitatud arved — müük, raha tuleb sisse, käibemaks riigile)</span>
+      <button type="button" id="av-valja-zip-nupp" onclick="laadiValjaZip()" style="display:none;background:var(--bg3);color:var(--text);border:0.5px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">⬇️ Laadi kõik alla (ZIP)</button>
+    </div>
     <div id="valjaTabel"><div class="laadimine">Laadimine...</div></div>
   </div>
 
@@ -88,9 +91,14 @@ async function laadi() {
     return;
   }
   var valjaDiv = document.getElementById('valjaTabel');
+  var valjaZipNupp = document.getElementById('av-valja-zip-nupp');
   if (!r.valja.length) {
     valjaDiv.innerHTML = '<div class="tyhi">Selles kuus arveid pole.</div>';
+    valjaZipNupp.style.display = 'none';
   } else {
+    valjaZipNupp.style.display = 'inline-block';
+    valjaZipNupp.textContent = '⬇️ Laadi kõik alla (' + r.valja.length + ' ZIP-ina)';
+    valjaZipIdid = r.valja.map(function(a) { return a.id; });
     valjaDiv.innerHTML = '<table><thead><tr><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th>Summa</th><th>Staatus</th><th></th></tr></thead><tbody>' +
       r.valja.map(function(a) {
         return '<tr><td style="font-weight:600">' + a.number + '</td><td>' + fmtKp(a.kuupaev) + '</td>' +
@@ -119,6 +127,11 @@ async function laadi() {
 }
 
 var sisseValitud = {};
+var valjaZipIdid = [];
+function laadiValjaZip() {
+  if (!valjaZipIdid.length) return;
+  window.open('/api/arved/zip?ids=' + valjaZipIdid.join(',') + '&_token=' + TOKEN, '_blank');
+}
 function valiSisse(id, checked) {
   if (checked) sisseValitud[id] = true; else delete sisseValitud[id];
   var nupp = document.getElementById('av-zip-nupp');
