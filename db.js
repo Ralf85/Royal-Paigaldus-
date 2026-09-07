@@ -485,11 +485,27 @@ async function initDB() {
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS arve_muujad (
+        id SERIAL PRIMARY KEY,
+        ettevote_nimi VARCHAR(200) NOT NULL,
+        aadress TEXT,
+        rg_kood VARCHAR(50),
+        kmkr VARCHAR(50),
+        pangakonto VARCHAR(50),
+        swift VARCHAR(20),
+        telefon VARCHAR(50),
+        epost VARCHAR(200),
+        km_kohuslane BOOLEAN DEFAULT true,
+        vaikimisi BOOLEAN DEFAULT false,
+        logo_url TEXT
+      );
       CREATE TABLE IF NOT EXISTS arve_lubatud (
         id SERIAL PRIMARY KEY,
-        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE,
+        muuja_id INTEGER REFERENCES arve_muujad(id) ON DELETE SET NULL
       );
     `);
+    await client.query(`ALTER TABLE arve_lubatud ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id) ON DELETE SET NULL;`);
     // Vana deploy võis arve_sisse juba luua ilma nende veergudeta — lisame eraldi, et need kindlasti tekiks.
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
