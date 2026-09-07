@@ -79,11 +79,13 @@ function noudaSisslogimist(req, res, next) {
 // Admin pääseb Arved-vaatele alati ligi; töötaja peab olema eraldi lubatud (arve_lubatud) —
 // sama muster, mida kasutavad X-seeria/EDGF/Rally Estonia (raamatupidaja saab hiljem oma töötaja-PIN-i).
 async function noudaArvedLubatud(req, res, next) {
-  if (req.session && req.session.isAdmin) return next();
+  if (req.session && req.session.isAdmin) { req.arveMuujaPiirang = null; return next(); }
   if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
   try {
-    const r = await pool.query('SELECT 1 FROM arve_lubatud WHERE worker_id=$1', [req.session.workerId]);
+    const r = await pool.query('SELECT muuja_id FROM arve_lubatud WHERE worker_id=$1', [req.session.workerId]);
     if (!r.rows.length) return res.status(403).json({ ok: false, veateade: 'Sul pole Arved ligipääsu' });
+    // null = näeb kõiki müüjaid/ettevõtteid; kui seatud, näeb ainult selle müüja väljastatud arveid.
+    req.arveMuujaPiirang = r.rows[0].muuja_id || null;
     next();
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -288,6 +290,11 @@ router.post('/valikud', noudaAdmin, async (req, res) => {
     return res.json({ ok: false, veateade: 'Vigane ettevõtte ID — proovi klient uuesti valida.' });
   }
   try {
+    const olemasR = await pool.query(
+      'SELECT * FROM arve_valikud WHERE ettevote_id=$1 AND tyyp=$2 AND vaartus=$3',
+      [ettevoteIdNum, tyyp, vaartus]
+    );
+    if (olemasR.rows.length) return res.json({ ok: true, valik: olemasR.rows[0], juba_olemas: true });
     const r = await pool.query(
       'INSERT INTO arve_valikud (ettevote_id, tyyp, vaartus, silt) VALUES ($1,$2,$3,$4) RETURNING *',
       [ettevoteIdNum, tyyp, vaartus, silt || '']
@@ -437,7 +444,7 @@ router.get('/kontroll', noudaSisslogimist, async (req, res) => {
 router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT w.id, w.nimi, (al.worker_id IS NOT NULL) AS lubatud
+      `SELECT w.id, w.nimi, (al.worker_id IS NOT NULL) AS lubatud, al.muuja_id
        FROM workers w
        LEFT JOIN arve_lubatud al ON al.worker_id = w.id
        WHERE w.aktiivne = true
@@ -452,13 +459,23 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   const { lubatud } = req.body;
   try {
     if (lubatud) {
-      await pool.query('INSERT INTO arve_lubatud (worker_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.params.workerId]);
+      await pool.query('INSERT INTO arve_lubatud (worker_id) VALUES ($1) ON CONFLICT (worker_id) DO NOTHING', [req.params.workerId]);
     } else {
       await pool.query('DELETE FROM arve_lubatud WHERE worker_id=$1', [req.params.workerId]);
     }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false });
+  }
+});
+// Piira, millist müüja-ettevõtet see raamatupidaja näeb — null/tühi = näeb kõiki.
+router.put('/admin/lubatud/:workerId/muuja', noudaAdmin, async (req, res) => {
+  const muujaId = req.body.muuja_id || null;
+  try {
+    await pool.query('UPDATE arve_lubatud SET muuja_id=$1 WHERE worker_id=$2', [muujaId, req.params.workerId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
 });
 
@@ -789,6 +806,7 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
     let vWhere = '1=1';
     if (kuu) { vp.push(kuu); vWhere += ` AND EXTRACT(MONTH FROM a.kuupaev) = $${vp.length}`; }
     if (aasta) { vp.push(aasta); vWhere += ` AND EXTRACT(YEAR FROM a.kuupaev) = $${vp.length}`; }
+    if (req.arveMuujaPiirang) { vp.push(req.arveMuujaPiirang); vWhere += ` AND a.muuja_id = $${vp.length}`; }
     const valja = await pool.query(
       `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id
        WHERE ${vWhere} ORDER BY a.kuupaev DESC, a.id DESC`,
@@ -798,6 +816,8 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
     let sWhere = '1=1';
     if (kuu) { sp.push(kuu); sWhere += ` AND EXTRACT(MONTH FROM s.kuupaev) = $${sp.length}`; }
     if (aasta) { sp.push(aasta); sWhere += ` AND EXTRACT(YEAR FROM s.kuupaev) = $${sp.length}`; }
+    // NB: sisse (ostuarved/tšekid) pole hetkel seotud konkreetse müüja/ettevõttega — need näidatakse
+    // kõigile, kellel on Arved ligipääs, olenemata müüja piirangust.
     const sisse = await pool.query(
       `SELECT s.*, e.nimi as ettevote_nimi FROM arve_sisse s LEFT JOIN ettevotted e ON s.ettevote_id = e.id
        WHERE ${sWhere} ORDER BY s.kuupaev DESC, s.id DESC`,
@@ -827,9 +847,12 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
   const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
   if (!idid.length) return res.status(400).json({ ok: false, veateade: 'Vali vähemalt üks arve' });
   try {
+    const parems = [idid];
+    let piirang = '';
+    if (req.arveMuujaPiirang) { parems.push(req.arveMuujaPiirang); piirang = ` AND a.muuja_id = $2`; }
     const r = await pool.query(
-      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id = ANY($1)`,
-      [idid]
+      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id = ANY($1)${piirang}`,
+      parems
     );
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
     res.setHeader('Content-Type', 'application/zip');
@@ -1467,6 +1490,7 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
+    if (req.arveMuujaPiirang && arve.muuja_id !== req.arveMuujaPiirang) return res.status(403).send('Sul pole ligipääsu sellele arvele');
     if (arve.kreedit_algne_arve_id) {
       const algneR = await pool.query('SELECT number FROM arved WHERE id=$1', [arve.kreedit_algne_arve_id]);
       if (algneR.rows.length) arve.algse_arve_number = algneR.rows[0].number;
