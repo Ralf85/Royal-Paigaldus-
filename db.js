@@ -721,9 +721,9 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         nadal_id INTEGER REFERENCES padel_nadalad(id) ON DELETE CASCADE,
         liige_id INTEGER REFERENCES padel_liikmed(id) ON DELETE CASCADE,
-        paar INTEGER NOT NULL DEFAULT 1 CHECK (paar IN (1,2)),
+        paar INTEGER CHECK (paar IS NULL OR paar IN (1,2)),
         osaleb BOOLEAN NOT NULL DEFAULT true,
-        kinnitatud BOOLEAN NOT NULL DEFAULT false,
+        kinnitatud BOOLEAN NOT NULL DEFAULT true,
         asendaja_nimi VARCHAR(100),
         makstud BOOLEAN NOT NULL DEFAULT false,
         summa DECIMAL(10,2),
@@ -742,6 +742,12 @@ async function initDB() {
     `);
     // Kui padel_kohad on juba varem loodud (ilma kinnitatud veeruta), lisame selle siia.
     await client.query(`ALTER TABLE padel_kohad ADD COLUMN IF NOT EXISTS kinnitatud BOOLEAN NOT NULL DEFAULT false;`);
+    // Suur ümberkorraldus (sept 2026): asendajate asemel registreerivad mängijad end nüüd ise
+    // ja paare saab käsitsi vabalt muuta — "paar" peab seetõttu saama olla ka NULL (ootel/waitlist).
+    await client.query(`ALTER TABLE padel_kohad ALTER COLUMN paar DROP NOT NULL;`);
+    await client.query(`ALTER TABLE padel_kohad ALTER COLUMN paar DROP DEFAULT;`);
+    await client.query(`ALTER TABLE padel_kohad DROP CONSTRAINT IF EXISTS padel_kohad_paar_check;`);
+    await client.query(`ALTER TABLE padel_kohad ADD CONSTRAINT padel_kohad_paar_check CHECK (paar IS NULL OR paar IN (1,2));`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS ukse_kood VARCHAR(4);`);
     await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_url TEXT;`);
     await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS foto_public_id TEXT;`);
