@@ -45,24 +45,12 @@ async function noudaPadelLigipaas(req, res, next) {
   }
 }
 
-// Paaride rotatsioon 4 fikseeritud liikmega (Americano-stiil): 3 nädala tsükkel,
-// nii et kõik mängivad kõigiga nii paarilise kui vastasena.
-function paaridRotatsioon(liikmed, indeks) {
-  const [A, B, C, D] = liikmed;
-  const combos = [
-    [[A, B], [C, D]],
-    [[A, C], [B, D]],
-    [[A, D], [B, C]],
-  ];
-  return combos[((indeks % 3) + 3) % 3];
-}
-
 // Kas mul on ligipääs Padel moodulile? (kasutab liides, et otsustada, kas lehte üldse näidata)
 router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   try {
-    if (req.session.isAdmin) return res.json({ ok: true, lubatud: true });
+    if (req.session.isAdmin) return res.json({ ok: true, lubatud: true, worker_id: req.session.workerId || null });
     const r = await pool.query('SELECT 1 FROM padel_lubatud WHERE worker_id=$1', [req.session.workerId]);
-    res.json({ ok: true, lubatud: r.rows.length > 0 });
+    res.json({ ok: true, lubatud: r.rows.length > 0, worker_id: req.session.workerId });
   } catch (err) {
     res.json({ ok: false, lubatud: false });
   }
@@ -144,8 +132,6 @@ router.post('/admin/ryhmad/:id/liikmed', noudaAdmin, async (req, res) => {
   const { worker_id } = req.body;
   if (!worker_id) return res.json({ ok: false, veateade: 'Vali töötaja' });
   try {
-    const olemasR = await pool.query('SELECT COUNT(*) c FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
-    if (parseInt(olemasR.rows[0].c, 10) >= 4) return res.json({ ok: false, veateade: 'Grupis on juba 4 liiget (padel mängitakse 2 vs 2)' });
     const jrkR = await pool.query('SELECT COALESCE(MAX(jrk_nr),-1)+1 AS jrk FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
     await pool.query('INSERT INTO padel_liikmed (ryhm_id, worker_id, jrk_nr) VALUES ($1,$2,$3)', [req.params.id, worker_id, jrkR.rows[0].jrk]);
     res.json({ ok: true });
@@ -266,9 +252,9 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
          FROM nadal_summa
        )
        SELECT pk.liige_id,
-              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1p ELSE np.p2p END), 0) AS punktid,
-              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1g ELSE np.p2g END), 0) AS geimid_kokku,
-              COUNT(np.nadal_id) AS mange
+              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1p WHEN pk.paar = 2 THEN np.p2p ELSE 0 END), 0) AS punktid,
+              COALESCE(SUM(CASE WHEN pk.paar = 1 THEN np.p1g WHEN pk.paar = 2 THEN np.p2g ELSE 0 END), 0) AS geimid_kokku,
+              COUNT(np.nadal_id) FILTER (WHERE pk.paar IN (1,2)) AS mange
        FROM padel_kohad pk
        JOIN padel_nadalad pn ON pn.id = pk.nadal_id
        LEFT JOIN nadal_punktid np ON np.nadal_id = pk.nadal_id
@@ -288,7 +274,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
 
     const nadaladR = await pool.query(
       `SELECT pn.*,
-              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'asendaja_nimi', pk.asendaja_nimi, 'nimi', w.nimi, 'foto_url', pl2.foto_url, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
+              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'worker_id', pl2.worker_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'nimi', w.nimi, 'foto_url', pl2.foto_url, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
                 FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
                 WHERE pk.nadal_id = pn.id) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
@@ -302,32 +288,20 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
   }
 });
 
-// Loo (või tagasta olemasolev) selle nädala trenn, koos automaatse paarijaotusega
-// Loob (kui puudub) ühe nädala trenni koos automaatse paarijaotusega. Tagastab {nadal_id, uus}
-// või {veateade} kui gruppi ei saa (nt liikmeid pole täpselt 4).
+// Loo (või tagasta olemasolev) selle nädala trenn. Paare EI looda enam automaatselt —
+// mängijad registreerivad end ise ("Mina mängin") ja paarid pannakse käsitsi kokku.
 async function looNadalKuiPuudub(ryhmId, kuupaev) {
   const olemasR = await pool.query('SELECT id FROM padel_nadalad WHERE ryhm_id=$1 AND kuupaev=$2', [ryhmId, kuupaev]);
   if (olemasR.rows.length) return { nadal_id: olemasR.rows[0].id, uus: false };
 
-  const liikmedR = await pool.query('SELECT id, worker_id FROM padel_liikmed WHERE ryhm_id=$1 ORDER BY jrk_nr', [ryhmId]);
-  if (liikmedR.rows.length !== 4) return { veateade: 'Grupis peab olema täpselt 4 liiget, et nädalat luua' };
-
-  const arvR = await pool.query('SELECT COUNT(*) c FROM padel_nadalad WHERE ryhm_id=$1', [ryhmId]);
-  const indeks = parseInt(arvR.rows[0].c, 10);
-  const [paar1, paar2] = paaridRotatsioon(liikmedR.rows, indeks);
+  const liikmedR = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1', [ryhmId]);
+  if (liikmedR.rows.length < 2) return { veateade: 'Grupis peab olema vähemalt 2 liiget, et nädalat luua' };
 
   const ryhmR = await pool.query('SELECT vaikimisi_kellaaeg FROM padel_ryhmad WHERE id=$1', [ryhmId]);
   const kellaaeg = ryhmR.rows[0] ? ryhmR.rows[0].vaikimisi_kellaaeg : null;
 
   const nadalR = await pool.query('INSERT INTO padel_nadalad (ryhm_id, kuupaev, kellaaeg) VALUES ($1,$2,$3) RETURNING id', [ryhmId, kuupaev, kellaaeg]);
-  const nadalId = nadalR.rows[0].id;
-  for (const liige of paar1) {
-    await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,1)', [nadalId, liige.id]);
-  }
-  for (const liige of paar2) {
-    await pool.query('INSERT INTO padel_kohad (nadal_id, liige_id, paar) VALUES ($1,$2,2)', [nadalId, liige.id]);
-  }
-  return { nadal_id: nadalId, uus: true };
+  return { nadal_id: nadalR.rows[0].id, uus: true };
 }
 
 // Genereeri mitu järjestikust nädalatrenni korraga (nt "järgmised 10 kolmapäeva")
@@ -397,6 +371,70 @@ router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, async (req, res) => {
   try {
     const r = await pool.query('SELECT nimi FROM padel_asendajad WHERE ryhm_id=$1 ORDER BY nimi', [req.params.id]);
     res.json({ ok: true, nimed: r.rows.map(x => x.nimi) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Mängija registreerib END selle trenni peale (või tühistab enda registreeringu, kui juba
+// registreerunud) — asendajate asemel mängib nüüd alati päris inimene otse enda nime all.
+// Esimesed 4 registreerujat saavad automaatselt paari, ülejäänud lähevad ootele ("paar" = NULL),
+// aga paare saab hiljem alati vabalt ümber tõsta (vt /kohad/:id/paar).
+router.post('/nadalad/:id/registreeru', noudaPadelLigipaas, async (req, res) => {
+  try {
+    const nadalR = await pool.query(
+      `SELECT pn.ryhm_id, r.hind FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id WHERE pn.id=$1`,
+      [req.params.id]
+    );
+    if (!nadalR.rows.length) return res.json({ ok: false, veateade: 'Trenni ei leitud' });
+    const { ryhm_id, hind } = nadalR.rows[0];
+
+    const liigeR = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id=$2', [ryhm_id, req.session.workerId]);
+    if (!liigeR.rows.length) return res.json({ ok: false, veateade: 'Sa pole selle grupi liige' });
+    const liigeId = liigeR.rows[0].id;
+
+    const olemasR = await pool.query('SELECT id FROM padel_kohad WHERE nadal_id=$1 AND liige_id=$2', [req.params.id, liigeId]);
+    if (olemasR.rows.length) {
+      // Juba registreerunud — vajutus tühistab registreeringu.
+      await pool.query('DELETE FROM padel_kohad WHERE id=$1', [olemasR.rows[0].id]);
+      return res.json({ ok: true, registreeritud: false });
+    }
+
+    const arvR = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE paar=1) AS p1, COUNT(*) FILTER (WHERE paar=2) AS p2 FROM padel_kohad WHERE nadal_id=$1`,
+      [req.params.id]
+    );
+    const p1 = parseInt(arvR.rows[0].p1, 10), p2 = parseInt(arvR.rows[0].p2, 10);
+    const paar = p1 < 2 ? 1 : (p2 < 2 ? 2 : null);
+
+    await pool.query(
+      'INSERT INTO padel_kohad (nadal_id, liige_id, paar, osaleb, kinnitatud, summa) VALUES ($1,$2,$3,true,true,$4)',
+      [req.params.id, liigeId, paar, hind]
+    );
+    res.json({ ok: true, registreeritud: true, paar });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Paari vaba muutmine — täielik vabadus panna keegi Paar 1 / Paar 2 / Ootele, ükskõik millal
+// (enne trenni või kohapeal), niikaua kui tulemust pole veel sisestatud.
+router.put('/kohad/:id/paar', noudaPadelLigipaas, async (req, res) => {
+  const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
+  try {
+    await pool.query('UPDATE padel_kohad SET paar=$1 WHERE id=$2', [paar, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Eemalda kellegi registreering sellelt trennilt täielikult (nt kui keegi loobus ja teine peab
+// tema asemel sisse kirjutama, vms erandjuhtum).
+router.delete('/kohad/:id', noudaPadelLigipaas, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM padel_kohad WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
