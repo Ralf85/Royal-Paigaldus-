@@ -92,7 +92,6 @@ function avatarHtml(fotoUrl, nimi, suurus) {
 function kpOsa(d) { return (d || '').toString().slice(0, 10); }
 
 var mineRyhmad = [];
-var asendajateCache = {};
 var tananeTrenniLeitud = [];
 var ryhmiVarvid = {};
 
@@ -109,12 +108,14 @@ function renderTanaBanner() {
   }).join('');
 }
 
+var praeguneTootajaId = null;
 async function init() {
   var kontroll = await api('/api/padel/kontroll');
   if (!kontroll.lubatud) {
     document.getElementById('lubamatuTeade').style.display = 'block';
     return;
   }
+  praeguneTootajaId = kontroll.worker_id;
   document.getElementById('sisu').style.display = 'block';
   await Promise.all([laadiSaldo(), laadiRyhmad()]);
 }
@@ -181,9 +182,6 @@ async function taidaRyhmSisu(ryhmId, r) {
   var div = document.getElementById('ryhm-sisu-' + ryhmId);
   if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + (r.veateade || '') + '</div>'; return; }
 
-  var asendR = await api('/api/padel/ryhm/' + ryhmId + '/asendajad');
-  asendajateCache[ryhmId] = (asendR.ok && asendR.nimed) ? asendR.nimed : [];
-
 var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
     + r.edetabel.map(function(e, i) {
       var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
@@ -244,30 +242,41 @@ async function naitaNadal(ryhmId, nadalId) {
   var kohad = nadal.kohad || [];
   var paar1 = kohad.filter(function(k) { return k.paar === 1; });
   var paar2 = kohad.filter(function(k) { return k.paar === 2; });
+  var ootel = kohad.filter(function(k) { return k.paar !== 1 && k.paar !== 2; });
+  var registreeritudLiigeIdd = kohad.map(function(k) { return k.liige_id; });
+  var registreerimata = (r.liikmed || []).filter(function(l) { return registreeritudLiigeIdd.indexOf(l.id) === -1; });
+
+  function paariNupp(k, sihtPaar, silt) {
+    var aktiivne = (sihtPaar === null && k.paar !== 1 && k.paar !== 2) || k.paar === sihtPaar;
+    return '<button class="osalus-nupp' + (aktiivne ? ' aktiivne-jah' : '') + '" onclick="maaraPaar(' + k.id + ', ' + (sihtPaar === null ? 'null' : sihtPaar) + ', ' + ryhmId + ', ' + nadalId + ')">' + silt + '</button>';
+  }
 
   function kohaRida(k) {
-    var asendajaValikud = (asendajateCache[ryhmId] || []).map(function(n) {
-      return '<option value="' + n + '"' + (k.asendaja_nimi === n ? ' selected' : '') + '>' + n + '</option>';
-    }).join('');
-    var jahAktiivne = k.kinnitatud && k.osaleb;
-    var eiAktiivne = k.kinnitatud && !k.osaleb;
+    var minaOlen = praeguneTootajaId && k.worker_id === praeguneTootajaId;
     return '<div class="liige-rida">'
       + '<span class="liige-nimi">' + avatarHtml(k.foto_url, k.nimi, 26)
-      + k.nimi + (!k.kinnitatud ? ' <span style="color:#fbbf24;font-size:11px;font-weight:400">● kinnitamata</span>' : '')
+      + k.nimi + (minaOlen ? ' <span style="color:var(--groen);font-size:11px;font-weight:400">(sina)</span>' : '')
       + ' <a href="#" onclick="document.getElementById(\'foto-sisend-' + k.liige_id + '\').click();return false;" style="font-size:11px;color:var(--text3);text-decoration:none">📷</a>'
       + '<input type="file" accept="image/*" id="foto-sisend-' + k.liige_id + '" style="display:none" onchange="laeUlesFoto(' + k.liige_id + ', this, ' + ryhmId + ', ' + nadalId + ')">'
       + '</span>'
       + '<div class="osalus-nupud">'
-      + '<button class="osalus-nupp ' + (jahAktiivne ? 'aktiivne-jah' : '') + '" onclick="markOsalus(' + k.id + ', true, ' + ryhmId + ', ' + nadalId + ')">Osaleb</button>'
-      + '<button class="osalus-nupp ' + (eiAktiivne ? 'aktiivne-ei' : '') + '" onclick="naitaAsendajaValik(' + k.id + ')">Ei osale</button>'
-      + '</div>'
-      + '<div class="asendaja-rida" id="asend-' + k.id + '" style="display:' + (eiAktiivne ? 'flex' : 'none') + '">'
-      + '<select id="asend-sel-' + k.id + '" onchange="document.getElementById(\'asend-txt-' + k.id + '\').value=this.value" style="flex:1"><option value="">— vali varasem —</option>' + asendajaValikud + '</select>'
-      + '<input id="asend-txt-' + k.id + '" placeholder="uus nimi" value="' + (k.asendaja_nimi || '') + '" style="flex:1">'
-      + '<button class="nupp hall pisike" onclick="salvestaAsendaja(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">💾</button>'
+      + paariNupp(k, 1, 'Paar 1') + paariNupp(k, 2, 'Paar 2') + paariNupp(k, null, 'Ootel')
+      + '<button class="nupp hall pisike" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')" title="Eemalda registreering">✕</button>'
       + '</div>'
       + '</div>';
   }
+
+  var registreerimataHtml = registreerimata.length
+    ? '<div class="paar-blokk"><div class="paar-pealkiri">Ei ole veel registreerunud</div>'
+      + registreerimata.map(function(l) {
+        var minaOlen = praeguneTootajaId && l.worker_id === praeguneTootajaId;
+        return '<div class="liige-rida"><span class="liige-nimi">' + avatarHtml(l.foto_url, l.nimi, 26) + l.nimi + '</span>'
+          + (minaOlen
+            ? '<button class="nupp pisike" style="background:var(--groen);color:#052e16;font-weight:700" onclick="registreeruEnda(' + nadalId + ', ' + ryhmId + ')">✅ Mina mängin</button>'
+            : '<span style="color:var(--text3);font-size:12px">—</span>')
+          + '</div>';
+      }).join('') + '</div>'
+    : '';
 
   var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
   var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
@@ -290,8 +299,10 @@ async function naitaNadal(ryhmId, nadalId) {
     + '<span id="uks-teade-' + nadalId + '" style="font-size:12px"></span>'
     + (nadal.kellaaeg ? '<span style="font-size:11px;color:var(--text3)">📲 Kood saadetakse automaatselt kõigile 30 min enne algust</span>' : '<span style="font-size:11px;color:#fbbf24">⚠ Sisesta algusaeg, et kood automaatselt saadetaks</span>')
     + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + paar1.map(kohaRida).join('') + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + paar2.map(kohaRida).join('') + '</div>'
+    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + (paar1.length ? paar1.map(kohaRida).join('') : '<div style="color:var(--text3);font-size:12px;padding:6px 0">Veel keegi pole valitud</div>') + '</div>'
+    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + (paar2.length ? paar2.map(kohaRida).join('') : '<div style="color:var(--text3);font-size:12px;padding:6px 0">Veel keegi pole valitud</div>') + '</div>'
+    + (ootel.length ? '<div class="paar-blokk"><div class="paar-pealkiri">⏳ Ootel</div>' + ootel.map(kohaRida).join('') + '</div>' : '')
+    + registreerimataHtml
     + '<div class="paar-pealkiri">Tulemused (geim-geimilt, nt 6:3)</div>'
     + '<div id="setid-' + nadalId + '">' + setiReadHtml + '</div>'
     + '<div style="display:flex;gap:8px;margin:8px 0 12px">'
@@ -335,22 +346,23 @@ async function salvestaKellaaeg(ryhmId, nadalId) {
   setTimeout(function() { teade.textContent = ''; }, 2500);
 }
 
-function naitaAsendajaValik(kohaId) {
-  var el = document.getElementById('asend-' + kohaId);
-  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+async function maaraPaar(kohaId, paar, ryhmId, nadalId) {
+  await api('/api/padel/kohad/' + kohaId + '/paar', { method: 'PUT', body: JSON.stringify({ paar: paar }) });
+  await naitaNadal(ryhmId, nadalId);
 }
 
-async function markOsalus(kohaId, osaleb, ryhmId, nadalId) {
-  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: osaleb }) });
+async function registreeruEnda(nadalId, ryhmId) {
+  var r = await api('/api/padel/nadalad/' + nadalId + '/registreeru', { method: 'POST' });
+  if (!r.ok) { alert(r.veateade || 'Registreerimine ebaõnnestus'); return; }
   await naitaNadal(ryhmId, nadalId);
   laadiSaldo();
 }
 
-async function salvestaAsendaja(kohaId, ryhmId, nadalId) {
-  var nimi = document.getElementById('asend-txt-' + kohaId).value.trim();
-  if (!nimi) return;
-  await api('/api/padel/kohad/' + kohaId + '/osalus', { method: 'PUT', body: JSON.stringify({ osaleb: false, asendaja_nimi: nimi }) });
+async function eemaldaRegistreering(kohaId, ryhmId, nadalId) {
+  if (!confirm('Eemaldada see registreering trennilt?')) return;
+  await api('/api/padel/kohad/' + kohaId, { method: 'DELETE' });
   await naitaNadal(ryhmId, nadalId);
+  laadiSaldo();
 }
 
 async function salvestaTulemus(ryhmId, nadalId) {
