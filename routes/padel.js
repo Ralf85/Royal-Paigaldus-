@@ -713,7 +713,14 @@ async function kontrolliUksekoodiTeavitusi() {
          AND r.aktiivne = true`
     );
     for (const nadal of r.rows) {
-      const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [nadal.ryhm_id]);
+      // Ainult neile, kes on SELLEL konkreetsel trennil päriselt kinnitatud osalejad —
+      // mitte kogu grupi (potentsiaalselt 6+ inimest) peale.
+      const liikmedR = await pool.query(
+        `SELECT pl.worker_id
+         FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
+         WHERE pk.nadal_id=$1 AND pk.osaleb=true AND pk.kinnitatud=true`,
+        [nadal.id]
+      );
       for (const l of liikmedR.rows) {
         saadaTeavitus(l.worker_id, `🔑 ${nadal.ryhm_nimi} — uksekood`, `Trenn algab 30 minuti pärast. Uksekood: ${nadal.ukse_kood}`, '/padel');
       }
