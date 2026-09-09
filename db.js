@@ -682,6 +682,16 @@ async function initDB() {
         aktiivne BOOLEAN DEFAULT true,
         loodud TIMESTAMP DEFAULT NOW()
       );
+      -- Makseajalugu inimese (mitte grupi/koha) kaupa — ülekanne vähendab tema koguvõlga
+      -- kõigi gruppide peale kokku, olenemata sellest, milliste konkreetsete trennide eest see oli.
+      CREATE TABLE IF NOT EXISTS padel_maksed (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        summa DECIMAL(10,2) NOT NULL,
+        kuupaev DATE NOT NULL DEFAULT CURRENT_DATE,
+        kommentaar TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
       -- Grupi fikseeritud liikmed, jrk_nr määrab paaride rotatsiooni järjekorra (A,B,C,D).
       CREATE TABLE IF NOT EXISTS padel_liikmed (
         id SERIAL PRIMARY KEY,
