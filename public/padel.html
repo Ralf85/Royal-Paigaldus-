@@ -34,6 +34,15 @@
   td { padding: 8px 4px; border-bottom: 0.5px solid var(--border); }
   tr:last-child td { border-bottom: none; }
   .paar-blokk { background: var(--bg3); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .pesad-rida { display: flex; gap: 10px; }
+  .pesa { flex: 1; background: var(--bg2); border-radius: 10px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 110px; justify-content: center; }
+  .pesa-tuhi { cursor: pointer; border: 1.5px dashed var(--border); position: relative; }
+  .pesa-pluss { font-size: 26px; color: var(--text3); line-height: 1; margin-bottom: 4px; }
+  .pesa-taidetud { border: 1.5px solid var(--groen); }
+  .pesa-ootel { border: 1.5px solid #fbbf24; }
+  .pesa-valikud { position: absolute; top: 100%; left: 0; right: 0; margin-top: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; z-index: 20; max-height: 220px; overflow-y: auto; text-align: left; }
+  .pesa-valik { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; cursor: pointer; }
+  .pesa-valik:hover { background: var(--bg3); }
   .paar-pealkiri { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
   .liige-rida { display: flex; align-items: center; gap: 8px; padding: 6px 0; flex-wrap: wrap; }
   .liige-nimi { flex: 1; min-width: 90px; font-weight: 600; }
@@ -242,41 +251,39 @@ async function naitaNadal(ryhmId, nadalId) {
   var kohad = nadal.kohad || [];
   var paar1 = kohad.filter(function(k) { return k.paar === 1; });
   var paar2 = kohad.filter(function(k) { return k.paar === 2; });
-  var ootel = kohad.filter(function(k) { return k.paar !== 1 && k.paar !== 2; });
-  var registreeritudLiigeIdd = kohad.map(function(k) { return k.liige_id; });
-  var registreerimata = (r.liikmed || []).filter(function(l) { return registreeritudLiigeIdd.indexOf(l.id) === -1; });
+  var hoivatudLiigeIdd = kohad.filter(function(k) { return k.paar === 1 || k.paar === 2; }).map(function(k) { return k.liige_id; });
+  var vabadLiikmed = (r.liikmed || []).filter(function(l) { return hoivatudLiigeIdd.indexOf(l.id) === -1; });
 
-  function paariNupp(k, sihtPaar, silt) {
-    var aktiivne = (sihtPaar === null && k.paar !== 1 && k.paar !== 2) || k.paar === sihtPaar;
-    return '<button class="osalus-nupp' + (aktiivne ? ' aktiivne-jah' : '') + '" onclick="maaraPaar(' + k.id + ', ' + (sihtPaar === null ? 'null' : sihtPaar) + ', ' + ryhmId + ', ' + nadalId + ')">' + silt + '</button>';
-  }
-
-  function kohaRida(k) {
+  // Üks "pesa" — kas täidetud (avatar + nimi + kinnituse olek) või tühi ("+ Lisa mängija").
+  function pesa(k, sihtPaar) {
+    if (!k) {
+      var valikud = vabadLiikmed.map(function(l) {
+        return '<div class="pesa-valik" onclick="lisaMangija(' + nadalId + ', ' + l.id + ', ' + sihtPaar + ', ' + ryhmId + ')">' + avatarHtml(l.foto_url, l.nimi, 22) + l.nimi + '</div>';
+      }).join('') || '<div style="padding:8px;color:var(--text3);font-size:12px">Kõik grupi liikmed on juba kirjas</div>';
+      return '<div class="pesa pesa-tuhi" onclick="lylitaPesaValik(this)">'
+        + '<div class="pesa-pluss">+</div><div style="font-size:11px;color:var(--text3)">Lisa mängija</div>'
+        + '<div class="pesa-valikud" style="display:none">' + valikud + '</div>'
+        + '</div>';
+    }
     var minaOlen = praeguneTootajaId && k.worker_id === praeguneTootajaId;
-    return '<div class="liige-rida">'
-      + '<span class="liige-nimi">' + avatarHtml(k.foto_url, k.nimi, 26)
-      + k.nimi + (minaOlen ? ' <span style="color:var(--groen);font-size:11px;font-weight:400">(sina)</span>' : '')
-      + ' <a href="#" onclick="document.getElementById(\'foto-sisend-' + k.liige_id + '\').click();return false;" style="font-size:11px;color:var(--text3);text-decoration:none">📷</a>'
-      + '<input type="file" accept="image/*" id="foto-sisend-' + k.liige_id + '" style="display:none" onchange="laeUlesFoto(' + k.liige_id + ', this, ' + ryhmId + ', ' + nadalId + ')">'
-      + '</span>'
-      + '<div class="osalus-nupud">'
-      + paariNupp(k, 1, 'Paar 1') + paariNupp(k, 2, 'Paar 2') + paariNupp(k, null, 'Ootel')
-      + '<button class="nupp hall pisike" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')" title="Eemalda registreering">✕</button>'
-      + '</div>'
+    if (!k.kinnitatud) {
+      return '<div class="pesa pesa-ootel">'
+        + avatarHtml(k.foto_url, k.nimi, 40)
+        + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + '</div>'
+        + '<div style="color:#fbbf24;font-size:11px;margin:2px 0 6px">⏳ ootab kinnitust</div>'
+        + (minaOlen
+          ? '<div style="display:flex;gap:4px"><button class="nupp pisike" style="background:var(--groen);color:#052e16;padding:4px 8px;font-size:11px" onclick="kinnitaKoht(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">✅ Kinnita</button>'
+            + '<button class="nupp hall pisike" style="padding:4px 8px;font-size:11px" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">❌</button></div>'
+          : '<button class="nupp hall pisike" style="padding:4px 8px;font-size:11px" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">✕ Eemalda</button>')
+        + '</div>';
+    }
+    return '<div class="pesa pesa-taidetud">'
+      + avatarHtml(k.foto_url, k.nimi, 40)
+      + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + (minaOlen ? ' <span style="color:var(--groen);font-weight:400">(sina)</span>' : '') + '</div>'
+      + '<div style="color:var(--groen);font-size:11px;margin:2px 0 6px">✅ kinnitatud</div>'
+      + '<button class="nupp hall pisike" style="padding:4px 8px;font-size:11px" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">✕ Eemalda</button>'
       + '</div>';
   }
-
-  var registreerimataHtml = registreerimata.length
-    ? '<div class="paar-blokk"><div class="paar-pealkiri">Ei ole veel registreerunud</div>'
-      + registreerimata.map(function(l) {
-        var minaOlen = praeguneTootajaId && l.worker_id === praeguneTootajaId;
-        return '<div class="liige-rida"><span class="liige-nimi">' + avatarHtml(l.foto_url, l.nimi, 26) + l.nimi + '</span>'
-          + (minaOlen
-            ? '<button class="nupp pisike" style="background:var(--groen);color:#052e16;font-weight:700" onclick="registreeruEnda(' + nadalId + ', ' + ryhmId + ')">✅ Mina mängin</button>'
-            : '<span style="color:var(--text3);font-size:12px">—</span>')
-          + '</div>';
-      }).join('') + '</div>'
-    : '';
 
   var setid = (nadal.setid && nadal.setid.length) ? nadal.setid : [{},{},{}];
   var setiReadHtml = setid.map(function(s, i) { return setiRidaHtml(nadalId, i, s.paar1_geimid, s.paar2_geimid); }).join('');
@@ -299,10 +306,10 @@ async function naitaNadal(ryhmId, nadalId) {
     + '<span id="uks-teade-' + nadalId + '" style="font-size:12px"></span>'
     + (nadal.kellaaeg ? '<span style="font-size:11px;color:var(--text3)">📲 Kood saadetakse automaatselt kõigile 30 min enne algust</span>' : '<span style="font-size:11px;color:#fbbf24">⚠ Sisesta algusaeg, et kood automaatselt saadetaks</span>')
     + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div>' + (paar1.length ? paar1.map(kohaRida).join('') : '<div style="color:var(--text3);font-size:12px;padding:6px 0">Veel keegi pole valitud</div>') + '</div>'
-    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div>' + (paar2.length ? paar2.map(kohaRida).join('') : '<div style="color:var(--text3);font-size:12px;padding:6px 0">Veel keegi pole valitud</div>') + '</div>'
-    + (ootel.length ? '<div class="paar-blokk"><div class="paar-pealkiri">⏳ Ootel</div>' + ootel.map(kohaRida).join('') + '</div>' : '')
-    + registreerimataHtml
+    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 1</div><div class="pesad-rida">'
+      + pesa(paar1[0], 1) + pesa(paar1[1], 1) + '</div></div>'
+    + '<div class="paar-blokk"><div class="paar-pealkiri">Paar 2</div><div class="pesad-rida">'
+      + pesa(paar2[0], 2) + pesa(paar2[1], 2) + '</div></div>'
     + '<div class="paar-pealkiri">Tulemused (geim-geimilt, nt 6:3)</div>'
     + '<div id="setid-' + nadalId + '">' + setiReadHtml + '</div>'
     + '<div style="display:flex;gap:8px;margin:8px 0 12px">'
@@ -310,6 +317,13 @@ async function naitaNadal(ryhmId, nadalId) {
     + '</div>'
     + '<button class="nupp pisike" onclick="salvestaTulemus(' + ryhmId + ', ' + nadalId + ')">💾 Salvesta tulemus</button>'
     + '<div id="nadal-teade-' + nadalId + '" class="teade"></div>';
+}
+
+function lylitaPesaValik(el) {
+  var valikud = el.querySelector('.pesa-valikud');
+  var oliLahti = valikud.style.display !== 'none';
+  document.querySelectorAll('.pesa-valikud').forEach(function(v) { v.style.display = 'none'; });
+  valikud.style.display = oliLahti ? 'none' : 'block';
 }
 
 function setiRidaHtml(nadalId, idx, p1, p2) {
@@ -346,20 +360,20 @@ async function salvestaKellaaeg(ryhmId, nadalId) {
   setTimeout(function() { teade.textContent = ''; }, 2500);
 }
 
-async function maaraPaar(kohaId, paar, ryhmId, nadalId) {
-  await api('/api/padel/kohad/' + kohaId + '/paar', { method: 'PUT', body: JSON.stringify({ paar: paar }) });
-  await naitaNadal(ryhmId, nadalId);
-}
-
-async function registreeruEnda(nadalId, ryhmId) {
-  var r = await api('/api/padel/nadalad/' + nadalId + '/registreeru', { method: 'POST' });
-  if (!r.ok) { alert(r.veateade || 'Registreerimine ebaõnnestus'); return; }
+async function lisaMangija(nadalId, liigeId, paar, ryhmId) {
+  var r = await api('/api/padel/nadalad/' + nadalId + '/lisa', { method: 'POST', body: JSON.stringify({ liige_id: liigeId, paar: paar }) });
+  if (!r.ok) { alert(r.veateade || 'Ei õnnestunud'); return; }
   await naitaNadal(ryhmId, nadalId);
   laadiSaldo();
 }
 
+async function kinnitaKoht(kohaId, ryhmId, nadalId) {
+  var r = await api('/api/padel/kohad/' + kohaId + '/kinnita', { method: 'PUT' });
+  if (!r.ok) { alert(r.veateade || 'Ei õnnestunud'); return; }
+  await naitaNadal(ryhmId, nadalId);
+}
+
 async function eemaldaRegistreering(kohaId, ryhmId, nadalId) {
-  if (!confirm('Eemaldada see registreering trennilt?')) return;
   await api('/api/padel/kohad/' + kohaId, { method: 'DELETE' });
   await naitaNadal(ryhmId, nadalId);
   laadiSaldo();
