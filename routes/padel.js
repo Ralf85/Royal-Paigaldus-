@@ -417,6 +417,57 @@ router.post('/nadalad/:id/registreeru', noudaPadelLigipaas, async (req, res) => 
   }
 });
 
+// Lisa KONKREETNE inimene KONKREETSESSE paari-kohta (Playtomicu-laadne "+ Lisa mängija").
+// Kui lisad iseennast, on koht kohe kinnitatud. Kui lisad kellegi TEISE, jääb koht
+// "ootab kinnitust" olekusse, kuni see inimene ise kinnitab (vt /kohad/:id/kinnita).
+router.post('/nadalad/:id/lisa', noudaPadelLigipaas, async (req, res) => {
+  const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
+  const liigeId = parseInt(req.body.liige_id, 10);
+  if (!paar || !liigeId) return res.json({ ok: false, veateade: 'Vale päring' });
+  try {
+    const nadalR = await pool.query(
+      `SELECT pn.ryhm_id, r.hind FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id WHERE pn.id=$1`,
+      [req.params.id]
+    );
+    if (!nadalR.rows.length) return res.json({ ok: false, veateade: 'Trenni ei leitud' });
+    const { ryhm_id, hind } = nadalR.rows[0];
+
+    const liigeR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE id=$1 AND ryhm_id=$2', [liigeId, ryhm_id]);
+    if (!liigeR.rows.length) return res.json({ ok: false, veateade: 'See inimene ei ole selle grupi liige' });
+
+    const kohtiR = await pool.query('SELECT COUNT(*) c FROM padel_kohad WHERE nadal_id=$1 AND paar=$2', [req.params.id, paar]);
+    if (parseInt(kohtiR.rows[0].c, 10) >= 2) return res.json({ ok: false, veateade: 'See koht on juba täis' });
+
+    const iseend = liigeR.rows[0].worker_id === req.session.workerId;
+    await pool.query(
+      'INSERT INTO padel_kohad (nadal_id, liige_id, paar, osaleb, kinnitatud, summa) VALUES ($1,$2,$3,true,$4,$5) ON CONFLICT (nadal_id, liige_id) DO UPDATE SET paar=$3',
+      [req.params.id, liigeId, paar, iseend, hind]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Kinnita ENDA koht, kui keegi teine sind trennile lisas. Ainult see inimene ise (või admin)
+// saab oma kohta kinnitada — see on päris kinnitus, mitte lihtsalt kellegi teise vajutus.
+router.put('/kohad/:id/kinnita', noudaPadelLigipaas, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT pl.worker_id FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id WHERE pk.id=$1`,
+      [req.params.id]
+    );
+    if (!r.rows.length) return res.json({ ok: false, veateade: 'Kohta ei leitud' });
+    if (!req.session.isAdmin && r.rows[0].worker_id !== req.session.workerId) {
+      return res.json({ ok: false, veateade: 'Ainult see inimene ise saab oma kohta kinnitada' });
+    }
+    await pool.query('UPDATE padel_kohad SET kinnitatud=true WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // Paari vaba muutmine — täielik vabadus panna keegi Paar 1 / Paar 2 / Ootele, ükskõik millal
 // (enne trenni või kohapeal), niikaua kui tulemust pole veel sisestatud.
 router.put('/kohad/:id/paar', noudaPadelLigipaas, async (req, res) => {
