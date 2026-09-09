@@ -6,11 +6,120 @@
   <title>Royal Paigaldus — Sisselogimine</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0f13; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .kast { background: #1e293b; border-radius: 16px; padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(ellipse 80% 60% at 50% 38%, #1a1710 0%, #0a0a0c 58%, #060607 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Taust: hero, keskele suur "elav" 3D logo ─────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      position: relative;
+    }
+    .hero-hoovus {
+      position: absolute;
+      width: min(70vw, 640px);
+      height: min(70vw, 640px);
+      background: radial-gradient(circle, rgba(201,168,76,0.16) 0%, rgba(201,168,76,0) 70%);
+      pointer-events: none;
+      filter: blur(4px);
+    }
+    .logo-lava { perspective: 1400px; position: relative; z-index: 1; }
+    .logo-plaat {
+      width: min(72vw, 460px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 30px 50px rgba(0,0,0,0.55)) drop-shadow(0 0 34px rgba(201,168,76,0.18));
+      animation: hoju 9s ease-in-out infinite;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    @keyframes hoju {
+      0%, 100% { transform: rotateX(7deg) rotateY(-11deg) translateY(0px); }
+      25%      { transform: rotateX(3deg) rotateY(7deg)  translateY(-9px); }
+      50%      { transform: rotateX(-6deg) rotateY(13deg) translateY(2px); }
+      75%      { transform: rotateX(2deg) rotateY(-9deg)  translateY(8px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .logo-plaat { animation: none; transform: rotateX(4deg) rotateY(-6deg); }
+    }
+    .hero-alltekst {
+      margin-top: 28px;
+      color: #6b6f78;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Logi sisse nupp, paremal üleval ───────────────────────────────── */
+    .signin-nupp {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(201,168,76,0.4);
+      color: #e8d9ac;
+      padding: 12px 26px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: border-color .2s, background .2s, transform .15s;
+      z-index: 10;
+    }
+    .signin-nupp:hover { border-color: #c9a84c; background: rgba(201,168,76,0.1); }
+    .signin-nupp:active { transform: scale(0.97); }
+
+    /* ── Modaal, kus on PIN-koodi moodul ───────────────────────────────── */
+    .kate {
+      position: fixed; inset: 0;
+      background: rgba(5,5,7,0.72);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s ease;
+      z-index: 50;
+    }
+    .kate.avatud { opacity: 1; pointer-events: all; }
+    .kast {
+      background: #1e293b;
+      border: 1px solid rgba(201,168,76,0.18);
+      border-radius: 16px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      transform: translateY(14px) scale(0.97);
+      opacity: 0;
+      transition: transform .22s ease, opacity .22s ease;
+      position: relative;
+    }
+    .kate.avatud .kast { transform: translateY(0) scale(1); opacity: 1; }
+    .kast-sulge {
+      position: absolute; top: 14px; right: 14px;
+      background: none; border: none; color: #64748b;
+      font-size: 20px; line-height: 1; cursor: pointer; padding: 4px;
+    }
+    .kast-sulge:hover { color: #94a3b8; }
+
     .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
-    .logo-ring { width: 40px; height: 40px; background: linear-gradient(135deg, #c9a84c, #f0d080); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-    .logo-tekst { font-size: 14px; font-weight: 700; color: #c9a84c; }
+    .logo img { height: 30px; width: auto; }
     .logo-sub { font-size: 11px; color: #555; }
     h2 { font-size: 18px; margin-bottom: 4px; }
     .alapealkirjad { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
@@ -30,39 +139,66 @@
   </style>
 </head>
 <body>
-  <div class="kast">
-    <div class="logo">
-      <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:36px;width:auto">
-      <div class="logo-sub" style="margin-left:2px">Tööpäevik</div>
+
+  <button class="signin-nupp" onclick="avaKast()">Logi sisse</button>
+
+  <div class="hero">
+    <div class="hero-hoovus"></div>
+    <div class="logo-lava">
+      <img class="logo-plaat" src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus">
     </div>
-    <h2>Tere tulemast!</h2>
-    <p class="alapealkirjad">Sisesta oma PIN-kood</p>
-    <label>PIN-kood</label>
-    <input type="password" id="pin" maxlength="6" placeholder="••••" autocomplete="off" readonly>
-    <!-- Nähtamatu väli, mida brauser kasutab Face ID/passkey automaatseks pakkumiseks
-         (nn "Conditional UI") — kasutajale ei kuvata seda välja ennast, ainult telefoni
-         enda pakutud kiirvalikut. -->
-    <input type="text" id="webauthnCondInput" autocomplete="username webauthn" inputmode="none"
-      style="position:absolute;width:1px;height:1px;opacity:0.01;pointer-events:none;left:-9999px">
-    <div class="numbriklahvistik">
-      <div class="klahv" onclick="lisaNumber('1')">1</div>
-      <div class="klahv" onclick="lisaNumber('2')">2</div>
-      <div class="klahv" onclick="lisaNumber('3')">3</div>
-      <div class="klahv" onclick="lisaNumber('4')">4</div>
-      <div class="klahv" onclick="lisaNumber('5')">5</div>
-      <div class="klahv" onclick="lisaNumber('6')">6</div>
-      <div class="klahv" onclick="lisaNumber('7')">7</div>
-      <div class="klahv" onclick="lisaNumber('8')">8</div>
-      <div class="klahv" onclick="lisaNumber('9')">9</div>
-      <div class="klahv kustuta" onclick="kustutaViimane()">⌫</div>
-      <div class="klahv" onclick="lisaNumber('0')">0</div>
-      <div class="klahv kinnita" onclick="logi()">✓</div>
-    </div>
-    <div class="veateade" id="viga"></div>
-    <button class="admin-nupp" id="faceIdNupp" style="display:none;border-color:#c9a84c;color:#c9a84c;margin-top:8px" onclick="logiFaceId()">🔐 Logi sisse Face ID / sõrmejäljega</button>
-    <button class="admin-nupp" onclick="window.location='/admin-login'">🔐 Admin sisenemine</button>
+    <div class="hero-alltekst">Tööpäevik</div>
   </div>
+
+  <!-- Väli, mida brauser kasutab Face ID/passkey automaatseks pakkumiseks ("Conditional UI") —
+       see peab jääma modaalist SÕLTUMATUKS ja alati DOM-is nähtavaks (mitte display:none sees),
+       et fookus juba lehe laadimisel töötaks, enne kui kasutaja "Logi sisse" nupule vajutab. -->
+  <input type="text" id="webauthnCondInput" autocomplete="username webauthn" inputmode="none"
+    style="position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;border:none;padding:0;margin:0;pointer-events:none">
+
+  <div class="kate" id="kate" onclick="if(event.target===this)suletaKast()">
+    <div class="kast">
+      <button class="kast-sulge" onclick="suletaKast()" aria-label="Sulge">✕</button>
+      <div class="logo">
+        <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus">
+        <div class="logo-sub" style="margin-left:2px">Tööpäevik</div>
+      </div>
+      <h2>Tere tulemast!</h2>
+      <p class="alapealkirjad">Sisesta oma PIN-kood</p>
+      <label>PIN-kood</label>
+      <input type="password" id="pin" maxlength="6" placeholder="••••" autocomplete="off" readonly>
+      <div class="numbriklahvistik">
+        <div class="klahv" onclick="lisaNumber('1')">1</div>
+        <div class="klahv" onclick="lisaNumber('2')">2</div>
+        <div class="klahv" onclick="lisaNumber('3')">3</div>
+        <div class="klahv" onclick="lisaNumber('4')">4</div>
+        <div class="klahv" onclick="lisaNumber('5')">5</div>
+        <div class="klahv" onclick="lisaNumber('6')">6</div>
+        <div class="klahv" onclick="lisaNumber('7')">7</div>
+        <div class="klahv" onclick="lisaNumber('8')">8</div>
+        <div class="klahv" onclick="lisaNumber('9')">9</div>
+        <div class="klahv kustuta" onclick="kustutaViimane()">⌫</div>
+        <div class="klahv" onclick="lisaNumber('0')">0</div>
+        <div class="klahv kinnita" onclick="logi()">✓</div>
+      </div>
+      <div class="veateade" id="viga"></div>
+      <button class="admin-nupp" id="faceIdNupp" style="display:none;border-color:#c9a84c;color:#c9a84c;margin-top:8px" onclick="logiFaceId()">🔐 Logi sisse Face ID / sõrmejäljega</button>
+      <button class="admin-nupp" onclick="window.location='/admin-login'">🔐 Admin sisenemine</button>
+    </div>
+  </div>
+
   <script>
+    // Modaali ava/sulge
+    function avaKast() {
+      document.getElementById('kate').classList.add('avatud');
+      setTimeout(() => document.getElementById('pin').focus(), 200);
+    }
+    function suletaKast() {
+      document.getElementById('kate').classList.remove('avatud');
+    }
+    // Kui Face ID automaatne pakkumine käivitub ja õnnestub, tahame modaali ka kohe avada,
+    // et kasutaja näeks selgelt, mis toimub (vt saadaFaceIdVastus allpool).
+
     // Base64url <-> ArrayBuffer teisendused (WebAuthn kasutab base64url kodeeringut)
     function base64urlToBuffer(base64url) {
       const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
@@ -108,6 +244,7 @@
         localStorage.setItem('workerToken', r.token);
         window.location = '/tootaja';
       } else {
+        avaKast();
         vigaEl.style.display = 'block';
         vigaEl.textContent = r.veateade || 'Face ID sisselogimine ebaõnnestus';
       }
@@ -194,6 +331,9 @@
       }
     }
     document.addEventListener('keydown', e => {
+      const kateAvatud = document.getElementById('kate').classList.contains('avatud');
+      if (e.key === 'Escape' && kateAvatud) { suletaKast(); return; }
+      if (!kateAvatud) { if (e.key >= '0' && e.key <= '9') avaKast(); return; }
       if (e.key >= '0' && e.key <= '9') lisaNumber(e.key);
       if (e.key === 'Backspace') kustutaViimane();
       if (e.key === 'Enter') logi();
