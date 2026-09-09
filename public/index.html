@@ -120,6 +120,44 @@
     .signin-nupp:hover { border-color: #c9a84c; background: rgba(201,168,76,0.1); }
     .signin-nupp:active { transform: scale(0.97); }
 
+    .ylanupud { position: fixed; top: 24px; right: 24px; display: flex; gap: 10px; z-index: 10; }
+    .ylanupud .signin-nupp { position: static; }
+    .kontakt-nupp {
+      background: transparent;
+      border: 1px solid rgba(148,163,184,0.3);
+      color: #94a3b8;
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: border-color .2s, color .2s;
+      position: relative;
+    }
+    .kontakt-nupp:hover { border-color: #c9a84c; color: #e8d9ac; }
+    .kontakt-paneel {
+      position: absolute; top: calc(100% + 10px); right: 0;
+      background: #1e293b;
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 12px;
+      padding: 16px 20px;
+      min-width: 220px;
+      font-size: 13px;
+      color: #cbd5e1;
+      text-align: left;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      opacity: 0; visibility: hidden; transform: translateY(-6px);
+      transition: opacity .18s, transform .18s, visibility .18s;
+    }
+    .kontakt-nupp.avatud .kontakt-paneel { opacity: 1; visibility: visible; transform: translateY(0); }
+    .kontakt-paneel a { display: block; color: #e8d9ac; text-decoration: none; margin-top: 6px; font-weight: 600; }
+    .kontakt-paneel a:hover { color: #c9a84c; text-decoration: underline; }
+    .kontakt-paneel .silt { color: #64748b; font-size: 11px; margin-top: 12px; }
+    .kontakt-paneel .silt:first-child { margin-top: 0; }
+
     /* ── Modaal, kus on PIN-koodi moodul ───────────────────────────────── */
     .kate {
       position: fixed; inset: 0;
@@ -176,7 +214,18 @@
 </head>
 <body>
 
-  <button class="signin-nupp" onclick="avaKast()">Logi sisse</button>
+  <div class="ylanupud">
+    <button class="kontakt-nupp" id="kontaktNupp" onclick="event.stopPropagation();lylitaKontakt()">
+      Kontakt
+      <div class="kontakt-paneel">
+        <div class="silt">Telefon</div>
+        <a href="tel:+37258586475">+372 5858 6475</a>
+        <div class="silt">E-post</div>
+        <a href="mailto:ralf.rogov@gmail.com">ralf.rogov@gmail.com</a>
+      </div>
+    </button>
+    <button class="signin-nupp" onclick="avaKast()">Logi sisse</button>
+  </div>
 
   <div class="hero">
     <div class="hero-hoovus"></div>
@@ -187,10 +236,6 @@
       </div>
     </div>
     <div class="hero-alltekst">Tööpäevik</div>
-    <div class="hero-vihje">
-      Ligipääs ainult Royal Paigalduse töötajatele.<br>
-      Küsimuste korral: <a href="tel:+37258586475">+372 5858 6475</a> · <a href="mailto:ralf.rogov@gmail.com">ralf.rogov@gmail.com</a>
-    </div>
   </div>
 
   <!-- Väli, mida brauser kasutab Face ID/passkey automaatseks pakkumiseks ("Conditional UI") —
@@ -208,6 +253,7 @@
       </div>
       <h2>Tere tulemast!</h2>
       <p class="alapealkirjad">Sisesta oma PIN-kood</p>
+      <p style="color:#4b5568;font-size:11px;margin:-16px 0 20px">Ligipääs ainult Royal Paigalduse töötajatele.</p>
       <label>PIN-kood</label>
       <input type="password" id="pin" maxlength="6" placeholder="••••" autocomplete="off" readonly>
       <div class="numbriklahvistik">
@@ -233,12 +279,19 @@
   <script>
     // Modaali ava/sulge
     function avaKast() {
+      document.getElementById('kontaktNupp').classList.remove('avatud');
       document.getElementById('kate').classList.add('avatud');
       setTimeout(() => document.getElementById('pin').focus(), 200);
     }
     function suletaKast() {
       document.getElementById('kate').classList.remove('avatud');
     }
+    function lylitaKontakt() {
+      document.getElementById('kontaktNupp').classList.toggle('avatud');
+    }
+    document.addEventListener('click', () => {
+      document.getElementById('kontaktNupp').classList.remove('avatud');
+    });
     // Kui Face ID automaatne pakkumine käivitub ja õnnestub, tahame modaali ka kohe avada,
     // et kasutaja näeks selgelt, mis toimub (vt saadaFaceIdVastus allpool).
 
