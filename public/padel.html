@@ -133,11 +133,22 @@ async function laadiSaldo() {
   var r = await api('/api/padel/minu-saldo');
   var div = document.getElementById('saldoSisu');
   if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga saldo laadimisel</div>'; return; }
-  if (!r.vola.length) { div.innerHTML = '<div class="saldo-summa null">0,00 € — kõik makstud! ✅</div>'; return; }
-  div.innerHTML = '<div class="saldo-summa voolgu">' + fmtEur(r.kokku) + ' võlgu</div>'
+  var maksedHtml = (r.maksed && r.maksed.length)
+    ? '<div style="margin-top:14px"><div class="paar-pealkiri" style="margin-bottom:6px">Maksete ajalugu</div>' + r.maksed.map(function(m) {
+        return '<div class="rida"><span>' + fmtKp(m.kuupaev) + (m.kommentaar ? ' — ' + m.kommentaar : '') + '</span><span style="font-weight:600;color:var(--groen)">+' + fmtEur(m.summa) + '</span></div>';
+      }).join('') + '</div>'
+    : '';
+  if (r.kokku <= 0 && !r.vola.length) {
+    div.innerHTML = '<div class="saldo-summa null">0,00 € — kõik makstud! ✅</div>' + maksedHtml;
+    return;
+  }
+  var pealkiriKlass = r.kokku > 0 ? 'voolgu' : 'null';
+  var pealkiriTekst = r.kokku > 0 ? fmtEur(r.kokku) + ' võlgu' : (r.kokku < 0 ? fmtEur(-r.kokku) + ' sinu kasuks (üle makstud)' : '0,00 € — kõik makstud! ✅');
+  div.innerHTML = '<div class="saldo-summa ' + pealkiriKlass + '">' + pealkiriTekst + '</div>'
     + '<div style="margin-top:10px">' + r.vola.map(function(v) {
       return '<div class="rida"><span>' + v.ryhm_nimi + ' — ' + fmtKp(v.kuupaev) + '</span><span style="font-weight:600">' + fmtEur(v.summa) + '</span></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div>'
+    + maksedHtml;
 }
 
 async function laadiRyhmad() {
