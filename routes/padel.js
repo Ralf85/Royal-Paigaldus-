@@ -553,8 +553,83 @@ router.get('/minu-saldo', noudaPadelLigipaas, async (req, res) => {
        ORDER BY pn.kuupaev DESC`,
       [req.session.workerId]
     );
-    const kokku = r.rows.reduce((s, row) => s + parseFloat(row.summa), 0);
-    res.json({ ok: true, vola: r.rows, kokku: +kokku.toFixed(2) });
+    const maksedR = await pool.query(
+      `SELECT summa, kuupaev, kommentaar FROM padel_maksed WHERE worker_id=$1 ORDER BY kuupaev DESC, id DESC`,
+      [req.session.workerId]
+    );
+    const volgSumma = r.rows.reduce((s, row) => s + parseFloat(row.summa), 0);
+    const makstudSumma = maksedR.rows.reduce((s, row) => s + parseFloat(row.summa), 0);
+    const kokku = volgSumma - makstudSumma;
+    res.json({ ok: true, vola: r.rows, maksed: maksedR.rows, kokku: +kokku.toFixed(2) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── ADMIN: MAKSETE HALDUS (kes on mulle üle kandnud, kui palju) ───────────
+// Kõik Padeli mängijad (üle kõigi gruppide, dubleerimata) koos nende koguvõla/saldoga.
+router.get('/admin/saldod', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `WITH mangijad AS (
+         SELECT DISTINCT pl.worker_id, w.nimi
+         FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
+       ),
+       volad AS (
+         SELECT pl.worker_id, COALESCE(SUM(pk.summa), 0) AS volg
+         FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
+         WHERE pk.osaleb = true AND pk.makstud = false AND pk.summa IS NOT NULL
+         GROUP BY pl.worker_id
+       ),
+       maksed AS (
+         SELECT worker_id, COALESCE(SUM(summa), 0) AS makstud
+         FROM padel_maksed GROUP BY worker_id
+       )
+       SELECT m.worker_id, m.nimi,
+              COALESCE(v.volg, 0) AS volg,
+              COALESCE(mk.makstud, 0) AS makstud,
+              COALESCE(v.volg, 0) - COALESCE(mk.makstud, 0) AS saldo
+       FROM mangijad m
+       LEFT JOIN volad v ON v.worker_id = m.worker_id
+       LEFT JOIN maksed mk ON mk.worker_id = m.worker_id
+       ORDER BY m.nimi`
+    );
+    res.json({ ok: true, mangijad: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Ühe mängija makseajalugu (admin vaade)
+router.get('/admin/maksed/:workerId', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM padel_maksed WHERE worker_id=$1 ORDER BY kuupaev DESC, id DESC', [req.params.workerId]);
+    res.json({ ok: true, maksed: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Salvesta uus makse ("Siim kandis üle 31€")
+router.post('/admin/maksed', noudaAdmin, async (req, res) => {
+  const { worker_id, summa, kuupaev, kommentaar } = req.body;
+  const summaNum = parseFloat(summa);
+  if (!worker_id || !Number.isFinite(summaNum) || summaNum <= 0) return res.json({ ok: false, veateade: 'Sisesta töötaja ja positiivne summa' });
+  try {
+    await pool.query(
+      'INSERT INTO padel_maksed (worker_id, summa, kuupaev, kommentaar) VALUES ($1,$2,$3,$4)',
+      [worker_id, summaNum, kuupaev || new Date(), kommentaar || null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin/maksed/:id', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM padel_maksed WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
