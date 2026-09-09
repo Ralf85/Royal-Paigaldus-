@@ -60,6 +60,14 @@
   <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
 
   <div class="kaart">
+    <div class="kaart-hdr">💰 Maksed</div>
+    <div class="kaart-body">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Kõik Padeli mängijad ja nende hetkeseis. Kui keegi kannab raha üle, lisa see siia — see arvestatakse kohe tema saldosse.</div>
+      <div id="maksedSisu"><div class="laadimine">Laadimine...</div></div>
+    </div>
+  </div>
+
+  <div class="kaart">
     <div class="kaart-hdr">🔓 Ligipääs Padel moodulile</div>
     <div class="kaart-body">
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Ainult siin lubatud töötajad näevad oma pealehel "Padel" kaarti.</div>
@@ -77,13 +85,14 @@ function api(url, opts) {
   return fetch(url, opts).then(function(r) { return r.json(); });
 }
 function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function tanaISO() { return new Date().toISOString().split('T')[0]; }
 function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
 
 var koikTootajad = [];
 
 async function init() {
   if (!TOKEN) { window.location.replace('/admin-login'); return; }
-  await Promise.all([laadiRyhmad(), laadiLubatud()]);
+  await Promise.all([laadiRyhmad(), laadiLubatud(), laadiMaksed()]);
 }
 
 async function looRyhm() {
@@ -237,6 +246,68 @@ async function laadiLubatud() {
 }
 async function muudaLubatud(workerId, lubatud) {
   await api('/api/padel/admin/lubatud/' + workerId, { method: 'POST', body: JSON.stringify({ lubatud: lubatud }) });
+}
+
+async function laadiMaksed() {
+  var r = await api('/api/padel/admin/saldod');
+  var div = document.getElementById('maksedSisu');
+  if (!r.ok || !r.mangijad.length) { div.innerHTML = '<div class="tyhi">Mängijaid pole veel.</div>'; return; }
+  div.innerHTML = r.mangijad.map(function(m) {
+    var saldoVarv = m.saldo > 0 ? '#fbbf24' : (m.saldo < 0 ? '#4ade80' : 'var(--text3)');
+    var saldoTekst = m.saldo > 0 ? fmtEur(m.saldo) + ' võlgu' : (m.saldo < 0 ? fmtEur(-m.saldo) + ' ette makstud' : 'Kõik makstud');
+    return '<div style="border-bottom:0.5px solid var(--border);padding:10px 0">'
+      + '<div class="rida" style="border:none;padding:0;cursor:pointer" onclick="lylitaMakseVorm(' + m.worker_id + ')">'
+      + '<span>' + m.nimi + '</span><span style="font-weight:700;color:' + saldoVarv + '">' + saldoTekst + '</span>'
+      + '</div>'
+      + '<div id="makse-vorm-' + m.worker_id + '" style="display:none;margin-top:10px">'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+      + '<input type="number" step="0.01" min="0.01" id="makse-summa-' + m.worker_id + '" placeholder="Summa €" style="width:100px">'
+      + '<input type="date" id="makse-kp-' + m.worker_id + '" value="' + tanaISO() + '">'
+      + '<input type="text" id="makse-kommentaar-' + m.worker_id + '" placeholder="märkus (valikuline)" style="flex:1;min-width:120px">'
+      + '<button class="nupp pisike" onclick="lisaMakse(' + m.worker_id + ')">💾 Lisa makse</button>'
+      + '</div>'
+      + '<div id="makse-ajalugu-' + m.worker_id + '" style="margin-top:8px"></div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function lylitaMakseVorm(workerId) {
+  var vorm = document.getElementById('makse-vorm-' + workerId);
+  var avatud = vorm.style.display !== 'none';
+  document.querySelectorAll('[id^="makse-vorm-"]').forEach(function(v) { v.style.display = 'none'; });
+  if (!avatud) { vorm.style.display = 'block'; naitaMakseAjalugu(workerId); }
+}
+
+async function naitaMakseAjalugu(workerId) {
+  var r = await api('/api/padel/admin/maksed/' + workerId);
+  var div = document.getElementById('makse-ajalugu-' + workerId);
+  if (!r.ok || !r.maksed.length) { div.innerHTML = '<div style="color:var(--text3);font-size:12px">Makseid pole veel.</div>'; return; }
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Varasemad maksed</div>'
+    + r.maksed.map(function(m) {
+      return '<div class="rida" style="padding:4px 0"><span>' + fmtKp(m.kuupaev) + (m.kommentaar ? ' — ' + m.kommentaar : '') + '</span>'
+        + '<span style="display:flex;align-items:center;gap:8px"><b style="color:#4ade80">+' + fmtEur(m.summa) + '</b>'
+        + '<button class="nupp hall pisike" style="padding:2px 6px;font-size:11px" onclick="kustutaMakse(' + m.id + ', ' + workerId + ')">✕</button></span></div>';
+    }).join('');
+}
+
+async function lisaMakse(workerId) {
+  var summa = document.getElementById('makse-summa-' + workerId).value;
+  var kuupaev = document.getElementById('makse-kp-' + workerId).value;
+  var kommentaar = document.getElementById('makse-kommentaar-' + workerId).value;
+  var r = await api('/api/padel/admin/maksed', { method: 'POST', body: JSON.stringify({ worker_id: workerId, summa: summa, kuupaev: kuupaev, kommentaar: kommentaar }) });
+  if (!r.ok) { alert(r.veateade || 'Ei õnnestunud'); return; }
+  document.getElementById('makse-summa-' + workerId).value = '';
+  document.getElementById('makse-kommentaar-' + workerId).value = '';
+  await laadiMaksed();
+  lylitaMakseVorm(workerId);
+}
+
+async function kustutaMakse(id, workerId) {
+  if (!confirm('Kustutada see makse?')) return;
+  await api('/api/padel/admin/maksed/' + id, { method: 'DELETE' });
+  await laadiMaksed();
+  lylitaMakseVorm(workerId);
 }
 
 init();
