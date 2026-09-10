@@ -132,6 +132,33 @@ router.get('/admin/objektid', noudaAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
+// Admin: kronoloogiline voog — kõik tööd (koos piltidega) KÕIGIST objektidest kokku,
+// uusimad üleslaetud pildid enne. Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks.
+router.get('/admin/kronoloogia', noudaAdmin, async (req, res) => {
+  const { ettevote_id, limit } = req.query;
+  const params = [];
+  let where = '';
+  if (ettevote_id) { params.push(ettevote_id); where = ` WHERE o.ettevote_id = $${params.length}`; }
+  params.push(Math.min(parseInt(limit, 10) || 60, 200));
+  const r = await pool.query(
+    `SELECT t.id AS tookirje_id, t.kuupaev, t.kommentaar, w.nimi AS worker_nimi,
+            o.nimi AS objekt_nimi, o.pood_number, e.nimi AS ettevote_nimi,
+            COUNT(p.id) AS piltide_arv, MAX(p.loodud) AS viimane_pilt,
+            json_agg(json_build_object('url', p.url, 'nimi', p.nimi) ORDER BY p.loodud) AS pildid
+     FROM tookirjed t
+     JOIN tookirje_pildid p ON p.tookirje_id = t.id
+     JOIN workers w ON t.worker_id = w.id
+     JOIN objektid o ON t.objekt_id = o.id
+     JOIN ettevotted e ON o.ettevote_id = e.id
+     ${where}
+     GROUP BY t.id, t.kuupaev, t.kommentaar, w.nimi, o.nimi, o.pood_number, e.nimi
+     ORDER BY MAX(p.loodud) DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  res.json(r.rows);
+});
+
 // Admin: pildid ühe objekti kohta
 router.get('/admin/objekt/:objektId', noudaAdmin, async (req, res) => {
   const r = await pool.query(
