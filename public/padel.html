@@ -134,8 +134,8 @@ async function init() {
 // Ralfi kontod, kuhu padeli võlad tasutakse — muudetav ainult siin, ühes kohas.
 var MAKSE_SAAJA = 'RALF ROGOV';
 var MAKSE_KONTOD = [
-  { pank: 'Swedbank', varv: '#f36f21', tausta: '#3a1f0a', iban: 'EE792200221024775145' },
-  { pank: 'LHV',      varv: '#00aa46', tausta: '#0a2a17', iban: 'EE097700771000752043' }
+  { pank: 'Swedbank', logo: '/pangad/swedbank.png', tausta: '#fff', iban: 'EE792200221024775145' },
+  { pank: 'LHV',      logo: '/pangad/lhv.jpg',      tausta: '#0d0f13', iban: 'EE097700771000752043' }
 ];
 
 async function laadiSaldo() {
@@ -173,10 +173,10 @@ function lylitaMakse(summa) {
   var summaStr = summa.toFixed(2);
   var pangadHtml = MAKSE_KONTOD.map(function(k) {
     var ibanLoetav = k.iban.replace(/(.{4})/g, '$1 ').trim();
-    return '<div style="background:' + k.tausta + ';border:1px solid ' + k.varv + '55;border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+    return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
       + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-      + '<span style="background:' + k.varv + ';color:#fff;font-size:11px;font-weight:800;letter-spacing:0.3px;padding:3px 9px;border-radius:5px">' + k.pank + '</span>'
-      + '<span style="font-size:12px;color:var(--text3)">konto</span>'
+      + '<img src="' + k.logo + '" alt="' + k.pank + '" style="width:26px;height:26px;border-radius:6px;background:' + k.tausta + ';object-fit:cover">'
+      + '<span style="font-size:13px;font-weight:700">' + k.pank + '</span>'
       + '</div>'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
       + '<span style="font-size:13px;font-weight:600;font-family:monospace">' + ibanLoetav + '</span>'
