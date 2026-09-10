@@ -118,6 +118,7 @@ function renderTanaBanner() {
 }
 
 var praeguneTootajaId = null;
+var praeguneTootajaNimi = '';
 async function init() {
   var kontroll = await api('/api/padel/kontroll');
   if (!kontroll.lubatud) {
@@ -125,9 +126,14 @@ async function init() {
     return;
   }
   praeguneTootajaId = kontroll.worker_id;
+  praeguneTootajaNimi = kontroll.worker_nimi || '';
   document.getElementById('sisu').style.display = 'block';
   await Promise.all([laadiSaldo(), laadiRyhmad()]);
 }
+
+// Ralfi konto, kuhu padeli võlad tasutakse — muudetav ainult siin, ühes kohas.
+var MAKSE_SAAJA = 'RALF ROGOV';
+var MAKSE_IBAN = 'EE792200221024775145';
 
 async function laadiSaldo() {
   var r = await api('/api/padel/minu-saldo');
@@ -144,11 +150,59 @@ async function laadiSaldo() {
   }
   var pealkiriKlass = r.kokku > 0 ? 'voolgu' : 'null';
   var pealkiriTekst = r.kokku > 0 ? fmtEur(r.kokku) + ' võlgu' : (r.kokku < 0 ? fmtEur(-r.kokku) + ' sinu kasuks (üle makstud)' : '0,00 € — kõik makstud! ✅');
+  var maksaNuppHtml = r.kokku > 0
+    ? '<button class="nupp pisike" style="background:var(--groen);color:#052e16;font-weight:700;margin-top:10px" onclick="lylitaMakse(' + r.kokku + ')">💳 MAKSA ' + fmtEur(r.kokku) + '</button>'
+      + '<div id="makse-paneel" style="display:none;margin-top:12px;background:var(--bg3);border-radius:10px;padding:14px"></div>'
+    : '';
   div.innerHTML = '<div class="saldo-summa ' + pealkiriKlass + '">' + pealkiriTekst + '</div>'
+    + maksaNuppHtml
     + '<div style="margin-top:10px">' + r.vola.map(function(v) {
       return '<div class="rida"><span>' + v.ryhm_nimi + ' — ' + fmtKp(v.kuupaev) + '</span><span style="font-weight:600">' + fmtEur(v.summa) + '</span></div>';
     }).join('') + '</div>'
     + maksedHtml;
+}
+
+function lylitaMakse(summa) {
+  var paneel = document.getElementById('makse-paneel');
+  var avatud = paneel.style.display !== 'none';
+  if (avatud) { paneel.style.display = 'none'; return; }
+  var viide = 'Padel' + (praeguneTootajaNimi ? ' - ' + praeguneTootajaNimi : '');
+  var summaStr = summa.toFixed(2);
+  var ibanLoetav = MAKSE_IBAN.replace(/(.{4})/g, '$1 ').trim();
+  // EPC QR (SEPA ülekande standard) — töötab paljudes ELi pangaäppides otse skaneerides.
+  // Kui sõbra pank seda ei toeta, on allpool ikka kopeerimisnupud varuvariandina.
+  var epc = ['BCD', '002', '1', 'SCT', '', MAKSE_SAAJA, MAKSE_IBAN, 'EUR' + summaStr, '', '', viide].join('\n');
+  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(epc);
+  paneel.innerHTML =
+    '<div style="text-align:center;margin-bottom:12px">'
+    + '<img src="' + qrUrl + '" alt="Maksmise QR-kood" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:6px">'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:6px">Proovi skaneerida oma pangaäpist — kui ei tööta, kasuta alla andmeid</div>'
+    + '</div>'
+    + makseRida('Saaja', MAKSE_SAAJA)
+    + makseRida('Konto (IBAN)', ibanLoetav, MAKSE_IBAN)
+    + makseRida('Summa', summaStr + ' €', summaStr)
+    + makseRida('Selgitus', viide);
+  paneel.style.display = 'block';
+}
+function makseRida(silt, kuvatav, kopeeritav) {
+  var kop = (kopeeritav !== undefined ? kopeeritav : kuvatav).replace(/'/g, "\\'");
+  return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border)">'
+    + '<div><div style="font-size:10px;color:var(--text3)">' + silt + '</div><div style="font-size:13px;font-weight:600">' + kuvatav + '</div></div>'
+    + '<button class="nupp hall pisike" onclick="kopeeriMakseVali(this, \'' + kop + '\')">📋 Kopeeri</button>'
+    + '</div>';
+}
+function kopeeriMakseVali(nupp, tekst) {
+  var vana = nupp.textContent;
+  function onnestus() { nupp.textContent = '✅ Kopeeritud'; setTimeout(function() { nupp.textContent = vana; }, 1500); }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(tekst).then(onnestus);
+  } else {
+    var ajutine = document.createElement('textarea');
+    ajutine.value = tekst; ajutine.style.position = 'fixed'; ajutine.style.opacity = '0';
+    document.body.appendChild(ajutine); ajutine.focus(); ajutine.select();
+    try { document.execCommand('copy'); onnestus(); } catch (e) {}
+    document.body.removeChild(ajutine);
+  }
 }
 
 async function laadiRyhmad() {
