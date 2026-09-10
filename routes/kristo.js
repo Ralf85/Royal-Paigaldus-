@@ -47,6 +47,33 @@ router.get('/poed', noudaKristo, async (req, res) => {
   }
 });
 
+// ── KRONOLOOGIA: kõik tööd (kõigist poodidest) ühes voos, uusim üleslaetud pilt enne.
+// Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks, ilma poodide kaupa kaevamata.
+router.get('/kronoloogia', noudaKristo, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT t.id AS tookirje_id, t.kuupaev, w.nimi AS worker_nimi, o.nimi AS objekt_nimi,
+              ${KIRJELDUS_VOTI} AS kirjeldus,
+              COUNT(DISTINCT p.id) AS piltide_arv, MAX(p.loodud) AS viimane_pilt,
+              json_agg(json_build_object('url', p.url) ORDER BY p.loodud) AS pildid
+       FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       JOIN workers w ON t.worker_id = w.id
+       JOIN objektid o ON t.objekt_id = o.id
+       JOIN ettevotted e ON o.ettevote_id = e.id
+       ${LP_JOIN}
+       WHERE e.nimi = 'LIDL'
+       GROUP BY t.id, t.kuupaev, w.nimi, o.nimi, ${KIRJELDUS_VOTI}
+       ORDER BY MAX(p.loodud) DESC
+       LIMIT 80`
+    );
+    res.json({ ok: true, kirjed: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ── TASE 2: Projektid ühe poe sees ────────────────────────────────────────
 router.get('/projektid', noudaKristo, async (req, res) => {
   const { objekt_id } = req.query;
