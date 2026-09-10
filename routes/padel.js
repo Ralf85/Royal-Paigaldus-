@@ -48,9 +48,9 @@ async function noudaPadelLigipaas(req, res, next) {
 // Kas mul on ligipääs Padel moodulile? (kasutab liides, et otsustada, kas lehte üldse näidata)
 router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   try {
-    if (req.session.isAdmin) return res.json({ ok: true, lubatud: true, worker_id: req.session.workerId || null });
+    if (req.session.isAdmin) return res.json({ ok: true, lubatud: true, worker_id: req.session.workerId || null, worker_nimi: req.session.workerNimi || 'Admin' });
     const r = await pool.query('SELECT 1 FROM padel_lubatud WHERE worker_id=$1', [req.session.workerId]);
-    res.json({ ok: true, lubatud: r.rows.length > 0, worker_id: req.session.workerId });
+    res.json({ ok: true, lubatud: r.rows.length > 0, worker_id: req.session.workerId, worker_nimi: req.session.workerNimi || '' });
   } catch (err) {
     res.json({ ok: false, lubatud: false });
   }
