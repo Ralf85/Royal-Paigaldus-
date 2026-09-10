@@ -356,7 +356,12 @@ function renderOmaArvePdf(muuja, arve, read, logoBuf) {
   ry += 8;
   doc.font('Helvetica-Bold').fontSize(10).text(muuja.ettevote_nimi, rightColX, ry, { width: rightColW, align: 'right' }); ry += 14;
   doc.font('Helvetica').fontSize(9);
-  (muuja.aadress || '').split(',').filter(s => s.trim()).forEach(line => { doc.text(line.trim(), rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; });
+  let eelmineAadressiRida = null;
+  (muuja.aadress || '').split(',').map(s => s.trim()).filter(Boolean).forEach(line => {
+    if (line === eelmineAadressiRida) return;
+    eelmineAadressiRida = line;
+    doc.text(line, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12;
+  });
   ry += 4;
   if (muuja.rg_kood) { doc.text('Rg-kood ' + muuja.rg_kood, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
   if (muuja.kmkr) { doc.text('KMKR nr ' + muuja.kmkr, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
@@ -372,14 +377,14 @@ function renderOmaArvePdf(muuja, arve, read, logoBuf) {
 
   // Tabeli päis
   const PAGE_BOTTOM = 780;
-  const col = { kirjeldus: leftX, kogus: leftX + 300, uhik: leftX + 350, hind: leftX + 390, summa: leftX + 440 };
+  const col = { kirjeldus: leftX, kogus: leftX + 265, uhik: leftX + 305, hind: leftX + 340, summa: leftX + 410 };
   const joonistaTabeliPais = () => {
     doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
     doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
-    doc.text('Kogus', col.kogus, y + 5, { width: 40, align: 'right' });
+    doc.text('Kogus', col.kogus, y + 5, { width: 35, align: 'right' });
     doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
-    doc.text('Hind', col.hind, y + 5, { width: 40, align: 'right' });
+    doc.text('Hind', col.hind, y + 5, { width: 65, align: 'right' });
     doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
     y += 18;
   };
@@ -387,7 +392,7 @@ function renderOmaArvePdf(muuja, arve, read, logoBuf) {
 
   doc.font('Helvetica').fontSize(9);
   read.forEach(r => {
-    const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 290 });
+    const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 260 });
     const reaKorgus = Math.max(kirjeldusH, 12) + 6;
     if (y + reaKorgus > PAGE_BOTTOM) {
       doc.addPage();
@@ -395,11 +400,12 @@ function renderOmaArvePdf(muuja, arve, read, logoBuf) {
       joonistaTabeliPais();
       doc.font('Helvetica').fontSize(9);
     }
-    doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 290 });
-    doc.text(fmtNum(r.kogus), col.kogus, y, { width: 40, align: 'right' });
-    doc.text(r.uhik || '', col.uhik, y, { width: 30, align: 'right' });
-    doc.text(fmtEur(r.hind), col.hind, y, { width: 40, align: 'right' });
-    doc.text(fmtEur(r.summa), col.summa, y, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
+    const vahekaugus = Math.max(0, (kirjeldusH - 12) / 2);
+    doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 260 });
+    doc.text(fmtNum(r.kogus), col.kogus, y + vahekaugus, { width: 35, align: 'right' });
+    doc.text(r.uhik || '', col.uhik, y + vahekaugus, { width: 30, align: 'right' });
+    doc.text(fmtEur(r.hind), col.hind, y + vahekaugus, { width: 65, align: 'right' });
+    doc.text(fmtEur(r.summa), col.summa, y + vahekaugus, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
     y += reaKorgus;
     doc.moveTo(leftX, y - 3).lineTo(leftX + CONTENT_W, y - 3).strokeColor('#dddddd').stroke();
   });
