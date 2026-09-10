@@ -114,7 +114,8 @@
   <div class="topbar">
     <button class="topbar-back" onclick="tagasiNupp()">← Tagasi</button>
     <span class="topbar-title"><span class="topbar-badge">LIDL</span> Lidl Eesti — Pildid</span>
-    <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;margin-left:auto;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
+    <button onclick="avaKronoloogia(true)" id="kronoNupp" style="margin-left:auto;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🕐 Kronoloogia</button>
+    <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
   </div>
   <div class="leht">
     <div class="murr" id="murr"></div>
@@ -173,6 +174,7 @@
     function tagasiNupp() {
       if (tase === 3) { avaObjekt(valitudObjekt.id, valitudObjekt.nimi, true); }
       else if (tase === 2) { avaPoed(true); }
+      else if (tase === 'krono') { avaPoed(true); }
       else { window.location = '/'; }
     }
 
@@ -236,6 +238,46 @@
           + '<div class="poe-meta">' + p.projektide_arv + ' projekti<br>' + p.piltide_arv + ' pilti</div>'
           + '</div>';
       }).join('') + '</div>';
+    }
+
+    // ── KRONOLOOGIA: kõik tööd kõigist poodidest ühes voos, uusim üleslaetud pilt enne ──
+    var kronoKirjed = [];
+    async function avaKronoloogia(push) {
+      tase = 'krono'; valitudObjekt = null; valitudKirjeldus = null;
+      document.getElementById('toimingud-riba').style.display = 'none';
+      document.getElementById('murr').innerHTML = '<span class="murr-osa" onclick="avaPoed(true)">🏬 Poed</span><span class="murr-sep">›</span><span class="murr-osa aktiivne">🕐 Kronoloogia</span>';
+      if (push) history.pushState({ tase: 'krono' }, '', '/lidl-eesti?tase=krono');
+      else history.replaceState({ tase: 'krono' }, '', '/lidl-eesti?tase=krono');
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/kronoloogia');
+      if (!r.ok || !r.kirjed || !r.kirjed.length) {
+        sisu.innerHTML = '<div class="tyhi">Fotosid pole veel üles laaditud</div>';
+        return;
+      }
+      kronoKirjed = r.kirjed;
+      var viimanePaev = '';
+      sisu.innerHTML = kronoKirjed.map(function(k, ki) {
+        var paev = formatKp(k.kuupaev);
+        var hdr = paev !== viimanePaev
+          ? '<div style="font-size:11px;font-weight:700;color:#7a8290;text-transform:uppercase;letter-spacing:0.5px;margin:' + (viimanePaev ? '20px' : '0') + ' 0 8px">' + paev + '</div>'
+          : '';
+        viimanePaev = paev;
+        return hdr + '<div class="too-kaart" style="padding:14px 16px;margin-bottom:10px">'
+          + '<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:10px">'
+          + '<div><div style="font-weight:700;font-size:14px">' + k.objekt_nimi + ' — ' + k.kirjeldus + '</div>'
+          + '<div style="font-size:12px;color:#7a8290;margin-top:2px">👤 ' + k.worker_nimi + '</div></div>'
+          + '<span style="font-size:11px;color:#7a8290;white-space:nowrap">' + k.piltide_arv + ' pilti</span>'
+          + '</div>'
+          + '<div class="foto-grid">' + k.pildid.map(function(p, pi) {
+            return '<img src="' + p.url + '" loading="lazy" onclick="avaSuurKrono(' + ki + ',' + pi + ')">';
+          }).join('') + '</div>'
+          + '</div>';
+      }).join('');
+    }
+    function avaSuurKrono(kIndeks, pIndeks) {
+      praegusedPildid = kronoKirjed[kIndeks].pildid;
+      avaSuur(pIndeks);
     }
 
     // ── TASE 2: Projektid ühe poe sees ────────────────────────
@@ -386,6 +428,7 @@
     window.addEventListener('popstate', function(e) {
       var s = e.state;
       if (!s || s.tase === 1) { avaPoed(false); return; }
+      if (s.tase === 'krono') { avaKronoloogia(false); return; }
       if (s.tase === 2 && s.objekt) { avaObjekt(s.objekt.id, s.objekt.nimi, false); return; }
       if (s.tase === 3 && s.objekt && s.kirjeldus) {
         valitudObjekt = s.objekt;
@@ -401,10 +444,12 @@
       var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud) { window.location = '/'; return; }
       var params = new URLSearchParams(window.location.search);
-      var algTase = parseInt(params.get('tase') || '1', 10);
-      if (algTase === 2 && params.get('objekt_id')) {
+      var algTaseParam = params.get('tase') || '1';
+      if (algTaseParam === 'krono') {
+        await avaKronoloogia(false);
+      } else if (parseInt(algTaseParam, 10) === 2 && params.get('objekt_id')) {
         await avaObjekt(parseInt(params.get('objekt_id'), 10), params.get('objekt_nimi') || '', false);
-      } else if (algTase === 3 && params.get('objekt_id') && params.get('kirjeldus')) {
+      } else if (parseInt(algTaseParam, 10) === 3 && params.get('objekt_id') && params.get('kirjeldus')) {
         valitudObjekt = { id: parseInt(params.get('objekt_id'), 10), nimi: params.get('objekt_nimi') || '' };
         await avaProjekt(params.get('kirjeldus'), false);
       } else {
