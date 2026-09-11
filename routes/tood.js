@@ -381,13 +381,14 @@ router.get('/pildid-batch', noudaSisslogimist, async (req, res) => {
     if (!idList.length) return res.json({ ok: true, pildid: [] });
     const r = await pool.query(
       `SELECT tp.*, t.worker_id FROM tookirje_pildid tp
-       JOIN tookirjed t ON tp.kirje_id = t.id
-       WHERE tp.kirje_id = ANY($1) AND t.worker_id = $2
+       JOIN tookirjed t ON tp.tookirje_id = t.id
+       WHERE tp.tookirje_id = ANY($1) AND t.worker_id = $2
        ORDER BY tp.loodud ASC`,
       [idList, req.session.workerId]
     );
     res.json({ ok: true, pildid: r.rows });
   } catch (err) {
+    console.error('pildid-batch viga:', err.message);
     res.json({ ok: true, pildid: [] });
   }
 });
