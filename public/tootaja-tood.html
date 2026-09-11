@@ -594,7 +594,14 @@
     // ── MUUTMINE ─────────────────────────────────────────────
     function avaModal(kirje) {
       document.getElementById('muuta-id').value = kirje.id;
-      document.getElementById('muuta-kuupaev').value = kirje.kuupaev ? kirje.kuupaev.split('T')[0] : '';
+      // Kuupäev tuleb JSON-is UTC ISO stringina (nt "2026-09-10T00:00:00.000Z"). Selle toore
+      // .split('T')[0] võtmine võib ajavööndi tõttu anda vale (nt eilse) päeva. Nimekirjas
+      // (laadiKirjed()) kasutatakse `new Date(...)` + kohalikke getter'eid, mis annab alati õige
+      // päeva — teeme siin sama, et modal ja nimekiri oleks omavahel kooskõlas.
+      var muutaKp = kirje.kuupaev ? new Date(kirje.kuupaev) : null;
+      document.getElementById('muuta-kuupaev').value = muutaKp
+        ? (muutaKp.getFullYear() + '-' + String(muutaKp.getMonth() + 1).padStart(2, '0') + '-' + String(muutaKp.getDate()).padStart(2, '0'))
+        : '';
       document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
       document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
       document.getElementById('muuta-km').value = parseFloat(kirje.kilomeetrid || 0);
