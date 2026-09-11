@@ -368,7 +368,6 @@
       <button class="tab" onclick="avatTab(2);setTimeout(()=>{ if(typeof setGraafikVaade==='function') setGraafikVaade('kalender'); },0)"><svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>Tööajad</button>
       <button class="tab" data-tab="2" onclick="avatTab(2);setTimeout(()=>{ if(typeof setGraafikVaade==='function') setGraafikVaade('nimekiri'); },0)"><svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>Töötajad</button>
       <button class="tab" data-tab="12" onclick="avatTab(12)"><svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.6V3z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Arved</button>
-      <a class="tab" href="/padel-admin" style="text-decoration:none"><span style="font-size:16px;margin-right:4px">🎾</span>Padel</a>
       <button class="tab" data-tab="1" onclick="avatTab(1)"><svg class="sb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Maksed</button>
 
       <div class="sidebar-nav-label" style="margin-top:10px">Projektid / Kliendid</div>
@@ -1910,6 +1909,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button type="button" class="nupp hall" id="av-filt-koik" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('koik')">Kõik</button>
           <button type="button" class="nupp hall" id="av-filt-maksmata" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('maksmata')">⏳ Maksmata</button>
           <button type="button" class="nupp hall" id="av-filt-makstud" style="font-size:11px;padding:5px 12px" onclick="avFiltreeriStaatus('makstud')">✅ Makstud</button>
+          <select id="av-filt-muuja" style="font-size:11px;padding:5px 10px;width:auto" onchange="avFiltreeriMuuja(this.value)"><option value="koik">Kõik müüjad</option></select>
           <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
           <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
           <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
@@ -2050,31 +2050,23 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
               <option value="po">PO number</option>
               <option value="projekt">Projektinumber</option>
             </select>
-            <div style="display:flex;gap:6px;margin-bottom:6px">
-              <select id="av-po-valik" onchange="avPoValikMuutus()" style="flex:1">
-                <option value="">— Vali salvestatud —</option>
-              </select>
-              <button type="button" class="nupp hall" title="Kustuta valitud väärtus ajaloost (nt topelt salvestatud)" style="padding:6px 10px" onclick="avKustutaPoValik()">🗑</button>
-            </div>
+            <select id="av-po-valik" onchange="avPoValikMuutus()" style="margin-bottom:6px">
+              <option value="">— Vali salvestatud —</option>
+            </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="av-po" placeholder="nt 4501439102" style="flex:1">
               <button type="button" class="nupp hall" title="Salvesta see viide valikusse" style="padding:6px 10px" onclick="avSalvestaPoValik()">💾</button>
-              <button type="button" class="nupp hall" title="Lisa veel üks projektinumber/PO number sellele arvele" style="padding:6px 10px" onclick="avLisaViideRida()">➕</button>
             </div>
-            <div id="av-viide-lisad"></div>
-            <div style="font-size:10px;color:var(--hall);margin-top:4px">Arve loomisel salvestub see automaatselt ka selle ostja valikute alla. Vajuta "➕", kui sellel arvel on mitu projektinumbrit/PO numbrit korraga.</div>
+            <div style="font-size:10px;color:var(--hall);margin-top:4px">Arve loomisel salvestub see automaatselt ka selle ostja valikute alla.</div>
           </div>
         </div>
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Ostja aadress</label><input type="text" id="av-ostja-aadress" placeholder="Tänav, linn, maakond"></div>
           <div class="vorm-grupp">
             <label>Kontaktisik (ainult nimi)</label>
-            <div style="display:flex;gap:6px;margin-bottom:6px">
-              <select id="av-kontakt-valik" onchange="avKontaktValikMuutus()" style="flex:1">
-                <option value="">— Vali salvestatud —</option>
-              </select>
-              <button type="button" class="nupp hall" title="Kustuta valitud väärtus ajaloost (nt topelt salvestatud)" style="padding:6px 10px" onclick="avKustutaKontaktValik()">🗑</button>
-            </div>
+            <select id="av-kontakt-valik" onchange="avKontaktValikMuutus()" style="margin-bottom:6px">
+              <option value="">— Vali salvestatud —</option>
+            </select>
             <div style="display:flex;gap:6px">
               <input type="text" id="av-kontaktisik" placeholder="nt Kristo Allikas" style="flex:1">
               <button type="button" class="nupp hall" title="Salvesta see kontaktisik valikusse" style="padding:6px 10px" onclick="avSalvestaKontaktValik()">💾</button>
@@ -2101,8 +2093,6 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <input type="date" id="av-lopp" style="width:auto">
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('koond')">⚡ Täida tundide+km järgi</button>
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('tootajad')">⚡ Täida töötajate kaupa</button>
-            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('poed')">⚡ Täida poodide kaupa</button>
-            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avSeadistaArveldushind()" title="Kliendile esitatav tunnihind — eraldi töötaja palgamäärast">💶 Arveldushind</button>
           </div>
         </div>
 
@@ -2886,7 +2876,6 @@ let dashViimatiLaaditud = [];
 let dashOtsing = '';
 let dashStaatusFilter = 'kõik';
 let dashLehekülg = 1;
-let dashNaitaKoiki = false;
 const DASH_LEHE_SUURUS = 8;
 
 async function laadiKokkuvote() {
@@ -2902,7 +2891,6 @@ async function laadiKokkuvote() {
 function dashOtsiMuutus(v) { dashOtsing = (v||'').toLowerCase(); dashLehekülg = 1; renderKokkuvoteTable(); }
 function dashStaatusMuutus(f) { dashStaatusFilter = f; dashLehekülg = 1; renderKokkuvoteTable(); }
 function dashLeheVaheta(delta) { dashLehekülg += delta; renderKokkuvoteTable(); }
-function dashNaitaKoikiMuutus() { dashNaitaKoiki = !dashNaitaKoiki; dashLehekülg = 1; renderKokkuvoteTable(); }
 
 function renderKokkuvoteTable() {
   const kuu = document.getElementById('kv-kuu').value;
@@ -2927,7 +2915,7 @@ function renderKokkuvoteTable() {
 
   const kokkuLeheküljed = Math.max(1, Math.ceil(filtreeritud.length / DASH_LEHE_SUURUS));
   if (dashLehekülg > kokkuLeheküljed) dashLehekülg = kokkuLeheküljed;
-  const lehelised = dashNaitaKoiki ? filtreeritud : filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
+  const lehelised = filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
 
   const filtriRida = `<div class="tabel-filtri-riba">
     <input type="text" placeholder="🔍 Otsi töötajat..." value="${dashOtsing.replace(/"/g,'&quot;')}" oninput="dashOtsiMuutus(this.value)" class="tabel-otsi">
@@ -2935,7 +2923,6 @@ function renderKokkuvoteTable() {
       ${[['kõik','Kõik'],['makstud','Makstud'],['osaline','Osaliselt'],['tasumata','Tasumata'],['ettemakse','Ettemakse']].map(([f,l]) =>
         `<button type="button" class="dash-staatus-pill${dashStaatusFilter===f?' aktiivne':''}" onclick="dashStaatusMuutus('${f}')">${l}</button>`
       ).join('')}
-      <button type="button" class="dash-staatus-pill${dashNaitaKoiki?' aktiivne':''}" onclick="dashNaitaKoikiMuutus()">${dashNaitaKoiki?'📄 Näita lehitsedes':'📋 Näita kõiki'}</button>
     </div>
   </div>`;
 
@@ -3001,7 +2988,7 @@ function renderKokkuvoteTable() {
     <td style="text-align:right;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
     <td></td><td></td>
   </tr></tbody></table></div>`;
-  if (kokkuLeheküljed > 1 && !dashNaitaKoiki) {
+  if (kokkuLeheküljed > 1) {
     html += `<div class="tabel-pager">
       <button type="button" onclick="dashLeheVaheta(-1)" ${dashLehekülg<=1?'disabled':''}>‹ Eelmine</button>
       <span>Lehekülg ${dashLehekülg} / ${kokkuLeheküljed}</span>
@@ -3236,16 +3223,6 @@ const TJ_SVG_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const TJ_SVG_SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 3l7 3v6c0 4.4-3 8-7 9-4-1-7-4.6-7-9V6z"/></svg>';
 const TJ_SVG_RECEIPT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg>';
 
-async function tjSaadaTeavitus(workerId, nimi) {
-  const title = (prompt(`Teavituse pealkiri (${nimi}-le):`, '📢 Royal Paigaldus') || '').trim();
-  if (!title) return;
-  const body = (prompt('Sõnumi tekst:') || '').trim();
-  if (!body) return;
-  const r = await api('/api/push/saada', { method: 'POST', body: JSON.stringify({ worker_id: workerId, title, body }) });
-  if (r.ok) alert('✅ Teavitus saadetud!');
-  else alert('❌ ' + (r.veateade || 'Saatmine ebaõnnestus'));
-}
-
 async function laadiTootajad() {
   const [workers, xsList, arvedList, omaarvedList] = await Promise.all([
     api('/api/admin/tootajad'),
@@ -3428,7 +3405,6 @@ function tjRenderDetail() {
       ${w.arhiveeritud
         ? `<button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjTaastaTootaja(${w.id})">↩ Taasta</button>`
         : `<button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjArhiveeriTootaja()">📦 Arhiveeri</button>`}
-      <button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjSaadaTeavitus(${w.id},'${(w.nimi||'').replace(/'/g,"\\'")}')">📨 Saada teavitus</button>
       <button type="button" class="tj-more-nupp" onclick="tjKustutaTootaja()" title="Kustuta töötaja jäädavalt">🗑</button>
     </div>
     <div class="tj-detail-tabs">
@@ -3466,15 +3442,15 @@ function tjRenderDetailTabSisu(w, we) {
       </div>
       <div class="tj-ligipaas-rida">
         <span>🥏 X-seeria (võistlused, kulude sisestus)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onXs?'checked':''} onchange="tjToggleXs(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
       </div>
       <div class="tj-ligipaas-rida">
         <span>🧾 Minu Arved (isiklik arvete moodul)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onOmaarved?'checked':''} onchange="tjToggleOmaarved(${w.id}, this)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onOmaarved?'checked':''} onchange="tjToggleOmaarved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
       </div>
       <div class="tj-ligipaas-rida">
         <span>👤 Kogu ettevõtte arved (raamatupidaja täisligipääs)</span>
-        <label class="toggle-switch"><input type="checkbox" ${onArved?'checked':''} onchange="tjToggleArved(${w.id}, this)"><span class="toggle-slider"></span></label>
+        <label class="toggle-switch"><input type="checkbox" ${onArved?'checked':''} onchange="tjToggleArved(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
       </div>
       <div class="teade" id="tj-detail-teade" style="margin-top:10px"></div>
       <div style="display:flex;gap:10px;margin-top:14px">
@@ -3530,23 +3506,17 @@ async function tjLaadiAjalugu(workerId) {
   }
 }
 
-async function tjToggleXs(workerId, checkboxEl) {
-  const lubatud = checkboxEl.checked;
-  if (lubatud && !confirm('Anda sellele töötajale X-seeria ligipääs (võistlused, kulude sisestus)?')) { checkboxEl.checked = false; return; }
+async function tjToggleXs(workerId, lubatud) {
   await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikXs[workerId] = lubatud;
   tjRenderStatid(); tjRenderList();
 }
-async function tjToggleArved(workerId, checkboxEl) {
-  const lubatud = checkboxEl.checked;
-  if (lubatud && !confirm('Anda sellele töötajale KOGU ETTEVÕTTE ARVETE ligipääs (raamatupidaja täisligipääs)? See on tundlik õigus.')) { checkboxEl.checked = false; return; }
+async function tjToggleArved(workerId, lubatud) {
   await api(`/api/arved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikArved[workerId] = lubatud;
   tjRenderStatid();
 }
-async function tjToggleOmaarved(workerId, checkboxEl) {
-  const lubatud = checkboxEl.checked;
-  if (lubatud && !confirm('Anda sellele töötajale Minu Arved ligipääs (isiklik arvete moodul)?')) { checkboxEl.checked = false; return; }
+async function tjToggleOmaarved(workerId, lubatud) {
   await api(`/api/omaarved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
   tjKoikOmaarved[workerId] = lubatud;
   tjRenderStatid();
@@ -3684,9 +3654,9 @@ async function laadiObjektid(filter) {
     </div>`;
 
   const svgSalvesta='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
-  let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Poe number</th><th>Aktiivne</th><th></th></tr></thead><tbody>';
-  if(!nimekiri.length) html+=`<tr><td colspan="${objAktiivneFilter?4:5}" style="text-align:center;color:var(--hall);padding:24px">Objekte pole</td></tr>`;
-  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="text" value="${o.pood_number||''}" id="opn-${o.id}" placeholder="nt 1234" style="width:100px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
+  let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Aktiivne</th><th></th></tr></thead><tbody>';
+  if(!nimekiri.length) html+=`<tr><td colspan="${objAktiivneFilter?3:4}" style="text-align:center;color:var(--hall);padding:24px">Objekte pole</td></tr>`;
+  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
   document.getElementById('objektidTabel').innerHTML=html+'</tbody></table>';
 }
 
@@ -3700,7 +3670,7 @@ async function lisaObjekt() {
 }
 
 async function uuendaObjekt(id) {
-  await api(`/api/admin/objektid/${id}`,{method:'PUT',body:JSON.stringify({nimi:document.getElementById(`on-${id}`).value,aktiivne:document.getElementById(`oa-${id}`).checked,pood_number:document.getElementById(`opn-${id}`).value})});
+  await api(`/api/admin/objektid/${id}`,{method:'PUT',body:JSON.stringify({nimi:document.getElementById(`on-${id}`).value,aktiivne:document.getElementById(`oa-${id}`).checked})});
   laadiObjektid();
 }
 
@@ -4510,10 +4480,7 @@ async function naitaFotodEttevotted(){
 async function avaFotodEttevote(nimi){
   const div=document.getElementById('fotodSisu');
   div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
-  const tagasi=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <button onclick="naitaFotodEttevotted()" style="background:none;border:none;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;padding:0">← Tagasi ettevõtete juurde</button>
-    <button onclick="avaFotodKronoloogia('${nimi}')" class="nupp hall" style="font-size:12px;padding:7px 14px">🕐 Kronoloogia</button>
-  </div>`;
+  const tagasi=`<button onclick="naitaFotodEttevotted()" style="background:none;border:none;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:0">← Tagasi ettevõtete juurde</button>`;
   const ettevoteId=ettevoteIdByNimi(nimi);
   if(!ettevoteId){div.innerHTML=tagasi+`<div style="padding:24px;text-align:center;color:var(--hall)">${nimi} kohta pole veel fotosid.</div>`;return;}
   const kirjeldusteHaldusHtml = nimi==='LIDL' ? '<div id="kristo-kirjeldused-haldus" style="margin-bottom:20px"></div>' : '';
@@ -4530,38 +4497,6 @@ async function avaFotodEttevote(nimi){
       </div>
     </div>`).join('');
   if(nimi==='LIDL') laadiKristoKirjeldusteHaldus();
-}
-
-// ── KRONOLOOGIA: kõik tööd (kõigist objektidest) ühes voos, uusim üleslaetud pilt enne.
-// Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks, ilma poodide kaupa kaevamata.
-async function avaFotodKronoloogia(nimi){
-  const div=document.getElementById('fotodSisu');
-  div.innerHTML='<div style="padding:16px;color:var(--hall);font-size:13px">Laadimine...</div>';
-  const ettevoteId=ettevoteIdByNimi(nimi);
-  const tagasi=`<button onclick="avaFotodEttevote('${nimi}')" style="background:none;border:none;color:#2563eb;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:0">← Tagasi ${nimi} poodide juurde</button>`;
-  const kirjed=await api(`/api/pildid/admin/kronoloogia?ettevote_id=${ettevoteId}&limit=80`);
-  if(!Array.isArray(kirjed)||!kirjed.length){div.innerHTML=tagasi+'<div style="padding:24px;text-align:center;color:var(--hall)">Fotosid pole veel üles laaditud.</div>';return;}
-  let viimanePaev='';
-  const read=kirjed.map(k=>{
-    const paev=formatKp(k.kuupaev);
-    const paevHdr=paev!==viimanePaev ? `<div style="font-size:12px;font-weight:700;color:var(--hall);text-transform:uppercase;letter-spacing:0.5px;margin:${viimanePaev?'24px':'0'} 0 10px">${paev}</div>` : '';
-    viimanePaev=paev;
-    const poeSilt=k.pood_number?`Pood nr ${k.pood_number}`:k.objekt_nimi;
-    return paevHdr+`
-      <div style="background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:12px;padding:14px 16px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
-          <div>
-            <div style="font-weight:700;font-size:14px;color:var(--tekst)">${k.ettevote_nimi} — ${poeSilt}</div>
-            <div style="font-size:12px;color:var(--hall);margin-top:2px">👤 ${k.worker_nimi}${k.kommentaar?' · '+k.kommentaar:''}</div>
-          </div>
-          <span style="font-size:11px;color:var(--hall);white-space:nowrap">${k.piltide_arv} fotot</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px">
-          ${(k.pildid||[]).map(p=>`<a href="${p.url}" target="_blank"><img src="${p.url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;display:block" loading="lazy"></a>`).join('')}
-        </div>
-      </div>`;
-  }).join('');
-  div.innerHTML=tagasi+read;
 }
 
 // ── KRISTO: Lidli fotode "kirjeldus" gruppide haldus (kausta nimede parandus/ühendamine) ──
@@ -5911,65 +5846,16 @@ function avPoValikMuutus() {
   const item = avPoList.find(x => String(x.id) === id);
   if (item) document.getElementById('av-po').value = item.vaartus;
 }
-async function avKustutaPoValik() {
-  const id = document.getElementById('av-po-valik').value;
-  if (!id) return naitaTeade('arve-teade', 'viga', 'Vali enne rippmenüüst väärtus, mida kustutada.');
-  const item = avPoList.find(x => String(x.id) === id);
-  if (!confirm(`Kustutada ajaloost "${item ? item.vaartus : id}"? Seda saab hiljem uuesti lisada, kui vaja.`)) return;
-  const { id: ettevoteId } = avKlientValik();
-  await api(`/api/arved/valikud/${id}`, { method: 'DELETE' });
-  await avLaadiPoValikud(ettevoteId);
-  naitaTeade('arve-teade', 'ok', '✅ Kustutatud.');
-}
-// Mõnel arvel on korraga mitu PO/projektinumbrit (nt kaks tellimust samal arvel) —
-// need lisatakse põhivälja kõrvale eraldi väikeste ridadena ja pannakse arve loomisel
-// kokku üheks komadega eraldatud väärtuseks.
-var avViideLisad = [];
-function avLisaViideRida() {
-  avViideLisad.push('');
-  avJoonistaViideLisad();
-}
-function avEemaldaViideRida(idx) {
-  avViideLisad.splice(idx, 1);
-  avJoonistaViideLisad();
-}
-function avJoonistaViideLisad() {
-  const el = document.getElementById('av-viide-lisad');
-  el.innerHTML = avViideLisad.map((v, idx) => `
-    <div style="display:flex;gap:6px;margin-top:6px">
-      <input type="text" id="av-viide-lisa-${idx}" value="${(v||'').replace(/"/g,'&quot;')}" placeholder="veel üks viide" style="flex:1" oninput="avViideLisad[${idx}]=this.value">
-      <button type="button" class="nupp hall" title="Salvesta see viide valikusse" style="padding:6px 10px" onclick="avSalvestaViideLisaRida(${idx})">💾</button>
-      <button type="button" class="nupp hall" title="Eemalda" style="padding:6px 10px" onclick="avEemaldaViideRida(${idx})">✕</button>
-    </div>`).join('');
-}
-async function avSalvestaViideLisaRida(idx) {
-  const { tyyp, id: ettevoteId } = avKlientValik();
-  const vaartus = (avViideLisad[idx] || '').trim();
-  const siltNimiTyyp = avViideTyyp();
-  const siltNimi = siltNimiTyyp === 'projekt' ? 'projektinumber' : 'PO number';
-  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', `Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
-  if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
-  const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
-  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: siltNimiTyyp, vaartus, silt }) });
-  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', r.juba_olemas ? `See ${siltNimi} on juba ajaloos olemas.` : `✅ ${siltNimi} salvestatud valikusse.`); }
-  else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
-}
-function avKogutudViide() {
-  const pohi = document.getElementById('av-po').value.trim();
-  const koik = [pohi, ...avViideLisad.map(v => (v||'').trim())].filter(v => v);
-  return koik.join(', ');
-}
-
 async function avSalvestaPoValik() {
-  const { tyyp, id: ettevoteId } = avKlientValik();
+  const ettevoteId = document.getElementById('av-klient').value;
   const vaartus = document.getElementById('av-po').value.trim();
-  const siltNimiTyyp = avViideTyyp();
-  const siltNimi = siltNimiTyyp === 'projekt' ? 'projektinumber' : 'PO number';
-  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', `Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
+  const tyyp = avViideTyyp();
+  const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', `Vali enne klient (ettevõte) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
   if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
   const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
-  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: siltNimiTyyp, vaartus, silt }) });
-  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', r.juba_olemas ? `See ${siltNimi} on juba ajaloos olemas.` : `✅ ${siltNimi} salvestatud valikusse.`); }
+  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp, vaartus, silt }) });
+  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', `✅ ${siltNimi} salvestatud valikusse.`); }
   else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
 
@@ -5986,23 +5872,13 @@ function avKontaktValikMuutus() {
   const item = avKontaktList.find(x => String(x.id) === id);
   if (item) document.getElementById('av-kontaktisik').value = item.vaartus;
 }
-async function avKustutaKontaktValik() {
-  const id = document.getElementById('av-kontakt-valik').value;
-  if (!id) return naitaTeade('arve-teade', 'viga', 'Vali enne rippmenüüst väärtus, mida kustutada.');
-  const item = avKontaktList.find(x => String(x.id) === id);
-  if (!confirm(`Kustutada ajaloost "${item ? item.vaartus : id}"? Seda saab hiljem uuesti lisada, kui vaja.`)) return;
-  const { id: ettevoteId } = avKlientValik();
-  await api(`/api/arved/valikud/${id}`, { method: 'DELETE' });
-  await avLaadiKontaktValikud(ettevoteId);
-  naitaTeade('arve-teade', 'ok', '✅ Kustutatud.');
-}
 async function avSalvestaKontaktValik() {
-  const { tyyp, id: ettevoteId } = avKlientValik();
+  const ettevoteId = document.getElementById('av-klient').value;
   const vaartus = document.getElementById('av-kontaktisik').value.trim();
-  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', 'Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu) — kontaktisikud salvestuvad ettevõtte kaupa.');
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Vali enne klient (ettevõte) — kontaktisikud salvestuvad ettevõtte kaupa.');
   if (!vaartus) return naitaTeade('arve-teade', 'viga', 'Kontaktisiku väli on tühi.');
   const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: 'kontakt', vaartus }) });
-  if (r.ok) { await avLaadiKontaktValikud(ettevoteId); naitaTeade('arve-teade', 'ok', r.juba_olemas ? 'See kontaktisik on juba ajaloos olemas.' : '✅ Kontaktisik salvestatud valikusse.'); }
+  if (r.ok) { await avLaadiKontaktValikud(ettevoteId); naitaTeade('arve-teade', 'ok', '✅ Kontaktisik salvestatud valikusse.'); }
   else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
 
@@ -6086,16 +5962,15 @@ function avUuendaRida(idx, valjs, val) {
   avRead[idx][valjs] = val;
   if (valjs === 'kogus' || valjs === 'hind') {
     avRead[idx].summa = +((parseFloat(avRead[idx].kogus) || 0) * (parseFloat(avRead[idx].hind) || 0)).toFixed(2);
-    avJoonistaRead(); // ainult siis, kui summa/kogusumma tegelikult muutub — vastasel juhul
-    // kustutaks iga täheklõps kirjelduse/ühiku väljal terve tabelduse uuesti, mis viib fookuse ära.
   }
+  avJoonistaRead();
 }
 
 function avJoonistaRead() {
   const body = document.getElementById('av-read-body');
   body.innerHTML = avRead.map((r, idx) => `
     <tr>
-      <td><textarea rows="2" style="resize:vertical;min-height:32px" oninput="avUuendaRida(${idx},'kirjeldus',this.value)">${(r.kirjeldus||'').replace(/</g,'&lt;')}</textarea></td>
+      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)"></td>
       <td><input type="number" step="0.1" value="${r.kogus}" oninput="avUuendaRida(${idx},'kogus',this.value)"></td>
       <td><input type="text" value="${r.uhik||''}" oninput="avUuendaRida(${idx},'uhik',this.value)"></td>
       <td><input type="number" step="0.01" value="${r.hind}" oninput="avUuendaRida(${idx},'hind',this.value)"></td>
@@ -6122,19 +5997,6 @@ async function avAutotaida(viis) {
   if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
   avRead = r.read;
   avJoonistaRead();
-  if (r.hoiatus) alert('⚠️ ' + r.hoiatus);
-}
-
-async function avSeadistaArveldushind() {
-  const { tyyp, id } = avKlientValik();
-  if (tyyp !== 'ettevote') return naitaTeade('arve-teade', 'viga', 'Vali enne "Minu ettevõtete" klient (Lidl/Cramo/Muu).');
-  const uus = prompt('Kliendile esitatav tunnihind (€/h, käibemaksuta) — see EI OLE töötaja palgamäär, vaid arvel kasutatav hind:');
-  if (uus === null || uus.trim() === '') return;
-  const hind = parseFloat(uus.replace(',', '.'));
-  if (!Number.isFinite(hind) || hind < 0) return naitaTeade('arve-teade', 'viga', 'Vigane hind');
-  const r = await api(`/api/arved/admin/ettevotted/${id}/tunnihind`, { method: 'PUT', body: JSON.stringify({ arve_tunnihind: hind }) });
-  if (r.ok) naitaTeade('arve-teade', 'ok', `✅ Arveldushind salvestatud: ${hind} €/h`);
-  else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
 }
 
 async function avSalvestaArve() {
@@ -6142,7 +6004,7 @@ async function avSalvestaArve() {
   const ettevoteId = tyyp === 'ettevote' ? id : null;
   const ostjaNimi = document.getElementById('av-ostja-nimi').value.trim();
   if (!ostjaNimi) return naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!');
-  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && (parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0));
+  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
   if (!kehtivadRead.length) return naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!');
   if (!avmMuujad.length) return naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt');
   const body = {
@@ -6153,7 +6015,7 @@ async function avSalvestaArve() {
     ostja_rg_kood: document.getElementById('av-ostja-rgkood').value,
     ostja_kmkr: document.getElementById('av-ostja-kmkr').value,
     kontaktisik: document.getElementById('av-kontaktisik').value,
-    po_number: avKogutudViide(),
+    po_number: document.getElementById('av-po').value,
     viide_tyyp: avViideTyyp(),
     kuupaev: document.getElementById('av-kuupaev').value,
     maksetahtaeg_paevad: document.getElementById('av-maksetahtaeg-paevad').value,
@@ -6168,8 +6030,6 @@ async function avSalvestaArve() {
   avRead = [];
   avLisaRida();
   document.getElementById('av-po').value = '';
-  avViideLisad = [];
-  avJoonistaViideLisad();
   document.getElementById('av-viide-tyyp').value = 'po';
   avViideTyypMuutus();
   document.getElementById('av-ostja-nimi').value = '';
@@ -6187,14 +6047,31 @@ async function avSalvestaArve() {
 
 let avArvedList = [];
 let avStaatusFilter = 'koik';
+let avMuujaFilter = 'koik';
 let avArvedValitud = new Set();
 
 async function laadiArvedTabel() {
   const arved = await api('/api/arved');
   avArvedList = Array.isArray(arved) ? arved : [];
   avArvedValitud.clear();
+  avUuendaMuujaFiltriValikud();
   avFiltreeriStaatus(avStaatusFilter);
   avUuendaKmAnalyys();
+}
+
+// Müüja-filtri valikud tuletatakse otse olemasolevatest arvetest (mitte eraldi päringust),
+// nii et rippmenüü näitab alati ainult neid müüjaid, kellel arveid päriselt olemas on.
+function avUuendaMuujaFiltriValikud() {
+  const sel = document.getElementById('av-filt-muuja');
+  if (!sel) return;
+  const nimed = [...new Set(avArvedList.map(a => a.muuja_nimi).filter(Boolean))].sort();
+  const praegune = avMuujaFilter;
+  sel.innerHTML = '<option value="koik">Kõik müüjad</option>' + nimed.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+  if (nimed.includes(praegune)) sel.value = praegune; else { avMuujaFilter = 'koik'; sel.value = 'koik'; }
+}
+function avFiltreeriMuuja(v) {
+  avMuujaFilter = v;
+  avJoonistaArvedTabel();
 }
 
 function avVaataArve(id, valitud) {
@@ -6245,38 +6122,28 @@ function avKuuFiltreeri(list, kpVali) {
 function avJoonistaArvedTabel() {
   const div = document.getElementById('arvedTabel');
   let arved = avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter);
+  if (avMuujaFilter !== 'koik') arved = arved.filter(a => a.muuja_nimi === avMuujaFilter);
   arved = avKuuFiltreeri(arved, 'kuupaev');
   if (!arved.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid ei leitud</div>'; avUuendaArvedZipNupp(); return; }
-  div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th>Tegevused</th></tr></thead><tbody>` +
+  div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Müüja</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th>Tegevused</th></tr></thead><tbody>` +
     arved.map(a => `
       <tr>
         <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
-        <td style="font-weight:600">${a.number}${a.kreedit_algne_arve_id ? ' <span style="color:#f87171;font-size:10px;font-weight:700">KREEDIT</span>' : ''}</td>
+        <td style="font-weight:600">${a.number}</td>
         <td>${formatKp(a.kuupaev)}</td>
+        <td style="color:var(--hall);font-size:12px">${a.muuja_nimi || '—'}</td>
         <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
-        <td style="text-align:right;font-weight:600${a.kokku < 0 ? ';color:#f87171' : ''}">${avFmtEur(a.kokku)}</td>
+        <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
         <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
           ${a.fail_url
             ? `<a href="${a.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
-          <a href="${a.fail_url || `/api/arved/${a.id}/pdf?_token=${TOKEN}`}" target="_blank" class="av-tegevus-ikoon" title="${a.fail_url ? 'Laadi üleslaetud fail alla' : 'Laadi PDF alla'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
-          ${!a.kreedit_algne_arve_id ? `<button onclick="avLooKreedit(${a.id},'${a.number}')" class="av-tegevus-ikoon" title="Loo kreeditarve" style="color:#f87171"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>` : ''}
+          <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
       </tr>`).join('') + '</tbody></table></div>';
   avUuendaArvedZipNupp();
-}
-
-async function avLooKreedit(id, number) {
-  if (!confirm(`Luua kreeditarve arve nr ${number} kohta? See loob uue arve, mis tühistab kogu algse arve summa (negatiivsete ridadega). Seda ei saa hiljem tagasi võtta, aga saad soovi korral hiljem kreeditarve endagi kustutada.`)) return;
-  const r = await api(`/api/arved/${id}/kreedit`, { method: 'POST' });
-  if (r.ok) {
-    alert(`✅ Kreeditarve nr ${r.number} loodud.`);
-    await laadiArvedTabel();
-  } else {
-    alert('❌ ' + (r.veateade || 'Kreeditarve loomine ebaõnnestus'));
-  }
 }
 
 async function avMuudaStaatus(id, uusStaatus) {
@@ -6770,31 +6637,19 @@ function avToggleLigipaasPaneel() {
 }
 async function laadiArvedLigipaas() {
   const r = await api('/api/arved/admin/lubatud');
-  const muujad = await api('/api/arved/muujad');
-  const muujaNimekiri = (muujad.ok && muujad.muujad) ? muujad.muujad : [];
   const div = document.getElementById('avLigipaasSisu');
   if (!Array.isArray(r) || !r.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Töötajaid ei leitud.</span>'; return; }
   div.innerHTML = r.map(w => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--piir2);gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--piir2)">
       <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'}">${w.lubatud ? '👤' : '·'} ${w.nimi}</span>
-      <div style="display:flex;align-items:center;gap:10px">
-        ${w.lubatud ? `<select onchange="avSeaArveMuuja(${w.id}, this.value)" style="font-size:12px;padding:4px 6px" title="Millist müüjat/ettevõtet see raamatupidaja näeb">
-          <option value="">Kõik ettevõtted</option>
-          ${muujaNimekiri.map(m => `<option value="${m.id}" ${String(w.muuja_id) === String(m.id) ? 'selected' : ''}>${m.ettevote_nimi}</option>`).join('')}
-        </select>` : ''}
-        <label class="toggle-switch">
-          <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleLigipaas(${w.id}, this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleLigipaas(${w.id}, this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
     </div>`).join('');
-}
-async function avSeaArveMuuja(workerId, muujaId) {
-  await api(`/api/arved/admin/lubatud/${workerId}/muuja`, { method: 'PUT', body: JSON.stringify({ muuja_id: muujaId || null }) });
 }
 async function avToggleLigipaas(workerId, lubatud) {
   await api(`/api/arved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
-  laadiArvedLigipaas();
 }
 
 // ── LIGIPÄÄS (töötaja isiklik Arved moodul) ───────────────────────────────
