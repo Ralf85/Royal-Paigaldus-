@@ -132,6 +132,22 @@
       <div class="vorm-rida">
         <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="muuta-komm" placeholder="vabatahtlik"></div>
       </div>
+      <!-- Fotode lisamine olemasolevale kirjele -->
+      <div class="foto-ala">
+        <div style="font-size:12px;color:#7a8290;margin-bottom:8px">📷 Fotod (saad lisada ka hiljem, mitu korda)</div>
+        <div class="foto-nupud">
+          <label class="foto-nupp">
+            📷 Kaamera
+            <input type="file" id="muuta-foto-kaamera" accept="image/*" capture="environment" multiple>
+          </label>
+          <label class="foto-nupp">
+            🖼️ Album
+            <input type="file" id="muuta-foto-album" accept="image/*" multiple>
+          </label>
+        </div>
+        <div id="muuta-foto-olemasolevad" class="foto-grid" style="margin-top:10px"></div>
+        <div id="muuta-foto-progress" style="font-size:12px;color:#60a5fa;margin-top:8px;display:none"></div>
+      </div>
       <button class="salvesta-nupp-modal" onclick="salvestaMuutus()">Salvesta muutused</button>
       <div class="modal-teade" id="muuta-teade"></div>
     </div>
@@ -601,8 +617,51 @@
         lpRida.style.display = 'none';
       }
       document.getElementById('muuta-teade').style.display = 'none';
+      document.getElementById('muuta-foto-progress').style.display = 'none';
+      laadiMuutaFotod(kirje.id);
       document.getElementById('muutaModal').classList.add('avatud');
     }
+    async function laadiMuutaFotod(kirjeId) {
+      var el = document.getElementById('muuta-foto-olemasolevad');
+      el.innerHTML = '<div style="font-size:12px;color:#555">Laadin pilte...</div>';
+      var r = await api('/api/tood/pildid-batch?ids=' + kirjeId);
+      var pildid = (r.ok && r.pildid) ? r.pildid : [];
+      if (!pildid.length) { el.innerHTML = '<div style="font-size:12px;color:#555">Pilte pole veel lisatud.</div>'; return; }
+      el.innerHTML = pildid.map(function(p) {
+        return '<a href="' + p.url + '" target="_blank"><img src="' + p.url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer"></a>';
+      }).join('');
+    }
+    async function muutaLisaFotod(files) {
+      var kirjeId = document.getElementById('muuta-id').value;
+      if (!kirjeId || !files || !files.length) return;
+      var progress = document.getElementById('muuta-foto-progress');
+      progress.style.display = 'block';
+      var kokku = files.length;
+      for (var i = 0; i < kokku; i++) {
+        progress.textContent = '📷 Laen üles pilti ' + (i + 1) + '/' + kokku + '...';
+        try {
+          var kompressitud = await kompresseeriFoto(files[i]);
+          var fd = new FormData();
+          fd.append('kirje_id', kirjeId);
+          fd.append('pildid', kompressitud);
+          await fetch('/api/pildid/lisa', {
+            method: 'POST',
+            headers: { 'x-session-token': TOKEN },
+            body: fd
+          });
+        } catch (e) {
+          console.error('Pildi lisamine ebaõnnestus:', e);
+        }
+      }
+      progress.textContent = '✅ ' + kokku + ' pilti lisatud!';
+      document.getElementById('muuta-foto-kaamera').value = '';
+      document.getElementById('muuta-foto-album').value = '';
+      await laadiMuutaFotod(kirjeId);
+      await laadiKirjed(); // uuenda ka nimekirja pisipiltide arv/eelvaade
+      setTimeout(function() { progress.style.display = 'none'; }, 2500);
+    }
+    document.getElementById('muuta-foto-kaamera').addEventListener('change', function() { muutaLisaFotod(this.files); });
+    document.getElementById('muuta-foto-album').addEventListener('change', function() { muutaLisaFotod(this.files); });
     function sulgeModal() { document.getElementById('muutaModal').classList.remove('avatud'); }
     async function salvestaMuutus() {
       var id = document.getElementById('muuta-id').value;
