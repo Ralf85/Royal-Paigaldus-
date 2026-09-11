@@ -79,13 +79,11 @@ function noudaSisslogimist(req, res, next) {
 // Admin pääseb Arved-vaatele alati ligi; töötaja peab olema eraldi lubatud (arve_lubatud) —
 // sama muster, mida kasutavad X-seeria/EDGF/Rally Estonia (raamatupidaja saab hiljem oma töötaja-PIN-i).
 async function noudaArvedLubatud(req, res, next) {
-  if (req.session && req.session.isAdmin) { req.arveMuujaPiirang = null; return next(); }
+  if (req.session && req.session.isAdmin) return next();
   if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
   try {
-    const r = await pool.query('SELECT muuja_id FROM arve_lubatud WHERE worker_id=$1', [req.session.workerId]);
+    const r = await pool.query('SELECT 1 FROM arve_lubatud WHERE worker_id=$1', [req.session.workerId]);
     if (!r.rows.length) return res.status(403).json({ ok: false, veateade: 'Sul pole Arved ligipääsu' });
-    // null = näeb kõiki müüjaid/ettevõtteid; kui seatud, näeb ainult selle müüja väljastatud arveid.
-    req.arveMuujaPiirang = r.rows[0].muuja_id || null;
     next();
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -283,21 +281,10 @@ router.get('/valikud', noudaAdmin, async (req, res) => {
 router.post('/valikud', noudaAdmin, async (req, res) => {
   const { ettevote_id, tyyp, vaartus, silt } = req.body;
   if (!ettevote_id || !tyyp || !vaartus) return res.json({ ok: false, veateade: 'Puudulikud andmed' });
-  // Kaitse: ettevote_id peab olema päris number (mitte nt "e-2" — vale formaadis väärtus,
-  // mis muidu jõuaks otse INTEGER veergu ja tekitaks toore andmebaasi veateate).
-  const ettevoteIdNum = parseInt(ettevote_id, 10);
-  if (!Number.isInteger(ettevoteIdNum) || String(ettevoteIdNum) !== String(ettevote_id).trim()) {
-    return res.json({ ok: false, veateade: 'Vigane ettevõtte ID — proovi klient uuesti valida.' });
-  }
   try {
-    const olemasR = await pool.query(
-      'SELECT * FROM arve_valikud WHERE ettevote_id=$1 AND tyyp=$2 AND vaartus=$3',
-      [ettevoteIdNum, tyyp, vaartus]
-    );
-    if (olemasR.rows.length) return res.json({ ok: true, valik: olemasR.rows[0], juba_olemas: true });
     const r = await pool.query(
       'INSERT INTO arve_valikud (ettevote_id, tyyp, vaartus, silt) VALUES ($1,$2,$3,$4) RETURNING *',
-      [ettevoteIdNum, tyyp, vaartus, silt || '']
+      [ettevote_id, tyyp, vaartus, silt || '']
     );
     res.json({ ok: true, valik: r.rows[0] });
   } catch (err) {
@@ -320,47 +307,6 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
   const { ettevote_id, algus, lopp, viis } = req.query;
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
   try {
-    const etR = await pool.query('SELECT arve_tunnihind FROM ettevotted WHERE id=$1', [ettevote_id]);
-    const arveTunnihind = etR.rows[0] && etR.rows[0].arve_tunnihind != null ? parseFloat(etR.rows[0].arve_tunnihind) : null;
-    // Kui kliendile ei ole veel arveldushinda seadistatud, kasutame vanemat (töötaja palgamäära)
-    // varianti tagavarana, aga anname sellest admin'ile selgelt teada, et vältida alahindamist.
-    const hoiatus = arveTunnihind == null
-      ? 'NB! Sellel kliendil pole arveldushinda seadistatud — kasutati töötaja palgamäära, mis VÕIB OLLA VALE. Palun kontrolli hinda enne saatmist ja seadista klienti "Arveldushind" väljal.'
-      : null;
-
-    if (viis === 'poed') {
-      // Lidli-tüüpi arved: kokkuvõte POE (objekti) kaupa, kõigi töötajate tunnid kokku liidetud
-      // ühe poe sees. Kirjelduses näidatakse poe NUMBRIT (kui see on objektile seadistatud),
-      // mitte objekti nime — kilomeetrid jäävad üheks koondreaks (mitte poodide kaupa).
-      // Lisaks liidetakse kirjelduse alla töötajate endi jäetud kommentaarid (tookirjed.kommentaar),
-      // et raamatupidajal/kliendil oleks näha, mida tegelikult tehti, mitte ainult tunniarv.
-      const r = await pool.query(
-        `SELECT o.nimi as objekt_nimi, o.pood_number, SUM(t.tunnid) as tunnid,
-                STRING_AGG(DISTINCT NULLIF(TRIM(t.kommentaar), ''), ' | ') as kommentaarid
-         FROM tookirjed t
-         LEFT JOIN objektid o ON t.objekt_id = o.id
-         WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
-         GROUP BY o.nimi, o.pood_number
-         ORDER BY o.pood_number, o.nimi`,
-        [ettevote_id, algus, lopp]
-      );
-      const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
-        const kogus = parseFloat(row.tunnid);
-        const hind = arveTunnihind != null ? arveTunnihind : 0;
-        const siltAlus = row.pood_number ? `Pood nr ${row.pood_number}` : (row.objekt_nimi || 'Tundmatu pood');
-        const kirjeldus = `Tehtud tööd (${siltAlus})` + (row.kommentaarid ? `\n${row.kommentaarid}` : '');
-        return { kirjeldus, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
-      });
-      const kmR = await pool.query(
-        `SELECT COALESCE(SUM(kilomeetrid),0) as km FROM tookirjed WHERE ettevote_id=$1 AND kuupaev BETWEEN $2 AND $3`,
-        [ettevote_id, algus, lopp]
-      );
-      const km = parseFloat(kmR.rows[0].km);
-      if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-      const poeHoiatus = r.rows.some(row => !row.pood_number) ? 'NB! Osadel objektidel pole poe number seadistatud — kirjelduses kasutati objekti nime. Poe numbri saab lisada "Objektid" alt.' : null;
-      return res.json({ ok: true, read, hoiatus: hoiatus || poeHoiatus });
-    }
-
     if (viis === 'tootajad') {
       const r = await pool.query(
         `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
@@ -377,11 +323,11 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       // mitte üldsõnalist "Tööd" — nii nagu päris arvetel. Kui objekti pole (harv juhus), jääb "Tööd" varuvariandiks.
       const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
         const kogus = parseFloat(row.tunnid);
-        const hind = arveTunnihind != null ? arveTunnihind : parseFloat(row.tunnitasu || 0);
+        const hind = parseFloat(row.tunnitasu || 0);
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
         return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
       });
-      return res.json({ ok: true, read, hoiatus });
+      return res.json({ ok: true, read });
     }
 
     const tR = await pool.query(
@@ -390,33 +336,17 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       [ettevote_id, algus, lopp]
     );
     const tunnid = parseFloat(tR.rows[0].tunnid), km = parseFloat(tR.rows[0].km);
-    let tunnitasu = arveTunnihind;
-    if (tunnitasu == null) {
-      const tasuR = await pool.query(
-        `SELECT tunnitasu, COUNT(*) c FROM worker_ettevotted WHERE ettevote_id=$1 AND tunnitasu > 0 GROUP BY tunnitasu ORDER BY c DESC LIMIT 1`,
-        [ettevote_id]
-      );
-      tunnitasu = tasuR.rows[0] ? parseFloat(tasuR.rows[0].tunnitasu) : 0;
-    }
+    const tasuR = await pool.query(
+      `SELECT tunnitasu, COUNT(*) c FROM worker_ettevotted WHERE ettevote_id=$1 AND tunnitasu > 0 GROUP BY tunnitasu ORDER BY c DESC LIMIT 1`,
+      [ettevote_id]
+    );
+    const tunnitasu = tasuR.rows[0] ? parseFloat(tasuR.rows[0].tunnitasu) : 0;
     const read = [];
     if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind: tunnitasu, summa: +(tunnid * tunnitasu).toFixed(2) });
     if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-    res.json({ ok: true, read, hoiatus });
+    res.json({ ok: true, read });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, veateade: err.message });
-  }
-});
-
-// Salvesta/uuenda kliendile esitatav tunnihind (eraldi töötajate palgamäärast)
-router.put('/admin/ettevotted/:id/tunnihind', noudaAdmin, async (req, res) => {
-  const { arve_tunnihind } = req.body;
-  const hind = parseFloat(arve_tunnihind);
-  if (!Number.isFinite(hind) || hind < 0) return res.json({ ok: false, veateade: 'Sisesta korrektne hind' });
-  try {
-    await pool.query('UPDATE ettevotted SET arve_tunnihind=$1 WHERE id=$2', [hind, req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
@@ -444,7 +374,7 @@ router.get('/kontroll', noudaSisslogimist, async (req, res) => {
 router.get('/admin/lubatud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT w.id, w.nimi, (al.worker_id IS NOT NULL) AS lubatud, al.muuja_id
+      `SELECT w.id, w.nimi, (al.worker_id IS NOT NULL) AS lubatud
        FROM workers w
        LEFT JOIN arve_lubatud al ON al.worker_id = w.id
        WHERE w.aktiivne = true
@@ -459,23 +389,13 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   const { lubatud } = req.body;
   try {
     if (lubatud) {
-      await pool.query('INSERT INTO arve_lubatud (worker_id) VALUES ($1) ON CONFLICT (worker_id) DO NOTHING', [req.params.workerId]);
+      await pool.query('INSERT INTO arve_lubatud (worker_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.params.workerId]);
     } else {
       await pool.query('DELETE FROM arve_lubatud WHERE worker_id=$1', [req.params.workerId]);
     }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false });
-  }
-});
-// Piira, millist müüja-ettevõtet see raamatupidaja näeb — null/tühi = näeb kõiki.
-router.put('/admin/lubatud/:workerId/muuja', noudaAdmin, async (req, res) => {
-  const muujaId = req.body.muuja_id || null;
-  try {
-    await pool.query('UPDATE arve_lubatud SET muuja_id=$1 WHERE worker_id=$2', [muujaId, req.params.workerId]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ ok: false, veateade: err.message });
   }
 });
 
@@ -806,7 +726,6 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
     let vWhere = '1=1';
     if (kuu) { vp.push(kuu); vWhere += ` AND EXTRACT(MONTH FROM a.kuupaev) = $${vp.length}`; }
     if (aasta) { vp.push(aasta); vWhere += ` AND EXTRACT(YEAR FROM a.kuupaev) = $${vp.length}`; }
-    if (req.arveMuujaPiirang) { vp.push(req.arveMuujaPiirang); vWhere += ` AND a.muuja_id = $${vp.length}`; }
     const valja = await pool.query(
       `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id
        WHERE ${vWhere} ORDER BY a.kuupaev DESC, a.id DESC`,
@@ -816,8 +735,6 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
     let sWhere = '1=1';
     if (kuu) { sp.push(kuu); sWhere += ` AND EXTRACT(MONTH FROM s.kuupaev) = $${sp.length}`; }
     if (aasta) { sp.push(aasta); sWhere += ` AND EXTRACT(YEAR FROM s.kuupaev) = $${sp.length}`; }
-    // NB: sisse (ostuarved/tšekid) pole hetkel seotud konkreetse müüja/ettevõttega — need näidatakse
-    // kõigile, kellel on Arved ligipääs, olenemata müüja piirangust.
     const sisse = await pool.query(
       `SELECT s.*, e.nimi as ettevote_nimi FROM arve_sisse s LEFT JOIN ettevotted e ON s.ettevote_id = e.id
        WHERE ${sWhere} ORDER BY s.kuupaev DESC, s.id DESC`,
@@ -832,8 +749,14 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
 // ── ARVETE NIMEKIRI ──────────────────────────────────────────────────────
 router.get('/', noudaAdmin, async (req, res) => {
   try {
+    // Müüja nimi kaasa (m.ettevote_nimi as muuja_nimi) — kasutaja teeb arveid mitme erineva
+    // enda ettevõtte alt (mitte ainult Royal Paigaldus), et Arvete ajaloos saaks müüja järgi filtreerida.
     const r = await pool.query(
-      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id ORDER BY a.kuupaev DESC, a.id DESC`
+      `SELECT a.*, e.nimi as ettevote_nimi, m.ettevote_nimi as muuja_nimi
+       FROM arved a
+       LEFT JOIN ettevotted e ON a.ettevote_id = e.id
+       LEFT JOIN arve_muujad m ON a.muuja_id = m.id
+       ORDER BY a.kuupaev DESC, a.id DESC`
     );
     res.json(r.rows);
   } catch (err) {
@@ -847,12 +770,9 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
   const idid = (req.query.ids || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
   if (!idid.length) return res.status(400).json({ ok: false, veateade: 'Vali vähemalt üks arve' });
   try {
-    const parems = [idid];
-    let piirang = '';
-    if (req.arveMuujaPiirang) { parems.push(req.arveMuujaPiirang); piirang = ` AND a.muuja_id = $2`; }
     const r = await pool.query(
-      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id = ANY($1)${piirang}`,
-      parems
+      `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id = ANY($1)`,
+      [idid]
     );
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
     res.setHeader('Content-Type', 'application/zip');
@@ -908,71 +828,6 @@ router.get('/:id', noudaAdmin, async (req, res) => {
     res.json({ ok: true, arve: a.rows[0], read: read.rows });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
-  }
-});
-
-// Loo kreeditarve algse arve alusel — koopia kõigist ridadest, aga NEGATIIVSETE summadega,
-// ja viide algsele arvele (nii arve enda peal kui PDF-il "KREEDITARVE" tiitlina).
-router.post('/:id/kreedit', noudaAdmin, async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const algneR = await client.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
-    if (!algneR.rows.length) return res.json({ ok: false, veateade: 'Algset arvet ei leitud' });
-    const algne = algneR.rows[0];
-    if (algne.kreedit_algne_arve_id) return res.json({ ok: false, veateade: 'See on juba ise kreeditarve — ei saa kreeditarvele kreeditarvet teha' });
-    const readR = await client.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
-
-    // Vanad, üleslaetud (skaneeritud) arved ei pruugi omada üksikasjalikke ridu ega müüja-viidet
-    // (need lisati ainult kogusummaga) — kreediti loomisel katame need mõistlike vaikeväärtustega.
-    let muujaId = algne.muuja_id;
-    if (!muujaId) {
-      const vaikeMuuja = await client.query('SELECT id FROM arve_muujad WHERE vaikimisi=true');
-      if (!vaikeMuuja.rows.length) return res.json({ ok: false, veateade: 'Vali enne müüja-ettevõte — halda neid "Müüjad" nupu alt' });
-      muujaId = vaikeMuuja.rows[0].id;
-    }
-
-    await client.query('BEGIN');
-    const number = await reserveeriJargmineNumber(client, new Date());
-    const kp = new Date();
-    const tahtaeg = new Date(kp);
-    tahtaeg.setDate(tahtaeg.getDate() + 14);
-    const viitenumber = arveViitenumber(number);
-
-    const summaKmTa = -parseFloat(algne.summa_km_ta);
-    const kaibemaks = -parseFloat(algne.kaibemaks);
-    const kokku = -parseFloat(algne.kokku);
-
-    const uusR = await client.query(
-      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr, kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, muuja_id, kreedit_algne_arve_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
-      [number, kp, tahtaeg, viitenumber, algne.ettevote_id, algne.ostja_nimi, algne.ostja_aadress, algne.ostja_rg_kood, algne.ostja_kmkr, algne.kontaktisik, algne.po_number, algne.viide_tyyp, algne.algus, algne.lopp, summaKmTa, algne.kaibemaks_protsent, kaibemaks, kokku, muujaId, algne.id]
-    );
-    const uusId = uusR.rows[0].id;
-
-    if (readR.rows.length) {
-      let jrk = 0;
-      for (const rida of readR.rows) {
-        jrk++;
-        await client.query(
-          `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [uusId, jrk, rida.kirjeldus, -parseFloat(rida.kogus), rida.uhik, parseFloat(rida.hind), -parseFloat(rida.summa)]
-        );
-      }
-    } else {
-      // Üleslaetud arvel polnud ridu — teeme ühe rea, mis viitab selgelt algsele arvele.
-      await client.query(
-        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,1,$2,1,'',$3,$3)`,
-        [uusId, `Kreedit — arve nr ${algne.number}`, summaKmTa]
-      );
-    }
-    await client.query('COMMIT');
-    res.json({ ok: true, arve_id: uusId, number });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ ok: false, veateade: err.message });
-  } finally {
-    client.release();
   }
 });
 
@@ -1375,17 +1230,11 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
 
     // Parem veerg — arve number + kuupäevad + müüja
     let ry = MARGIN;
-    const onKreedit = !!arve.kreedit_algne_arve_id;
-    doc.rect(rightColX, ry, rightColW, 20).fill(onKreedit ? '#f8d7da' : '#cfe2f3');
+    doc.rect(rightColX, ry, rightColW, 20).fill('#cfe2f3');
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(10)
-      .text(onKreedit ? `KREEDITARVE nr ${arve.number}` : `Arve nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
+      .text(`Arve nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
     ry += 30;
     doc.font('Helvetica').fontSize(9);
-    if (onKreedit && arve.algse_arve_number) {
-      doc.fillColor('#b91c1c').text(`Viide: krediteerib arvet nr ${arve.algse_arve_number}`, rightColX, ry, { width: rightColW, align: 'right' });
-      doc.fillColor('#000');
-      ry += 14;
-    }
     const paar = (label, val) => {
       doc.text(label, rightColX, ry, { width: rightColW * 0.5 });
       doc.text(val, rightColX, ry, { width: rightColW, align: 'right' });
@@ -1398,14 +1247,7 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
     ry += 8;
     doc.font('Helvetica-Bold').fontSize(10).text(muuja.ettevote_nimi, rightColX, ry, { width: rightColW, align: 'right' }); ry += 14;
     doc.font('Helvetica').fontSize(9);
-    // Kõrvaldame kõrvutised identsed read (nt kui aadress sisaldab linna nime kogemata kaks
-    // korda järjest, nagu "Paide linn, Paide linn") — hoiab müüja aadressi puhtana.
-    let eelmineAadressiRida = null;
-    (muuja.aadress || '').split(',').map(s => s.trim()).filter(Boolean).forEach(line => {
-      if (line === eelmineAadressiRida) return;
-      eelmineAadressiRida = line;
-      doc.text(line, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12;
-    });
+    (muuja.aadress || '').split(',').filter(s => s.trim()).forEach(line => { doc.text(line.trim(), rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; });
     ry += 8;
     if (muuja.rg_kood) { doc.text('Rg-kood ' + muuja.rg_kood, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
     if (muuja.kmkr) { doc.text('KMKR nr ' + muuja.kmkr, rightColX, ry, { width: rightColW, align: 'right' }); ry += 12; }
@@ -1421,46 +1263,27 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
     }
 
     // Tabeli päis
-    const PAGE_BOTTOM = 780; // ala, kus jalus algab — sinna alla ei tohi enam ridu joonistada
-    const col = { kirjeldus: leftX, kogus: leftX + 265, uhik: leftX + 305, hind: leftX + 340, summa: leftX + 410 };
-    const joonistaTabeliPais = () => {
-      doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
-      doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
-      doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
-      doc.text('Kogus', col.kogus, y + 5, { width: 35, align: 'right' });
-      doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
-      doc.text('Hind', col.hind, y + 5, { width: 65, align: 'right' });
-      doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
-      y += 18;
-    };
-    joonistaTabeliPais();
+    const col = { kirjeldus: leftX, kogus: leftX + 300, uhik: leftX + 350, hind: leftX + 390, summa: leftX + 440 };
+    doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
+    doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
+    doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
+    doc.text('Kogus', col.kogus, y + 5, { width: 40, align: 'right' });
+    doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
+    doc.text('Hind', col.hind, y + 5, { width: 40, align: 'right' });
+    doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
+    y += 18;
 
     doc.font('Helvetica').fontSize(9);
     read.forEach(r => {
-      const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 260 });
-      const reaKorgus = Math.max(kirjeldusH, 12) + 6;
-      // Kui see rida antud lehele enam ei mahu, alusta uuelt leheküljelt (koos tabeli päisega),
-      // selle asemel et lasta PDFKit-il vaikimisi käitumisel korduvalt tühje lehti juurde tekitada.
-      if (y + reaKorgus > PAGE_BOTTOM) {
-        doc.addPage();
-        y = MARGIN;
-        joonistaTabeliPais();
-        doc.font('Helvetica').fontSize(9);
-      }
-      // Ühereal väljad (kogus/ühik/hind/summa) tsentreeritakse vertikaalselt kirjelduse
-      // kõrguse suhtes, et need ei jääks üleval "rippuma", kui kirjeldus on mitmerealine.
-      const vahekaugus = Math.max(0, (kirjeldusH - 12) / 2);
-      doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 260 });
-      doc.text(fmtNum(r.kogus), col.kogus, y + vahekaugus, { width: 35, align: 'right' });
-      doc.text(r.uhik || '', col.uhik, y + vahekaugus, { width: 30, align: 'right' });
-      doc.text(fmtEur(r.hind), col.hind, y + vahekaugus, { width: 65, align: 'right' });
-      doc.text(fmtEur(r.summa), col.summa, y + vahekaugus, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
-      y += reaKorgus;
+      const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 290 });
+      doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 290 });
+      doc.text(fmtNum(r.kogus), col.kogus, y, { width: 40, align: 'right' });
+      doc.text(r.uhik || '', col.uhik, y, { width: 30, align: 'right' });
+      doc.text(fmtEur(r.hind), col.hind, y, { width: 40, align: 'right' });
+      doc.text(fmtEur(r.summa), col.summa, y, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
+      y += Math.max(kirjeldusH, 12) + 6;
       doc.moveTo(leftX, y - 3).lineTo(leftX + CONTENT_W, y - 3).strokeColor('#dddddd').stroke();
     });
-
-    // Kokkuvõtte rida vajab ka ruumi — kui ei mahu, mine samuti uuele leheküljele.
-    if (y + 70 > PAGE_BOTTOM) { doc.addPage(); y = MARGIN; }
 
     y += 8;
     const totRight = (label, val, bold) => {
@@ -1500,11 +1323,6 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
-    if (req.arveMuujaPiirang && arve.muuja_id !== req.arveMuujaPiirang) return res.status(403).send('Sul pole ligipääsu sellele arvele');
-    if (arve.kreedit_algne_arve_id) {
-      const algneR = await pool.query('SELECT number FROM arved WHERE id=$1', [arve.kreedit_algne_arve_id]);
-      if (algneR.rows.length) arve.algse_arve_number = algneR.rows[0].number;
-    }
     const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
     const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
     const muuja = muujaR.rows[0];
@@ -1512,8 +1330,11 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     let logoBuf = null;
     if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
     const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
+    // Failinimi näitab ainult arve numbrit, mitte müüja-ettevõtte nime — sest arveid tehakse
+    // mitme erineva ettevõtte (mitte ainult Royal Paigalduse) alt ja vana kõvakodeeritud nimi eksitas.
+    const failiNimi = String(arve.number).replace(/[\\/:*?"<>|]/g, '-');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="Royal paigaldus OU Arve nr ${arve.number}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${failiNimi}.pdf"`);
     doc.pipe(res);
   } catch (err) {
     console.error(err);
