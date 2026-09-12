@@ -784,6 +784,34 @@ async function initDB() {
       );
     `);
 
+    // ── MOODULID / ÕIGUSED (üldistatud ligipääsu-tase per moodul/alammoodul) ──────────
+    // Erinevalt vanadest "kas lubatud jah/ei" tabelitest (xseeria_lubatud, arve_lubatud jne)
+    // saab siin määrata KONKREETSE mooduli/alammooduli kohta taseme: 'vaata' või 'muuda'.
+    // Esialgu kasutusel X-seeria sponsorite/tegevuste jaoks (routes/xseeria.js) — plaan on
+    // hiljem sama süsteemi peale viia ka teised moodulid (Arved, Omaarved, Projektid).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS moodulid (
+        id SERIAL PRIMARY KEY,
+        kood VARCHAR(50) NOT NULL UNIQUE,
+        nimi VARCHAR(200) NOT NULL,
+        grupp VARCHAR(50),
+        jrk_nr INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS worker_moodul_oigused (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        moodul_kood VARCHAR(50) NOT NULL REFERENCES moodulid(kood) ON DELETE CASCADE,
+        tase VARCHAR(10) NOT NULL DEFAULT 'vaata',
+        UNIQUE(worker_id, moodul_kood)
+      );
+    `);
+    await client.query(`
+      INSERT INTO moodulid (kood, nimi, grupp, jrk_nr) VALUES
+        ('xseeria_sponsorid', 'X-seeria — Sponsorid', 'xseeria', 1),
+        ('xseeria_tegevused', 'X-seeria — Tegevused', 'xseeria', 2)
+      ON CONFLICT (kood) DO NOTHING;
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
