@@ -46,6 +46,51 @@ async function noudaLubatud(req, res, next) {
   }
 }
 
+// ── MOODULIPÕHISED ÕIGUSED (nt "poolenisti admin" — töötaja, kes tohib hallata KONKREETSET
+// X-seeria alammoodulit nagu sponsorid või tegevused, aga mitte kõike muud) ──────────────
+// Admin pääseb alati läbi. Töötaja puhul kontrollitakse worker_moodul_oigused tabelist,
+// kas tal on selle mooduli kohta vähemalt nõutud tase ('vaata' või 'muuda').
+function noudaOigus(mooduliKood, minTase) {
+  return async function(req, res, next) {
+    if (req.session && req.session.isAdmin) return next();
+    if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
+    try {
+      const r = await pool.query(
+        'SELECT tase FROM worker_moodul_oigused WHERE worker_id=$1 AND moodul_kood=$2',
+        [req.session.workerId, mooduliKood]
+      );
+      if (!r.rows.length) return res.status(403).json({ ok: false, veateade: 'Sul pole selle mooduli ligipääsu' });
+      const tase = r.rows[0].tase;
+      if (minTase === 'muuda' && tase !== 'muuda') {
+        return res.status(403).json({ ok: false, veateade: 'Sul on ainult vaatamisõigus — muutmiseks pole luba' });
+      }
+      next();
+    } catch (err) {
+      res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+    }
+  };
+}
+
+// Lubab läbi, kui admin VÕI töötajal on nõutud tase VÄHEMALT ÜHE loetletud mooduli koodi kohta —
+// kasutusel kohtades, mida vajavad nii sponsori- kui tegevuse-haldajad (nt event'ide nimekiri).
+function noudaMoneMoodulOigus(mooduliKoodid, minTase) {
+  return async function(req, res, next) {
+    if (req.session && req.session.isAdmin) return next();
+    if (!req.session || !req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
+    try {
+      const r = await pool.query(
+        'SELECT moodul_kood, tase FROM worker_moodul_oigused WHERE worker_id=$1 AND moodul_kood = ANY($2)',
+        [req.session.workerId, mooduliKoodid]
+      );
+      const sobib = r.rows.some(row => minTase !== 'muuda' || row.tase === 'muuda');
+      if (!sobib) return res.status(403).json({ ok: false, veateade: 'Sul pole ligipääsu' });
+      next();
+    } catch (err) {
+      res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+    }
+  };
+}
+
 function kirjutajaNimi(req) {
   return req.session.isAdmin ? 'Admin' : req.session.workerNimi;
 }
@@ -57,6 +102,35 @@ router.get('/kontroll', noudaSisslogimist, async (req, res) => {
     res.json({ ok: true, lubatud: r.rows.length > 0 });
   } catch (err) {
     res.json({ ok: false, lubatud: false });
+  }
+});
+
+// Töötaja: milliseid X-seeria HALDUSMOODULEID (sponsorid/tegevused) ma näen ja millisel
+// tasemel? Kasutab xseeria-haldus.html, et otsustada, mida kuvada ja kas nuppe muutmiseks näidata.
+router.get('/minu-oigused', noudaSisslogimist, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT moodul_kood, tase FROM worker_moodul_oigused WHERE worker_id=$1 AND moodul_kood IN ('xseeria_sponsorid','xseeria_tegevused')`,
+      [req.session.workerId]
+    );
+    const oigused = {};
+    r.rows.forEach(row => { oigused[row.moodul_kood] = row.tase; });
+    res.json({ ok: true, oigused });
+  } catch (err) {
+    res.json({ ok: true, oigused: {} });
+  }
+});
+
+// Sponsorite/tegevuste vastutaja valikuks vajalik töötajate nimekiri (ainult need, kellel on
+// baasne X-seeria ligipääs) — kättesaadav ka moodulipõhise õigusega töötajale, mitte ainult adminile.
+router.get('/tootajad-valikuks', noudaMoneMoodulOigus(['xseeria_sponsorid', 'xseeria_tegevused'], 'vaata'), async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT w.id, w.nimi FROM workers w JOIN xseeria_lubatud xl ON xl.worker_id = w.id WHERE w.aktiivne = true ORDER BY w.nimi`
+    );
+    res.json(r.rows);
+  } catch (err) {
+    res.json([]);
   }
 });
 
@@ -190,8 +264,9 @@ router.delete('/korvid/:id/rajakaart', noudaLubatud, async (req, res) => {
 });
 
 // ---------- ADMIN: võistlused ----------
-
-router.get('/admin/events', noudaAdmin, async (req, res) => {
+// Event'ide nimekirja tohivad lugeda ka moodulipõhise õigusega töötajad (sponsori/tegevuste
+// haldajad), kuna nad peavad enne saama valida, millise võistluse alla midagi lisada.
+router.get('/admin/events', noudaMoneMoodulOigus(['xseeria_sponsorid', 'xseeria_tegevused'], 'vaata'), async (req, res) => {
   const r = await pool.query('SELECT * FROM xseeria_events ORDER BY kuupaev DESC');
   res.json({ ok: true, events: r.rows });
 });
@@ -568,17 +643,17 @@ router.post('/event/:eventId/ulesanded/:id/toggle', noudaLubatud, async (req, re
   }
 });
 
-// ---------- ADMIN: sponsorid ----------
+// ---------- ADMIN (VÕI moodulipõhine "xseeria_sponsorid" õigus): sponsorid ----------
 // Sponsorid on ÜKS ühine nimekiri (mitte võistluse külge seotud) — kuna sponsorid ei kao, vaid lisanduvad
 // etapp-etapilt, kandub iga sponsor automaatselt kõigi (ka juba loodud ja tulevaste) võistluste alla.
 // Pickup/tagastuse staatus ja kuupäevad on aga võistluse-põhised (xseeria_event_sponsorid).
 
-router.get('/admin/sponsorid', noudaAdmin, async (req, res) => {
+router.get('/admin/sponsorid', noudaOigus('xseeria_sponsorid', 'vaata'), async (req, res) => {
   const r = await pool.query('SELECT * FROM xseeria_sponsorid ORDER BY nimi');
   res.json({ ok: true, sponsorid: r.rows });
 });
 
-router.post('/admin/sponsorid', noudaAdmin, async (req, res) => {
+router.post('/admin/sponsorid', noudaOigus('xseeria_sponsorid', 'muuda'), async (req, res) => {
   const { nimi, kontakt, tooted, markused } = req.body;
   if (!nimi || !nimi.trim()) return res.json({ ok: false, veateade: 'Sponsori nimi on kohustuslik' });
   const r = await pool.query(
@@ -588,7 +663,7 @@ router.post('/admin/sponsorid', noudaAdmin, async (req, res) => {
   res.json({ ok: true, sponsor: r.rows[0] });
 });
 
-router.put('/admin/sponsorid/:id', noudaAdmin, async (req, res) => {
+router.put('/admin/sponsorid/:id', noudaOigus('xseeria_sponsorid', 'muuda'), async (req, res) => {
   const { nimi, kontakt, tooted, markused } = req.body;
   if (!nimi || !nimi.trim()) return res.json({ ok: false, veateade: 'Sponsori nimi on kohustuslik' });
   await pool.query(
@@ -598,14 +673,14 @@ router.put('/admin/sponsorid/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/admin/sponsorid/:id', noudaAdmin, async (req, res) => {
+router.delete('/admin/sponsorid/:id', noudaOigus('xseeria_sponsorid', 'muuda'), async (req, res) => {
   await pool.query('DELETE FROM xseeria_sponsorid WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 
 // Kõik sponsorid + selle KONKREETSE võistluse pickup/tagastuse staatus (LEFT JOIN — sponsor võib olla
 // veel märkimata selle võistluse jaoks, siis staatuseväljad tulevad NULL/vaikeväärtustena)
-router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
+router.get('/admin/events/:eventId/sponsorid', noudaOigus('xseeria_sponsorid', 'vaata'), async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT s.id AS sponsor_id, s.nimi, s.kontakt, s.tooted,
@@ -624,7 +699,7 @@ router.get('/admin/events/:eventId/sponsorid', noudaAdmin, async (req, res) => {
 });
 
 // Uuenda/loo selle võistluse+sponsori staatuse rida (upsert) — admin saab muuta kõike, sh vastutajat ja kommentaari
-router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaAdmin, async (req, res) => {
+router.put('/admin/events/:eventId/sponsorid/:sponsorId', noudaOigus('xseeria_sponsorid', 'muuda'), async (req, res) => {
   const { staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id } = req.body;
   try {
     const vana = await pool.query(
@@ -742,7 +817,7 @@ async function laadiTegevusedJaInimesed(eventId) {
   return tegevused.rows.map(t => ({ ...t, inimesed: map[t.id] || [] }));
 }
 
-router.get('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => {
+router.get('/admin/events/:eventId/tegevused', noudaOigus('xseeria_tegevused', 'vaata'), async (req, res) => {
   try {
     const tegevused = await laadiTegevusedJaInimesed(req.params.eventId);
     res.json({ ok: true, tegevused });
@@ -751,7 +826,7 @@ router.get('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => {
   }
 });
 
-router.post('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => {
+router.post('/admin/events/:eventId/tegevused', noudaOigus('xseeria_tegevused', 'muuda'), async (req, res) => {
   const { tegevus, kuupaev, kellaaeg, inimesed } = req.body;
   if (!tegevus || !tegevus.trim()) return res.json({ ok: false, veateade: 'Tegevuse nimetus on kohustuslik' });
   try {
@@ -771,7 +846,7 @@ router.post('/admin/events/:eventId/tegevused', noudaAdmin, async (req, res) => 
   }
 });
 
-router.put('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
+router.put('/admin/tegevused/:id', noudaOigus('xseeria_tegevused', 'muuda'), async (req, res) => {
   const { tegevus, kuupaev, kellaaeg, inimesed } = req.body;
   if (!tegevus || !tegevus.trim()) return res.json({ ok: false, veateade: 'Tegevuse nimetus on kohustuslik' });
   try {
@@ -796,7 +871,7 @@ router.put('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
   }
 });
 
-router.delete('/admin/tegevused/:id', noudaAdmin, async (req, res) => {
+router.delete('/admin/tegevused/:id', noudaOigus('xseeria_tegevused', 'muuda'), async (req, res) => {
   await pool.query('DELETE FROM xseeria_tegevused WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
