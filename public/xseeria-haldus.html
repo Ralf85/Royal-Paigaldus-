@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>X-seeria — Haldus</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0d0f13; color: #e2e8f0; }
+  header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 14px 16px; }
+  .hdr-top { display: flex; align-items: center; justify-content: space-between; }
+  header h1 { margin: 0; font-size: 17px; }
+  header button.exit { color: #c9a84c; font-size: 12px; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; background: none; font-family: inherit; cursor: pointer; }
+  #app { padding: 12px; max-width: 640px; margin: 0 auto; }
+  .who { font-size: 12px; color: #666; text-align: right; margin-bottom: 6px; }
+  .tile { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 14px; }
+  .tile:active { background: #1a1d24; }
+  .tile.ak { border-color: #c9a84c; }
+  .tile .ikoon { font-size: 26px; width: 44px; text-align: center; }
+  .tile .info { flex: 1; }
+  .tile .nimi { font-size: 16px; font-weight: 700; }
+  .tile .sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .card { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .card-hdr { font-size: 13px; font-weight: 700; color: #c9a84c; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .badge-vaata { font-size: 10px; font-weight: 700; background: #1e2128; color: #888; border-radius: 10px; padding: 2px 8px; }
+  .badge-muuda { font-size: 10px; font-weight: 700; background: #14532d; color: #86efac; border-radius: 10px; padding: 2px 8px; }
+  input, select, textarea { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
+  label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .rida { display: grid; gap: 8px; margin-bottom: 10px; }
+  .rida.col2 { grid-template-columns: 1fr 1fr; }
+  .btn { background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn.hall { background: #1e2128; color: #ccc; }
+  .btn.punane { background: #3d0a0a; color: #f87171; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .sp-nimi { font-weight: 700; font-size: 14px; }
+  .sp-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .sp-staatused { display: flex; gap: 6px; margin-top: 10px; }
+  .sp-stbtn { flex: 1; padding: 8px 4px; border-radius: 8px; border: 2px solid #252830; font-size: 11px; font-weight: 600; background: #0d0f13; color: #888; cursor: pointer; }
+  .sp-stbtn.active { background: #c9a84c; border-color: #c9a84c; color: #0d0f13; }
+  .teg-rida { padding: 8px 0; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
+  .teg-rida:last-child { border-bottom: none; }
+  .worker-valik { display: flex; flex-wrap: wrap; gap: 6px; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+  .worker-valik label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #ccc; background: #1e2128; border-radius: 6px; padding: 4px 8px; cursor: pointer; text-transform: none; letter-spacing: 0; margin: 0; width: auto; }
+  .worker-valik input { width: auto; }
+  .empty { text-align: center; color: #666; margin-top: 40px; padding: 0 20px; }
+  .teade { font-size: 12px; margin-top: 8px; padding: 8px; border-radius: 6px; display: none; }
+  .teade.viga { background: #7f1d1d; color: #fca5a5; }
+  .teade.ok { background: #14532d; color: #86efac; }
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-top">
+    <h1>🔧 X-seeria Haldus</h1>
+    <button class="exit" onclick="window.location='/xseeria'">← Tagasi</button>
+  </div>
+</header>
+<div id="app">
+  <div class="who" id="kes"></div>
+  <div id="sisu">Laadimine...</div>
+</div>
+<script>
+let token = localStorage.getItem('workerToken');
+let minuOigused = {};
+let events = [];
+let aktiivneEventId = null;
+let xsTootajad = [];
+
+if (!token) {
+  document.getElementById('sisu').innerHTML = '<div class="empty">Sa pole sisse logitud.<br><br>Ava esmalt <a href="/tootaja" style="color:#c9a84c">Töötaja rakendus</a>.</div>';
+} else {
+  algatus();
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'x-session-token': token }, opts.headers || {});
+  if (!(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
+  const r = await fetch('/api/xseeria' + path, opts);
+  return r.json();
+}
+
+function escapeHtml(s) {
+  return (s || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function algatus() {
+  try {
+    const r = await fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } });
+    const s = await r.json();
+    if (!s.sisselogitud) {
+      document.getElementById('sisu').innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja" style="color:#c9a84c">Töötaja rakendus</a> uuesti.</div>';
+      return;
+    }
+    document.getElementById('kes').textContent = 'Tere, ' + (s.nimi || '');
+  } catch (e) {}
+
+  const o = await api('/minu-oigused');
+  minuOigused = (o.ok && o.oigused) ? o.oigused : {};
+  if (!minuOigused.xseeria_sponsorid && !minuOigused.xseeria_tegevused) {
+    document.getElementById('sisu').innerHTML = '<div class="empty">Sul pole ühegi X-seeria haldusmooduli ligipääsu.<br>Palu adminil see lubada.</div>';
+    return;
+  }
+  await laadiTootajad();
+  await naitaEventValik();
+}
+
+async function laadiTootajad() {
+  try {
+    xsTootajad = await api('/tootajad-valikuks');
+    if (!Array.isArray(xsTootajad)) xsTootajad = [];
+  } catch (e) { xsTootajad = []; }
+}
+
+async function naitaEventValik() {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/admin/events');
+  events = (d.ok && d.events) ? d.events : [];
+  if (!events.length) {
+    sisu.innerHTML = '<div class="empty">Ühtegi võistlust pole veel lisatud.<br>Küsi adminilt.</div>';
+    return;
+  }
+  let html = events.map(e => `
+    <div class="tile ${e.id === aktiivneEventId ? 'ak' : ''}" onclick="valiEvent(${e.id})">
+      <div class="ikoon">🏆</div>
+      <div class="info">
+        <div class="nimi">${escapeHtml(e.nimi)}</div>
+        <div class="sub">${String(e.kuupaev).slice(0,10)}${e.aktiivne ? ' · praegu aktiivne' : ''}</div>
+      </div>
+    </div>`).join('');
+  html += '<div id="haldus-sisu"></div>';
+  sisu.innerHTML = html;
+  if (aktiivneEventId) await laadiHaldus();
+}
+
+async function valiEvent(id) {
+  aktiivneEventId = id;
+  await naitaEventValik();
+  document.getElementById('haldus-sisu').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function laadiHaldus() {
+  const div = document.getElementById('haldus-sisu');
+  if (!div) return;
+  let html = '';
+  if (minuOigused.xseeria_sponsorid) html += await sponsoridHtml();
+  if (minuOigused.xseeria_tegevused) html += await tegevusedHtml();
+  div.innerHTML = html;
+}
+
+// ── SPONSORID ──────────────────────────────────────────────
+async function sponsoridHtml() {
+  const saabMuuta = minuOigused.xseeria_sponsorid === 'muuda';
+  const d = await api('/admin/events/' + aktiivneEventId + '/sponsorid');
+  const sponsorid = (d.ok && d.sponsorid) ? d.sponsorid : [];
+  let html = `<div class="card">
+    <div class="card-hdr"><span>🎁 Sponsorid</span><span class="${saabMuuta ? 'badge-muuda' : 'badge-vaata'}">${saabMuuta ? 'Vaata + Muuda' : 'Ainult vaata'}</span></div>`;
+
+  if (saabMuuta) {
+    html += `
+    <div class="rida col2">
+      <div><label>Uue sponsori nimi</label><input id="sp-uus-nimi" placeholder="Sportland"></div>
+      <div><label>Kontakt</label><input id="sp-uus-kontakt" placeholder="info@sportland.ee"></div>
+    </div>
+    <div class="rida"><label>Tavapärased tooted</label><input id="sp-uus-tooted" placeholder="Bännerid, prillid"></div>
+    <button class="btn small" onclick="lisaSponsor()">+ Lisa sponsor üldnimekirja</button>
+    <div class="teade" id="sp-teade"></div>`;
+  }
+
+  if (!sponsorid.length) {
+    html += '<div style="color:#666;font-size:13px;margin-top:10px">Sponsoreid pole veel lisatud.</div></div>';
+    return html;
+  }
+
+  html += '<div style="margin-top:12px">' + sponsorid.map(s => {
+    const staatus = s.staatus || 'ootel';
+    const nupp = (val, label) => saabMuuta
+      ? `<button class="sp-stbtn ${staatus === val ? 'active' : ''}" onclick="muudaSponsorStaatus(${s.sponsor_id}, '${val}')">${label}</button>`
+      : `<span class="sp-stbtn ${staatus === val ? 'active' : ''}" style="cursor:default">${label}</span>`;
+    return `<div class="card" style="background:#0d0f13">
+      <div class="sp-nimi">${escapeHtml(s.nimi)}</div>
+      ${s.kontakt ? `<div class="sp-meta">📞 ${escapeHtml(s.kontakt)}</div>` : ''}
+      ${s.vastutaja_nimi ? `<div class="sp-meta">👤 Vastutaja: ${escapeHtml(s.vastutaja_nimi)}</div>` : ''}
+      <div class="sp-staatused">${nupp('ootel','Ootel')}${nupp('kaes','Käes')}${nupp('tagastatud','Tagastatud')}</div>
+      ${saabMuuta ? `
+        <div class="rida col2" style="margin-top:10px">
+          <div><label>Vastutaja</label>
+            <select id="sp-vastutaja-${s.sponsor_id}" onchange="muudaSponsorVastutaja(${s.sponsor_id}, this.value)">
+              <option value="">— Vastutaja pole —</option>
+              ${xsTootajad.map(w => `<option value="${w.id}" ${s.vastutaja_id === w.id ? 'selected' : ''}>${escapeHtml(w.nimi)}</option>`).join('')}
+            </select>
+          </div>
+          <div><label>Märkused</label><input id="sp-markused-${s.sponsor_id}" value="${escapeHtml(s.markused || '')}" onchange="muudaSponsorMarkused(${s.sponsor_id}, this.value)" placeholder="nt too bännerid kontorist"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn hall small" onclick="muudaSponsorNimi(${s.sponsor_id}, '${escapeHtml(s.nimi).replace(/'/g,"\\'")}', '${escapeHtml(s.kontakt||'').replace(/'/g,"\\'")}')">✏️ Muuda nime/kontakti</button>
+        </div>
+      ` : ''}
+    </div>`;
+  }).join('') + '</div></div>';
+  return html;
+}
+
+async function lisaSponsor() {
+  const nimi = document.getElementById('sp-uus-nimi').value.trim();
+  const kontakt = document.getElementById('sp-uus-kontakt').value.trim();
+  const tooted = document.getElementById('sp-uus-tooted').value.trim();
+  const teade = document.getElementById('sp-teade');
+  if (!nimi) { teade.style.display = 'block'; teade.className = 'teade viga'; teade.textContent = 'Sisesta sponsori nimi'; return; }
+  const r = await api('/admin/sponsorid', { method: 'POST', body: JSON.stringify({ nimi, kontakt, tooted }) });
+  if (!r.ok) { teade.style.display = 'block'; teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; return; }
+  teade.style.display = 'none';
+  await laadiHaldus();
+}
+
+async function muudaSponsorStaatus(sponsorId, staatus) {
+  await api('/event/' + aktiivneEventId + '/sponsorid/' + sponsorId + '/staatus', { method: 'POST', body: JSON.stringify({ staatus }) });
+  await laadiHaldus();
+}
+
+async function muudaSponsorVastutaja(sponsorId, vastutajaId) {
+  const d = await api('/admin/events/' + aktiivneEventId + '/sponsorid');
+  const s = (d.sponsorid || []).find(x => x.sponsor_id === sponsorId) || {};
+  await api('/admin/events/' + aktiivneEventId + '/sponsorid/' + sponsorId, {
+    method: 'PUT',
+    body: JSON.stringify({ staatus: s.staatus || 'ootel', jargi_kp: s.jargi_kp, tagastatud_kp: s.tagastatud_kp, markused: s.markused, vastutaja_id: vastutajaId || null })
+  });
+  await laadiHaldus();
+}
+
+async function muudaSponsorMarkused(sponsorId, markused) {
+  const d = await api('/admin/events/' + aktiivneEventId + '/sponsorid');
+  const s = (d.sponsorid || []).find(x => x.sponsor_id === sponsorId) || {};
+  await api('/admin/events/' + aktiivneEventId + '/sponsorid/' + sponsorId, {
+    method: 'PUT',
+    body: JSON.stringify({ staatus: s.staatus || 'ootel', jargi_kp: s.jargi_kp, tagastatud_kp: s.tagastatud_kp, markused: markused, vastutaja_id: s.vastutaja_id })
+  });
+}
+
+async function muudaSponsorNimi(sponsorId, vanaNimi, vanaKontakt) {
+  const uusNimi = prompt('Sponsori nimi:', vanaNimi);
+  if (!uusNimi || !uusNimi.trim()) return;
+  const uusKontakt = prompt('Kontakt:', vanaKontakt);
+  await api('/admin/sponsorid/' + sponsorId, { method: 'PUT', body: JSON.stringify({ nimi: uusNimi.trim(), kontakt: uusKontakt || '' }) });
+  await laadiHaldus();
+}
+
+// ── TEGEVUSED ──────────────────────────────────────────────
+async function tegevusedHtml() {
+  const saabMuuta = minuOigused.xseeria_tegevused === 'muuda';
+  const d = await api('/admin/events/' + aktiivneEventId + '/tegevused');
+  const tegevused = (d.ok && d.tegevused) ? d.tegevused : [];
+  let html = `<div class="card">
+    <div class="card-hdr"><span>🚚 Tegevused</span><span class="${saabMuuta ? 'badge-muuda' : 'badge-vaata'}">${saabMuuta ? 'Vaata + Muuda' : 'Ainult vaata'}</span></div>`;
+
+  if (saabMuuta) {
+    html += `
+    <div class="rida"><label>Tegevus</label><input id="teg-uus-tekst" placeholder="Korvide pealelaadimine"></div>
+    <div class="rida col2">
+      <div><label>Kuupäev</label><input id="teg-uus-kuupaev" type="date"></div>
+      <div><label>Kellaaeg</label><input id="teg-uus-kellaaeg" type="time"></div>
+    </div>
+    <label>Kes teeb</label>
+    <div class="worker-valik" id="teg-uus-inimesed">
+      ${xsTootajad.length ? xsTootajad.map(w => `<label><input type="checkbox" value="${w.id}"> ${escapeHtml(w.nimi)}</label>`).join('') : '<span style="color:#666;font-size:12px">Ühelegi töötajale pole X-seeria ligipääsu lubatud.</span>'}
+    </div>
+    <button class="btn small" onclick="lisaTegevus()">+ Lisa tegevus</button>
+    <div class="teade" id="teg-teade"></div>`;
+  }
+
+  if (!tegevused.length) {
+    html += '<div style="color:#666;font-size:13px;margin-top:10px">Tegevusi pole veel lisatud.</div></div>';
+    return html;
+  }
+
+  html += '<div style="margin-top:12px">' + tegevused.map(t => {
+    const kp = t.kuupaev ? String(t.kuupaev).slice(0,10) : '';
+    const kell = t.kellaaeg ? String(t.kellaaeg).slice(0,5) : '';
+    const inimesed = (t.inimesed || []).map(p => escapeHtml(p.nimi)).join(', ') || '—';
+    return `<div class="teg-rida">
+      <div style="font-weight:600">${escapeHtml(t.tegevus)}</div>
+      <div class="sp-meta">${kp ? '📅 ' + kp : ''}${kell ? ' ⏰ ' + kell : ''}${(kp||kell) ? ' · ' : ''}👷 ${inimesed}</div>
+      ${saabMuuta ? `<button class="btn hall small" style="margin-top:6px" onclick="kustutaTegevus(${t.id})">🗑 Kustuta</button>` : ''}
+    </div>`;
+  }).join('') + '</div></div>';
+  return html;
+}
+
+async function lisaTegevus() {
+  const tegevus = document.getElementById('teg-uus-tekst').value.trim();
+  const kuupaev = document.getElementById('teg-uus-kuupaev').value;
+  const kellaaeg = document.getElementById('teg-uus-kellaaeg').value;
+  const inimesed = [...document.querySelectorAll('#teg-uus-inimesed input:checked')].map(cb => parseInt(cb.value, 10));
+  const teade = document.getElementById('teg-teade');
+  if (!tegevus) { teade.style.display = 'block'; teade.className = 'teade viga'; teade.textContent = 'Kirjuta tegevuse nimetus'; return; }
+  const r = await api('/admin/events/' + aktiivneEventId + '/tegevused', { method: 'POST', body: JSON.stringify({ tegevus, kuupaev, kellaaeg, inimesed }) });
+  if (!r.ok) { teade.style.display = 'block'; teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; return; }
+  teade.style.display = 'none';
+  await laadiHaldus();
+}
+
+async function kustutaTegevus(id) {
+  if (!confirm('Kustutada see tegevus?')) return;
+  await api('/admin/tegevused/' + id, { method: 'DELETE' });
+  await laadiHaldus();
+}
+</script>
+</body>
+</html>
