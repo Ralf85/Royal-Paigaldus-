@@ -380,6 +380,8 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    // Kas see kulurida on juba tasutud — lubab adminil eristada, mis on veel maksmata.
+    await client.query(`ALTER TABLE xseeria_kulud ADD COLUMN IF NOT EXISTS makstud BOOLEAN NOT NULL DEFAULT false;`);
 
     // Pargi vastutajad — mitu töötajat saab korraga määrata ühe pargi eest vastutama
     // (asendab admin.html üksiku pargi vormis endist "Viskekohti" välja, mida keegi ei kasutanud).
