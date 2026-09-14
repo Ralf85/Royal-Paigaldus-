@@ -4349,176 +4349,846 @@ function välju() {
   window.location = '/admin-login';
 }
 
-// ── X-SEERIA ─────────────────────────────────────────────────────
+// ── X-SEERIA ─────────────────────────────────────────────────
+
+let xsEvents = [];
 let xsAktiivneEventId = null;
-let xsKoikEvents = [];
-let xsMuudetavSponsorId = null;
-let xsMuudetavParkId = null;
-let xsMuudetavUlesandeId = null;
-let xsMuudetavTegevuseId = null;
-let xsMuudetavKuluId = null;
-let xsFotoParkId = null;
-let xsFotoFailid = [];
 
-function xsFmtEur(n) { return (parseFloat(n)||0).toFixed(2) + ' €'; }
+async function xsLaadiTab() {
+  xsTaidaNumbriDropdownid();
+  xsTootajad = []; // värskenda vastutaja-valikut iga kord, kui tab avatakse (kui vahepeal keegi Töötajad tabis lubasid muutis)
+  await xsLaadiEvents();
+  await xsLaadiLubatud();
+  await xsLaadiSponsoridUldnimekiri();
+}
 
+function xsToggleSponsoridPaneel() {
+  const paneel = document.getElementById('xs-sponsorid-paneel');
+  const nool = document.getElementById('xs-sp-nool');
+  const avatud = paneel.style.display !== 'none';
+  paneel.style.display = avatud ? 'none' : 'block';
+  nool.textContent = avatud ? '▼' : '▲';
+}
+
+function xsToggleLubatudPaneel() {
+  const paneel = document.getElementById('xs-lubatud-paneel');
+  const nool = document.getElementById('xs-lub-nool');
+  const avatud = paneel.style.display !== 'none';
+  paneel.style.display = avatud ? 'none' : 'block';
+  nool.textContent = avatud ? '▼' : '▲';
+}
+
+// Üldine peida/näita nupp ürituse-detaili kaartidele (Pargid, Ülesanded, Tegevused, Sponsorite staatus, Kulud) —
+// sama muster, mida juba kasutavad "🎁 Sponsorid" ja "👷 Töötajate ligipääs" paneelid.
 function xsToggleKaartPaneel(bodyId, noolId) {
-  const body = document.getElementById(bodyId);
+  const paneel = document.getElementById(bodyId);
   const nool = document.getElementById(noolId);
-  const avatud = body.style.display !== 'none';
-  body.style.display = avatud ? 'none' : 'block';
+  const avatud = paneel.style.display !== 'none';
+  paneel.style.display = avatud ? 'none' : 'block';
   if (nool) nool.textContent = avatud ? '▼' : '▲';
 }
 
-function xsToggleSponsoridPaneel() { xsToggleKaartPaneel('xs-sponsorid-paneel','xs-sp-nool'); if(document.getElementById('xs-sponsorid-paneel').style.display!=='none') xsLaadiSponsoridUldnimekiri(); }
-function xsToggleLubatudPaneel() { xsToggleKaartPaneel('xs-lubatud-paneel','xs-lub-nool'); if(document.getElementById('xs-lubatud-paneel').style.display!=='none') xsLaadiLubatud(); }
-
-async function xsLaadiTab() {
-  const r = await api('/api/xseeria/admin/events');
-  xsKoikEvents = Array.isArray(r) ? r : [];
-  xsRenderEventGrid();
-  if (xsAktiivneEventId && xsKoikEvents.some(e=>e.id===xsAktiivneEventId)) {
-    xsVahetaEvent(xsAktiivneEventId, true);
-  } else if (xsKoikEvents.length) {
-    xsVahetaEvent(xsKoikEvents[0].id);
+function xsTaidaNumbriDropdownid() {
+  const algus = document.getElementById('xs-p-algus');
+  const lopp = document.getElementById('xs-p-lopp');
+  if (algus.options.length) return;
+  for (let n = 1; n <= 150; n++) {
+    algus.innerHTML += `<option value="${n}">${n}</option>`;
+    lopp.innerHTML += `<option value="${n}">${n}</option>`;
   }
 }
 
-function xsRenderEventGrid() {
-  const div = document.getElementById('xs-eventpick');
-  div.innerHTML = xsKoikEvents.map(e => `
-    <div class="xs-event-tile ${xsAktiivneEventId===e.id?'ak':''}" onclick="xsVahetaEvent(${e.id})">
-      ${e.kaas_foto_url ? `<img src="${e.kaas_foto_url}">` : `<div class="xs-event-tile-placeholder">🥏</div>`}
-      <button type="button" class="xs-event-tile-foto-nupp" onclick="event.stopPropagation();xsAvaKaasFotoValik(${e.id})">📷</button>
+function xsUuendaLoppNr() {
+  const algus = parseInt(document.getElementById('xs-p-algus').value, 10) || 1;
+  const arv = parseInt(document.getElementById('xs-p-arv').value, 10) || 1;
+  const lopp = Math.min(algus + arv - 1, 150);
+  document.getElementById('xs-p-lopp').value = String(lopp);
+}
+
+async function xsLaadiEvents() {
+  const d = await api('/api/xseeria/admin/events');
+  xsEvents = d.events || [];
+  const box = document.getElementById('xs-eventpick');
+  box.innerHTML = xsEvents.map(e => `
+    <div class="xs-event-tile ${e.id === xsAktiivneEventId ? 'ak' : ''}" onclick="xsVahetaEvent(${e.id})">
+      ${e.kaas_foto_url
+        ? `<img src="${e.kaas_foto_url}" alt="${e.nimi.replace(/"/g,'&quot;')}">`
+        : `<div class="xs-event-tile-placeholder">🥏</div>`}
+      <button class="xs-event-tile-foto-nupp" title="Vaheta pilt" onclick="event.stopPropagation();xsAvaKaasFotoValija(${e.id})">📷</button>
       <div class="xs-event-tile-caption">
         <div class="xs-event-tile-nimi">${e.nimi}</div>
-        <div class="xs-event-tile-kp">${e.kuupaev ? formatKp(e.kuupaev) : ''}</div>
+        <div class="xs-event-tile-kp">${String(e.kuupaev).slice(0,10)}</div>
       </div>
-    </div>
-  `).join('') + `<div class="xs-event-tile xs-event-tile-uus" onclick="xsToggleUusVoistlusVorm()">+ Uus</div>`;
+    </div>`
+  ).join('') || '<span style="font-size:12px;color:var(--hall)">Võistlusi pole veel.</span>';
+
+  const asKaart = document.getElementById('xs-asukohad-kaart');
+  const editKaart = document.getElementById('xs-event-edit');
+  const ulKaart = document.getElementById('xs-ulesanded-kaart');
+  const tegKaart = document.getElementById('xs-tegevused-kaart');
+  const spStaatusKaart = document.getElementById('xs-sponsorstaatus-kaart');
+  const kuluKaart = document.getElementById('xs-kulud-kaart');
+  // Kui valitud võistlus on vahepeal kustutatud, tühista valik — aga ÄRA vali automaatselt uut,
+  // et pealeht jääks puhtaks (event chipid + sponsorid + töötajad) kuni admin ise millelegi vajutab
+  if (!xsEvents.find(e => e.id === xsAktiivneEventId)) {
+    xsAktiivneEventId = null;
+  }
+  if (xsAktiivneEventId) {
+    asKaart.style.display = 'block';
+    ulKaart.style.display = 'block';
+    tegKaart.style.display = 'block';
+    spStaatusKaart.style.display = 'block';
+    kuluKaart.style.display = 'block';
+    const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
+    document.getElementById('xs-aktiivne-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-ul-event-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-teg-event-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-sp-event-nimi').textContent = ev ? ev.nimi : '';
+    document.getElementById('xs-kulu-event-nimi').textContent = ev ? ev.nimi : '';
+    if (ev) {
+      editKaart.style.display = 'block';
+      document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
+      document.getElementById('xs-ev-edit-kuupaev').value = String(ev.kuupaev).slice(0,10);
+      document.getElementById('xs-ev-edit-hooaeg').value = ev.hooaeg;
+      document.getElementById('xs-ev-edit-rajakaart').value = ev.rajakaart_url || '';
+    }
+    await xsLaadiAsukohad();
+    await xsLaadiTootajaValikud();
+    await xsLaadiUlesanded();
+    await xsLaadiTegevused();
+    await xsLaadiSponsoriStaatusTabel();
+    await xsLaadiKulud();
+  } else {
+    asKaart.style.display = 'none';
+    editKaart.style.display = 'none';
+    ulKaart.style.display = 'none';
+    tegKaart.style.display = 'none';
+    spStaatusKaart.style.display = 'none';
+    kuluKaart.style.display = 'none';
+  }
 }
 
-function xsAvaKaasFotoValik(eventId) {
-  xsAktiivneEventId = eventId;
+async function xsVahetaEvent(id) {
+  xsAktiivneEventId = id;
+  xsTyhistaParkEdit();
+  xsTyhistaUlesandeEdit();
+  xsTyhistaSponsorEdit();
+  await xsLaadiEvents();
+}
+
+let xsKaasFotoEventId = null;
+function xsAvaKaasFotoValija(eventId) {
+  xsKaasFotoEventId = eventId;
   document.getElementById('xs-kaas-foto-input').click();
 }
-
-async function xsLaeKaasFoto(input) {
-  if (!input.files || !input.files[0]) return;
+async function xsLaeKaasFoto(inputEl) {
+  const fail = inputEl.files[0];
+  inputEl.value = '';
+  if (!fail || !xsKaasFotoEventId) return;
   const fd = new FormData();
-  fd.append('foto', input.files[0]);
-  const r = await fetch(`/api/xseeria/admin/events/${xsAktiivneEventId}/kaas-foto`, { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) { await xsLaadiTab(); } else alert(j.veateade || 'Foto üleslaadimine ebaõnnestus');
-  input.value = '';
+  fd.append('foto', fail);
+  const r = await api(`/api/xseeria/admin/events/${xsKaasFotoEventId}/kaas-foto`, { method: 'POST', body: fd });
+  xsKaasFotoEventId = null;
+  if (r.ok) await xsLaadiEvents();
+  else alert(r.veateade || 'Pildi üleslaadimine ebaõnnestus');
 }
 
-function xsToggleUusVoistlusVorm() {
-  const el = document.getElementById('xs-ev-uus-vorm');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+// Kiirnupp "💰 Kulude raport" pealehe päises — avab valitud ürituse Kulude raporti kaardi ja kerib sinna.
+function xsAvaKuluRaport() {
+  if (!xsAktiivneEventId) {
+    alert('Vali kõigepealt võistlus, mille kulusid soovid vaadata (või lisa uus võistlus).');
+    return;
+  }
+  const body = document.getElementById('xs-kulu-body');
+  const nool = document.getElementById('xs-kulu-nool');
+  if (body) body.style.display = 'block';
+  if (nool) nool.textContent = '▲';
+  const kaart = document.getElementById('xs-kulud-kaart');
+  if (kaart) kaart.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Tagasi puhtale pealehele: peida ürituse detail (Pargid/Ülesanded/Sponsorite staatus/muuda-vorm),
+// jäta nähtavaks ainult võistluste nimekiri, Sponsorid-nupp ja Töötajate ligipääs.
+async function xsMineePealehele() {
+  xsAktiivneEventId = null;
+  xsTyhistaParkEdit();
+  xsTyhistaUlesandeEdit();
+  xsTyhistaSponsorEdit();
+  await xsLaadiEvents();
+}
+
+async function xsSalvestaEvent() {
+  if (!xsAktiivneEventId) return;
+  const nimi = document.getElementById('xs-ev-edit-nimi').value.trim();
+  const kuupaev = document.getElementById('xs-ev-edit-kuupaev').value;
+  const hooaeg = document.getElementById('xs-ev-edit-hooaeg').value;
+  const rajakaart_url = document.getElementById('xs-ev-edit-rajakaart').value.trim();
+  const teade = document.getElementById('xs-ev-edit-teade');
+  if (!nimi || !kuupaev) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
+    return;
+  }
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'PUT', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_url }) });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.className = 'teade ok'; teade.textContent = 'Salvestatud'; teade.style.display = 'block';
+  await xsLaadiEvents();
+}
+
+async function xsKustutaEvent() {
+  if (!xsAktiivneEventId) return;
+  const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
+  if (!confirm(`Kustutada võistlus "${ev ? ev.nimi : ''}" koos KÕIGI selle parkide ja korvidega? Seda ei saa tagasi võtta.`)) return;
+  await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'DELETE' });
+  xsAktiivneEventId = null;
+  await xsLaadiEvents();
 }
 
 async function xsLooEvent() {
   const nimi = document.getElementById('xs-ev-nimi').value.trim();
   const kuupaev = document.getElementById('xs-ev-kuupaev').value;
   const hooaeg = document.getElementById('xs-ev-hooaeg').value;
-  const rajakaart = document.getElementById('xs-ev-rajakaart').value.trim();
-  if (!nimi) return naitaTeade('xs-ev-teade','viga','Sisesta võistluse nimi');
-  const r = await api('/api/xseeria/admin/events', { method:'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_link: rajakaart }) });
-  if (r && r.ok) {
-    naitaTeade('xs-ev-teade','ok','✅ Loodud!');
-    document.getElementById('xs-ev-nimi').value=''; document.getElementById('xs-ev-rajakaart').value='';
-    xsToggleUusVoistlusVorm();
-    xsAktiivneEventId = r.id;
-    await xsLaadiTab();
-  } else naitaTeade('xs-ev-teade','viga',(r&&r.veateade)||'Viga');
+  const rajakaart_url = document.getElementById('xs-ev-rajakaart').value.trim();
+  const teade = document.getElementById('xs-ev-teade');
+  if (!nimi || !kuupaev) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida nimi ja kuupäev'; teade.style.display = 'block';
+    return;
+  }
+  const d = await api('/api/xseeria/admin/events', { method: 'POST', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_url }) });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  document.getElementById('xs-ev-nimi').value = '';
+  document.getElementById('xs-ev-kuupaev').value = '';
+  document.getElementById('xs-ev-rajakaart').value = '';
+  document.getElementById('xs-ev-uus-vorm').style.display = 'none';
+  document.getElementById('xs-ev-uus-nupp').style.display = 'inline-block';
+  xsAktiivneEventId = d.event.id;
+  await xsLaadiEvents();
 }
 
-function xsMineePealehele() { xsAktiivneEventId = null; xsLaadiTab(); }
+function xsToggleUusVoistlusVorm() {
+  const vorm = document.getElementById('xs-ev-uus-vorm');
+  const nupp = document.getElementById('xs-ev-uus-nupp');
+  const avatud = vorm.style.display !== 'none';
+  vorm.style.display = avatud ? 'none' : 'block';
+  nupp.style.display = avatud ? 'inline-block' : 'none';
+  document.getElementById('xs-ev-teade').style.display = 'none';
+}
 
-async function xsVahetaEvent(id, skipRender) {
-  xsAktiivneEventId = id;
-  if (!skipRender) xsRenderEventGrid();
-  const e = xsKoikEvents.find(x=>x.id===id);
-  if (!e) return;
-  ['xs-asukohad-kaart','xs-ulesanded-kaart','xs-tegevused-kaart','xs-sponsorstaatus-kaart','xs-kulud-kaart'].forEach(id2 => {
-    document.getElementById(id2).style.display = 'block';
+async function xsLisaBulk() {
+  const tekst = document.getElementById('xs-bulk').value;
+  if (!tekst.trim() || !xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/asukohad/bulk', { method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, tekst }) });
+  if (!d.ok) return alert(d.veateade || 'Viga');
+  document.getElementById('xs-bulk').value = '';
+  await xsLaadiAsukohad();
+}
+
+let xsMuudetavAsukohtId = null;
+
+function xsJoonistaAsukohaVastutajaValik(valitudIds) {
+  valitudIds = valitudIds || [];
+  const div = document.getElementById('xs-p-vastutajad-valik');
+  if (!div) return;
+  if (!xsTootajad.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Ühelegi töötajale pole X-seeria ligipääsu lubatud (vt "Töötajad" tab).</span>'; return; }
+  div.innerHTML = xsTootajad.map(w => `
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#2563eb' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+      <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${valitudIds.includes(w.id) ? 'checked' : ''}> ${escapeHtmlXs(w.nimi)}
+    </label>`).join('');
+}
+
+async function xsLisaPark() {
+  const nimi = document.getElementById('xs-p-nimi').value.trim();
+  const algus_nr = document.getElementById('xs-p-algus').value;
+  const lopp_nr = document.getElementById('xs-p-lopp').value;
+  const vastutajad = [...document.querySelectorAll('#xs-p-vastutajad-valik input:checked')].map(cb => parseInt(cb.value, 10));
+  const teade = document.getElementById('xs-p-teade');
+  if (!nimi || !xsAktiivneEventId) {
+    teade.className = 'teade viga'; teade.textContent = 'Täida vähemalt pargi nimi'; teade.style.display = 'block';
+    return;
+  }
+  let d;
+  if (xsMuudetavAsukohtId) {
+    d = await api('/api/xseeria/admin/asukohad/' + xsMuudetavAsukohtId + '/tapsed', {
+      method: 'PUT', body: JSON.stringify({ nimi, algus_nr, lopp_nr, vastutajad })
+    });
+  } else {
+    d = await api('/api/xseeria/admin/asukohad', {
+      method: 'POST', body: JSON.stringify({ event_id: xsAktiivneEventId, nimi, algus_nr, lopp_nr, vastutajad })
+    });
+  }
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaParkEdit();
+  await xsLaadiAsukohad();
+}
+
+function xsAlustaParkEdit(a) {
+  xsMuudetavAsukohtId = a.id;
+  document.getElementById('xs-p-nimi').value = a.nimi;
+  document.getElementById('xs-p-arv').value = a.korvide_koguarv;
+  if (a.min_nr) document.getElementById('xs-p-algus').value = String(a.min_nr);
+  if (a.max_nr) document.getElementById('xs-p-lopp').value = String(a.max_nr);
+  xsJoonistaAsukohaVastutajaValik((a.vastutajad || []).map(v => v.id));
+  document.getElementById('xs-p-pealkiri').textContent = `Muudad parki "${a.nimi}"`;
+  document.getElementById('xs-p-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-p-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-p-teade').style.display = 'none';
+  document.getElementById('xs-p-nimi').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function xsTyhistaParkEdit() {
+  xsMuudetavAsukohtId = null;
+  document.getElementById('xs-p-nimi').value = '';
+  document.getElementById('xs-p-arv').value = '';
+  xsJoonistaAsukohaVastutajaValik();
+  document.getElementById('xs-p-pealkiri').textContent = 'Või lisa üks park täpsete rajanumbritega';
+  document.getElementById('xs-p-nupp').textContent = '+ Lisa park';
+  document.getElementById('xs-p-tyhista').style.display = 'none';
+}
+
+async function xsLaadiAsukohad() {
+  if (!xsAktiivneEventId) return;
+  await xsLaadiTootajaValikud();
+  if (!xsMuudetavAsukohtId) xsJoonistaAsukohaVastutajaValik();
+  const d = await api('/api/xseeria/event/' + xsAktiivneEventId + '/asukohad');
+  if (!d.ok) return;
+  const rows = d.asukohad;
+  const tehtud = rows.reduce((s,a) => s + a.paigaldatud_arv, 0);
+  const puhas = rows.reduce((s,a) => s + a.puhastatud_arv, 0);
+  const korvidKokku = rows.reduce((s,a) => s + a.korvide_koguarv, 0);
+  document.getElementById('xs-summary').textContent = `Kokku ${rows.length} parki · ${tehtud}/${korvidKokku} korvi paigaldatud · ${puhas}/${korvidKokku} puhastatud`;
+  const t = document.getElementById('xs-tabel');
+  t.innerHTML = `<table><thead><tr><th>Park</th><th>Korve</th><th>Rajad</th><th>Vastutajad</th><th>Paigaldus</th><th>Puhastus</th><th></th></tr></thead><tbody>` +
+    rows.map(a => `<tr>
+      <td>${a.nimi}</td>
+      <td>${a.korvide_koguarv}</td>
+      <td>${a.min_nr && a.max_nr ? a.min_nr + '-' + a.max_nr : '—'}</td>
+      <td>${(a.vastutajad || []).map(v => escapeHtmlXs(v.nimi)).join(', ') || '—'}</td>
+      <td>${a.paigaldatud_arv}/${a.korvide_koguarv}</td>
+      <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(a).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAvaFotoModal(${a.id}, "${escapeJs(a.nimi)}")'>📷</button>
+        <button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button>
+      </td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+
+async function xsKustutaAsukoht(id) {
+  if (!confirm('Kustutada see park koos kõigi korvidega?')) return;
+  await api('/api/xseeria/admin/asukohad/' + id, { method: 'DELETE' });
+  if (xsMuudetavAsukohtId === id) xsTyhistaParkEdit();
+  await xsLaadiAsukohad();
+}
+
+function escapeJs(s) {
+  return (s || '').toString().replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'");
+}
+
+// ── X-seeria rajakaartide bulk-üleslaadimine (pargi kaupa, lohistades) ──
+
+let xsFotoAsukohtId = null;
+let xsFotoSlotid = []; // [{ korvId, number, olemasolevUrl, uusFail, eelvaadeUrl }]
+
+async function xsAvaFotoModal(asukohtId, nimi) {
+  xsFotoAsukohtId = asukohtId;
+  document.getElementById('xsFotoParkNimi').textContent = nimi;
+  document.getElementById('xsFotoTeade').style.display = 'none';
+  document.getElementById('xsFotoSalvestaNupp').style.display = 'none';
+  document.getElementById('xsFotoGrid').innerHTML = 'Laadimine...';
+  document.getElementById('xsFotoModal').classList.add('avatud');
+
+  const d = await api('/api/xseeria/asukoht/' + asukohtId + '/korvid');
+  if (!d.ok) { document.getElementById('xsFotoGrid').innerHTML = '<div style="color:var(--hall);font-size:13px">Viga laadimisel</div>'; return; }
+  xsFotoSlotid = d.korvid.map(k => ({ korvId: k.id, number: k.number, olemasolevUrl: k.foto_url || null, uusFail: null, eelvaadeUrl: null }));
+  xsJoonistaFotoGrid();
+}
+
+function xsSuljeFotoModal() {
+  document.getElementById('xsFotoModal').classList.remove('avatud');
+  xsFotoSlotid = [];
+  xsFotoAsukohtId = null;
+}
+
+function xsJoonistaFotoGrid() {
+  const grid = document.getElementById('xsFotoGrid');
+  grid.innerHTML = xsFotoSlotid.map((s, i) => {
+    const pilt = s.eelvaadeUrl || s.olemasolevUrl;
+    const uus = !!s.eelvaadeUrl;
+    return `
+      <div style="text-align:center">
+        <div style="position:relative;width:100%;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);border:0.5px solid ${uus ? '#2563eb' : 'var(--sisend-piir)'};cursor:pointer" onclick="xsVahetaUksPilt(${i})">
+          ${pilt ? `<img src="${pilt}" style="width:100%;height:100%;object-fit:cover">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--hall);font-size:11px">tühi</div>`}
+          ${uus ? `<div style="position:absolute;top:2px;right:2px;background:#2563eb;color:#ffffff;font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px">uus</div>` : ''}
+          ${pilt ? `<button onclick="event.stopPropagation();xsKustutaFotoSlot(${i})" title="Eemalda pilt" style="position:absolute;top:2px;left:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(15,17,22,0.85);color:#f87171;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">✕</button>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--hall);margin-top:4px">nr ${s.number}</div>
+      </div>`;
+  }).join('');
+}
+
+function xsVahetaUksPilt(index) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    xsFotoSlotid[index].uusFail = file;
+    xsFotoSlotid[index].eelvaadeUrl = URL.createObjectURL(file);
+    xsJoonistaFotoGrid();
+    xsUuendaFotoSalvestaNupp();
+  };
+  input.click();
+}
+
+// Eemalda üks pilt raja kohalt otse pildivõrgustikust (nt kui pilt sattus vale numbri alla).
+// Kui pilt on alles valitud, aga veel salvestamata (uusFail), eemaldatakse see lihtsalt valikust.
+// Kui pilt on juba serverisse üles laetud (olemasolevUrl), kustutatakse see kohe ka Cloudinarysest/andmebaasist.
+async function xsKustutaFotoSlot(index) {
+  const s = xsFotoSlotid[index];
+  if (!s) return;
+
+  if (s.uusFail) {
+    if (s.eelvaadeUrl) URL.revokeObjectURL(s.eelvaadeUrl);
+    s.uusFail = null;
+    s.eelvaadeUrl = null;
+    xsJoonistaFotoGrid();
+    xsUuendaFotoSalvestaNupp();
+    return;
+  }
+
+  if (s.olemasolevUrl) {
+    if (!confirm(`Kustutada raja nr ${s.number} pilt?`)) return;
+    const r = await api('/api/xseeria/korvid/' + s.korvId + '/rajakaart', { method: 'DELETE' });
+    if (!r.ok) { alert('Kustutamine ebaõnnestus: ' + (r.veateade || 'tundmatu viga')); return; }
+    s.olemasolevUrl = null;
+    xsJoonistaFotoGrid();
+  }
+}
+
+function xsUuendaFotoSalvestaNupp() {
+  const onPending = xsFotoSlotid.some(s => s.uusFail);
+  document.getElementById('xsFotoSalvestaNupp').style.display = onPending ? 'inline-block' : 'none';
+}
+
+function xsFotodValitud(failid) {
+  const arr = Array.from(failid);
+  const jaotamata = [];
+
+  // 1. samm: kui failinimes on number (nt "56.jpg"), sobita see TÄPSELT selle numbriga raja külge
+  arr.forEach(file => {
+    const m = file.name.match(/(\d+)/);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      const slot = xsFotoSlotid.find(s => parseInt(s.number, 10) === num && !s.uusFail);
+      if (slot) {
+        slot.uusFail = file;
+        slot.eelvaadeUrl = URL.createObjectURL(file);
+        return;
+      }
+    }
+    jaotamata.push(file);
   });
-  document.getElementById('xs-aktiivne-nimi').textContent = e.nimi;
-  document.getElementById('xs-ul-event-nimi').textContent = e.nimi;
-  document.getElementById('xs-teg-event-nimi').textContent = e.nimi;
-  document.getElementById('xs-sp-event-nimi').textContent = e.nimi;
-  document.getElementById('xs-kulu-event-nimi').textContent = e.nimi;
-  document.getElementById('xs-ev-edit-nimi').value = e.nimi;
-  document.getElementById('xs-ev-edit-kuupaev').value = e.kuupaev ? e.kuupaev.slice(0,10) : '';
-  document.getElementById('xs-ev-edit-hooaeg').value = e.hooaeg || 'suvi';
-  document.getElementById('xs-ev-edit-rajakaart').value = e.rajakaart_link || '';
-  document.getElementById('xs-event-edit').style.display = 'block';
-  xsLaadiAsukohad();
-  xsLaadiUlesanded();
-  xsLaadiTegevused();
-  xsLaadiSponsorStaatus();
-  xsLaadiKulud();
+
+  // 2. samm: failid, millel numbrit polnud VÕI number ei vastanud ühelegi selle pargi rajale,
+  // täidetakse ülejäänud tühjadesse kohtadesse valimisjärjekorras
+  let idx = 0;
+  for (const file of jaotamata) {
+    while (idx < xsFotoSlotid.length && (xsFotoSlotid[idx].olemasolevUrl || xsFotoSlotid[idx].uusFail)) idx++;
+    if (idx >= xsFotoSlotid.length) break;
+    xsFotoSlotid[idx].uusFail = file;
+    xsFotoSlotid[idx].eelvaadeUrl = URL.createObjectURL(file);
+    idx++;
+  }
+  xsJoonistaFotoGrid();
+  xsUuendaFotoSalvestaNupp();
 }
 
-async function xsSalvestaEvent() {
-  const nimi = document.getElementById('xs-ev-edit-nimi').value.trim();
-  const kuupaev = document.getElementById('xs-ev-edit-kuupaev').value;
-  const hooaeg = document.getElementById('xs-ev-edit-hooaeg').value;
-  const rajakaart = document.getElementById('xs-ev-edit-rajakaart').value.trim();
-  if (!nimi) return naitaTeade('xs-ev-edit-teade','viga','Nimi on kohustuslik');
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}`, { method:'PUT', body: JSON.stringify({ nimi, kuupaev, hooaeg, rajakaart_link: rajakaart }) });
-  if (r && r.ok) { naitaTeade('xs-ev-edit-teade','ok','✅ Salvestatud'); await xsLaadiTab(); }
-  else naitaTeade('xs-ev-edit-teade','viga',(r&&r.veateade)||'Viga');
+// Tihenda pilt enne üleslaadimist (kiirem üleslaadimine, eriti telefoni kaameraga tehtud suurte failide puhul)
+function xsTihendaPilt(file, maxKylg, kvaliteet) {
+  maxKylg = maxKylg || 1600; kvaliteet = kvaliteet || 0.8;
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/')) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxKylg || height > maxKylg) {
+        if (width > height) { height = Math.round(height * maxKylg / width); width = maxKylg; }
+        else { width = Math.round(width * maxKylg / height); height = maxKylg; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => { URL.revokeObjectURL(url); resolve(blob || file); }, 'image/jpeg', kvaliteet);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
 }
 
-async function xsKustutaEvent() {
-  if (!confirm('Kustutad selle võistluse jäädavalt (koos kõigi ridade, ülesannete ja kuludega)?')) return;
-  await api(`/api/xseeria/admin/events/${xsAktiivneEventId}`, { method:'DELETE' });
-  xsAktiivneEventId = null;
-  await xsLaadiTab();
+// Laadi üks pilt üles otse (mitte läbi jagatud api() abifunktsiooni), koos ajapiiranguga,
+// et üleslaadimine kunagi lõputult "kinni" ei jääks
+async function xsLaeUlesUksPilt(korvId, fail) {
+  const compressed = await xsTihendaPilt(fail);
+  const fd = new FormData();
+  fd.append('foto', compressed, 'rajakaart.jpg');
+  const controller = new AbortController();
+  const ajapiirang = setTimeout(() => controller.abort(), 25000);
+  try {
+    const r = await fetch('/api/xseeria/korvid/' + korvId + '/rajakaart', {
+      method: 'POST',
+      headers: { 'x-session-token': TOKEN },
+      body: fd,
+      signal: controller.signal
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.veateade || 'Serveri viga');
+    return true;
+  } finally {
+    clearTimeout(ajapiirang);
+  }
 }
 
-// ── SPONSORID (üldnimekiri) ────────────────────────────────────
+async function xsSalvestaFotod() {
+  const teade = document.getElementById('xsFotoTeade');
+  const muudetud = xsFotoSlotid.filter(s => s.uusFail);
+  if (!muudetud.length) return;
+  document.getElementById('xsFotoSalvestaNupp').disabled = true;
+
+  let valmis = 0, ebaonnestunud = 0;
+  const KONKURENTSUS = 3;
+  teade.className = 'teade ok'; teade.style.display = 'block';
+  teade.textContent = `Laen üles 0/${muudetud.length}...`;
+
+  const jarjekord = muudetud.slice();
+  async function tootleja() {
+    while (jarjekord.length) {
+      const s = jarjekord.shift();
+      try {
+        await xsLaeUlesUksPilt(s.korvId, s.uusFail);
+        valmis++;
+      } catch (e) {
+        ebaonnestunud++;
+      }
+      teade.textContent = `Laen üles ${valmis + ebaonnestunud}/${muudetud.length}` + (ebaonnestunud ? ` (${ebaonnestunud} ebaõnnestus)` : '') + '...';
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(KONKURENTSUS, muudetud.length) }, tootleja));
+
+  teade.textContent = ebaonnestunud
+    ? `⚠️ ${valmis} pilti üles laetud, ${ebaonnestunud} ebaõnnestus — proovi ebaõnnestunud pildid uuesti`
+    : `✅ ${valmis} pilti üles laetud`;
+  document.getElementById('xsFotoSalvestaNupp').disabled = false;
+  await xsAvaFotoModal(xsFotoAsukohtId, document.getElementById('xsFotoParkNimi').textContent);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('xsFotoDropzone');
+  const input = document.getElementById('xsFotoInput');
+  if (!zone || !input) return;
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { xsFotodValitud(input.files); input.value = ''; });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = '#2563eb'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files && e.dataTransfer.files.length) xsFotodValitud(e.dataTransfer.files);
+  });
+});
+
+document.getElementById('xsFotoModal')?.addEventListener('click', function(e) {
+  if (e.target === this) xsSuljeFotoModal();
+});
+
+async function xsLaadiLubatud() {
+  const r = await api('/api/xseeria/admin/lubatud');
+  const div = document.getElementById('xsLubatudSisu');
+  if (!Array.isArray(r)) { div.innerHTML = '<div style="color:var(--hall)">Viga laadimisel</div>'; return; }
+  div.innerHTML = r.map(w => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
+      <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+        <span style="color:${w.lubatud?'#4ade80':'var(--hall)'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
+        <input type="checkbox" ${w.lubatud?'checked':''} onchange="xsToggleLubatud(${w.id}, this.checked)" style="width:auto;accent-color:#38bdf8">
+      </label>
+    </div>`).join('');
+}
+
+async function xsToggleLubatud(workerId, lubatud) {
+  await api(`/api/xseeria/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  await xsLaadiLubatud();
+}
+
+// ── X-SEERIA: ÜLESANDED (checklist) ───────────────────────────
+let xsTootajad = [];
+
+async function xsLaadiTootajaValikud() {
+  if (xsTootajad.length) return; // laadi ainult üks kord tabi avamise kohta (xsLaadiTab tühjendab selle iga avamisel)
+  // Näita Vastutaja valikus AINULT töötajaid, kellel on X-seeria ligipääs lubatud (Töötajad tabi "🥏 X-seeria" linnuke) —
+  // nii ei sega valikut pooled inimesed, kes X-seeriaga tegelikult üldse tegemist ei tee.
+  const d = await api('/api/xseeria/admin/lubatud');
+  xsTootajad = Array.isArray(d) ? d.filter(w => w.lubatud) : [];
+  const sel = document.getElementById('xs-ul-vastutaja');
+  sel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+}
+
+let xsMuudetavUlesanneId = null;
+
+async function xsLaadiUlesanded() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/ulesanded');
+  const div = document.getElementById('xs-ul-nimekiri');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.ulesanded.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Ülesandeid pole veel lisatud.</div>'; return; }
+  div.innerHTML = d.ulesanded.map(u => {
+    const tahtaeg = u.tahtaeg ? String(u.tahtaeg).slice(0,10) : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--piir3)${u.tehtud ? ';opacity:0.55' : ''}">
+      <input type="checkbox" ${u.tehtud ? 'checked' : ''} onchange="xsToggleUlesanne(${u.id})" style="width:auto;accent-color:#16a34a;cursor:pointer">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;${u.tehtud ? 'text-decoration:line-through;color:var(--hall)' : 'color:var(--tekst)'}">${escapeHtmlXs(u.tekst)}</div>
+        <div style="font-size:11px;color:var(--hall);margin-top:2px">
+          ${u.kategooria ? `<span style="background:var(--bg3);border-radius:4px;padding:1px 6px;margin-right:6px">${escapeHtmlXs(u.kategooria)}</span>` : ''}
+          ${tahtaeg ? `📅 ${tahtaeg} ` : ''}${u.vastutaja_nimi ? `· 👷 ${escapeHtmlXs(u.vastutaja_nimi)}` : ''}
+        </div>
+      </div>
+      <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaUlesandeEdit(${JSON.stringify(u).replace(/'/g, "&apos;")})'>✎</button>
+      <button class="nupp punane" onclick="xsKustutaUlesanne(${u.id})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+async function xsToggleUlesanne(id) {
+  await api('/api/xseeria/admin/ulesanded/' + id + '/toggle', { method: 'POST' });
+  await xsLaadiUlesanded();
+}
+
+async function xsKustutaUlesanne(id) {
+  if (!confirm('Kustutada see ülesanne?')) return;
+  await api('/api/xseeria/admin/ulesanded/' + id, { method: 'DELETE' });
+  if (xsMuudetavUlesanneId === id) xsTyhistaUlesandeEdit();
+  await xsLaadiUlesanded();
+}
+
+function xsAlustaUlesandeEdit(u) {
+  xsMuudetavUlesanneId = u.id;
+  document.getElementById('xs-ul-tekst').value = u.tekst;
+  document.getElementById('xs-ul-kategooria').value = u.kategooria || '';
+  document.getElementById('xs-ul-tahtaeg').value = u.tahtaeg ? String(u.tahtaeg).slice(0,10) : '';
+  document.getElementById('xs-ul-vastutaja').value = u.vastutaja_id || '';
+  document.getElementById('xs-ul-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-ul-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-ul-teade').style.display = 'none';
+}
+
+function xsTyhistaUlesandeEdit() {
+  xsMuudetavUlesanneId = null;
+  document.getElementById('xs-ul-tekst').value = '';
+  document.getElementById('xs-ul-kategooria').value = '';
+  document.getElementById('xs-ul-tahtaeg').value = '';
+  document.getElementById('xs-ul-vastutaja').value = '';
+  document.getElementById('xs-ul-nupp').textContent = '+ Lisa ülesanne';
+  document.getElementById('xs-ul-tyhista').style.display = 'none';
+}
+
+async function xsLisaUlesanne() {
+  if (!xsAktiivneEventId) return;
+  const tekst = document.getElementById('xs-ul-tekst').value.trim();
+  const kategooria = document.getElementById('xs-ul-kategooria').value.trim();
+  const tahtaeg = document.getElementById('xs-ul-tahtaeg').value;
+  const vastutaja_id = document.getElementById('xs-ul-vastutaja').value;
+  const teade = document.getElementById('xs-ul-teade');
+  if (!tekst) {
+    teade.className = 'teade viga'; teade.textContent = 'Kirjuta ülesande tekst'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ tekst, kategooria, tahtaeg, vastutaja_id });
+  const d = xsMuudetavUlesanneId
+    ? await api('/api/xseeria/admin/ulesanded/' + xsMuudetavUlesanneId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/ulesanded', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaUlesandeEdit();
+  await xsLaadiUlesanded();
+}
+
+// ── X-SEERIA: TEGEVUSED (logistika, mitu inimest, kuupäev+kellaaeg) ──
+let xsMuudetavTegevusId = null;
+
+function xsJoonistaTegevuseInimesteValik(valitudIds) {
+  valitudIds = valitudIds || [];
+  const div = document.getElementById('xs-teg-inimesed-valik');
+  if (!xsTootajad.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Ühelegi töötajale pole X-seeria ligipääsu lubatud (vt "Töötajad" tab).</span>'; return; }
+  div.innerHTML = xsTootajad.map(w => `
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:0.5px solid ${valitudIds.includes(w.id) ? '#2563eb' : 'var(--sisend-piir)'};border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--tekst2)">
+      <input type="checkbox" value="${w.id}" style="width:auto;margin:0" ${valitudIds.includes(w.id) ? 'checked' : ''}> ${escapeHtmlXs(w.nimi)}
+    </label>`).join('');
+}
+
+async function xsLaadiTegevused() {
+  if (!xsAktiivneEventId) return;
+  await xsLaadiTootajaValikud();
+  if (!xsMuudetavTegevusId) xsJoonistaTegevuseInimesteValik();
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/tegevused');
+  const div = document.getElementById('xs-teg-nimekiri');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.tegevused.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Tegevusi pole veel lisatud.</div>'; return; }
+  div.innerHTML = d.tegevused.map(t => {
+    const kp = t.kuupaev ? String(t.kuupaev).slice(0,10) : '';
+    const kell = t.kellaaeg ? String(t.kellaaeg).slice(0,5) : '';
+    const inimesed = (t.inimesed || []).map(p => escapeHtmlXs(p.nimi)).join(', ') || '—';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--tekst)">${escapeHtmlXs(t.tegevus)}</div>
+        <div style="font-size:11px;color:var(--hall);margin-top:2px">
+          ${kp ? `📅 ${kp}` : ''}${kell ? ' ⏰ ' + kell : ''}${(kp || kell) ? ' · ' : ''}👷 ${inimesed}
+        </div>
+      </div>
+      <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaTegevuseEdit(${JSON.stringify(t).replace(/'/g, "&apos;")})'>✎</button>
+      <button class="nupp punane" onclick="xsKustutaTegevus(${t.id})">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function xsAlustaTegevuseEdit(t) {
+  xsMuudetavTegevusId = t.id;
+  document.getElementById('xs-teg-tekst').value = t.tegevus;
+  document.getElementById('xs-teg-kuupaev').value = t.kuupaev ? String(t.kuupaev).slice(0,10) : '';
+  document.getElementById('xs-teg-kellaaeg').value = t.kellaaeg ? String(t.kellaaeg).slice(0,5) : '';
+  xsJoonistaTegevuseInimesteValik((t.inimesed || []).map(p => p.id));
+  document.getElementById('xs-teg-nupp').textContent = 'Salvesta muudatused';
+  document.getElementById('xs-teg-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-teg-teade').style.display = 'none';
+}
+
+function xsTyhistaTegevuseEdit() {
+  xsMuudetavTegevusId = null;
+  document.getElementById('xs-teg-tekst').value = '';
+  document.getElementById('xs-teg-kuupaev').value = '';
+  document.getElementById('xs-teg-kellaaeg').value = '';
+  xsJoonistaTegevuseInimesteValik();
+  document.getElementById('xs-teg-nupp').textContent = '+ Lisa tegevus';
+  document.getElementById('xs-teg-tyhista').style.display = 'none';
+}
+
+async function xsLisaTegevus() {
+  if (!xsAktiivneEventId) return;
+  const tegevus = document.getElementById('xs-teg-tekst').value.trim();
+  const kuupaev = document.getElementById('xs-teg-kuupaev').value;
+  const kellaaeg = document.getElementById('xs-teg-kellaaeg').value;
+  const inimesed = [...document.querySelectorAll('#xs-teg-inimesed-valik input:checked')].map(cb => parseInt(cb.value, 10));
+  const teade = document.getElementById('xs-teg-teade');
+  if (!tegevus) {
+    teade.className = 'teade viga'; teade.textContent = 'Kirjuta tegevuse nimetus'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ tegevus, kuupaev, kellaaeg, inimesed });
+  const d = xsMuudetavTegevusId
+    ? await api('/api/xseeria/admin/tegevused/' + xsMuudetavTegevusId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/tegevused', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaTegevuseEdit();
+  await xsLaadiTegevused();
+}
+
+async function xsKustutaTegevus(id) {
+  if (!confirm('Kustutada see tegevus?')) return;
+  await api('/api/xseeria/admin/tegevused/' + id, { method: 'DELETE' });
+  if (xsMuudetavTegevusId === id) xsTyhistaTegevuseEdit();
+  await xsLaadiTegevused();
+}
+
+// ── X-SEERIA: SPONSORID ──
+// 1) Üldnimekiri (pealehel, "🎁 Sponsorid" nupu taga) — sponsori identiteet: nimi/kontakt/tooted. Globaalne, mitte
+//    võistluse külge seotud, kuna sponsorid ei kao etapiga, vaid lisanduvad.
+// 2) Per-event staatuse tabel (valitud võistluse lehel) — ainult ootel/käes/tagastatud + kuupäevad SELLE võistluse jaoks.
+let xsMuudetavSponsorId = null;
+
 async function xsLaadiSponsoridUldnimekiri() {
-  const r = await api('/api/xseeria/admin/sponsorid');
-  const list = Array.isArray(r) ? r : [];
+  const d = await api('/api/xseeria/admin/sponsorid');
   const div = document.getElementById('xs-sp-uldtabel');
-  if (!list.length) { div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Sponsoreid pole veel lisatud</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th>Nimi</th><th>Kontakt</th><th>Tavapärased tooted</th><th></th></tr></thead><tbody>' +
-    list.map(s => `<tr>
-      <td style="font-weight:600">${s.nimi}</td>
-      <td>${s.kontakt||'—'}</td>
-      <td>${s.tooted||'—'}</td>
-      <td style="white-space:nowrap"><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g,"&apos;")})'>✎</button><button class="nupp punane" onclick="xsKustutaSponsor(${s.id})">🗑</button></td>
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud.</div>'; return; }
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Kontakt</th><th>Tooted</th><th></th></tr></thead><tbody>` +
+    d.sponsorid.map(s => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}</td>
+      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.kontakt || '—')}</td>
+      <td style="color:var(--tekst3);font-size:12px">${escapeHtmlXs(s.tooted || '—')}</td>
+      <td style="white-space:nowrap">
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaSponsorEdit(${JSON.stringify(s).replace(/'/g, "&apos;")})'>✎</button>
+        <button class="nupp punane" onclick='xsKustutaSponsor(${s.id}, ${JSON.stringify(s.nimi).replace(/'/g, "&apos;")})'>🗑</button>
+      </td>
     </tr>`).join('') + '</tbody></table>';
 }
 
-async function xsLisaSponsor() {
-  const nimi = document.getElementById('xs-sp-nimi').value.trim();
-  const kontakt = document.getElementById('xs-sp-kontakt').value.trim();
-  const tooted = document.getElementById('xs-sp-tooted').value.trim();
-  if (!nimi) return naitaTeade('xs-sp-teade','viga','Sisesta sponsori nimi');
-  const body = JSON.stringify({ nimi, kontakt, tooted });
-  const r = xsMuudetavSponsorId
-    ? await api(`/api/xseeria/admin/sponsorid/${xsMuudetavSponsorId}`, { method:'PUT', body })
-    : await api('/api/xseeria/admin/sponsorid', { method:'POST', body });
-  if (r && r.ok) {
-    naitaTeade('xs-sp-teade','ok','✅ Salvestatud');
-    xsTyhistaSponsorEdit();
-    await xsLaadiSponsoridUldnimekiri();
-    if (xsAktiivneEventId) xsLaadiSponsorStaatus();
-  } else naitaTeade('xs-sp-teade','viga',(r&&r.veateade)||'Viga');
+async function xsLaadiSponsoriStaatusTabel() {
+  if (!xsAktiivneEventId) return;
+  const d = await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid');
+  const div = document.getElementById('xs-sp-tabel');
+  if (!d.ok) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Viga laadimisel</div>'; return; }
+  if (!d.sponsorid.length) { div.innerHTML = '<div style="color:var(--hall);font-size:12px">Sponsoreid pole veel lisatud — lisa need pealehel "🎁 Sponsorid" alt.</div>'; return; }
+  const staatused = { ootel: 'Ootel', kaes: 'Käes', tagastatud: 'Tagastatud' };
+  div.innerHTML = `<table><thead><tr><th>Sponsor</th><th>Staatus</th><th>Järgi kp</th><th>Tagastatud kp</th><th>Kommentaar</th><th>Vastutaja</th><th></th></tr></thead><tbody>` +
+    d.sponsorid.map(s => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(s.nimi)}</td>
+      <td><select id="xs-sp-staatus-${s.sponsor_id}" style="width:auto;font-size:12px">
+        ${Object.entries(staatused).map(([v,l]) => `<option value="${v}" ${s.staatus===v?'selected':''}>${l}</option>`).join('')}
+      </select></td>
+      <td><input type="date" id="xs-sp-jargi-${s.sponsor_id}" value="${s.jargi_kp ? String(s.jargi_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
+      <td><input type="date" id="xs-sp-tagastatud-${s.sponsor_id}" value="${s.tagastatud_kp ? String(s.tagastatud_kp).slice(0,10) : ''}" style="font-size:12px;width:auto"></td>
+      <td><input type="text" id="xs-sp-markused-${s.sponsor_id}" value="${escapeHtmlXs(s.markused || '')}" placeholder="nt too bännerid kontorist" style="font-size:12px;min-width:140px"></td>
+      <td><select id="xs-sp-vastutaja-${s.sponsor_id}" style="width:auto;font-size:12px">
+        <option value="">— Vastutaja pole —</option>
+        ${xsTootajad.map(w => `<option value="${w.id}" ${s.vastutaja_id===w.id?'selected':''}>${w.nimi}</option>`).join('')}
+      </select></td>
+      <td><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾 Salvesta</button></td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+async function xsUuendaSponsorStaatus(sponsorId) {
+  if (!xsAktiivneEventId) return;
+  const staatus = document.getElementById('xs-sp-staatus-' + sponsorId).value;
+  const jargi_kp = document.getElementById('xs-sp-jargi-' + sponsorId).value;
+  const tagastatud_kp = document.getElementById('xs-sp-tagastatud-' + sponsorId).value;
+  const markused = document.getElementById('xs-sp-markused-' + sponsorId).value;
+  const vastutaja_id = document.getElementById('xs-sp-vastutaja-' + sponsorId).value;
+  await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/sponsorid/' + sponsorId, {
+    method: 'PUT', body: JSON.stringify({ staatus, jargi_kp, tagastatud_kp, markused, vastutaja_id })
+  });
+  await xsLaadiSponsoriStaatusTabel();
 }
 
 function xsAlustaSponsorEdit(s) {
   xsMuudetavSponsorId = s.id;
   document.getElementById('xs-sp-nimi').value = s.nimi;
-  document.getElementById('xs-sp-kontakt').value = s.kontakt||'';
-  document.getElementById('xs-sp-tooted').value = s.tooted||'';
+  document.getElementById('xs-sp-kontakt').value = s.kontakt || '';
+  document.getElementById('xs-sp-tooted').value = s.tooted || '';
   document.getElementById('xs-sp-nupp').textContent = 'Salvesta muudatused';
   document.getElementById('xs-sp-tyhista').style.display = 'inline-block';
+  document.getElementById('xs-sp-teade').style.display = 'none';
+  document.getElementById('xs-sponsorid-paneel').style.display = 'block';
+  document.getElementById('xs-sp-nool').textContent = '▲';
+  document.getElementById('xs-sp-nimi').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
 function xsTyhistaSponsorEdit() {
   xsMuudetavSponsorId = null;
   document.getElementById('xs-sp-nimi').value = '';
@@ -4527,251 +5197,45 @@ function xsTyhistaSponsorEdit() {
   document.getElementById('xs-sp-nupp').textContent = '+ Lisa sponsor üldnimekirja';
   document.getElementById('xs-sp-tyhista').style.display = 'none';
 }
-async function xsKustutaSponsor(id) {
-  if (!confirm('Kustutad selle sponsori üldnimekirjast?')) return;
-  await api(`/api/xseeria/admin/sponsorid/${id}`, { method:'DELETE' });
+
+async function xsLisaSponsor() {
+  const nimi = document.getElementById('xs-sp-nimi').value.trim();
+  const kontakt = document.getElementById('xs-sp-kontakt').value.trim();
+  const tooted = document.getElementById('xs-sp-tooted').value.trim();
+  const teade = document.getElementById('xs-sp-teade');
+  if (!nimi) {
+    teade.className = 'teade viga'; teade.textContent = 'Sponsori nimi on kohustuslik'; teade.style.display = 'block';
+    return;
+  }
+  const body = JSON.stringify({ nimi, kontakt, tooted });
+  const d = xsMuudetavSponsorId
+    ? await api('/api/xseeria/admin/sponsorid/' + xsMuudetavSponsorId, { method: 'PUT', body })
+    : await api('/api/xseeria/admin/sponsorid', { method: 'POST', body });
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaSponsorEdit();
   await xsLaadiSponsoridUldnimekiri();
+  if (xsAktiivneEventId) await xsLaadiSponsoriStaatusTabel();
 }
 
-async function xsLaadiSponsorStaatus() {
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/sponsorid`);
-  const list = Array.isArray(r) ? r : [];
-  const div = document.getElementById('xs-sp-tabel');
-  if (!list.length) { div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Üldnimekirjas pole veel sponsoreid</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th>Sponsor</th><th>Pickup</th><th>Tagastatud</th></tr></thead><tbody>' +
-    list.map(s => `<tr>
-      <td style="font-weight:600">${s.nimi}</td>
-      <td><input type="checkbox" ${s.pickup_tehtud?'checked':''} onchange="xsToggleSponsorStaatus(${s.sponsor_id}, 'pickup_tehtud', this.checked)"></td>
-      <td><input type="checkbox" ${s.tagastatud?'checked':''} onchange="xsToggleSponsorStaatus(${s.sponsor_id}, 'tagastatud', this.checked)"></td>
-    </tr>`).join('') + '</tbody></table>';
-}
-async function xsToggleSponsorStaatus(sponsorId, valdkond, value) {
-  await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/sponsorid/${sponsorId}`, { method:'PUT', body: JSON.stringify({ [valdkond]: value }) });
+async function xsKustutaSponsor(sponsorId, nimi) {
+  if (!confirm(`Kustutada sponsor "${nimi}" TÄIELIKULT üldnimekirjast (kõigi võistluste alt)?`)) return;
+  await api('/api/xseeria/admin/sponsorid/' + sponsorId, { method: 'DELETE' });
+  if (xsMuudetavSponsorId === sponsorId) xsTyhistaSponsorEdit();
+  await xsLaadiSponsoridUldnimekiri();
+  if (xsAktiivneEventId) await xsLaadiSponsoriStaatusTabel();
 }
 
-// ── PARGID / ASUKOHAD ────────────────────────────────────────────
-let xsTootajadValikuks = [];
-async function xsLaadiTootajaValikud() {
-  const r = await api('/api/xseeria/tootajad-valikuks');
-  xsTootajadValikuks = Array.isArray(r) ? r : [];
+// ── X-SEERIA: KULUDE RAPORT (toode, kogus, hind) ──
+let xsMuudetavKuluId = null;
+
+function xsFmtEur(n) {
+  return (Math.round(n * 100) / 100).toFixed(2).replace('.', ',') + ' €';
 }
 
-function xsUuendaLoppNr() {
-  const algus = parseInt(document.getElementById('xs-p-algus').value) || 1;
-  const arv = parseInt(document.getElementById('xs-p-arv').value) || 1;
-  const loppSel = document.getElementById('xs-p-lopp');
-  loppSel.innerHTML = '';
-  const lopp = algus + arv - 1;
-  const o = document.createElement('option'); o.value = lopp; o.textContent = lopp; loppSel.appendChild(o);
-}
-
-async function xsLaadiAsukohad() {
-  await xsLaadiTootajaValikud();
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/pargid`);
-  const list = Array.isArray(r) ? r : [];
-  const maxNr = list.reduce((m,p) => Math.max(m, p.lopp_nr||0), 0);
-  const algusSel = document.getElementById('xs-p-algus');
-  algusSel.innerHTML = '';
-  const o = document.createElement('option'); o.value = maxNr+1; o.textContent = maxNr+1; algusSel.appendChild(o);
-  xsUuendaLoppNr();
-
-  const vastutajaDiv = document.getElementById('xs-p-vastutajad-valik');
-  vastutajaDiv.innerHTML = xsTootajadValikuks.map(w => `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" value="${w.id}" class="xs-p-vastutaja-cb"> ${w.nimi}</label>`).join('');
-
-  const korvideKokku = list.reduce((s,p) => s + (p.korvide_arv||0), 0);
-  document.getElementById('xs-summary').textContent = `${list.length} parki, ${korvideKokku} korvi kokku`;
-
-  const div = document.getElementById('xs-tabel');
-  if (!list.length) { div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Parke pole veel lisatud</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th>Rajad</th><th>Nimi</th><th>Korve</th><th>Vastutajad</th><th></th></tr></thead><tbody>' +
-    list.map(p => `<tr>
-      <td style="white-space:nowrap;color:var(--hall)">${p.algus_nr}–${p.lopp_nr}</td>
-      <td style="font-weight:600">${p.nimi}</td>
-      <td>${p.korvide_arv}</td>
-      <td>${(p.vastutajad||[]).map(v=>v.nimi).join(', ')||'—'}</td>
-      <td style="white-space:nowrap"><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(p).replace(/'/g,"&apos;")})'>✎</button><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsAvaFotoModal(${p.id}, '${p.nimi.replace(/'/g,"\\'")}')">🖼️</button><button class="nupp punane" onclick="xsKustutaAsukoht(${p.id})">🗑</button></td>
-    </tr>`).join('') + '</tbody></table>';
-}
-
-async function xsLisaBulk() {
-  const tekst = document.getElementById('xs-bulk').value.trim();
-  if (!tekst) return;
-  const read = tekst.split('\n').map(r=>r.trim()).filter(Boolean).map(r => {
-    const osad = r.split(',').map(x=>x.trim());
-    return { nimi: osad[0], korvide_arv: parseInt(osad[1])||1, viskekohtade_arv: parseInt(osad[2])||1 };
-  });
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/pargid/bulk`, { method:'POST', body: JSON.stringify({ pargid: read }) });
-  if (r && r.ok) { document.getElementById('xs-bulk').value=''; await xsLaadiAsukohad(); }
-  else naitaTeade('xs-p-teade','viga',(r&&r.veateade)||'Viga');
-}
-
-async function xsLisaPark() {
-  const nimi = document.getElementById('xs-p-nimi').value.trim();
-  const algus_nr = parseInt(document.getElementById('xs-p-algus').value);
-  const lopp_nr = parseInt(document.getElementById('xs-p-lopp').value);
-  const korvide_arv = parseInt(document.getElementById('xs-p-arv').value) || 1;
-  const vastutaja_ids = [...document.querySelectorAll('.xs-p-vastutaja-cb:checked')].map(cb=>cb.value);
-  if (!nimi) return naitaTeade('xs-p-teade','viga','Sisesta pargi nimi');
-  const body = JSON.stringify({ nimi, algus_nr, lopp_nr, korvide_arv, vastutaja_ids });
-  const r = xsMuudetavParkId
-    ? await api(`/api/xseeria/admin/pargid/${xsMuudetavParkId}`, { method:'PUT', body })
-    : await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/pargid`, { method:'POST', body });
-  if (r && r.ok) { xsTyhistaParkEdit(); document.getElementById('xs-p-nimi').value=''; await xsLaadiAsukohad(); }
-  else naitaTeade('xs-p-teade','viga',(r&&r.veateade)||'Viga');
-}
-
-function xsAlustaParkEdit(p) {
-  xsMuudetavParkId = p.id;
-  document.getElementById('xs-p-nimi').value = p.nimi;
-  document.getElementById('xs-p-arv').value = p.korvide_arv;
-  const algusSel = document.getElementById('xs-p-algus');
-  algusSel.innerHTML = `<option value="${p.algus_nr}">${p.algus_nr}</option>`;
-  xsUuendaLoppNr();
-  document.getElementById('xs-p-lopp').innerHTML = `<option value="${p.lopp_nr}">${p.lopp_nr}</option>`;
-  document.querySelectorAll('.xs-p-vastutaja-cb').forEach(cb => { cb.checked = (p.vastutajad||[]).some(v=>String(v.id)===cb.value); });
-  document.getElementById('xs-p-nupp').textContent = 'Salvesta muudatused';
-  document.getElementById('xs-p-tyhista').style.display = 'inline-block';
-}
-function xsTyhistaParkEdit() {
-  xsMuudetavParkId = null;
-  document.getElementById('xs-p-nimi').value = '';
-  document.querySelectorAll('.xs-p-vastutaja-cb').forEach(cb => cb.checked = false);
-  document.getElementById('xs-p-nupp').textContent = '+ Lisa park';
-  document.getElementById('xs-p-tyhista').style.display = 'none';
-}
-async function xsKustutaAsukoht(id) {
-  if (!confirm('Kustutad selle pargi?')) return;
-  await api(`/api/xseeria/admin/pargid/${id}`, { method:'DELETE' });
-  await xsLaadiAsukohad();
-}
-
-// ── FOTOD (rajakaardid) ──────────────────────────────────────────
-function xsAvaFotoModal(parkId, nimi) {
-  xsFotoParkId = parkId;
-  xsFotoFailid = [];
-  document.getElementById('xsFotoParkNimi').textContent = nimi;
-  document.getElementById('xsFotoGrid').innerHTML = '';
-  document.getElementById('xsFotoSalvestaNupp').style.display = 'none';
-  document.getElementById('xsFotoModal').classList.add('avatud');
-}
-function xsSuljeFotoModal() { document.getElementById('xsFotoModal').classList.remove('avatud'); }
-document.getElementById('xsFotoModal')?.addEventListener('click', function(e){ if(e.target===this) xsSuljeFotoModal(); });
-document.getElementById('xsFotoDropzone')?.addEventListener('click', () => document.getElementById('xsFotoInput').click());
-document.getElementById('xsFotoInput')?.addEventListener('change', function() {
-  xsFotoFailid = [...this.files];
-  document.getElementById('xsFotoGrid').innerHTML = xsFotoFailid.map((f,i) => `<div style="position:relative"><img src="${URL.createObjectURL(f)}" style="width:100%;height:70px;object-fit:cover;border-radius:6px"><div style="position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.6);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px">${f.name}</div></div>`).join('');
-  document.getElementById('xsFotoSalvestaNupp').style.display = xsFotoFailid.length ? 'inline-block' : 'none';
-});
-async function xsSalvestaFotod() {
-  if (!xsFotoFailid.length) return;
-  const fd = new FormData();
-  xsFotoFailid.forEach(f => fd.append('fotod', f));
-  const r = await fetch(`/api/xseeria/admin/pargid/${xsFotoParkId}/fotod`, { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) { naitaTeade('xsFotoTeade','ok','✅ Salvestatud'); xsSuljeFotoModal(); }
-  else naitaTeade('xsFotoTeade','viga', j.veateade || 'Viga üleslaadimisel');
-}
-
-// ── ÜLESANDED ─────────────────────────────────────────────────
-async function xsLaadiUlesanded() {
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/ulesanded`);
-  const list = Array.isArray(r) ? r : [];
-  const vastutajaSel = document.getElementById('xs-ul-vastutaja');
-  vastutajaSel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajadValikuks.map(w=>`<option value="${w.id}">${w.nimi}</option>`).join('');
-  const div = document.getElementById('xs-ul-nimekiri');
-  if (!list.length) { div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Ülesandeid pole veel</div>'; return; }
-  div.innerHTML = list.map(u => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
-    <input type="checkbox" ${u.tehtud?'checked':''} onchange="xsToggleUlesanne(${u.id}, this.checked)">
-    <div style="flex:1;${u.tehtud?'text-decoration:line-through;color:var(--hall)':''}">
-      <div style="font-size:13px">${u.tekst}</div>
-      <div style="font-size:11px;color:var(--hall)">${u.kategooria?u.kategooria+' · ':''}${u.tahtaeg?formatKp(u.tahtaeg)+' · ':''}${u.vastutaja_nimi||'määramata'}</div>
-    </div>
-    <button class="nupp hall" style="padding:4px 8px;font-size:11px" onclick='xsAlustaUlesandeEdit(${JSON.stringify(u).replace(/'/g,"&apos;")})'>✎</button>
-    <button class="nupp punane" onclick="xsKustutaUlesanne(${u.id})">🗑</button>
-  </div>`).join('');
-}
-async function xsLisaUlesanne() {
-  const tekst = document.getElementById('xs-ul-tekst').value.trim();
-  const kategooria = document.getElementById('xs-ul-kategooria').value.trim();
-  const tahtaeg = document.getElementById('xs-ul-tahtaeg').value || null;
-  const vastutaja_id = document.getElementById('xs-ul-vastutaja').value || null;
-  if (!tekst) return naitaTeade('xs-ul-teade','viga','Sisesta ülesanne');
-  const body = JSON.stringify({ tekst, kategooria, tahtaeg, vastutaja_id });
-  const r = xsMuudetavUlesandeId
-    ? await api(`/api/xseeria/admin/ulesanded/${xsMuudetavUlesandeId}`, { method:'PUT', body })
-    : await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/ulesanded`, { method:'POST', body });
-  if (r && r.ok) { xsTyhistaUlesandeEdit(); await xsLaadiUlesanded(); } else naitaTeade('xs-ul-teade','viga',(r&&r.veateade)||'Viga');
-}
-function xsAlustaUlesandeEdit(u) {
-  xsMuudetavUlesandeId = u.id;
-  document.getElementById('xs-ul-tekst').value = u.tekst;
-  document.getElementById('xs-ul-kategooria').value = u.kategooria||'';
-  document.getElementById('xs-ul-tahtaeg').value = u.tahtaeg ? u.tahtaeg.slice(0,10) : '';
-  document.getElementById('xs-ul-vastutaja').value = u.vastutaja_id || '';
-  document.getElementById('xs-ul-nupp').textContent = 'Salvesta muudatused';
-  document.getElementById('xs-ul-tyhista').style.display = 'inline-block';
-}
-function xsTyhistaUlesandeEdit() {
-  xsMuudetavUlesandeId = null;
-  document.getElementById('xs-ul-tekst').value = '';
-  document.getElementById('xs-ul-kategooria').value = '';
-  document.getElementById('xs-ul-tahtaeg').value = '';
-  document.getElementById('xs-ul-vastutaja').value = '';
-  document.getElementById('xs-ul-nupp').textContent = '+ Lisa ülesanne';
-  document.getElementById('xs-ul-tyhista').style.display = 'none';
-}
-async function xsToggleUlesanne(id, tehtud) { await api(`/api/xseeria/admin/ulesanded/${id}`, { method:'PUT', body: JSON.stringify({ tehtud }) }); await xsLaadiUlesanded(); }
-async function xsKustutaUlesanne(id) { if(!confirm('Kustuta see ülesanne?')) return; await api(`/api/xseeria/admin/ulesanded/${id}`, { method:'DELETE' }); await xsLaadiUlesanded(); }
-
-// ── TEGEVUSED ─────────────────────────────────────────────────
-async function xsLaadiTegevused() {
-  const r = await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/tegevused`);
-  const list = Array.isArray(r) ? r : [];
-  const inimesedDiv = document.getElementById('xs-teg-inimesed-valik');
-  inimesedDiv.innerHTML = xsTootajadValikuks.map(w => `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" value="${w.id}" class="xs-teg-inimene-cb"> ${w.nimi}</label>`).join('');
-  const div = document.getElementById('xs-teg-nimekiri');
-  if (!list.length) { div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Tegevusi pole veel</div>'; return; }
-  div.innerHTML = list.map(t => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
-    <div style="flex:1">
-      <div style="font-size:13px">${t.tekst}</div>
-      <div style="font-size:11px;color:var(--hall)">${formatKp(t.kuupaev)}${t.kellaaeg?' '+t.kellaaeg.slice(0,5):''} · ${(t.inimesed||[]).map(i=>i.nimi).join(', ')||'määramata'}</div>
-    </div>
-    <button class="nupp hall" style="padding:4px 8px;font-size:11px" onclick='xsAlustaTegevuseEdit(${JSON.stringify(t).replace(/'/g,"&apos;")})'>✎</button>
-    <button class="nupp punane" onclick="xsKustutaTegevus(${t.id})">🗑</button>
-  </div>`).join('');
-}
-async function xsLisaTegevus() {
-  const tekst = document.getElementById('xs-teg-tekst').value.trim();
-  const kuupaev = document.getElementById('xs-teg-kuupaev').value;
-  const kellaaeg = document.getElementById('xs-teg-kellaaeg').value || null;
-  const inimese_ids = [...document.querySelectorAll('.xs-teg-inimene-cb:checked')].map(cb=>cb.value);
-  if (!tekst || !kuupaev) return naitaTeade('xs-teg-teade','viga','Täida tegevus ja kuupäev');
-  const body = JSON.stringify({ tekst, kuupaev, kellaaeg, inimese_ids });
-  const r = xsMuudetavTegevuseId
-    ? await api(`/api/xseeria/admin/tegevused/${xsMuudetavTegevuseId}`, { method:'PUT', body })
-    : await api(`/api/xseeria/admin/events/${xsAktiivneEventId}/tegevused`, { method:'POST', body });
-  if (r && r.ok) { xsTyhistaTegevuseEdit(); await xsLaadiTegevused(); } else naitaTeade('xs-teg-teade','viga',(r&&r.veateade)||'Viga');
-}
-function xsAlustaTegevuseEdit(t) {
-  xsMuudetavTegevuseId = t.id;
-  document.getElementById('xs-teg-tekst').value = t.tekst;
-  document.getElementById('xs-teg-kuupaev').value = t.kuupaev.slice(0,10);
-  document.getElementById('xs-teg-kellaaeg').value = t.kellaaeg ? t.kellaaeg.slice(0,5) : '';
-  document.querySelectorAll('.xs-teg-inimene-cb').forEach(cb => { cb.checked = (t.inimesed||[]).some(i=>String(i.id)===cb.value); });
-  document.getElementById('xs-teg-nupp').textContent = 'Salvesta muudatused';
-  document.getElementById('xs-teg-tyhista').style.display = 'inline-block';
-}
-function xsTyhistaTegevuseEdit() {
-  xsMuudetavTegevuseId = null;
-  document.getElementById('xs-teg-tekst').value = '';
-  document.getElementById('xs-teg-kellaaeg').value = '';
-  document.querySelectorAll('.xs-teg-inimene-cb').forEach(cb => cb.checked = false);
-  document.getElementById('xs-teg-nupp').textContent = '+ Lisa tegevus';
-  document.getElementById('xs-teg-tyhista').style.display = 'none';
-}
-async function xsKustutaTegevus(id) { if(!confirm('Kustuta see tegevus?')) return; await api(`/api/xseeria/admin/tegevused/${id}`, { method:'DELETE' }); await xsLaadiTegevused(); }
-
-// ── KULUDE RAPORT (koos Makstud linnukesega) ──────────────────
 async function xsLaadiKulud() {
   if (!xsAktiivneEventId) return;
   const [d, o] = await Promise.all([
@@ -4809,10 +5273,18 @@ async function xsLaadiKulud() {
         </td>
       </tr>`).join('') + '</tbody></table>'
     : '<div style="color:var(--hall);font-size:12px">Kulusid pole veel lisatud.</div>';
-  omaDiv.innerHTML = omaKulud.length
-    ? `<table><thead><tr><th>Töötaja</th><th>Kirjeldus</th><th>Summa</th></tr></thead><tbody>` +
-      omaKulud.map(k => `<tr><td>${escapeHtmlXs(k.worker_nimi)}</td><td>${escapeHtmlXs(k.kirjeldus||'—')}</td><td style="font-weight:600">${xsFmtEur(k.summa)}</td></tr>`).join('') + '</tbody></table>'
-    : '<div style="color:var(--hall);font-size:12px">Isiklikke kulusid pole lisatud.</div>';
+  if (!omaDiv) return;
+  if (!omaKulud.length) { omaDiv.innerHTML = '<div style="color:var(--hall);font-size:12px">Töötajad pole veel kulusid lisanud.</div>'; return; }
+  omaDiv.innerHTML = `<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Selgitus</th><th>Summa</th><th></th></tr></thead><tbody>` +
+    omaKulud.map(k => `<tr>
+      <td style="font-weight:600">${escapeHtmlXs(k.worker_nimi)}</td>
+      <td>${formatKp(k.kuupaev)}</td>
+      <td>${escapeHtmlXs(k.selgitus)}</td>
+      <td style="font-weight:600;color:#4ade80">${xsFmtEur(Number(k.summa))}</td>
+      <td style="white-space:nowrap">${k.foto_url ? `<a href="${k.foto_url}" target="_blank" style="font-size:11px;color:#818cf8">📷 tšekk</a>` : ''}</td>
+    </tr>`).join('') +
+    `<tr style="font-weight:700;border-top:0.5px solid var(--piir2)"><td colspan="3">Kokku</td><td style="color:#4ade80">${xsFmtEur(omaKokku)}</td><td></td></tr>` +
+    '</tbody></table>';
 }
 
 async function xsLulitaKuluMakstud(id, makstud) {
@@ -4830,6 +5302,7 @@ function xsAlustaKuluEdit(k) {
   document.getElementById('xs-kulu-tyhista').style.display = 'inline-block';
   document.getElementById('xs-kulu-teade').style.display = 'none';
 }
+
 function xsTyhistaKuluEdit() {
   xsMuudetavKuluId = null;
   document.getElementById('xs-kulu-toode').value = '';
@@ -4839,6 +5312,7 @@ function xsTyhistaKuluEdit() {
   document.getElementById('xs-kulu-nupp').textContent = '+ Lisa kulu';
   document.getElementById('xs-kulu-tyhista').style.display = 'none';
 }
+
 async function xsLisaKulu() {
   if (!xsAktiivneEventId) return;
   const toode = document.getElementById('xs-kulu-toode').value.trim();
@@ -4854,502 +5328,1155 @@ async function xsLisaKulu() {
   const d = xsMuudetavKuluId
     ? await api('/api/xseeria/admin/kulud/' + xsMuudetavKuluId, { method: 'PUT', body })
     : await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/kulud', { method: 'POST', body });
-  if (d && d.ok) { xsTyhistaKuluEdit(); await xsLaadiKulud(); await xsAvaKuluRaport(true); }
-  else { teade.className='teade viga'; teade.textContent = (d&&d.veateade)||'Viga salvestamisel'; teade.style.display='block'; }
-}
-async function xsKustutaKulu(id) { if(!confirm('Kustuta see kulu?')) return; await api(`/api/xseeria/admin/kulud/${id}`, { method:'DELETE' }); await xsLaadiKulud(); }
-
-function xsAvaKuluRaport(skipToggle) {
-  const body = document.getElementById('xs-kulu-body');
-  if (!skipToggle) xsToggleKaartPaneel('xs-kulu-body','xs-kulu-nool');
-  else if (body.style.display === 'none') return;
-  document.getElementById('xs-kulud-kaart').scrollIntoView({ behavior:'smooth' });
-  xsLaadiKulud();
+  if (!d.ok) {
+    teade.className = 'teade viga'; teade.textContent = d.veateade || 'Viga'; teade.style.display = 'block';
+    return;
+  }
+  teade.style.display = 'none';
+  xsTyhistaKuluEdit();
+  await xsLaadiKulud();
 }
 
-// ── LIGIPÄÄS (X-seeria) ──────────────────────────────────────────
-async function xsLaadiLubatud() {
-  const div = document.getElementById('xsLubatudSisu');
-  div.innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  const [workers, lubatud] = await Promise.all([api('/api/admin/tootajad'), api('/api/xseeria/admin/lubatud')]);
-  const lubMap = {};
-  (Array.isArray(lubatud)?lubatud:[]).forEach(w => lubMap[w.id]=!!w.lubatud);
-  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w => `
-    <div class="ettevote-rida">
-      <div class="ettevote-rida-vasak"><span class="ettevote-nimi">${w.nimi}</span></div>
-      <label class="toggle-switch"><input type="checkbox" ${lubMap[w.id]?'checked':''} onchange="xsToggleLubatud(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
-    </div>`).join('');
-}
-async function xsToggleLubatud(workerId, lubatud) {
-  await api(`/api/xseeria/admin/lubatud/${workerId}`, { method:'POST', body: JSON.stringify({ lubatud }) });
-  tjKoikXs[workerId] = lubatud;
+async function xsKustutaKulu(id) {
+  if (!confirm('Kustutada see kulurida?')) return;
+  await api('/api/xseeria/admin/kulud/' + id, { method: 'DELETE' });
+  if (xsMuudetavKuluId === id) xsTyhistaKuluEdit();
+  await xsLaadiKulud();
 }
 
-// ── ARVED ──────────────────────────────────────────────────────
-let avKoikArved = [], avKoikSisse = [], avKoikMuujad = [];
-let avStaatusFilter = 'koik', avMuujaFilter = 'koik';
-let avReadCounter = 0;
+// ── ARVED ─────────────────────────────────────────────────────────
+let avRead = [];
 
-function avFmtEur(n) { return (parseFloat(n)||0).toFixed(2) + ' €'; }
-function avToggleKaart(bodyId, noolId) {
-  const body = document.getElementById(bodyId);
-  const nool = document.getElementById(noolId);
-  const avatud = body.style.display !== 'none';
-  body.style.display = avatud ? 'none' : 'block';
-  if (nool) nool.textContent = avatud ? '▼' : '▲';
-}
+function avFmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+
+let avKliendidList = [];
 
 async function laadiArved() {
-  const [arved, sisse, muujad] = await Promise.all([
-    api('/api/arved'), api('/api/arved/sissetulevad'), api('/api/arved/muujad')
-  ]);
-  avKoikArved = Array.isArray(arved) ? arved : [];
-  avKoikSisse = Array.isArray(sisse) ? sisse : [];
-  avKoikMuujad = Array.isArray(muujad) ? muujad : [];
-  const muujaFiltSel = document.getElementById('av-filt-muuja');
-  if (muujaFiltSel) muujaFiltSel.innerHTML = '<option value="koik">Kõik müüjad</option>' + avKoikMuujad.map(m=>`<option value="${m.id}">${m.nimi}</option>`).join('');
+  const kliendid = await api('/api/arved/kliendid');
+  avKliendidList = Array.isArray(kliendid) ? kliendid : [];
+  const sel = document.getElementById('av-klient');
+  const ettevotteOpts = kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="e-${e.id}">${e.nimi}</option>`).join('');
+  const kliendiOpts = avKliendidList.map(k => `<option value="k-${k.id}">${k.nimi}</option>`).join('');
+  sel.innerHTML = '<option value="">— Vali klient —</option>' +
+    `<optgroup label="Minu ettevõtted">${ettevotteOpts}</optgroup>` +
+    (kliendiOpts ? `<optgroup label="Muud kliendid">${kliendiOpts}</optgroup>` : '');
+  const asSel = document.getElementById('as-ettevote');
+  if (asSel) {
+    asSel.innerHTML = '<option value="">— Muu / üldkulu —</option>' +
+      kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
+  }
+  const alSel = document.getElementById('al-ettevote');
+  if (alSel) {
+    alSel.innerHTML = '<option value="">— vali —</option>' +
+      kõikEttevotted.filter(e => e.tyyp !== 'edgf').map(e => `<option value="${e.id}">${e.nimi}</option>`).join('');
+  }
+  const kmAlgusEl = document.getElementById('km-algus');
+  const kmLoppEl = document.getElementById('km-lopp');
+  if (kmAlgusEl && !kmAlgusEl.value) {
+    const t = new Date();
+    kmAlgusEl.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
+    kmLoppEl.value = new Date(t.getFullYear(), t.getMonth() + 1, 0).toISOString().split('T')[0];
+  }
+  const kpEl = document.getElementById('av-kuupaev');
+  if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
+  const asKpEl = document.getElementById('as-kuupaev');
+  if (asKpEl && !asKpEl.value) asKpEl.value = new Date().toISOString().split('T')[0];
+
+  const kuuSel = document.getElementById('av-kuu-valik');
+  const aastaSel = document.getElementById('av-aasta-valik');
+  if (kuuSel && !kuuSel.options.length) {
+    const t = new Date();
+    KUUD.forEach((k, i) => { const o = document.createElement('option'); o.value = i + 1; o.textContent = k; if (i === t.getMonth()) o.selected = true; kuuSel.appendChild(o); });
+    for (let y = t.getFullYear(); y >= t.getFullYear() - 2; y--) { const o = document.createElement('option'); o.value = y; o.textContent = y; if (y === t.getFullYear()) o.selected = true; aastaSel.appendChild(o); }
+  }
+
+  laadiArvedTabel();
+  laadiSisseTabel();
+  avSisseDropzoneSeadista();
+  avLaadiDropzoneSeadista();
+  avSumupDropzoneSeadista();
+  avKiirDropzoneSeadista();
+  await avPreviewNumber();
+  if (!avRead.length) avLisaRida();
+  avJoonistaRead();
+  await avmLaadiMuujad();
+}
+
+// ── MÜÜJAD (adminni enda mitme ettevõtte haldus, sama muster mis töötaja Minu Arved moodulis) ──
+let avmMuujad = [];
+let avKmProtsent = 24;
+async function avmLaadiMuujad() {
+  const r = await api('/api/arved/muujad');
+  avmMuujad = (r && r.ok && Array.isArray(r.muujad)) ? r.muujad : [];
   avmRenderNimekiri();
-  avRenderArvedTabel();
-  avRenderSisseTabel();
-  avUuendaKmAnalyys();
-  avLaeAndmedVormidele();
+  avmRenderValik();
 }
-
-function avFiltreeriStaatus(s) { avStaatusFilter = s; avRenderArvedTabel(); }
-function avFiltreeriMuuja(id) { avMuujaFilter = id; avRenderArvedTabel(); }
-
-function avRenderArvedTabel() {
-  const div = document.getElementById('arvedTabel');
-  let list = avKoikArved.slice();
-  if (avStaatusFilter !== 'koik') list = list.filter(a => a.staatus === avStaatusFilter);
-  if (avMuujaFilter !== 'koik') list = list.filter(a => String(a.muuja_id) === String(avMuujaFilter));
-  list.sort((a,b) => new Date(b.kuupaev) - new Date(a.kuupaev));
-  if (!list.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid pole</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th></th><th>Number</th><th>Kuupäev</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th></th></tr></thead><tbody>' +
-    list.map(a => `<tr>
-      <td><input type="checkbox" class="av-rida-cb" value="${a.id}"></td>
-      <td style="font-weight:600">${a.number}</td>
-      <td>${formatKp(a.kuupaev)}</td>
-      <td>${a.ostja_nimi||'—'}</td>
-      <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
-      <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}">${a.staatus==='makstud'?'✅ Makstud':'⏳ Maksmata'}</span></td>
-      <td style="white-space:nowrap">
-        <a class="av-tegevus-ikoon" href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" title="PDF">📄</a>
-        <button class="av-tegevus-ikoon" onclick="avLylitaStaatus(${a.id}, '${a.staatus==='makstud'?'maksmata':'makstud'}')" title="Muuda staatust">🔄</button>
-        <button class="av-tegevus-ikoon kustuta" onclick="avKustutaArve(${a.id})" title="Kustuta">🗑</button>
-      </td>
-    </tr>`).join('') + '</tbody></table>';
-}
-
-function avRenderSisseTabel() {
-  const div = document.getElementById('sisseTabel');
-  const list = avKoikSisse.slice().sort((a,b) => new Date(b.kuupaev) - new Date(a.kuupaev));
-  if (!list.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Sissetulevaid pole</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th></th><th>Kuupäev</th><th>Ettevõte</th><th>Kirjeldus</th><th style="text-align:right">Summa</th><th></th></tr></thead><tbody>' +
-    list.map(s => `<tr>
-      <td><input type="checkbox" class="as-rida-cb" value="${s.id}"></td>
-      <td>${formatKp(s.kuupaev)}</td>
-      <td>${s.ettevote_nimi||'—'}</td>
-      <td>${s.kirjeldus||'—'}</td>
-      <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
-      <td style="white-space:nowrap">
-        ${s.fail_url ? `<a class="av-tegevus-ikoon" href="${s.fail_url}" target="_blank" title="Vaata faili">📎</a>` : ''}
-        <button class="av-tegevus-ikoon" onclick="avAvaLisaKuluModal(${s.id})" title="Muuda">✎</button>
-        <button class="av-tegevus-ikoon kustuta" onclick="avKustutaSisse(${s.id})" title="Kustuta">🗑</button>
-      </td>
-    </tr>`).join('') + '</tbody></table>';
-}
-
-async function avLylitaStaatus(id, staatus) {
-  await api(`/api/arved/${id}`, { method:'PUT', body: JSON.stringify({ staatus }) });
-  await laadiArved();
-}
-async function avKustutaArve(id) {
-  if (!confirm('Kustutad selle arve jäädavalt?')) return;
-  await api(`/api/arved/${id}`, { method:'DELETE' });
-  await laadiArved();
-}
-async function avKustutaSisse(id) {
-  if (!confirm('Kustutad selle sissetuleva kulu?')) return;
-  await api(`/api/arved/sissetulevad/${id}`, { method:'DELETE' });
-  await laadiArved();
-}
-async function avKustutaValitudSisse() {
-  const ids = [...document.querySelectorAll('.as-rida-cb:checked')].map(cb=>cb.value);
-  if (!ids.length) return alert('Vali vähemalt üks rida');
-  if (!confirm(`Kustutad ${ids.length} rida?`)) return;
-  await Promise.all(ids.map(id => api(`/api/arved/sissetulevad/${id}`, { method:'DELETE' })));
-  await laadiArved();
-}
-
-// ── MÜÜJAD ──────────────────────────────────────────────────────
 function avmRenderNimekiri() {
   const div = document.getElementById('avm-nimekiri');
-  if (!div) return;
-  if (!avKoikMuujad.length) { div.innerHTML = '<div style="padding:12px;text-align:center;color:var(--hall);font-size:12px">Ettevõtteid pole veel lisatud</div>'; return; }
-  div.innerHTML = avKoikMuujad.map(m => `
-    <div class="ettevote-rida">
-      <div class="ettevote-rida-vasak"><span class="ettevote-nimi">${m.nimi}${m.km_kohuslane?'':' <span style="color:var(--hall);font-size:11px">(0% km)</span>'}</span></div>
-      <div class="ettevote-rida-parem"><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='avmAvaVorm(${JSON.stringify(m).replace(/'/g,"&apos;")})'>✎</button></div>
-    </div>`).join('');
-  const avSel = document.getElementById('av-muuja');
-  if (avSel) avSel.innerHTML = avKoikMuujad.map(m=>`<option value="${m.id}">${m.nimi}</option>`).join('');
-  const alSel = document.getElementById('al-ettevote');
-  if (alSel) alSel.innerHTML = '<option value="">— vali —</option>' + avKoikMuujad.map(m=>`<option value="${m.id}">${m.nimi}</option>`).join('');
+  if (!avmMuujad.length) {
+    div.innerHTML = '<div style="font-size:12px;color:var(--hall);padding:8px 0">Ühtegi ettevõtet pole veel lisatud — lisa esimene allolevast nupust.</div>';
+    return;
+  }
+  div.innerHTML = avmMuujad.map(m => `
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:0.5px solid var(--piir2);flex-wrap:wrap">
+      ${m.logo_url ? `<img src="${m.logo_url}" style="width:44px;height:30px;object-fit:contain;background:var(--sisend-bg);border-radius:5px">` : ''}
+      <div style="flex:1;min-width:140px">
+        <div style="font-size:13px;font-weight:600">${m.ettevote_nimi}${m.vaikimisi ? ' <span style="font-size:10px;color:#4ade80">★ vaikimisi</span>' : ''}</div>
+        <div style="font-size:11px;color:var(--hall)">${m.km_kohuslane ? 'Käibemaksukohuslane (24%)' : 'Ei ole käibemaksukohuslane (0%)'}</div>
+      </div>
+      ${!m.vaikimisi ? `<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmTeeVaikimisi(${m.id})">Tee vaikimisi</button>` : ''}
+      <button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmMuudaMuuja(${m.id})">✏️</button>
+      <button type="button" class="nupp punane" style="padding:5px 10px;font-size:11px" onclick="avmKustuta(${m.id})">🗑</button>
+    </div>
+  `).join('');
 }
-
-function avmAvaVorm(m) {
-  document.getElementById('avm-vorm').style.display = 'block';
-  document.getElementById('avm-logo-plokk').style.display = m ? 'flex' : 'none';
-  document.getElementById('avm-id').value = m ? m.id : '';
-  document.getElementById('avm-nimi').value = m ? m.nimi : '';
-  document.getElementById('avm-rgkood').value = m ? (m.rgkood||'') : '';
-  document.getElementById('avm-aadress').value = m ? (m.aadress||'') : '';
-  document.getElementById('avm-kmkr').value = m ? (m.kmkr||'') : '';
-  document.getElementById('avm-telefon').value = m ? (m.telefon||'') : '';
-  document.getElementById('avm-epost').value = m ? (m.epost||'') : '';
-  document.getElementById('avm-swift').value = m ? (m.swift||'') : '';
-  document.getElementById('avm-pangakonto').value = m ? (m.pangakonto||'') : '';
-  document.getElementById('avm-km-kohuslane').checked = m ? !!m.km_kohuslane : true;
-  const eelvaade = document.getElementById('avm-logo-eelvaade');
-  if (m && m.logo_url) { eelvaade.innerHTML = `<img src="${m.logo_url}" style="max-width:100%;max-height:100%">`; document.getElementById('avm-logo-eemalda-nupp').style.display='inline-block'; }
-  else { eelvaade.textContent = '—'; document.getElementById('avm-logo-eemalda-nupp').style.display='none'; }
+function avmRenderValik() {
+  const sel = document.getElementById('av-muuja');
+  sel.innerHTML = avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('');
+  if (avmMuujad.length) {
+    const vaikimisi = avmMuujad.find(m => m.vaikimisi) || avmMuujad[0];
+    sel.value = vaikimisi.id;
+  }
+  avmMuujaValitud();
 }
-function avmSuljeVorm() { document.getElementById('avm-vorm').style.display = 'none'; }
+function avmMuujaValitud() {
+  const id = parseInt(document.getElementById('av-muuja').value, 10);
+  const m = avmMuujad.find(x => x.id === id);
+  avKmProtsent = (m && m.km_kohuslane) ? 24 : 0;
+  avJoonistaRead();
+}
 function avmAvaKaartJaKeri() {
-  document.getElementById('avm-body').style.display = 'block';
-  document.getElementById('avm-nool').textContent = '▲';
-  avmAvaVorm();
-  document.getElementById('avm-muujad-kaart').scrollIntoView({behavior:'smooth'});
+  avSuljeUusArveModal();
+  const keha = document.getElementById('avm-body');
+  if (keha.style.display === 'none') avToggleKaart('avm-body', 'avm-nool');
+  document.getElementById('avm-muujad-kaart').scrollIntoView({ behavior: 'smooth' });
 }
-async function avmLogoValitud(input) {
-  if (!input.files || !input.files[0]) return;
-  const fd = new FormData(); fd.append('logo', input.files[0]);
-  const id = document.getElementById('avm-id').value;
-  if (!id) { alert('Salvesta enne ettevõte, siis saad logo lisada'); return; }
-  const r = await fetch(`/api/arved/muujad/${id}/logo`, { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) { await laadiArved(); avmAvaVorm(avKoikMuujad.find(m=>String(m.id)===String(id))); }
+function avmAvaVorm() {
+  document.getElementById('avm-id').value = '';
+  ['avm-nimi', 'avm-aadress', 'avm-rgkood', 'avm-kmkr', 'avm-telefon', 'avm-epost', 'avm-swift', 'avm-pangakonto'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('avm-km-kohuslane').checked = true;
+  document.getElementById('avm-logo-plokk').style.display = 'none';
+  document.getElementById('avm-teade').style.display = 'none';
+  document.getElementById('avm-vorm').style.display = 'block';
 }
-async function avmEemaldaLogo() {
-  const id = document.getElementById('avm-id').value;
-  if (!id) return;
-  await api(`/api/arved/muujad/${id}/logo`, { method:'DELETE' });
-  await laadiArved(); avmAvaVorm(avKoikMuujad.find(m=>String(m.id)===String(id)));
+function avmSuljeVorm() {
+  document.getElementById('avm-vorm').style.display = 'none';
+}
+function avmMuudaMuuja(id) {
+  const m = avmMuujad.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('avm-id').value = m.id;
+  document.getElementById('avm-nimi').value = m.ettevote_nimi || '';
+  document.getElementById('avm-aadress').value = m.aadress || '';
+  document.getElementById('avm-rgkood').value = m.rg_kood || '';
+  document.getElementById('avm-kmkr').value = m.kmkr || '';
+  document.getElementById('avm-telefon').value = m.telefon || '';
+  document.getElementById('avm-epost').value = m.epost || '';
+  document.getElementById('avm-swift').value = m.swift || '';
+  document.getElementById('avm-pangakonto').value = m.pangakonto || '';
+  document.getElementById('avm-km-kohuslane').checked = m.km_kohuslane !== false;
+  const logoPlokk = document.getElementById('avm-logo-plokk');
+  logoPlokk.style.display = 'block';
+  document.getElementById('avm-logo-eelvaade').innerHTML = m.logo_url ? `<img src="${m.logo_url}" style="width:100%;height:100%;object-fit:contain">` : '—';
+  document.getElementById('avm-logo-eemalda-nupp').style.display = m.logo_url ? 'inline-block' : 'none';
+  document.getElementById('avm-teade').style.display = 'none';
+  document.getElementById('avm-vorm').style.display = 'block';
 }
 async function avmSalvesta() {
   const id = document.getElementById('avm-id').value;
-  const body = JSON.stringify({
-    nimi: document.getElementById('avm-nimi').value.trim(),
-    rgkood: document.getElementById('avm-rgkood').value.trim(),
+  const nimi = document.getElementById('avm-nimi').value.trim();
+  const teade = document.getElementById('avm-teade');
+  if (!nimi) return naitaTeade('avm-teade', 'viga', 'Sisesta ettevõtte nimi');
+  const body = {
+    ettevote_nimi: nimi,
     aadress: document.getElementById('avm-aadress').value.trim(),
+    rg_kood: document.getElementById('avm-rgkood').value.trim(),
     kmkr: document.getElementById('avm-kmkr').value.trim(),
     telefon: document.getElementById('avm-telefon').value.trim(),
     epost: document.getElementById('avm-epost').value.trim(),
     swift: document.getElementById('avm-swift').value.trim(),
     pangakonto: document.getElementById('avm-pangakonto').value.trim(),
     km_kohuslane: document.getElementById('avm-km-kohuslane').checked
-  });
-  if (!JSON.parse(body).nimi) return naitaTeade('avm-teade','viga','Ettevõtte nimi on kohustuslik');
+  };
   const r = id
-    ? await api(`/api/arved/muujad/${id}`, { method:'PUT', body })
-    : await api('/api/arved/muujad', { method:'POST', body });
-  if (r && r.ok) { naitaTeade('avm-teade','ok','✅ Salvestatud'); await laadiArved(); avmAvaVorm(); }
-  else naitaTeade('avm-teade','viga',(r&&r.veateade)||'Viga');
+    ? await api('/api/arved/muujad/' + id, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/api/arved/muujad', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) return naitaTeade('avm-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  avmSuljeVorm();
+  await avmLaadiMuujad();
 }
-
-// ── KM ANALÜÜS (DATA) ────────────────────────────────────────────
-function avKuuMuutus() {
-  const kuu = document.getElementById('av-kuu-valik').value, aasta = document.getElementById('av-aasta-valik').value;
-  document.getElementById('km-algus').value = `${aasta}-${String(kuu).padStart(2,'0')}-01`;
-  document.getElementById('km-lopp').value = new Date(aasta, kuu, 0).toISOString().split('T')[0];
-  avUuendaKmAnalyys();
+async function avmTeeVaikimisi(id) {
+  await api('/api/arved/muujad/' + id + '/vaikimisi', { method: 'PUT' });
+  await avmLaadiMuujad();
 }
-function avKmAnalyysKaesolevKuu() {
-  const t = new Date();
-  document.getElementById('av-kuu-valik').value = t.getMonth()+1;
-  document.getElementById('av-aasta-valik').value = t.getFullYear();
-  avKuuMuutus();
+async function avmKustuta(id) {
+  if (!confirm('Kustutada see ettevõte?')) return;
+  const r = await api('/api/arved/muujad/' + id, { method: 'DELETE' });
+  if (!r.ok) return alert('Viga: ' + (r.veateade || 'kustutamine ebaõnnestus'));
+  await avmLaadiMuujad();
 }
-function avUuendaKmAnalyys() {
-  const algus = document.getElementById('km-algus').value, lopp = document.getElementById('km-lopp').value;
-  if (!algus || !lopp) return;
-  const arvedPeriood = avKoikArved.filter(a => a.kuupaev >= algus && a.kuupaev <= lopp);
-  const sissePeriood = avKoikSisse.filter(s => s.kuupaev >= algus && s.kuupaev <= lopp);
-  const kaive = arvedPeriood.reduce((s,a)=>s+parseFloat(a.summa_kmta||0),0);
-  const kulud = sissePeriood.reduce((s,x)=>s+parseFloat(x.summa||0)-parseFloat(x.kaibemaks||0),0);
-  const kmValjas = arvedPeriood.reduce((s,a)=>s+parseFloat(a.kaibemaks||0),0);
-  const kmSisse = sissePeriood.reduce((s,x)=>s+parseFloat(x.kaibemaks||0),0);
-  document.getElementById('dt-kaive').textContent = avFmtEur(kaive);
-  document.getElementById('dt-kulud').textContent = avFmtEur(kulud);
-  const kasum = kaive - kulud;
-  const kasumEl = document.getElementById('dt-kasum');
-  kasumEl.textContent = avFmtEur(kasum); kasumEl.style.color = kasum>=0 ? 'var(--roheline)' : 'var(--punane)';
-  document.getElementById('km-valjas').textContent = avFmtEur(kmValjas);
-  document.getElementById('km-sisse').textContent = avFmtEur(kmSisse);
-  const vahe = kmValjas - kmSisse;
-  document.getElementById('km-vahe-silt').textContent = vahe >= 0 ? 'Maksta riigile' : 'Tagasi saada';
-  const vaheEl = document.getElementById('km-vahe');
-  vaheEl.textContent = avFmtEur(Math.abs(vahe)); vaheEl.style.color = vahe>=0 ? 'var(--oranz)' : 'var(--roheline)';
+async function avmLogoValitud(input) {
+  const id = document.getElementById('avm-id').value;
+  if (!id) return alert('Salvesta enne ettevõte ära, siis saad logo lisada.');
+  if (!input.files || !input.files[0]) return;
+  const fd = new FormData();
+  fd.append('logo', input.files[0]);
+  const res = await fetch('/api/arved/muujad/' + id + '/logo', { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd });
+  const r = await res.json();
+  input.value = '';
+  if (!r.ok) return alert('Viga: ' + (r.veateade || 'üleslaadimine ebaõnnestus'));
+  document.getElementById('avm-logo-eelvaade').innerHTML = `<img src="${r.logo_url}" style="width:100%;height:100%;object-fit:contain">`;
+  document.getElementById('avm-logo-eemalda-nupp').style.display = 'inline-block';
+  await avmLaadiMuujad();
 }
-
-// ── UUS ARVE MODAL ────────────────────────────────────────────
-function avSuljeUusArveModal() { document.getElementById('avUusArveModal').classList.remove('avatud'); }
-document.getElementById('avUusArveModal')?.addEventListener('click', function(e){ if(e.target===this) avSuljeUusArveModal(); });
-function avSuljeLisaKuluModal() { document.getElementById('avLisaKuluModal').classList.remove('avatud'); avTuhistaSisseMuutmine(); }
-document.getElementById('avLisaKuluModal')?.addEventListener('click', function(e){ if(e.target===this) avSuljeLisaKuluModal(); });
-
-function avLaeAndmedVormidele() {
-  const asEttevote = document.getElementById('as-ettevote');
-  if (asEttevote) asEttevote.innerHTML = '<option value="">— Muu / üldkulu —</option>' + kõikEttevotted.map(e=>`<option value="${e.id}">${e.nimi}</option>`).join('');
+async function avmEemaldaLogo() {
+  const id = document.getElementById('avm-id').value;
+  if (!id) return;
+  await api('/api/arved/muujad/' + id + '/logo', { method: 'DELETE' });
+  document.getElementById('avm-logo-eelvaade').innerHTML = '—';
+  document.getElementById('avm-logo-eemalda-nupp').style.display = 'none';
+  await avmLaadiMuujad();
 }
 
 function avAvaUusArveModal() {
   document.getElementById('avUusArveModal').classList.add('avatud');
-  document.getElementById('av-kuupaev').value = new Date().toISOString().split('T')[0];
-  document.getElementById('av-read-body').innerHTML = '';
-  avLisaRida();
-  avArvutaKokku();
-  avPreviewNumber();
 }
-function avPreviewNumber() {
-  const el = document.getElementById('arve-jargmine-nr');
-  if (el) el.textContent = '';
+function avSuljeUusArveModal() {
+  document.getElementById('avUusArveModal').classList.remove('avatud');
 }
-function avKlientMuutus() {
-  const val = document.getElementById('av-klient').value;
-  document.getElementById('av-ostja-valjad').style.display = (val === '__uus__' || !val) ? 'block' : 'block';
+function avAvaLisaKuluModal() {
+  document.getElementById('avLisaKuluModal').classList.add('avatud');
 }
-function avAvaUusKlient() { document.getElementById('av-ostja-valjad').style.display = 'block'; }
-function avViideTyypMuutus() {}
-function avPoValikMuutus() { const v = document.getElementById('av-po-valik').value; if (v) document.getElementById('av-po').value = v; }
-function avKontaktValikMuutus() { const v = document.getElementById('av-kontakt-valik').value; if (v) document.getElementById('av-kontaktisik').value = v; }
-async function avSalvestaPoValik() {}
-async function avSalvestaKontaktValik() {}
+function avSuljeLisaKuluModal() {
+  document.getElementById('avLisaKuluModal').classList.remove('avatud');
+}
+document.getElementById('avUusArveModal')?.addEventListener('click', function(e) { if (e.target === this) avSuljeUusArveModal(); });
+document.getElementById('avLisaKuluModal')?.addEventListener('click', function(e) { if (e.target === this) avSuljeLisaKuluModal(); });
 
-function avLisaRida() {
-  const id = 'avr' + (avReadCounter++);
-  const tbody = document.getElementById('av-read-body');
-  const tr = document.createElement('tr');
-  tr.id = id;
-  tr.innerHTML = `
-    <td><input type="text" class="av-r-kirjeldus" placeholder="Kirjeldus" oninput="avArvutaKokku()"></td>
-    <td><input type="number" class="av-r-kogus" value="1" step="0.01" oninput="avArvutaKokku()"></td>
-    <td><input type="text" class="av-r-uhik" value="tk"></td>
-    <td><input type="number" class="av-r-hind" value="0" step="0.01" oninput="avArvutaKokku()"></td>
-    <td style="text-align:right" class="av-r-summa">0,00 €</td>
-    <td><button type="button" onclick="this.closest('tr').remove();avArvutaKokku()" style="background:none;border:none;color:var(--hall);cursor:pointer">✕</button></td>`;
-  tbody.appendChild(tr);
+function avKuuMuutus() {
+  laadiArvedTabel();
+  laadiSisseTabel();
 }
 
-function avArvutaKokku() {
-  let summaKmta = 0;
-  document.querySelectorAll('#av-read-body tr').forEach(tr => {
-    const kogus = parseFloat(tr.querySelector('.av-r-kogus').value) || 0;
-    const hind = parseFloat(tr.querySelector('.av-r-hind').value) || 0;
-    const summa = kogus * hind;
-    tr.querySelector('.av-r-summa').textContent = avFmtEur(summa);
-    summaKmta += summa;
+function avKmAnalyysKaesolevKuu() {
+  const t = new Date();
+  const algus = new Date(t.getFullYear(), t.getMonth(), 1);
+  const lopp = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+  document.getElementById('km-algus').value = algus.toISOString().split('T')[0];
+  document.getElementById('km-lopp').value = lopp.toISOString().split('T')[0];
+  avUuendaKmAnalyys();
+}
+function avVahemikuFiltreeri(list, kpVali, algus, lopp) {
+  if (!algus || !lopp) return list;
+  return list.filter(x => {
+    const kp = String(x[kpVali]).split('T')[0];
+    return kp >= algus && kp <= lopp;
   });
-  const muujaId = document.getElementById('av-muuja').value;
-  const muuja = avKoikMuujad.find(m => String(m.id) === String(muujaId));
-  const kmMaar = (muuja && muuja.km_kohuslane === false) ? 0 : 0.24;
-  const km = summaKmta * kmMaar;
-  document.getElementById('av-summa-kmta').textContent = avFmtEur(summaKmta);
-  document.getElementById('av-kaibemaks-silt').textContent = `Käibemaks ${Math.round(kmMaar*100)}%`;
-  document.getElementById('av-kaibemaks').textContent = avFmtEur(km);
-  document.getElementById('av-kokku').textContent = avFmtEur(summaKmta + km);
 }
-function avmMuujaValitud() { avArvutaKokku(); }
+async function avUuendaKmAnalyys() {
+  const algus = document.getElementById('km-algus').value;
+  const lopp = document.getElementById('km-lopp').value;
+  try {
+    const [valja, sisse] = await Promise.all([
+      api('/api/arved'),
+      api('/api/arved/sisse')
+    ]);
+    const valjaList = avVahemikuFiltreeri(Array.isArray(valja) ? valja : [], 'kuupaev', algus, lopp);
+    const sisseList = avVahemikuFiltreeri(Array.isArray(sisse) ? sisse : [], 'kuupaev', algus, lopp);
+    const kmValjas = valjaList.reduce((s, a) => s + (parseFloat(a.kaibemaks) || 0), 0);
+    const kmSisse = sisseList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
+    const vahe = kmValjas - kmSisse;
+    const vEl = document.getElementById('km-valjas');
+    const sEl = document.getElementById('km-sisse');
+    const dEl = document.getElementById('km-vahe');
+    const dSiltEl = document.getElementById('km-vahe-silt');
+    if (vEl) vEl.textContent = avFmtEur(kmValjas);
+    if (sEl) sEl.textContent = avFmtEur(kmSisse);
+    if (dEl) {
+      dEl.textContent = avFmtEur(vahe);
+      dEl.style.color = vahe >= 0 ? '#fbbf24' : '#4ade80';
+    }
+    if (dSiltEl) dSiltEl.textContent = vahe >= 0 ? 'Vahe — tasumisele Maksuametile' : 'Vahe — mahaarvamisele/tagasi';
+    const kaive = valjaList.reduce((s, a) => s + (parseFloat(a.summa_km_ta) || 0), 0);
+    const kulud = sisseList.reduce((s, x) => s + ((parseFloat(x.summa) || 0) - (parseFloat(x.kaibemaks) || 0)), 0);
+    const kasum = kaive - kulud;
+    const kEl = document.getElementById('dt-kaive');
+    const kuEl = document.getElementById('dt-kulud');
+    const kaEl = document.getElementById('dt-kasum');
+    if (kEl) kEl.textContent = avFmtEur(kaive);
+    if (kuEl) kuEl.textContent = avFmtEur(kulud);
+    if (kaEl) { kaEl.textContent = avFmtEur(kasum); kaEl.style.color = kasum >= 0 ? '#4ade80' : '#ef4444'; }
+  } catch (e) { }
+}
 
-async function avAutotaida(tyyp) {
-  naitaTeade('arve-teade','ok','Autotäitmine pole veel selles vaates seadistatud — sisesta read käsitsi.');
+async function avPreviewNumber() {
+  const njr = await api('/api/arved/jargmine-number');
+  const njrEl = document.getElementById('arve-jargmine-nr');
+  if (njrEl && njr.ok) njrEl.textContent = `järgmine number: ${njr.number}`;
+}
+
+let avPoList = [];
+let avKontaktList = [];
+
+function avViideTyyp() {
+  return document.getElementById('av-viide-tyyp').value === 'projekt' ? 'projekt' : 'po';
+}
+
+function avViideTyypMuutus() {
+  const tyyp = avViideTyyp();
+  document.getElementById('av-viide-label').textContent = tyyp === 'projekt' ? 'Projektinumber (valikuline)' : 'PO number (valikuline)';
+  document.getElementById('av-po').placeholder = tyyp === 'projekt' ? 'nt PRJ-2026-014' : 'nt 4501439102';
+  const { tyyp: klienditüüp, id } = avKlientValik();
+  avLaadiPoValikud(klienditüüp === 'ettevote' ? id : null);
+}
+
+async function avLaadiPoValikud(ettevoteId) {
+  const sel = document.getElementById('av-po-valik');
+  if (!ettevoteId) { avPoList = []; sel.innerHTML = '<option value="">— Vali salvestatud —</option>'; return; }
+  const r = await api(`/api/arved/valikud?ettevote_id=${ettevoteId}&tyyp=${avViideTyyp()}`);
+  avPoList = Array.isArray(r) ? r : [];
+  sel.innerHTML = '<option value="">— Vali salvestatud —</option>' +
+    avPoList.map(x => `<option value="${x.id}">${x.vaartus}${x.silt ? ' — ' + x.silt : ''}</option>`).join('');
+}
+function avPoValikMuutus() {
+  const id = document.getElementById('av-po-valik').value;
+  const item = avPoList.find(x => String(x.id) === id);
+  if (item) document.getElementById('av-po').value = item.vaartus;
+}
+async function avSalvestaPoValik() {
+  const ettevoteId = document.getElementById('av-klient').value;
+  const vaartus = document.getElementById('av-po').value.trim();
+  const tyyp = avViideTyyp();
+  const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', `Vali enne klient (ettevõte) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
+  if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
+  const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
+  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp, vaartus, silt }) });
+  if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', `✅ ${siltNimi} salvestatud valikusse.`); }
+  else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+}
+
+async function avLaadiKontaktValikud(ettevoteId) {
+  const sel = document.getElementById('av-kontakt-valik');
+  if (!ettevoteId) { avKontaktList = []; sel.innerHTML = '<option value="">— Vali salvestatud —</option>'; return; }
+  const r = await api(`/api/arved/valikud?ettevote_id=${ettevoteId}&tyyp=kontakt`);
+  avKontaktList = Array.isArray(r) ? r : [];
+  sel.innerHTML = '<option value="">— Vali salvestatud —</option>' +
+    avKontaktList.map(x => `<option value="${x.id}">${x.vaartus}</option>`).join('');
+}
+function avKontaktValikMuutus() {
+  const id = document.getElementById('av-kontakt-valik').value;
+  const item = avKontaktList.find(x => String(x.id) === id);
+  if (item) document.getElementById('av-kontaktisik').value = item.vaartus;
+}
+async function avSalvestaKontaktValik() {
+  const ettevoteId = document.getElementById('av-klient').value;
+  const vaartus = document.getElementById('av-kontaktisik').value.trim();
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Vali enne klient (ettevõte) — kontaktisikud salvestuvad ettevõtte kaupa.');
+  if (!vaartus) return naitaTeade('arve-teade', 'viga', 'Kontaktisiku väli on tühi.');
+  const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp: 'kontakt', vaartus }) });
+  if (r.ok) { await avLaadiKontaktValikud(ettevoteId); naitaTeade('arve-teade', 'ok', '✅ Kontaktisik salvestatud valikusse.'); }
+  else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+}
+
+function avKlientValik() {
+  const raw = document.getElementById('av-klient').value;
+  if (!raw) return { tyyp: null, id: null };
+  const [pref, idStr] = raw.split('-');
+  return { tyyp: pref === 'e' ? 'ettevote' : 'klient', id: idStr };
+}
+
+function avKlientMuutus() {
+  const valjadDiv = document.getElementById('av-ostja-valjad');
+  const link = document.getElementById('av-uus-klient-link');
+  const { tyyp, id } = avKlientValik();
+
+  if (!tyyp) {
+    valjadDiv.style.display = 'none';
+    if (link) link.style.display = 'block';
+    avLaadiPoValikud(null);
+    avLaadiKontaktValikud(null);
+    return;
+  }
+  valjadDiv.style.display = 'block';
+  if (link) link.style.display = 'none';
+
+  if (tyyp === 'ettevote') {
+    const e = kõikEttevotted.find(x => String(x.id) === String(id));
+    avLaadiPoValikud(id);
+    avLaadiKontaktValikud(id);
+    if (!e) return;
+    document.getElementById('av-ostja-nimi').value = e.arve_nimi || e.nimi || '';
+    document.getElementById('av-ostja-aadress').value = e.arve_aadress || '';
+    document.getElementById('av-ostja-rgkood').value = e.arve_rg_kood || '';
+    document.getElementById('av-ostja-kmkr').value = e.arve_kmkr || '';
+    document.getElementById('av-kontaktisik').value = e.arve_kontakt_viimane || '';
+    document.getElementById('av-maksetahtaeg-paevad').value = e.arve_maksetahtaeg_paevad || 14;
+  } else {
+    avLaadiPoValikud(null);
+    avLaadiKontaktValikud(null);
+    const k = avKliendidList.find(x => String(x.id) === String(id));
+    if (!k) return;
+    document.getElementById('av-ostja-nimi').value = k.nimi || '';
+    document.getElementById('av-ostja-aadress').value = k.aadress || '';
+    document.getElementById('av-ostja-rgkood').value = k.rg_kood || '';
+    document.getElementById('av-ostja-kmkr').value = k.kmkr || '';
+    document.getElementById('av-kontaktisik').value = k.kontaktisik || '';
+    document.getElementById('av-maksetahtaeg-paevad').value = k.maksetahtaeg_paevad || 14;
+  }
+}
+
+function avAvaUusKlient() {
+  document.getElementById('av-klient').value = '';
+  document.getElementById('av-ostja-valjad').style.display = 'block';
+  document.getElementById('av-uus-klient-link').style.display = 'none';
+  document.getElementById('av-ostja-nimi').value = '';
+  document.getElementById('av-ostja-aadress').value = '';
+  document.getElementById('av-ostja-rgkood').value = '';
+  document.getElementById('av-ostja-kmkr').value = '';
+  document.getElementById('av-kontaktisik').value = '';
+  document.getElementById('av-maksetahtaeg-paevad').value = 14;
+  avLaadiPoValikud(null);
+  avLaadiKontaktValikud(null);
+  document.getElementById('av-ostja-nimi').focus();
+}
+
+function avLisaRida(rida) {
+  avRead.push(rida || { kirjeldus: '', kogus: 1, uhik: '', hind: 0, summa: 0 });
+  avJoonistaRead();
+}
+
+function avEemaldaRida(idx) {
+  avRead.splice(idx, 1);
+  if (!avRead.length) avRead.push({ kirjeldus: '', kogus: 1, uhik: '', hind: 0, summa: 0 });
+  avJoonistaRead();
+}
+
+function avUuendaRida(idx, valjs, val) {
+  avRead[idx][valjs] = val;
+  if (valjs === 'kogus' || valjs === 'hind') {
+    avRead[idx].summa = +((parseFloat(avRead[idx].kogus) || 0) * (parseFloat(avRead[idx].hind) || 0)).toFixed(2);
+  }
+  avJoonistaRead();
+}
+
+function avJoonistaRead() {
+  const body = document.getElementById('av-read-body');
+  body.innerHTML = avRead.map((r, idx) => `
+    <tr>
+      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)"></td>
+      <td><input type="number" step="0.1" value="${r.kogus}" oninput="avUuendaRida(${idx},'kogus',this.value)"></td>
+      <td><input type="text" value="${r.uhik||''}" oninput="avUuendaRida(${idx},'uhik',this.value)"></td>
+      <td><input type="number" step="0.01" value="${r.hind}" oninput="avUuendaRida(${idx},'hind',this.value)"></td>
+      <td style="text-align:right;font-weight:600">${avFmtEur(r.summa)}</td>
+      <td><button onclick="avEemaldaRida(${idx})" style="background:none;border:none;color:var(--hall);cursor:pointer">✕</button></td>
+    </tr>`).join('');
+  const summaKmTa = avRead.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
+  const kaibemaks = summaKmTa * (avKmProtsent / 100);
+  document.getElementById('av-summa-kmta').textContent = avFmtEur(summaKmTa);
+  document.getElementById('av-kaibemaks').textContent = avFmtEur(kaibemaks);
+  document.getElementById('av-kaibemaks-silt').textContent = `Käibemaks ${avKmProtsent}%`;
+  document.getElementById('av-kokku').textContent = avFmtEur(summaKmTa + kaibemaks);
+}
+
+async function avAutotaida(viis) {
+  const { tyyp, id } = avKlientValik();
+  const ettevoteId = tyyp === 'ettevote' ? id : null;
+  const algus = document.getElementById('av-algus').value;
+  const lopp = document.getElementById('av-lopp').value;
+  if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Autotäitmine töötab ainult "Minu ettevõtete" klientidega (Lidl/Cramo/Muu), mitte kolmanda osapoolega.');
+  if (!algus || !lopp) return naitaTeade('arve-teade', 'viga', 'Vali periood (algus ja lõpp)!');
+  const r = await api(`/api/arved/autotaita?ettevote_id=${ettevoteId}&algus=${algus}&lopp=${lopp}&viis=${viis}`);
+  if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Autotäitmine ebaõnnestus');
+  if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
+  avRead = r.read;
+  avJoonistaRead();
 }
 
 async function avSalvestaArve() {
-  const muuja_id = document.getElementById('av-muuja').value;
-  const kuupaev = document.getElementById('av-kuupaev').value;
-  const maksetahtaeg_paevad = document.getElementById('av-maksetahtaeg-paevad').value || 14;
-  const ostja_nimi = document.getElementById('av-ostja-nimi').value.trim();
-  const ostja_aadress = document.getElementById('av-ostja-aadress').value.trim();
-  const ostja_rgkood = document.getElementById('av-ostja-rgkood').value.trim();
-  const ostja_kmkr = document.getElementById('av-ostja-kmkr').value.trim();
-  const kontaktisik = document.getElementById('av-kontaktisik').value.trim();
-  const po = document.getElementById('av-po').value.trim();
-  const read = [...document.querySelectorAll('#av-read-body tr')].map(tr => ({
-    kirjeldus: tr.querySelector('.av-r-kirjeldus').value.trim(),
-    kogus: parseFloat(tr.querySelector('.av-r-kogus').value) || 0,
-    uhik: tr.querySelector('.av-r-uhik').value.trim(),
-    hind: parseFloat(tr.querySelector('.av-r-hind').value) || 0
-  })).filter(r => r.kirjeldus);
-  if (!muuja_id || !ostja_nimi || !read.length) return naitaTeade('arve-teade','viga','Täida müüja, ostja ja vähemalt üks rida');
-  const r = await api('/api/arved', { method:'POST', body: JSON.stringify({ muuja_id, kuupaev, maksetahtaeg_paevad, ostja_nimi, ostja_aadress, ostja_rgkood, ostja_kmkr, kontaktisik, po, read }) });
-  if (r && r.ok) { naitaTeade('arve-teade','ok','✅ Arve loodud'); avSuljeUusArveModal(); await laadiArved(); }
-  else naitaTeade('arve-teade','viga',(r&&r.veateade)||'Viga');
+  const { tyyp, id } = avKlientValik();
+  const ettevoteId = tyyp === 'ettevote' ? id : null;
+  const ostjaNimi = document.getElementById('av-ostja-nimi').value.trim();
+  if (!ostjaNimi) return naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!');
+  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
+  if (!kehtivadRead.length) return naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!');
+  if (!avmMuujad.length) return naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt');
+  const body = {
+    muuja_id: document.getElementById('av-muuja').value,
+    ettevote_id: ettevoteId || null,
+    ostja_nimi: ostjaNimi,
+    ostja_aadress: document.getElementById('av-ostja-aadress').value,
+    ostja_rg_kood: document.getElementById('av-ostja-rgkood').value,
+    ostja_kmkr: document.getElementById('av-ostja-kmkr').value,
+    kontaktisik: document.getElementById('av-kontaktisik').value,
+    po_number: document.getElementById('av-po').value,
+    viide_tyyp: avViideTyyp(),
+    kuupaev: document.getElementById('av-kuupaev').value,
+    maksetahtaeg_paevad: document.getElementById('av-maksetahtaeg-paevad').value,
+    algus: document.getElementById('av-algus').value || null,
+    lopp: document.getElementById('av-lopp').value || null,
+    read: kehtivadRead
+  };
+  const r = await api('/api/arved', { method: 'POST', body: JSON.stringify(body) });
+  if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('arve-teade', 'ok', `✅ Arve nr ${r.number} loodud!`);
+  window.open(`/api/arved/${r.id}/pdf?_token=${TOKEN}`, '_blank');
+  avRead = [];
+  avLisaRida();
+  document.getElementById('av-po').value = '';
+  document.getElementById('av-viide-tyyp').value = 'po';
+  avViideTyypMuutus();
+  document.getElementById('av-ostja-nimi').value = '';
+  document.getElementById('av-ostja-aadress').value = '';
+  document.getElementById('av-ostja-rgkood').value = '';
+  document.getElementById('av-ostja-kmkr').value = '';
+  document.getElementById('av-kontaktisik').value = '';
+  document.getElementById('av-algus').value = '';
+  document.getElementById('av-lopp').value = '';
+  document.getElementById('av-ostja-valjad').style.display = 'none';
+  document.getElementById('av-uus-klient-link').style.display = 'block';
+  await laadiArved();
+  setTimeout(avSuljeUusArveModal, 900);
 }
 
-// ── LISA KULU (sissetulev) MODAL ─────────────────────────────
-let avMuudetavSisseId = null;
-function avAvaLisaKuluModal(id) {
-  avMuudetavSisseId = id || null;
-  document.getElementById('avLisaKuluModal').classList.add('avatud');
-  if (id) {
-    const s = avKoikSisse.find(x => x.id === id);
-    document.getElementById('as-vormi-pealkiri').textContent = '✏️ Muuda kulu';
-    document.getElementById('as-tuhista-nupp').style.display = 'inline-block';
-    document.getElementById('as-kuupaev').value = s.kuupaev.slice(0,10);
-    document.getElementById('as-tahtaeg').value = s.tahtaeg ? s.tahtaeg.slice(0,10) : '';
-    document.getElementById('as-ettevote').value = s.ettevote_id || '';
-    document.getElementById('as-kirjeldus').value = s.kirjeldus || '';
-    document.getElementById('as-kaibemaks').value = s.kaibemaks || '';
-    document.getElementById('as-summa').value = s.summa || '';
-  } else {
-    document.getElementById('as-vormi-pealkiri').textContent = '📥 Lisa tšekk/arve';
-    document.getElementById('as-tuhista-nupp').style.display = 'none';
-    document.getElementById('as-kuupaev').value = new Date().toISOString().split('T')[0];
-    document.getElementById('as-tahtaeg').value = '';
-    document.getElementById('as-ettevote').value = '';
-    document.getElementById('as-kirjeldus').value = '';
-    document.getElementById('as-kaibemaks').value = '';
-    document.getElementById('as-summa').value = '';
+let avArvedList = [];
+let avStaatusFilter = 'koik';
+let avMuujaFilter = 'koik';
+let avArvedValitud = new Set();
+
+async function laadiArvedTabel() {
+  const arved = await api('/api/arved');
+  avArvedList = Array.isArray(arved) ? arved : [];
+  avArvedValitud.clear();
+  avUuendaMuujaFiltriValikud();
+  avFiltreeriStaatus(avStaatusFilter);
+  avUuendaKmAnalyys();
+}
+
+function avUuendaMuujaFiltriValikud() {
+  const sel = document.getElementById('av-filt-muuja');
+  if (!sel) return;
+  const nimed = [...new Set(avArvedList.map(a => a.muuja_nimi).filter(Boolean))].sort();
+  const praegune = avMuujaFilter;
+  sel.innerHTML = '<option value="koik">Kõik müüjad</option>' + nimed.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+  if (nimed.includes(praegune)) sel.value = praegune; else { avMuujaFilter = 'koik'; sel.value = 'koik'; }
+}
+function avFiltreeriMuuja(v) {
+  avMuujaFilter = v;
+  avJoonistaArvedTabel();
+}
+
+function avVaataArve(id, valitud) {
+  if (valitud) avArvedValitud.add(id); else avArvedValitud.delete(id);
+  avUuendaArvedZipNupp();
+}
+function avVaataKoikArved(koik) {
+  avArvedValitud.clear();
+  if (koik) avKuuFiltreeri(avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter), 'kuupaev').forEach(a => avArvedValitud.add(a.id));
+  avJoonistaArvedTabel();
+}
+function avUuendaArvedZipNupp() {
+  const nupp = document.getElementById('av-zip-nupp');
+  if (!nupp) return;
+  nupp.style.display = avArvedValitud.size ? 'inline-block' : 'none';
+  nupp.textContent = `⬇️ Laadi valitud alla (${avArvedValitud.size} ZIP-ina)`;
+}
+function avLaadiArvedZip() {
+  if (!avArvedValitud.size) return;
+  window.open(`/api/arved/zip?ids=${[...avArvedValitud].join(',')}&_token=${TOKEN}`, '_blank');
+}
+
+function avFiltreeriStaatus(s) {
+  avStaatusFilter = s;
+  ['koik', 'maksmata', 'makstud'].forEach(k => {
+    const btn = document.getElementById('av-filt-' + k);
+    if (!btn) return;
+    btn.classList.toggle('kull', k === s);
+    btn.classList.toggle('hall', k !== s);
+  });
+  avJoonistaArvedTabel();
+}
+
+function avValitudKuuAasta() {
+  const kuuEl = document.getElementById('av-kuu-valik');
+  const aastaEl = document.getElementById('av-aasta-valik');
+  return { kuu: kuuEl && kuuEl.value ? parseInt(kuuEl.value, 10) : null, aasta: aastaEl && aastaEl.value ? parseInt(aastaEl.value, 10) : null };
+}
+function avKuuFiltreeri(list, kpVali) {
+  const { kuu, aasta } = avValitudKuuAasta();
+  if (!kuu || !aasta) return list;
+  return list.filter(x => {
+    const d = new Date(x[kpVali]);
+    return (d.getMonth() + 1) === kuu && d.getFullYear() === aasta;
+  });
+}
+
+function avJoonistaArvedTabel() {
+  const div = document.getElementById('arvedTabel');
+  let arved = avStaatusFilter === 'koik' ? avArvedList : avArvedList.filter(a => a.staatus === avStaatusFilter);
+  if (avMuujaFilter !== 'koik') arved = arved.filter(a => a.muuja_nimi === avMuujaFilter);
+  arved = avKuuFiltreeri(arved, 'kuupaev');
+  if (!arved.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Arveid ei leitud</div>'; avUuendaArvedZipNupp(); return; }
+  div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Müüja</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th>Tegevused</th></tr></thead><tbody>` +
+    arved.map(a => `
+      <tr>
+        <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
+        <td style="font-weight:600">${a.number}</td>
+        <td>${formatKp(a.kuupaev)}</td>
+        <td style="color:var(--hall);font-size:12px">${a.muuja_nimi || '—'}</td>
+        <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
+        <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
+        <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
+        <td style="display:flex;gap:6px">
+          ${a.fail_url
+            ? `<a href="${a.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
+            : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
+          <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
+          <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        </td>
+      </tr>`).join('') + '</tbody></table></div>';
+  avUuendaArvedZipNupp();
+}
+
+async function avMuudaStaatus(id, uusStaatus) {
+  await api(`/api/arved/${id}/staatus`, { method: 'PUT', body: JSON.stringify({ staatus: uusStaatus }) });
+  await laadiArvedTabel();
+}
+
+async function avKustutaArve(id) {
+  if (!confirm('Kustutad selle arve jäädavalt?')) return;
+  await api(`/api/arved/${id}`, { method: 'DELETE' });
+  await laadiArvedTabel();
+}
+
+let avLaadiFail = null;
+
+function avToggleLaadiVorm() {
+  const vorm = document.getElementById('av-laadi-vorm');
+  const nahtaval = vorm.style.display !== 'none';
+  vorm.style.display = nahtaval ? 'none' : 'block';
+  if (!nahtaval) {
+    const kpEl = document.getElementById('al-kuupaev');
+    if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
   }
 }
-function avTuhistaSisseMuutmine() { avMuudetavSisseId = null; }
 
-async function avSalvestaSisse() {
-  const body = JSON.stringify({
-    kuupaev: document.getElementById('as-kuupaev').value,
-    tahtaeg: document.getElementById('as-tahtaeg').value || null,
-    ettevote_id: document.getElementById('as-ettevote').value || null,
-    kirjeldus: document.getElementById('as-kirjeldus').value.trim(),
-    kaibemaks: parseFloat(document.getElementById('as-kaibemaks').value) || 0,
-    summa: parseFloat(document.getElementById('as-summa').value) || 0
+let avSumupFail = null;
+
+function avToggleSumupVorm() {
+  const vorm = document.getElementById('av-sumup-vorm');
+  vorm.style.display = vorm.style.display !== 'none' ? 'none' : 'block';
+}
+
+function avSumupDropzoneSeadista() {
+  const zone = document.getElementById('av-sumup-dropzone');
+  const input = document.getElementById('av-sumup-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avSumupValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avSumupValiFail(e.dataTransfer.files[0]);
   });
-  const r = avMuudetavSisseId
-    ? await api(`/api/arved/sissetulevad/${avMuudetavSisseId}`, { method:'PUT', body })
-    : await api('/api/arved/sissetulevad', { method:'POST', body });
-  if (r && r.ok) { naitaTeade('as-teade','ok','✅ Salvestatud'); avSuljeLisaKuluModal(); await laadiArved(); }
-  else naitaTeade('as-teade','viga',(r&&r.veateade)||'Viga');
 }
 
-// ── KIIRLAADIMINE (AI-tuvastus) ────────────────────────────────
-document.getElementById('av-kiir-dropzone')?.addEventListener('click', () => document.getElementById('av-kiir-fail').click());
-document.getElementById('av-kiir-fail')?.addEventListener('change', async function() {
-  if (!this.files || !this.files[0]) return;
-  naitaTeade('av-kiir-teade','ok','⏳ AI analüüsib faili...');
-  const fd = new FormData(); fd.append('fail', this.files[0]);
-  const r = await fetch('/api/arved/kiirlaadimine', { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) { naitaTeade('av-kiir-teade','ok','✅ Tuvastatud ja lisatud'); await laadiArved(); }
-  else naitaTeade('av-kiir-teade','viga', j.veateade || 'Tuvastamine ebaõnnestus, sisesta käsitsi');
-  this.value = '';
-});
+function avSumupValiFail(file) {
+  avSumupFail = file;
+  document.getElementById('av-sumup-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeSumupFail(file);
+}
 
-// ── VANA ARVE ÜLESLAADIMINE ────────────────────────────────────
-function avToggleLaadiVorm() { const el = document.getElementById('av-laadi-vorm'); el.style.display = el.style.display==='none' ? 'block' : 'none'; }
-document.getElementById('av-laadi-dropzone')?.addEventListener('click', () => document.getElementById('av-laadi-fail').click());
-async function avSalvestaLaadi() {
+async function avLoeSumupFail(file) {
+  naitaTeade('su-loe-teade', 'ok', '🤖 Loen SumUp aruannet...');
   const fd = new FormData();
-  const failInput = document.getElementById('av-laadi-fail');
-  if (failInput.files[0]) fd.append('fail', failInput.files[0]);
-  fd.append('number', document.getElementById('al-number').value);
-  fd.append('kuupaev', document.getElementById('al-kuupaev').value);
-  fd.append('maksetahtaeg', document.getElementById('al-tahtaeg').value);
-  fd.append('ostja_nimi', document.getElementById('al-ostja').value);
-  fd.append('ettevote_id', document.getElementById('al-ettevote').value);
-  fd.append('summa_kmta', document.getElementById('al-summa-km-ta').value);
-  fd.append('kaibemaks', document.getElementById('al-kaibemaks').value);
-  fd.append('kokku', document.getElementById('al-kokku').value);
-  fd.append('staatus', document.getElementById('al-staatus').value);
-  const r = await fetch('/api/arved/lae-vana', { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) { naitaTeade('al-teade','ok','✅ Salvestatud'); avToggleLaadiVorm(); await laadiArved(); }
-  else naitaTeade('al-teade','viga', j.veateade || 'Viga');
+  fd.append('fail', file);
+  const r = await api('/api/arved/sumup/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('su-loe-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); document.getElementById('av-sumup-tulemus').style.display = 'block'; return; }
+  if (r.periood_algus) document.getElementById('su-algus').value = r.periood_algus;
+  if (r.periood_lopp) document.getElementById('su-lopp').value = r.periood_lopp;
+  if (r.kaive_bruto) document.getElementById('su-kaive').value = r.kaive_bruto;
+  if (r.tasud) document.getElementById('su-tasu').value = r.tasud;
+  document.getElementById('av-sumup-tulemus').style.display = 'block';
+  avSumupArvutaKm();
+  naitaTeade('su-loe-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle enne salvestamist!');
 }
 
-// ── SUMUP ARUANNE ────────────────────────────────────────────
-function avToggleSumupVorm() { const el = document.getElementById('av-sumup-vorm'); el.style.display = el.style.display==='none' ? 'block' : 'none'; }
-document.getElementById('av-sumup-dropzone')?.addEventListener('click', () => document.getElementById('av-sumup-fail').click());
-document.getElementById('av-sumup-fail')?.addEventListener('change', async function() {
-  if (!this.files || !this.files[0]) return;
-  naitaTeade('su-loe-teade','ok','⏳ Loen aruannet...');
-  const fd = new FormData(); fd.append('fail', this.files[0]);
-  const r = await fetch('/api/arved/sumup/loe', { method:'POST', headers:{'x-session-token':TOKEN}, body: fd });
-  const j = await r.json().catch(()=>({ok:false}));
-  if (j.ok) {
-    document.getElementById('av-sumup-tulemus').style.display = 'block';
-    document.getElementById('su-algus').value = j.algus || '';
-    document.getElementById('su-lopp').value = j.lopp || '';
-    document.getElementById('su-kaive').value = j.kaive || '';
-    document.getElementById('su-tasu').value = j.tasu || '';
-    avSumupArvutaKm();
-    document.getElementById('su-loe-teade').style.display = 'none';
-  } else naitaTeade('su-loe-teade','viga', j.veateade || 'Lugemine ebaõnnestus, täida käsitsi');
-  this.value = '';
-});
 function avSumupArvutaKm() {
   const kaive = parseFloat(document.getElementById('su-kaive').value) || 0;
   const protsent = parseFloat(document.getElementById('su-km-protsent').value) || 24;
-  const km = kaive - (kaive / (1 + protsent/100));
-  document.getElementById('su-km-arvutatud').value = avFmtEur(km);
-}
-async function avSalvestaSumup() {
-  const body = JSON.stringify({
-    algus: document.getElementById('su-algus').value,
-    lopp: document.getElementById('su-lopp').value,
-    kaive: parseFloat(document.getElementById('su-kaive').value) || 0,
-    tasu: parseFloat(document.getElementById('su-tasu').value) || 0,
-    km_protsent: parseFloat(document.getElementById('su-km-protsent').value) || 24
-  });
-  const r = await api('/api/arved/sumup/salvesta', { method:'POST', body });
-  if (r && r.ok) { naitaTeade('su-teade','ok','✅ Käive ja kulu salvestatud'); avToggleSumupVorm(); await laadiArved(); }
-  else naitaTeade('su-teade','viga',(r&&r.veateade)||'Viga');
+  const km = kaive - kaive / (1 + protsent / 100);
+  document.getElementById('su-km-arvutatud').value = km.toFixed(2) + ' €';
 }
 
-// ── ZIP allalaadimised ────────────────────────────────────────
-function avLaadiArvedZip() {
-  const ids = [...document.querySelectorAll('.av-rida-cb:checked')].map(cb=>cb.value);
-  if (!ids.length) return alert('Vali vähemalt üks arve');
-  window.location = `/api/arved/zip?ids=${ids.join(',')}&_token=${TOKEN}`;
+async function avSalvestaSumup() {
+  const algus = document.getElementById('su-algus').value;
+  const lopp = document.getElementById('su-lopp').value;
+  if (!algus || !lopp) return naitaTeade('su-teade', 'viga', 'Täida perioodi algus ja lõpp!');
+  const fd = new FormData();
+  fd.append('periood_algus', algus);
+  fd.append('periood_lopp', lopp);
+  fd.append('kaive_bruto', document.getElementById('su-kaive').value || 0);
+  fd.append('kaibemaks_protsent', document.getElementById('su-km-protsent').value || 24);
+  fd.append('tasud', document.getElementById('su-tasu').value || 0);
+  if (avSumupFail) fd.append('fail', avSumupFail);
+  const r = await api('/api/arved/sumup/salvesta', { method: 'POST', body: fd });
+  if (!r.ok) return naitaTeade('su-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('su-teade', 'ok', '✅ Käive ja/või kulu lisatud!');
+  avSumupFail = null;
+  document.getElementById('av-sumup-fail').value = '';
+  document.getElementById('av-sumup-dropzone-tekst').textContent = '📎 Lohista siia SumUp Payout Report PDF, või kliki valimiseks';
+  ['su-algus','su-lopp','su-kaive','su-tasu','su-km-arvutatud'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('su-km-protsent').value = 24;
+  document.getElementById('av-sumup-tulemus').style.display = 'none';
+  avToggleSumupVorm();
+  const [aasta, kuu] = lopp.split('-');
+  const kuuSel = document.getElementById('av-kuu-valik');
+  const aastaSel = document.getElementById('av-aasta-valik');
+  if (kuuSel) kuuSel.value = String(parseInt(kuu, 10));
+  if (aastaSel) {
+    if (![...aastaSel.options].some(o => o.value === aasta)) {
+      const o = document.createElement('option');
+      o.value = aasta; o.textContent = aasta;
+      aastaSel.appendChild(o);
+    }
+    aastaSel.value = aasta;
+  }
+  avStaatusFilter = 'koik';
+  ['koik', 'maksmata', 'makstud'].forEach(k => {
+    const btn = document.getElementById('av-filt-' + k);
+    if (btn) { btn.classList.toggle('kull', k === 'koik'); btn.classList.toggle('hall', k !== 'koik'); }
+  });
+  await laadiArvedTabel();
+}
+
+function avLaadiDropzoneSeadista() {
+  const zone = document.getElementById('av-laadi-dropzone');
+  const input = document.getElementById('av-laadi-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avLaadiValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avLaadiValiFail(e.dataTransfer.files[0]);
+  });
+}
+function avLaadiValiFail(file) {
+  avLaadiFail = file;
+  document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeLaadiFail(file);
+}
+
+async function avLoeLaadiFail(file) {
+  naitaTeade('al-teade', 'ok', '🤖 Loen arvet...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/laadi/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('al-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
+  if (r.number) document.getElementById('al-number').value = r.number;
+  if (r.ostja_nimi) document.getElementById('al-ostja').value = r.ostja_nimi;
+  if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
+  if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
+  if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
+  if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+  if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
+  if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
+  naitaTeade('al-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle (eriti arve number!) ja vajuta Salvesta!');
+}
+
+async function avSalvestaLaadi() {
+  const number = document.getElementById('al-number').value.trim();
+  const kuupaev = document.getElementById('al-kuupaev').value;
+  const ostja = document.getElementById('al-ostja').value.trim();
+  if (!number || !kuupaev || !ostja) return naitaTeade('al-teade', 'viga', 'Täida arve number, kuupäev ja ostja nimi!');
+  const fd = new FormData();
+  fd.append('number', number);
+  fd.append('kuupaev', kuupaev);
+  fd.append('tahtaeg', document.getElementById('al-tahtaeg').value || '');
+  fd.append('ostja_nimi', ostja);
+  fd.append('ettevote_id', document.getElementById('al-ettevote').value);
+  fd.append('summa_km_ta', document.getElementById('al-summa-km-ta').value || 0);
+  fd.append('kaibemaks', document.getElementById('al-kaibemaks').value || 0);
+  fd.append('kokku', document.getElementById('al-kokku').value || 0);
+  fd.append('staatus', document.getElementById('al-staatus').value);
+  if (avLaadiFail) fd.append('fail', avLaadiFail);
+  const r = await api('/api/arved/laadi', { method: 'POST', body: fd });
+  if (!r.ok) return naitaTeade('al-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('al-teade', 'ok', '✅ Arve lisatud ajalukku!');
+  avLaadiFail = null;
+  document.getElementById('av-laadi-fail').value = '';
+  document.getElementById('av-laadi-dropzone-tekst').textContent = '📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks';
+  ['al-number','al-tahtaeg','al-ostja','al-summa-km-ta','al-kaibemaks','al-kokku'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('al-ettevote').value = '';
+  document.getElementById('al-staatus').value = 'maksmata';
+  avToggleLaadiVorm();
+  const [aasta, kuu] = kuupaev.split('-');
+  const kuuSel = document.getElementById('av-kuu-valik');
+  const aastaSel = document.getElementById('av-aasta-valik');
+  if (kuuSel) kuuSel.value = String(parseInt(kuu, 10));
+  if (aastaSel) {
+    if (![...aastaSel.options].some(o => o.value === aasta)) {
+      const o = document.createElement('option');
+      o.value = aasta; o.textContent = aasta;
+      aastaSel.appendChild(o);
+    }
+    aastaSel.value = aasta;
+  }
+  avStaatusFilter = 'koik';
+  ['koik', 'maksmata', 'makstud'].forEach(k => {
+    const btn = document.getElementById('av-filt-' + k);
+    if (btn) { btn.classList.toggle('kull', k === 'koik'); btn.classList.toggle('hall', k !== 'koik'); }
+  });
+  await laadiArvedTabel();
+}
+
+function avKiirDropzoneSeadista() {
+  const zone = document.getElementById('av-kiir-dropzone');
+  const input = document.getElementById('av-kiir-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avKiirValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avKiirValiFail(e.dataTransfer.files[0]);
+  });
+}
+
+function avAvatudNaita(kehaId, noolId) {
+  const keha = document.getElementById(kehaId);
+  if (keha && keha.style.display === 'none') avToggleKaart(kehaId, noolId);
+}
+
+async function avKiirValiFail(file) {
+  document.getElementById('av-kiir-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — tuvastan...`;
+  naitaTeade('av-kiir-teade', 'ok', '🤖 Loen faili ja tuvastan, kas see on sisse- või väljaminev...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/loe-suund', { method: 'POST', body: fd });
+  document.getElementById('av-kiir-dropzone-tekst').textContent = '📎 Lohista siia arve või tšekk (pilt või PDF), või kliki valimiseks — ei pea ise valima, kas Sisse või Välja';
+  document.getElementById('av-kiir-fail').value = '';
+  if (!r.ok) { naitaTeade('av-kiir-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — lisa käsitsi õigesse alamvaatesse.'); return; }
+
+  if (r.suund === 'valja') {
+    naitaTeade('av-kiir-teade', 'ok', '📤 Tuvastasin: VÄLJAMINEV arve — täidan vormi allpool, kontrolli üle!');
+    avAvatudNaita('av-ajalugu-body', 'av-ajalugu-nool');
+    if (document.getElementById('av-laadi-vorm').style.display === 'none') avToggleLaadiVorm();
+    if (r.number) document.getElementById('al-number').value = r.number;
+    if (r.vastaspool) document.getElementById('al-ostja').value = r.vastaspool;
+    if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
+    if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
+    if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
+    if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+    if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
+    if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
+    avLaadiFail = file;
+    document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+    document.getElementById('av-laadi-vorm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    naitaTeade('av-kiir-teade', 'ok', '📥 Tuvastasin: SISSETULEV tšekk/arve — täidan vormi allpool, kontrolli üle!');
+    avAvaLisaKuluModal();
+    if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
+    if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
+    if (r.kokku) document.getElementById('as-summa').value = r.kokku;
+    if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+    if (r.vastaspool) document.getElementById('as-kirjeldus').value = r.vastaspool;
+    if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+    avSisseFail = file;
+    document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  }
+}
+
+let avSisseFail = null;
+let avSisseList = [];
+
+function avSisseDropzoneSeadista() {
+  const zone = document.getElementById('av-sisse-dropzone');
+  const input = document.getElementById('av-sisse-fail');
+  if (!zone || zone.dataset.seadistatud) return;
+  zone.dataset.seadistatud = '1';
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) avSisseValiFail(input.files[0]); });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#4ade80'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) avSisseValiFail(e.dataTransfer.files[0]);
+  });
+}
+function avSisseValiFail(file) {
+  avSisseFail = file;
+  document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
+  avLoeSisseFail(file);
+}
+
+async function avLoeSisseFail(file) {
+  naitaTeade('as-teade', 'ok', '🤖 Loen arvet...');
+  const fd = new FormData();
+  fd.append('fail', file);
+  const r = await api('/api/arved/sisse/loe', { method: 'POST', body: fd });
+  if (!r.ok) { naitaTeade('as-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
+  if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
+  if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
+  if (r.summa) document.getElementById('as-summa').value = r.summa;
+  if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+  if (r.ettevote) document.getElementById('as-kirjeldus').value = r.ettevote;
+  if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle ja vajuta Salvesta!');
+}
+
+let avSisseMuudaId = null;
+let avSisseValitud = new Set();
+
+async function laadiSisseTabel() {
+  const { kuu, aasta } = avValitudKuuAasta();
+  const params = [];
+  if (kuu) params.push('kuu=' + kuu);
+  if (aasta) params.push('aasta=' + aasta);
+  const sisse = await api('/api/arved/sisse' + (params.length ? '?' + params.join('&') : ''));
+  avSisseList = Array.isArray(sisse) ? sisse : [];
+  avSisseValitud.clear();
+  avJoonistaSisseTabel();
+  avUuendaKmAnalyys();
+}
+
+function avJoonistaSisseTabel() {
+  const div = document.getElementById('sisseTabel');
+  if (!avSisseList.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selles kuus üleslaetud tšekke/arveid pole</div>'; document.getElementById('as-zip-nupp').style.display = 'none'; return; }
+  const kokkuSumma = avSisseList.reduce((s, x) => s + (parseFloat(x.summa) || 0), 0);
+  const kmSumma = avSisseList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
+  const kmTaSumma = kokkuSumma - kmSumma;
+  div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr>
+      <th><input type="checkbox" id="as-vali-koik" onchange="avVaataKoikSisse(this.checked)"></th>
+      <th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th>
+      <th style="text-align:right">Summa km-ta</th><th style="text-align:right">Käibemaks</th><th style="text-align:right">Kokku</th>
+      <th>Staatus</th><th>Tegevused</th>
+    </tr></thead><tbody>` +
+    avSisseList.map(s => {
+      const kmta = (parseFloat(s.summa) || 0) - (parseFloat(s.kaibemaks) || 0);
+      return `
+      <tr>
+        <td><input type="checkbox" ${avSisseValitud.has(s.id) ? 'checked' : ''} onchange="avVaataSisse(${s.id}, this.checked)"></td>
+        <td>${formatKp(s.kuupaev)}</td>
+        <td>${s.tahtaeg ? formatKp(s.tahtaeg) : '<span style="color:var(--hall)">—</span>'}</td>
+        <td>${s.ettevote_nimi || '<span style="color:var(--hall)">—</span>'}</td>
+        <td>${s.kirjeldus || ''}</td>
+        <td style="text-align:right">${avFmtEur(kmta)}</td>
+        <td style="text-align:right">${avFmtEur(s.kaibemaks)}</td>
+        <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
+        <td><span class="staatus-pill ${s.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaSisseStaatus(${s.id},'${s.staatus==='makstud'?'ootel':'makstud'}')">${s.staatus==='makstud'?'Makstud':'Ootel'}</span></td>
+        <td style="display:flex;gap:6px">
+          ${s.fail_url ? `<a href="${s.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>` : ''}
+          <button onclick="avMuudaSisse(${s.id})" class="av-tegevus-ikoon" title="Muuda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+          <button onclick="avKustutaSisse(${s.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        </td>
+      </tr>`;
+    }).join('') +
+    `</tbody></table></div><div style="padding:12px 18px;display:flex;justify-content:flex-end;gap:24px;font-size:13px;color:var(--hall);border-top:0.5px solid var(--piir2)">
+      <span>Km-ta: <b style="color:var(--tekst2)">${avFmtEur(kmTaSumma)}</b></span>
+      <span>Käibemaks: <b style="color:var(--tekst2)">${avFmtEur(kmSumma)}</b></span>
+      <span>Kokku: <b style="color:var(--tekst2)">${avFmtEur(kokkuSumma)}</b></span>
+    </div>`;
+  avUuendaZipNupp();
+}
+
+function avVaataSisse(id, valitud) {
+  if (valitud) avSisseValitud.add(id); else avSisseValitud.delete(id);
+  avUuendaZipNupp();
+}
+function avVaataKoikSisse(koik) {
+  avSisseValitud.clear();
+  if (koik) avSisseList.forEach(s => avSisseValitud.add(s.id));
+  avJoonistaSisseTabel();
+}
+function avUuendaZipNupp() {
+  const nupp = document.getElementById('as-zip-nupp');
+  const kustNupp = document.getElementById('as-kustuta-nupp');
+  if (nupp) {
+    nupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    nupp.textContent = `⬇️ Laadi valitud alla (${avSisseValitud.size} ZIP-ina)`;
+  }
+  if (kustNupp) {
+    kustNupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    kustNupp.textContent = `🗑 Kustuta valitud (${avSisseValitud.size})`;
+  }
 }
 function avLaadiValitudZip() {
-  const ids = [...document.querySelectorAll('.as-rida-cb:checked')].map(cb=>cb.value);
-  if (!ids.length) return alert('Vali vähemalt üks rida');
-  window.location = `/api/arved/sissetulevad/zip?ids=${ids.join(',')}&_token=${TOKEN}`;
+  if (!avSisseValitud.size) return;
+  window.open(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}&_token=${TOKEN}`, '_blank');
 }
-document.addEventListener('change', function(e) {
-  if (e.target.classList && e.target.classList.contains('av-rida-cb')) {
-    const anyChecked = document.querySelectorAll('.av-rida-cb:checked').length > 0;
-    const zipBtn = document.getElementById('av-zip-nupp'); if (zipBtn) zipBtn.style.display = anyChecked ? 'inline-block' : 'none';
-  }
-  if (e.target.classList && e.target.classList.contains('as-rida-cb')) {
-    const anyChecked = document.querySelectorAll('.as-rida-cb:checked').length > 0;
-    const zipBtn = document.getElementById('as-zip-nupp'); if (zipBtn) zipBtn.style.display = anyChecked ? 'inline-block' : 'none';
-    const delBtn = document.getElementById('as-kustuta-nupp'); if (delBtn) delBtn.style.display = anyChecked ? 'inline-block' : 'none';
-  }
-});
+async function avKustutaValitudSisse() {
+  if (!avSisseValitud.size) return;
+  if (!confirm(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
+  await api(`/api/arved/sisse?ids=${[...avSisseValitud].join(',')}`, { method: 'DELETE' });
+  await laadiSisseTabel();
+}
 
-// ── LIGIPÄÄS PANEELID ──────────────────────────────────────────
-function avToggleLigipaasPaneel() { xsToggleKaartPaneel('av-ligipaas-paneel','av-lig-nool'); if(document.getElementById('av-ligipaas-paneel').style.display!=='none') avLaadiLigipaas(); }
-function avToggleOaLigipaasPaneel() { xsToggleKaartPaneel('av-oaligipaas-paneel','av-oalig-nool'); if(document.getElementById('av-oaligipaas-paneel').style.display!=='none') avLaadiOaLigipaas(); }
+function avMuudaSisse(id) {
+  const s = avSisseList.find(x => x.id === id);
+  if (!s) return;
+  avAvaLisaKuluModal();
+  avSisseMuudaId = id;
+  document.getElementById('as-vormi-pealkiri').textContent = '✏️ Muuda kirjet';
+  document.getElementById('as-tuhista-nupp').style.display = 'inline-block';
+  document.getElementById('as-salvesta-nupp').textContent = '💾 Salvesta muudatused';
+  document.getElementById('as-kuupaev').value = String(s.kuupaev).split('T')[0];
+  document.getElementById('as-tahtaeg').value = s.tahtaeg ? String(s.tahtaeg).split('T')[0] : '';
+  document.getElementById('as-ettevote').value = s.ettevote_id || '';
+  document.getElementById('as-kirjeldus').value = s.kirjeldus || '';
+  document.getElementById('as-summa').value = s.summa;
+  document.getElementById('as-kaibemaks').value = s.kaibemaks;
+}
 
-async function avLaadiLigipaas() {
+function avTuhistaSisseMuutmine() {
+  avSisseMuudaId = null;
+  avSisseFail = null;
+  document.getElementById('as-vormi-pealkiri').textContent = '📥 Lisa tšekk/arve';
+  document.getElementById('as-tuhista-nupp').style.display = 'none';
+  document.getElementById('as-salvesta-nupp').textContent = '💾 Salvesta';
+  document.getElementById('av-sisse-dropzone-tekst').textContent = '📎 Lohista siia pilt või PDF, või kliki valimiseks';
+  document.getElementById('av-sisse-fail').value = '';
+  document.getElementById('as-kuupaev').value = new Date().toISOString().split('T')[0];
+  document.getElementById('as-tahtaeg').value = '';
+  document.getElementById('as-kirjeldus').value = '';
+  document.getElementById('as-summa').value = '';
+  document.getElementById('as-kaibemaks').value = '';
+  document.getElementById('as-ettevote').value = '';
+}
+
+async function avSalvestaSisse() {
+  const kuupaev = document.getElementById('as-kuupaev').value;
+  if (!kuupaev) return naitaTeade('as-teade', 'viga', 'Vali kuupäev!');
+  const kirjeldusVaartus = document.getElementById('as-kirjeldus').value.trim();
+  const summaVaartus = parseFloat(document.getElementById('as-summa').value) || 0;
+  if (!avSisseFail && !summaVaartus && !kirjeldusVaartus) {
+    return naitaTeade('as-teade', 'viga', 'Lisa vähemalt fail, summa või kirjeldus enne salvestamist!');
+  }
+  if (!document.getElementById('as-ettevote').value) {
+    return naitaTeade('as-teade', 'viga', 'Vali ettevõte (lahter), kuhu see kulu läheb — kui pole selget, vali "Muu"!');
+  }
+  const fd = new FormData();
+  fd.append('kuupaev', kuupaev);
+  fd.append('tahtaeg', document.getElementById('as-tahtaeg').value || '');
+  fd.append('ettevote_id', document.getElementById('as-ettevote').value);
+  fd.append('kirjeldus', document.getElementById('as-kirjeldus').value);
+  fd.append('summa', document.getElementById('as-summa').value || 0);
+  fd.append('kaibemaks', document.getElementById('as-kaibemaks').value || 0);
+  if (avSisseFail) fd.append('fail', avSisseFail);
+  const r = avSisseMuudaId
+    ? await api(`/api/arved/sisse/${avSisseMuudaId}`, { method: 'PUT', body: fd })
+    : await api('/api/arved/sisse', { method: 'POST', body: fd });
+  if (!r.ok) return naitaTeade('as-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  naitaTeade('as-teade', 'ok', '✅ Salvestatud!');
+  avTuhistaSisseMuutmine();
+  await laadiSisseTabel();
+  setTimeout(avSuljeLisaKuluModal, 900);
+}
+
+async function avMuudaSisseStaatus(id, uusStaatus) {
+  await api(`/api/arved/sisse/${id}/staatus`, { method: 'PUT', body: JSON.stringify({ staatus: uusStaatus }) });
+  await laadiSisseTabel();
+}
+
+async function avKustutaSisse(id) {
+  if (!confirm('Kustutad selle kirje jäädavalt?')) return;
+  await api(`/api/arved/sisse/${id}`, { method: 'DELETE' });
+  await laadiSisseTabel();
+}
+
+function avToggleKaart(kehaId, noolId) {
+  const keha = document.getElementById(kehaId);
+  const nool = document.getElementById(noolId);
+  if (!keha) return;
+  const nahtav = keha.style.display !== 'none';
+  keha.style.display = nahtav ? 'none' : 'block';
+  if (nool) nool.textContent = nahtav ? '▼' : '▲';
+}
+
+function avToggleLigipaasPaneel() {
+  const paneel = document.getElementById('av-ligipaas-paneel');
+  const nool = document.getElementById('av-lig-nool');
+  const nahtav = paneel.style.display !== 'none';
+  paneel.style.display = nahtav ? 'none' : 'block';
+  nool.textContent = nahtav ? '▼' : '▲';
+  if (!nahtav) laadiArvedLigipaas();
+}
+async function laadiArvedLigipaas() {
+  const r = await api('/api/arved/admin/lubatud');
   const div = document.getElementById('avLigipaasSisu');
-  div.innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  const [workers, lubatud] = await Promise.all([api('/api/admin/tootajad'), api('/api/arved/admin/lubatud')]);
-  const lubMap = {}; (Array.isArray(lubatud)?lubatud:[]).forEach(w => lubMap[w.id]=!!w.lubatud);
-  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w => `
-    <div class="ettevote-rida"><div class="ettevote-rida-vasak"><span class="ettevote-nimi">${w.nimi}</span></div>
-    <label class="toggle-switch"><input type="checkbox" ${lubMap[w.id]?'checked':''} onchange="tjToggleArved(${w.id}, this.checked)"><span class="toggle-slider"></span></label></div>`).join('');
+  if (!Array.isArray(r) || !r.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Töötajaid ei leitud.</span>'; return; }
+  div.innerHTML = r.map(w => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--piir2)">
+      <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'}">${w.lubatud ? '👤' : '·'} ${w.nimi}</span>
+      <label class="toggle-switch">
+        <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleLigipaas(${w.id}, this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`).join('');
 }
-async function avLaadiOaLigipaas() {
+async function avToggleLigipaas(workerId, lubatud) {
+  await api(`/api/arved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+}
+
+function avToggleOaLigipaasPaneel() {
+  const paneel = document.getElementById('av-oaligipaas-paneel');
+  const nool = document.getElementById('av-oalig-nool');
+  const nahtav = paneel.style.display !== 'none';
+  paneel.style.display = nahtav ? 'none' : 'block';
+  nool.textContent = nahtav ? '▼' : '▲';
+  if (!nahtav) laadiOaArvedLigipaas();
+}
+async function laadiOaArvedLigipaas() {
+  const r = await api('/api/omaarved/admin/lubatud');
   const div = document.getElementById('avOaLigipaasSisu');
-  div.innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  const [workers, lubatud] = await Promise.all([api('/api/admin/tootajad'), api('/api/omaarved/admin/lubatud')]);
-  const lubMap = {}; (Array.isArray(lubatud)?lubatud:[]).forEach(w => lubMap[w.id]=!!w.lubatud);
-  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w => `
-    <div class="ettevote-rida"><div class="ettevote-rida-vasak"><span class="ettevote-nimi">${w.nimi}</span></div>
-    <label class="toggle-switch"><input type="checkbox" ${lubMap[w.id]?'checked':''} onchange="tjToggleOmaarved(${w.id}, this.checked)"><span class="toggle-slider"></span></label></div>`).join('');
+  if (!Array.isArray(r) || !r.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Töötajaid ei leitud.</span>'; return; }
+  div.innerHTML = r.map(w => `
+    <div style="padding:9px 0;border-bottom:0.5px solid var(--piir2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'};flex:1">${w.lubatud ? '🧾' : '·'} ${w.nimi}</span>
+        <label class="toggle-switch">
+          <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleOaLigipaas(${w.id}, this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      ${(w.muujad && w.muujad.length) ? `
+        <div style="margin-top:6px;padding-left:20px;display:flex;flex-direction:column;gap:5px">
+          ${w.muujad.map(m => `
+            <div style="display:flex;align-items:center;gap:8px">
+              ${m.logo_url ? `<img src="${m.logo_url}" style="width:24px;height:24px;object-fit:contain;background:#fff;border-radius:5px;padding:2px" title="Praegune logo">` : ''}
+              <span style="font-size:12px;color:var(--hall);flex:1">${m.ettevote_nimi}${m.vaikimisi ? ' ★' : ''}</span>
+              <button type="button" class="nupp hall" style="font-size:10px;padding:3px 8px" onclick="document.getElementById('oa-logo-${m.id}').click()">🖼️ Logo</button>
+              <input type="file" id="oa-logo-${m.id}" accept="image/*" style="display:none" onchange="avLaadiOaLogo(${m.id}, this)">
+            </div>`).join('')}
+        </div>
+      ` : `<div style="margin-top:4px;padding-left:20px;font-size:11px;color:var(--hall)">Töötaja pole veel ühtki ettevõtet lisanud</div>`}
+    </div>`).join('');
+}
+async function avToggleOaLigipaas(workerId, lubatud) {
+  await api(`/api/omaarved/admin/lubatud/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+}
+async function avLaadiOaLogo(muujaId, input) {
+  const fail = input.files && input.files[0];
+  if (!fail) return;
+  const fd = new FormData();
+  fd.append('logo', fail);
+  const r = await fetch(`/api/omaarved/admin/logo/${muujaId}`, { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd }).then(r => r.json());
+  if (!r.ok) { alert('Logo üleslaadimine ebaõnnestus: ' + (r.veateade || '')); return; }
+  input.value = '';
+  laadiOaArvedLigipaas();
 }
 
 init();
