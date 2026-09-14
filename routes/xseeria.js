@@ -1072,4 +1072,15 @@ router.get('/admin/events/:eventId/minu-kulud', noudaAdmin, async (req, res) => 
   }
 });
 
+// Admin: märgi töötaja isiklik kulu (Minu kulud) talle tagasi makstuks/mittemakstuks.
+router.put('/admin/omakulud/:id/makstud', noudaAdmin, async (req, res) => {
+  const { makstud } = req.body;
+  try {
+    await pool.query('UPDATE xseeria_omakulud SET makstud=$1 WHERE id=$2', [!!makstud, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 module.exports = router;
