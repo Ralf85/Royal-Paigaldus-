@@ -5276,16 +5276,23 @@ async function xsLaadiKulud() {
     : '<div style="color:var(--hall);font-size:12px">Kulusid pole veel lisatud.</div>';
   if (!omaDiv) return;
   if (!omaKulud.length) { omaDiv.innerHTML = '<div style="color:var(--hall);font-size:12px">Töötajad pole veel kulusid lisanud.</div>'; return; }
-  omaDiv.innerHTML = `<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Selgitus</th><th>Summa</th><th></th></tr></thead><tbody>` +
-    omaKulud.map(k => `<tr>
+  const omaMakstud = omaKulud.filter(k => k.makstud).reduce((s, k) => s + parseFloat(k.summa), 0);
+  omaDiv.innerHTML = `<table><thead><tr><th>Töötaja</th><th>Kuupäev</th><th>Selgitus</th><th>Summa</th><th>Tasutud</th><th></th></tr></thead><tbody>` +
+    omaKulud.map(k => `<tr${k.makstud ? ' style="background:rgba(74,222,128,0.08)"' : ''}>
       <td style="font-weight:600">${escapeHtmlXs(k.worker_nimi)}</td>
       <td>${formatKp(k.kuupaev)}</td>
       <td>${escapeHtmlXs(k.selgitus)}</td>
       <td style="font-weight:600;color:#4ade80">${xsFmtEur(Number(k.summa))}</td>
+      <td><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;white-space:nowrap"><input type="checkbox" ${k.makstud ? 'checked' : ''} onchange="xsLulitaOmakuluMakstud(${k.id}, this.checked)" style="width:auto;accent-color:#16a34a;cursor:pointer"> ${k.makstud ? '✅ Tasutud' : 'Tasumata'}</label></td>
       <td style="white-space:nowrap">${k.foto_url ? `<a href="${k.foto_url}" target="_blank" style="font-size:11px;color:#818cf8">📷 tšekk</a>` : ''}</td>
     </tr>`).join('') +
-    `<tr style="font-weight:700;border-top:0.5px solid var(--piir2)"><td colspan="3">Kokku</td><td style="color:#4ade80">${xsFmtEur(omaKokku)}</td><td></td></tr>` +
+    `<tr style="font-weight:700;border-top:0.5px solid var(--piir2)"><td colspan="3">Kokku</td><td style="color:#4ade80">${xsFmtEur(omaKokku)}</td><td style="font-size:11px;color:var(--hall);font-weight:400">tasutud ${xsFmtEur(omaMakstud)}</td><td></td></tr>` +
     '</tbody></table>';
+}
+
+async function xsLulitaOmakuluMakstud(id, makstud) {
+  await api('/api/xseeria/admin/omakulud/' + id + '/makstud', { method: 'PUT', body: JSON.stringify({ makstud }) });
+  await xsLaadiKulud();
 }
 
 async function xsLulitaKuluMakstud(id, makstud) {
