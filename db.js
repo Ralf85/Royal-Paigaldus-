@@ -410,6 +410,8 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    // Kas admin on selle töötaja isikliku kulu talle juba tagasi maksnud.
+    await client.query(`ALTER TABLE xseeria_omakulud ADD COLUMN IF NOT EXISTS makstud BOOLEAN NOT NULL DEFAULT false;`);
     // ── ARVED (invoice-moodul) ──────────────────────────────────────────
     // Ettevõtete (Lidl/Cramo/...) arvele minevad püsiandmed — aadress, registrikood, KMKR, maksetähtaeg.
     // Ad-hoc (kolmanda osapoole) arvete puhul jäävad need ostja väljad arve enda peal (ettevote_id on siis null).
