@@ -304,26 +304,40 @@ router.delete('/valikud/:id', noudaAdmin, async (req, res) => {
 // viis=koond  -> üks rida kogutundide (levinuima tunnitasuga) + üks rida km transpordi kohta (nagu senine Lidli raport)
 // viis=tootajad -> üks rida töötaja kohta, kogus=tema tunnid, hind=tema tunnitasu selle ettevõtte juures (nagu Cramo arved)
 router.get('/autotaita', noudaAdmin, async (req, res) => {
-  const { ettevote_id, algus, lopp, viis } = req.query;
+  const { ettevote_id, algus, lopp, viis, esitus_hind } = req.query;
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
+  const hind = parseFloat(esitus_hind) || 0;
   try {
+    if (viis === 'objektid') {
+      const r = await pool.query(
+        `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi, SUM(t.tunnid) as tunnid
+         FROM tookirjed t
+         LEFT JOIN objektid o ON t.objekt_id = o.id
+         WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
+         GROUP BY o.nimi
+         ORDER BY o.nimi`,
+        [ettevote_id, algus, lopp]
+      );
+      const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
+        const kogus = parseFloat(row.tunnid);
+        return { kirjeldus: `Tehtud tööd (${row.objekt_nimi})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
+      });
+      return res.json({ ok: true, read });
+    }
+
     if (viis === 'tootajad') {
       const r = await pool.query(
-        `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid, we.tunnitasu
+        `SELECT w.nimi as worker_nimi, o.nimi as objekt_nimi, SUM(t.tunnid) as tunnid
          FROM tookirjed t
          JOIN workers w ON t.worker_id = w.id
          LEFT JOIN objektid o ON t.objekt_id = o.id
-         LEFT JOIN worker_ettevotted we ON we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
-         GROUP BY w.nimi, o.nimi, we.tunnitasu
+         GROUP BY w.nimi, o.nimi
          ORDER BY w.nimi, o.nimi`,
         [ettevote_id, algus, lopp]
       );
-      // Töökirjelduseks kasutatakse objekti kirjeldust (nt Cramo puhul "Soojakute hooldus ja paigaldus"),
-      // mitte üldsõnalist "Tööd" — nii nagu päris arvetel. Kui objekti pole (harv juhus), jääb "Tööd" varuvariandiks.
       const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
         const kogus = parseFloat(row.tunnid);
-        const hind = parseFloat(row.tunnitasu || 0);
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
         return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
       });
@@ -336,13 +350,8 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       [ettevote_id, algus, lopp]
     );
     const tunnid = parseFloat(tR.rows[0].tunnid), km = parseFloat(tR.rows[0].km);
-    const tasuR = await pool.query(
-      `SELECT tunnitasu, COUNT(*) c FROM worker_ettevotted WHERE ettevote_id=$1 AND tunnitasu > 0 GROUP BY tunnitasu ORDER BY c DESC LIMIT 1`,
-      [ettevote_id]
-    );
-    const tunnitasu = tasuR.rows[0] ? parseFloat(tasuR.rows[0].tunnitasu) : 0;
     const read = [];
-    if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind: tunnitasu, summa: +(tunnid * tunnitasu).toFixed(2) });
+    if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
     if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
     res.json({ ok: true, read });
   } catch (err) {
