@@ -1352,10 +1352,11 @@ router.get('/sisse-muujad', noudaAdmin, async (req, res) => {
   }
 });
 
-router.put('/sisse/:id/muuja', noudaAdmin, async (req, res) => {
+router.put('/:id/muuja', noudaAdmin, async (req, res) => {
   const { muuja_id } = req.body;
+  if (!muuja_id) return res.json({ ok: false, veateade: 'Vali müüja' });
   try {
-    await pool.query('UPDATE arve_sisse SET muuja_id=$1 WHERE id=$2', [muuja_id || null, req.params.id]);
+    await pool.query('UPDATE arved SET muuja_id=$1 WHERE id=$2', [muuja_id, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
