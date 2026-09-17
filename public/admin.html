@@ -4286,19 +4286,40 @@ async function laadiRaportEelvaade() {
 function laadiRaportCSV() {
   const { ettevote_id, workerIds, algus, lopp, objektId } = r_koguFiltrid();
   if (!ettevote_id) { alert('Vali ettevõte'); return; }
-  let url = `/api/admin/raport-csv-filter?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
+  let url = `/api/admin/raport-filter-csv?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
   if (objektId) url += `&objekt_id=${objektId}`;
-  if (workerIds.length) url += `&worker_ids=${workerIds.join(',')}`;
+  if (workerIds.length) url += `&workers=${workerIds.join(',')}`;
   window.location = url;
 }
 
-function laadiRaportExcel() {
+async function laadiRaportExcel() {
   const { ettevote_id, workerIds, algus, lopp, objektId } = r_koguFiltrid();
+  const teadeEl = document.getElementById('r-teade');
   if (!ettevote_id) { alert('Vali ettevõte'); return; }
-  let url = `/api/admin/raport-excel-filter?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
+  const opt = document.getElementById('r-ettevote').options[document.getElementById('r-ettevote').selectedIndex];
+  const tyyp = opt ? opt.dataset.tyyp : 'muu';
+  const esitusHind = prompt('Esitushind (€/h, käibemaksuta) selle raporti jaoks:', '25');
+  if (esitusHind === null) return;
+  const esitus_hind = parseFloat(esitusHind) || 0;
+  let url = `/api/admin/raport-filter?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}`;
   if (objektId) url += `&objekt_id=${objektId}`;
-  if (workerIds.length) url += `&worker_ids=${workerIds.join(',')}`;
-  window.location = url;
+  const rows = await api(url);
+  let andmed = (Array.isArray(rows) ? rows : []).filter(r => !workerIds.length || workerIds.includes(String(r.worker_id)));
+  if (!andmed.length) { teadeEl.style.display = 'block'; teadeEl.textContent = 'Andmeid ei leitud'; return; }
+  teadeEl.style.display = 'none';
+  const resp = await fetch('/api/admin/raport-excel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
+    body: JSON.stringify({ andmed, tyyp, algus, lopp, esitus_hind })
+  });
+  if (!resp.ok) { const j = await resp.json().catch(()=>({})); alert(j.veateade || 'Exceli genereerimine ebaõnnestus'); return; }
+  const blob = await resp.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(blobUrl);
 }
 
 // ── AUDIT LOGI ─────────────────────────────────────────────────
