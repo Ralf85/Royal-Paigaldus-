@@ -1269,16 +1269,18 @@ async function filterPäring(req) {
   const { ettevote_id, objekt_id, algus, lopp, workers } = req.query;
   const workerList = workers ? workers.split(',').filter(Boolean) : [];
 
-  let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+    let q = `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
             t.kilomeetrid, t.km_raha, t.lisakulu_summa, t.lisakulu_selgitus,
             t.objekt_id,
             w.nimi as worker_nimi, e.nimi as ettevote_nimi,
             COALESCE(o.nimi,'') as objekt_nimi,
+            COALESCE(lp.nimi,'') as lidl_projekt_nimi,
             COALESCE(we.tunnitasu, t.muu_tunnitasu, 0) as tunnitasu
      FROM tookirjed t
      JOIN workers w ON t.worker_id=w.id
      JOIN ettevotted e ON t.ettevote_id=e.id
      LEFT JOIN objektid o ON t.objekt_id=o.id
+     LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id=lp.id
      LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
      WHERE 1=1`;
 
