@@ -3936,7 +3936,7 @@ async function laadiTTWorkers(filter) {
   const div=document.getElementById('tt-workers-valik');
   div.innerHTML='';
   workers.filter(w=>w.aktiivne).forEach(w=>{
-    div.innerHTML+=`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" value="${w.id}" class="tt-worker-cb"> ${w.nimi}</label>`;
+    div.innerHTML+=`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="tt-worker-cb" style="width:auto"> ${w.nimi}</label>`;
   });
 }
 
@@ -4048,7 +4048,7 @@ function avaaMuutaTulevane(g) {
     const valitudIds = g.workers.map(w=>String(w.id_worker||w.worker_id||''));
     workers.filter(w=>w.aktiivne).forEach(w=>{
       const onValitud = g.workers.some(gw=>gw.nimi===w.nimi);
-      div.innerHTML+=`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" value="${w.id}" class="mt-worker-cb" ${onValitud?'checked':''}> ${w.nimi}</label>`;
+      div.innerHTML+=`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="mt-worker-cb" style="width:auto" ${onValitud?'checked':''}> ${w.nimi}</label>`;
     });
   });
   document.getElementById('muutaTulevaneModal').style.display='flex';
@@ -4243,7 +4243,7 @@ async function laadiRaportWorkers(ettevoteId) {
   (Array.isArray(objektid)?objektid:[]).forEach(()=>{});
   const workers = await api('/api/admin/tootajad');
   const div = document.getElementById('r-workers');
-  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" value="${w.id}" class="r-worker-cb" checked> ${w.nimi}</label>`).join('');
+  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="r-worker-cb" style="width:auto" checked> ${w.nimi}</label>`).join('');
 }
 
 function r_koguFiltrid() {
