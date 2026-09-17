@@ -2629,7 +2629,7 @@ async function laadiEttevoteLeht(nimi) {
       const tunnid = rowList.reduce((s, r) => s + (parseFloat(r.tunnid) || 0), 0);
       const summa = esitusHind ? tunnid * esitusHind * 1.24 : 0;
       dataSisuEl.innerHTML =
-        `<div style="padding:10px 16px;font-size:12px;color:var(--hall)">${viimaneArve ? `Loetud alates viimasest arvest — ${viimaneArve.number} (${formatKp(viimaneArve.kuupaev)})` : 'Arveid pole veel esitatud — loetud algusest peale'}</div>` +
+        `<div style="padding:10px 16px;font-size:12px;color:var(--hall)">${viimaneArve ? `Loetud alates viimasest arvest — ${viimaneArve.number} (${formatKp(viimaneArve.kuupaev)}) · <b style="color:var(--tekst2)">Arveldamata tööd alates ${formatKp(algus)}</b>` : 'Arveid pole veel esitatud — loetud algusest peale'}</div>` +
         '<table><tbody>' +
         `<tr><td>Tunnid (veel arveldamata)</td><td style="text-align:right">${tunnid.toFixed(1)}h</td></tr>` +
         (esitusHind ? `<tr><td>Summa (km-ga, veel saada)</td><td style="text-align:right;color:#4ade80;font-weight:600">${summa.toFixed(2)} €</td></tr>` : '') +
