@@ -4280,8 +4280,8 @@ async function laadiRaportEelvaade() {
   if (!list.length) { document.getElementById('r-eelvaade').innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Andmeid ei leitud</div>'; return; }
   const tunnid = list.reduce((s,r)=>s+parseFloat(r.tunnid||0),0);
   document.getElementById('r-eelvaade').innerHTML = `<div style="padding:10px 18px;font-size:12px;color:var(--hall)">Kokku: <b style="color:var(--tekst)">${tunnid.toFixed(1)}h</b> (${list.length} kirjet)</div>
-    <table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Objekt</th><th>Algus</th><th>Lõpp</th><th style="text-align:right">Tunnid</th></tr></thead><tbody>` +
-    list.map(r=>`<tr><td>${formatKp(r.kuupaev)}</td><td>${r.worker_nimi}</td><td>${r.objekt_nimi||'—'}</td><td>${(r.algus||'').slice(0,5)}</td><td>${(r.lopp||'').slice(0,5)}</td><td style="text-align:right">${parseFloat(r.tunnid).toFixed(1)}</td></tr>`).join('') +
+    <table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Objekt</th><th>Algus</th><th>Lõpp</th><th style="text-align:right">Tunnid</th><th>Kirjeldus</th></tr></thead><tbody>` +
+    list.map(r=>`<tr><td>${formatKp(r.kuupaev)}</td><td>${r.worker_nimi}</td><td>${r.objekt_nimi||'—'}</td><td>${(r.algus||'').slice(0,5)}</td><td>${(r.lopp||'').slice(0,5)}</td><td style="text-align:right">${parseFloat(r.tunnid).toFixed(1)}</td><td style="color:var(--hall);font-size:12px">${r.lidl_projekt_nimi || r.kommentaar || '—'}</td></tr>`).join('') +
     '</tbody></table>';
 }
 
@@ -4308,7 +4308,7 @@ async function laadiRaportExcel() {
   if (workerIds.length) url += `&workers=${workerIds.join(',')}`;
   const rows = await api(url);
   console.log('raport-filter excel vastus:', rows);
-  let andmed = Array.isArray(rows) ? rows : [];
+  let andmed = (Array.isArray(rows) ? rows : []).map(r => ({ ...r, kommentaar: r.lidl_projekt_nimi || r.kommentaar || '' }));
   if (!andmed.length) { teadeEl.style.display = 'block'; teadeEl.textContent = 'Andmeid ei leitud'; return; }
   teadeEl.style.display = 'none';
   const resp = await fetch('/api/admin/raport-excel', {
