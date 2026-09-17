@@ -489,6 +489,8 @@ async function initDB() {
         fail_public_id TEXT,
         loodud TIMESTAMP DEFAULT NOW()
       );
+      -- Kumb minu enda ettevõte (müüja) selle sissetuleva kulu kandis — eraldi sinu enda
+      -- OÜ-de (Royal Paigaldus / Five Under Series / Throw Far) eristamiseks kliendiprojektist.
       CREATE TABLE IF NOT EXISTS arve_muujad (
         id SERIAL PRIMARY KEY,
         ettevote_nimi VARCHAR(200) NOT NULL,
@@ -510,6 +512,7 @@ async function initDB() {
       );
     `);
     await client.query(`ALTER TABLE arve_lubatud ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id) ON DELETE SET NULL;`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id);`);
     // Vana deploy võis arve_sisse juba luua ilma nende veergudeta — lisame eraldi, et need kindlasti tekiks.
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
