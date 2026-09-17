@@ -5360,6 +5360,17 @@ let avRead = [];
 
 function avFmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 
+// Vanemad üleslaetud failid (enne kui koodis lisati failidele käsitsi .pdf laiend) on Cloudinary's
+// salvestatud ilma laiendita — Cloudinary'i "raw" tüüp ei tea siis, mis failitüüp see on, ja
+// brauser näitab tühja lehte. Lisame laiendi vaates endas juurde, kui see puudub, andmebaasi
+// midagi muutmata.
+function avFailUrl(url) {
+  if (!url) return url;
+  const viimaneOsa = url.split('/').pop().split('?')[0];
+  if (/\.[a-zA-Z0-9]{2,5}$/.test(viimaneOsa)) return url;
+  return url + '.pdf';
+}
+
 let avKliendidList = [];
 
 async function laadiArved() {
@@ -5965,7 +5976,7 @@ function avJoonistaArvedTabel() {
         <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
           ${a.fail_url
-            ? `<a href="${a.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
+            ? `<a href="${avFailUrl(a.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
           <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
@@ -6349,7 +6360,7 @@ function avJoonistaSisseTabel() {
         <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
         <td><span class="staatus-pill ${s.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaSisseStaatus(${s.id},'${s.staatus==='makstud'?'ootel':'makstud'}')">${s.staatus==='makstud'?'Makstud':'Ootel'}</span></td>
         <td style="display:flex;gap:6px">
-          ${s.fail_url ? `<a href="${s.fail_url}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>` : ''}
+          ${s.fail_url ? `<a href="${avFailUrl(s.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>` : ''}
           <button onclick="avMuudaSisse(${s.id})" class="av-tegevus-ikoon" title="Muuda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
           <button onclick="avKustutaSisse(${s.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
