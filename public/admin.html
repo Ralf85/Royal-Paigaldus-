@@ -1917,6 +1917,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
           <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
           <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
           <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
+          <button type="button" class="nupp hall" style="font-size:11px;padding:5px 12px" onclick="avLaadiKoikArvedZip()">⬇️ Laadi KÕIK alla (ZIP)</button>
           <span id="av-ajalugu-nool" onclick="avToggleKaart('av-ajalugu-body','av-ajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
         </div>
       </div>
@@ -5929,6 +5930,11 @@ function avLaadiArvedZip() {
   if (!avArvedValitud.size) return;
   window.open(`/api/arved/zip?ids=${[...avArvedValitud].join(',')}&_token=${TOKEN}`, '_blank');
 }
+function avLaadiKoikArvedZip() {
+  if (!avArvedList.length) return;
+  if (!confirm(`Laadid alla KÕIK ${avArvedList.length} arvet (filtreid eirates) ühe ZIP-ina. Jätkata?`)) return;
+  window.open(`/api/arved/zip?ids=${avArvedList.map(a => a.id).join(',')}&_token=${TOKEN}`, '_blank');
+}
 
 function avFiltreeriStaatus(s) {
   avStaatusFilter = s;
@@ -5962,13 +5968,14 @@ function avJoonistaArvedTabel() {
   div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr><th><input type="checkbox" onchange="avVaataKoikArved(this.checked)"></th><th>Nr</th><th>Kuupäev</th><th>Müüja</th><th>Ostja</th><th style="text-align:right">Summa</th><th>Staatus</th><th>Tegevused</th></tr></thead><tbody>` +
     arved.map(a => {
       const praeguneMuuja = avmMuujad.find(m => m.ettevote_nimi === a.muuja_nimi);
+      const vc = praeguneMuuja ? muujaVarv(praeguneMuuja.id) : '#565a61';
       return `
-      <tr>
+      <tr style="border-left:3px solid ${vc}">
         <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
         <td style="font-weight:600">${a.number}</td>
         <td>${formatKp(a.kuupaev)}</td>
         <td>${a.muuja_nimi
-          ? `<span style="color:var(--hall);font-size:12px">${a.muuja_nimi}</span>`
+          ? `<span style="color:${vc};font-size:12px;font-weight:600">${a.muuja_nimi}</span>`
           : `<select onchange="avMuudaArveMuuja(${a.id}, this.value)" style="font-size:11px;padding:3px 6px;width:auto;border-color:#f87171"><option value="">⚠️ Vali müüja</option>${avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('')}</select>`}
         </td>
         <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
