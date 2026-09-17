@@ -1982,6 +1982,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
     <div class="kaart" style="margin-top:16px">
       <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <span>📋 Sissetulevate ajalugu</span>
+        <select id="as-filt-muuja" style="font-size:11px;padding:5px 10px;width:auto" onchange="avFiltreeriSisseMuuja(this.value)"><option value="koik">Kõik minu ettevõtted</option></select>
         <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
         <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
         <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
@@ -6249,6 +6250,30 @@ async function avLoeSisseFail(file) {
 let avSisseMuudaId = null;
 let avSisseValitud = new Set();
 
+let avSisseMuujaFilter = 'koik';
+function muujaVarv(id) {
+  if (!id) return '#565a61';
+  const idx = avmMuujad.findIndex(m => String(m.id) === String(id));
+  return TOOTAJA_VARVID[(idx >= 0 ? idx : 0) % TOOTAJA_VARVID.length];
+}
+function avUuendaSisseMuujaFiltriValikud() {
+  const sel = document.getElementById('as-filt-muuja');
+  if (!sel) return;
+  const praegune = avSisseMuujaFilter;
+  sel.innerHTML = '<option value="koik">Kõik minu ettevõtted</option>' + avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('');
+  sel.value = praegune;
+}
+function avFiltreeriSisseMuuja(v) {
+  avSisseMuujaFilter = v;
+  avJoonistaSisseTabel();
+}
+async function avMuudaSisseMuuja(id, muujaId) {
+  await api(`/api/arved/sisse/${id}/muuja`, { method: 'PUT', body: JSON.stringify({ muuja_id: muujaId || null }) });
+  const rida = avSisseList.find(s => s.id === id);
+  if (rida) rida.muuja_id = muujaId ? parseInt(muujaId, 10) : null;
+  avJoonistaSisseTabel();
+}
+
 async function laadiSisseTabel() {
   const { kuu, aasta } = avValitudKuuAasta();
   const params = [];
@@ -6256,6 +6281,13 @@ async function laadiSisseTabel() {
   if (aasta) params.push('aasta=' + aasta);
   const sisse = await api('/api/arved/sisse' + (params.length ? '?' + params.join('&') : ''));
   avSisseList = Array.isArray(sisse) ? sisse : [];
+  const muujaKaardistus = await api('/api/arved/sisse-muujad');
+  if (muujaKaardistus && muujaKaardistus.ok && Array.isArray(muujaKaardistus.kaardistus)) {
+    const map = {};
+    muujaKaardistus.kaardistus.forEach(m => { map[m.id] = m.muuja_id; });
+    avSisseList.forEach(s => { s.muuja_id = map[s.id] || null; });
+  }
+  avUuendaSisseMuujaFiltriValikud();
   avSisseValitud.clear();
   avJoonistaSisseTabel();
   avUuendaKmAnalyys();
@@ -6263,23 +6295,27 @@ async function laadiSisseTabel() {
 
 function avJoonistaSisseTabel() {
   const div = document.getElementById('sisseTabel');
-  if (!avSisseList.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selles kuus üleslaetud tšekke/arveid pole</div>'; document.getElementById('as-zip-nupp').style.display = 'none'; return; }
-  const kokkuSumma = avSisseList.reduce((s, x) => s + (parseFloat(x.summa) || 0), 0);
-  const kmSumma = avSisseList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
+  const filtreeritudList = avSisseMuujaFilter === 'koik' ? avSisseList : avSisseList.filter(s => String(s.muuja_id) === String(avSisseMuujaFilter));
+  if (!filtreeritudList.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selle valiku kohta tšekke/arveid pole</div>'; document.getElementById('as-zip-nupp').style.display = 'none'; return; }
+  const kokkuSumma = filtreeritudList.reduce((s, x) => s + (parseFloat(x.summa) || 0), 0);
+  const kmSumma = filtreeritudList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
   const kmTaSumma = kokkuSumma - kmSumma;
+  const muujaValikudBase = [{ id: '', ettevote_nimi: '— vali —' }].concat(avmMuujad);
   div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr>
       <th><input type="checkbox" id="as-vali-koik" onchange="avVaataKoikSisse(this.checked)"></th>
-      <th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th>
+      <th>Kuupäev</th><th>Tähtaeg</th><th>Minu ettevõte</th><th>Klient/projekt</th><th>Kirjeldus</th>
       <th style="text-align:right">Summa km-ta</th><th style="text-align:right">Käibemaks</th><th style="text-align:right">Kokku</th>
       <th>Staatus</th><th>Tegevused</th>
     </tr></thead><tbody>` +
-    avSisseList.map(s => {
+    filtreeritudList.map(s => {
       const kmta = (parseFloat(s.summa) || 0) - (parseFloat(s.kaibemaks) || 0);
+      const vc = muujaVarv(s.muuja_id);
       return `
-      <tr>
+      <tr style="border-left:3px solid ${vc}">
         <td><input type="checkbox" ${avSisseValitud.has(s.id) ? 'checked' : ''} onchange="avVaataSisse(${s.id}, this.checked)"></td>
         <td>${formatKp(s.kuupaev)}</td>
         <td>${s.tahtaeg ? formatKp(s.tahtaeg) : '<span style="color:var(--hall)">—</span>'}</td>
+        <td><select onchange="avMuudaSisseMuuja(${s.id}, this.value)" style="font-size:12px;padding:4px 6px;width:auto;border-left:3px solid ${vc}">${muujaValikudBase.map(m => `<option value="${m.id}" ${String(m.id) === String(s.muuja_id||'') ? 'selected' : ''}>${m.ettevote_nimi}</option>`).join('')}</select></td>
         <td>${s.ettevote_nimi || '<span style="color:var(--hall)">—</span>'}</td>
         <td>${s.kirjeldus || ''}</td>
         <td style="text-align:right">${avFmtEur(kmta)}</td>
