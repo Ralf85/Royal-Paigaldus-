@@ -2099,6 +2099,7 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
             <input type="date" id="av-lopp" style="width:auto">
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('koond')">⚡ Täida tundide+km järgi</button>
             <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('tootajad')">⚡ Täida töötajate kaupa</button>
+            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('objektid')">⚡ Täida objektide (poodide) kaupa</button>
           </div>
         </div>
 
@@ -5836,7 +5837,11 @@ async function avAutotaida(viis) {
   const lopp = document.getElementById('av-lopp').value;
   if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Autotäitmine töötab ainult "Minu ettevõtete" klientidega (Lidl/Cramo/Muu), mitte kolmanda osapoolega.');
   if (!algus || !lopp) return naitaTeade('arve-teade', 'viga', 'Vali periood (algus ja lõpp)!');
-  const r = await api(`/api/arved/autotaita?ettevote_id=${ettevoteId}&algus=${algus}&lopp=${lopp}&viis=${viis}`);
+  const esitusHind = prompt('Esitushind (€/h, käibemaksuta) — see hind läheb arvele KLIENDILE, mitte töötaja tunnitasu:', '27');
+  if (esitusHind === null) return;
+  const esitus_hind = parseFloat(esitusHind) || 0;
+  if (!esitus_hind) return naitaTeade('arve-teade', 'viga', 'Sisesta korrektne esitushind');
+  const r = await api(`/api/arved/autotaita?ettevote_id=${ettevoteId}&algus=${algus}&lopp=${lopp}&viis=${viis}&esitus_hind=${esitus_hind}`);
   if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Autotäitmine ebaõnnestus');
   if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
   avRead = r.read;
