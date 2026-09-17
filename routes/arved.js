@@ -1336,9 +1336,29 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${failiNimi}.pdf"`);
     doc.pipe(res);
-  } catch (err) {
+} catch (err) {
     console.error(err);
     res.status(500).send('Viga PDF genereerimisel: ' + err.message);
+  }
+});
+
+// Milline minu ettevõte (müüja) selle sissetuleva kulu kandis — kliendiprojektist eraldi.
+router.get('/sisse-muujad', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, muuja_id FROM arve_sisse');
+    res.json({ ok: true, kaardistus: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.put('/sisse/:id/muuja', noudaAdmin, async (req, res) => {
+  const { muuja_id } = req.body;
+  try {
+    await pool.query('UPDATE arve_sisse SET muuja_id=$1 WHERE id=$2', [muuja_id || null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
   }
 });
 
