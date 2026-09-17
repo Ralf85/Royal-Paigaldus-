@@ -308,19 +308,31 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
   const hind = parseFloat(esitus_hind) || 0;
   try {
-    if (viis === 'objektid') {
+      if (viis === 'objektid') {
       const r = await pool.query(
-        `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi, SUM(t.tunnid) as tunnid
+        `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
+                SUM(t.tunnid) as tunnid,
+                SUM(t.kilomeetrid) as km,
+                string_agg(DISTINCT NULLIF(COALESCE(lp.nimi, t.kommentaar), ''), ' | ') as kirjeldused
          FROM tookirjed t
          LEFT JOIN objektid o ON t.objekt_id = o.id
+         LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
          GROUP BY o.nimi
          ORDER BY o.nimi`,
         [ettevote_id, algus, lopp]
       );
-      const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
-        const kogus = parseFloat(row.tunnid);
-        return { kirjeldus: `Tehtud tööd (${row.objekt_nimi})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
+      const read = [];
+      r.rows.forEach(row => {
+        const tunnid = parseFloat(row.tunnid) || 0;
+        const km = parseFloat(row.km) || 0;
+        if (tunnid > 0) {
+          const kirjeldusAlus = row.kirjeldused || 'Tehtud tööd';
+          read.push({ kirjeldus: `${kirjeldusAlus} (${row.objekt_nimi})`, kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
+        }
+        if (km > 0) {
+          read.push({ kirjeldus: `Transport (${row.objekt_nimi})`, kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
+        }
       });
       return res.json({ ok: true, read });
     }
