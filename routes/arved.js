@@ -1273,15 +1273,33 @@ function renderArvePdf(muuja, arve, read, logoBuf) {
     doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
     y += 18;
 
-    doc.font('Helvetica').fontSize(9);
+        doc.font('Helvetica').fontSize(9);
+    const BOTTOM_LIMIT = 750;
+    function joonistaTabeliPais() {
+      doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
+      doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
+      doc.text('Kirjeldus', col.kirjeldus + 4, y + 5);
+      doc.text('Kogus', col.kogus, y + 5, { width: 40, align: 'right' });
+      doc.text('Ühik', col.uhik, y + 5, { width: 30, align: 'right' });
+      doc.text('Hind', col.hind, y + 5, { width: 40, align: 'right' });
+      doc.text('Summa km-ta', col.summa, y + 5, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
+      y += 18;
+      doc.font('Helvetica').fontSize(9);
+    }
     read.forEach(r => {
       const kirjeldusH = doc.heightOfString(r.kirjeldus, { width: 290 });
+      const rowH = Math.max(kirjeldusH, 12) + 6;
+      if (y + rowH > BOTTOM_LIMIT) {
+        doc.addPage();
+        y = MARGIN;
+        joonistaTabeliPais();
+      }
       doc.text(r.kirjeldus, col.kirjeldus + 4, y, { width: 290 });
       doc.text(fmtNum(r.kogus), col.kogus, y, { width: 40, align: 'right' });
       doc.text(r.uhik || '', col.uhik, y, { width: 30, align: 'right' });
       doc.text(fmtEur(r.hind), col.hind, y, { width: 40, align: 'right' });
       doc.text(fmtEur(r.summa), col.summa, y, { width: leftX + CONTENT_W - col.summa - 4, align: 'right' });
-      y += Math.max(kirjeldusH, 12) + 6;
+      y += rowH;
       doc.moveTo(leftX, y - 3).lineTo(leftX + CONTENT_W, y - 3).strokeColor('#dddddd').stroke();
     });
 
