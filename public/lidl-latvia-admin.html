@@ -69,6 +69,21 @@
   .store-card.proj .store-badge { background: rgba(255,242,0,0.14); color: #FFF200; font-size: 14px; }
   .store-card.proj .store-photos { color: #7c8494; }
   .store-card.proj .store-meta { color: #7c8494; }
+  /* Pood, kus selle projekti pilte veel pole — hall ja tuhmim, aga endiselt nimekirjas,
+     et oleks näha, mis on tegemata. */
+  .store-card.tyhi { background: #12141a; border-color: rgba(255,255,255,0.06); opacity: 0.6; cursor: default; }
+  .store-card.tyhi:hover { border-color: rgba(255,255,255,0.12); transform: none; }
+  .store-card.tyhi .store-badge { background: #262b33; color: #7c8494; }
+  .store-card.tyhi .store-name { color: #8b93a1; }
+  .store-card.tyhi .store-photos { color: #5b6472; }
+  .gal-modes { display: flex; gap: 6px; margin-bottom: 14px; }
+  .gal-mode { background: #13161c; border: 0.5px solid rgba(255,255,255,0.09); color: #8b93a1; border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .gal-mode:hover { border-color: #3a4150; }
+  .gal-mode.active { background: #0050AA; border-color: #0050AA; color: #fff; }
+  .kaetus { display: flex; align-items: center; gap: 10px; background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 11px 15px; margin-bottom: 13px; font-size: 13px; flex-wrap: wrap; }
+  .kaetus b { color: #FFF200; }
+  .kaetus-riba { flex: 1; min-width: 120px; height: 7px; background: #1e2128; border-radius: 5px; overflow: hidden; }
+  .kaetus-riba i { display: block; height: 100%; background: linear-gradient(90deg, #0050AA, #FFF200); }
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .photo-item { position: relative; border-radius: 8px; overflow: hidden; background: #171b22; aspect-ratio: 1; }
   .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
@@ -124,6 +139,10 @@
   <main>
     <!-- GALLERY -->
     <div class="panel active" id="panel-gallery">
+      <div class="gal-modes">
+        <button class="gal-mode active" id="galModeStore" onclick="setGalleryMode('store')">🏬 By store</button>
+        <button class="gal-mode" id="galModeProject" onclick="setGalleryMode('project')">📁 By project</button>
+      </div>
       <div class="crumb" id="galleryCrumb"></div>
       <div id="galleryBody"><div class="empty">Loading...</div></div>
     </div>
@@ -268,7 +287,7 @@ async function start() {
   document.getElementById('tabAdmins').style.display = isMainAdmin ? 'inline-block' : 'none';
   document.getElementById('loginView').style.display = 'none';
   document.getElementById('appView').style.display = 'block';
-  openGalleryStores();
+  galleryStart();
 }
 
 function showLogin() {
@@ -303,7 +322,7 @@ async function doLogout() {
 function openTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
-  if (name === 'gallery') openGalleryStores();
+  if (name === 'gallery') galleryStart();
   if (name === 'timeline') loadTimeline();
   if (name === 'stores') loadStores();
   if (name === 'projects') loadProjects();
@@ -313,6 +332,105 @@ function openTab(name) {
 
 // ── GALLERY ──────────────────────────────────────────────────────
 let gStore = null, gProject = null;
+let galMode = 'store';   // 'store' = Poed → Projektid → Pildid, 'project' = Projektid → Poed → Pildid
+
+function setGalleryMode(m) {
+  galMode = m;
+  document.getElementById('galModeStore').classList.toggle('active', m === 'store');
+  document.getElementById('galModeProject').classList.toggle('active', m === 'project');
+  if (m === 'store') openGalleryStores(); else openProjectList();
+}
+
+function galleryStart() {
+  if (galMode === 'store') openGalleryStores(); else openProjectList();
+}
+
+// ── TEE 2: Projektid → Poed (kõik, ka tegemata) → Pildid ─────────
+let pStore = null, pProject = null;
+
+async function openProjectList() {
+  pProject = null; pStore = null;
+  document.getElementById('galleryCrumb').innerHTML = '<span>Projects</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/projects');
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.projects.length) { body.innerHTML = '<div class="empty">No projects yet — add them on the Projects tab.</div>'; return; }
+  const total = r.total_stores || 0;
+  body.innerHTML = '<div class="grid-cards">' + r.projects.map(p => {
+    const pct = total ? Math.round(p.store_count / total * 100) : 0;
+    return `
+    <div class="store-card proj" onclick="openProjectStores(${p.project_id}, '${esc(p.project_name).replace(/'/g, "\\'")}')">
+      <div class="store-top">
+        <span class="store-badge">📁</span>
+        <span class="store-photos">📷 ${p.photo_count}</span>
+      </div>
+      <div class="store-name">${esc(p.project_name)}</div>
+      <div class="store-meta">${p.store_count}/${total} stores done${total ? ' · ' + pct + '%' : ''}</div>
+      <div class="kaetus-riba" style="margin-top:9px"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function openProjectStores(projectId, projectName) {
+  pProject = { id: projectId, name: projectName };
+  pStore = null;
+  document.getElementById('galleryCrumb').innerHTML =
+    '<button onclick="openProjectList()">Projects</button><span>›</span><span>' + esc(projectName) + '</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/project/' + projectId + '/stores');
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.stores.length) { body.innerHTML = '<div class="empty">No stores yet — add them on the Stores tab.</div>'; return; }
+  const pct = r.total ? Math.round(r.done / r.total * 100) : 0;
+  body.innerHTML =
+    `<div class="kaetus">
+       <span><b>${r.done}</b> of ${r.total} stores done</span>
+       <div class="kaetus-riba"><i style="width:${pct}%"></i></div>
+       <span style="color:#7c8494">${r.total - r.done} still missing</span>
+     </div>` +
+    '<div class="grid-cards">' + r.stores.map(s => {
+      const tyhi = !s.photo_count;
+      const klikk = tyhi ? '' : ` onclick="openProjectStorePhotos(${s.store_id}, '${esc(s.number || '')}', '${esc(s.name).replace(/'/g, "\\'")}')"`;
+      return `
+      <div class="store-card ${tyhi ? 'tyhi' : ''}"${klikk}>
+        <div class="store-top">
+          <span class="store-badge">${esc(s.number || 'LV')}</span>
+          <span class="store-photos">${tyhi ? '— not done' : '📷 ' + s.photo_count}</span>
+        </div>
+        <div class="store-name">${esc(s.name)}</div>
+        <div class="store-meta">${tyhi ? 'No photos in this project' : fmtDate(s.last_date)}</div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+async function openProjectStorePhotos(storeId, number, name) {
+  pStore = { id: storeId, number, name };
+  document.getElementById('galleryCrumb').innerHTML =
+    '<button onclick="openProjectList()">Projects</button><span>›</span>' +
+    `<button onclick="openProjectStores(${pProject.id}, '${esc(pProject.name).replace(/'/g, "\\'")}')">${esc(pProject.name)}</button>` +
+    '<span>›</span><span>' + esc(storeLabel(number, name)) + '</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/store/' + storeId + '/photos?project_id=' + pProject.id);
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.photos.length) { body.innerHTML = '<div class="empty">No photos.</div>'; return; }
+  body.innerHTML =
+    `<div style="margin-bottom:12px"><a class="btn small" href="/api/latvia/gallery/zip/${storeId}?project_id=${pProject.id}&_token=${encodeURIComponent(token)}" style="text-decoration:none">⬇ Download these photos (ZIP)</a></div>` +
+    '<div class="photo-grid">' + r.photos.map(p => `
+      <div class="photo-item">
+        <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
+        <button class="photo-del" title="Delete photo" onclick="deleteProjectPhoto(${p.id})">✕</button>
+        <div class="photo-cap">${fmtDate(p.work_date)}${p.worker_name ? ' · ' + esc(p.worker_name) : ''}</div>
+      </div>`).join('') + '</div>';
+}
+
+async function deleteProjectPhoto(id) {
+  if (!confirm('Delete this photo permanently?')) return;
+  const r = await api('/admin/photos/' + id, { method: 'DELETE' });
+  if (!r.ok) { alert(r.error || 'Delete failed'); return; }
+  if (pStore) openProjectStorePhotos(pStore.id, pStore.number, pStore.name);
+}
 
 async function openGalleryStores() {
   gStore = null; gProject = null;
