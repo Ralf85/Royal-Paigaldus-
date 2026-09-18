@@ -13,6 +13,11 @@
     .topbar-title { font-size: 14px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 8px; }
     .topbar-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: #FFF200; color: #002060; }
     .leht { max-width: 720px; margin: 0 auto; padding: 20px 16px 40px; }
+    /* Vaate valik: poepõhine vs projektipõhine */
+    .vaate-nupud { display: flex; gap: 6px; margin-bottom: 16px; }
+    .vaate-nupp { background: #13161c; border: 0.5px solid rgba(255,255,255,0.09); color: #8b93a1; border-radius: 20px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .vaate-nupp:hover { border-color: #3a4150; }
+    .vaate-nupp.ak { background: #002060; border-color: #003d99; color: #fff; }
     /* Breadcrumb */
     .murr { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; color: #7a8290; }
     .murr-osa { cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -29,11 +34,24 @@
     .kaart-noole { font-size: 18px; color: #555; flex-shrink: 0; }
     /* Poodide kastid (avavaade) */
     .poe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
-    .poe-kaart { background: #13161c; border: 1.5px solid #252830; border-radius: 16px; padding: 22px 10px 16px; text-align: center; cursor: pointer; transition: all 0.15s; }
+    .poe-kaart { background: #13161c; border: 1.5px solid #252830; border-radius: 16px; padding: 22px 10px 16px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
     .poe-kaart:hover { border-color: #FFF200; transform: translateY(-2px); }
     .poe-number { font-size: 30px; font-weight: 800; color: #FFF200; line-height: 1; }
     .poe-nimi { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-top: 6px; }
     .poe-meta { font-size: 11px; color: #7a8290; margin-top: 8px; line-height: 1.4; }
+    /* Pood, kus selle projekti pilte veel pole — hall ja klikkimatu, aga nimekirjas näha,
+       et oleks kohe aru saada, mis on tegemata. */
+    .poe-kaart.tyhi { background: #101217; border-color: rgba(255,255,255,0.05); opacity: 0.55; cursor: default; }
+    .poe-kaart.tyhi:hover { border-color: rgba(255,255,255,0.08); transform: none; }
+    .poe-kaart.tyhi .poe-number { color: #4a5160; }
+    .poe-kaart.tyhi .poe-nimi { color: #7a8290; }
+    .poe-kaart.tehtud { border-color: rgba(74,222,128,0.35); }
+    .poe-tehtud-markk { position: absolute; top: 8px; right: 10px; font-size: 12px; color: #4ade80; }
+    /* Kaetuse riba */
+    .kaetus { display: flex; align-items: center; gap: 12px; background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; flex-wrap: wrap; }
+    .kaetus b { color: #FFF200; }
+    .kaetus-riba { flex: 1; min-width: 120px; height: 7px; background: #1e2128; border-radius: 5px; overflow: hidden; }
+    .kaetus-riba i { display: block; height: 100%; background: linear-gradient(90deg, #002060, #FFF200); }
     .tyhi { padding: 60px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
     .laadimine { padding: 60px 20px; text-align: center; color: #7a8290; font-size: 13px; }
     /* Pildigrid */
@@ -60,7 +78,6 @@
     .kommentaar-nupp:hover { border-color: #c9a84c; color: #c9a84c; }
     .kommentaar-nupp.aktiivsed { border-color: #ef4444; color: #ef4444; font-weight: 700; }
     .poe-kommentaar-marker { position: absolute; top: 10px; right: 12px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; border-radius: 10px; padding: 2px 6px; }
-    .poe-kaart { position: relative; }
     .kmodal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 400; align-items: center; justify-content: center; padding: 20px; }
     .kmodal.avatud { display: flex; }
     .kmodal-sisu { background: #13161c; border: 0.5px solid #252830; border-radius: 14px; max-width: 480px; width: 100%; max-height: 82vh; display: flex; flex-direction: column; }
@@ -118,6 +135,10 @@
     <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
   </div>
   <div class="leht">
+    <div class="vaate-nupud" id="vaate-nupud">
+      <button class="vaate-nupp ak" id="vaade-pood" onclick="setVaade('pood')">🏬 Poodide kaupa</button>
+      <button class="vaate-nupp" id="vaade-projekt" onclick="setVaade('projekt')">📁 Projektide kaupa</button>
+    </div>
     <div class="murr" id="murr"></div>
     <div class="toimingud-riba" id="toimingud-riba" style="display:none">
       <span class="foto-arv" id="foto-arv"></span>
@@ -153,6 +174,9 @@
   <script>
     var TOKEN = localStorage.getItem('workerToken') || '';
     var tase = 1;
+    // vaade: 'pood' = Poed → Projektid → Pildid (algne vaade, muutmata)
+    //        'projekt' = Projektid → Poed (kõik, ka tegemata) → Pildid
+    var vaade = 'pood';
     var valitudObjekt = null;   // { id, nimi }
     var valitudKirjeldus = null; // string
     var praegusedPildid = [];
@@ -171,9 +195,22 @@
       });
     }
 
+    function setVaade(uus) {
+      vaade = uus;
+      document.getElementById('vaade-pood').classList.toggle('ak', uus === 'pood');
+      document.getElementById('vaade-projekt').classList.toggle('ak', uus === 'projekt');
+      if (uus === 'pood') avaPoed(true); else avaProjektiNimekiri(true);
+    }
+
+    function naitaVaateNupud(naita) {
+      document.getElementById('vaate-nupud').style.display = naita ? 'flex' : 'none';
+    }
+
     function tagasiNupp() {
       if (tase === 3) { avaObjekt(valitudObjekt.id, valitudObjekt.nimi, true); }
       else if (tase === 2) { avaPoed(true); }
+      else if (tase === 'p3') { avaProjektiPoed(valitudKirjeldus, true); }
+      else if (tase === 'p2') { avaProjektiNimekiri(true); }
       else if (tase === 'krono') { avaPoed(true); }
       else { window.location = '/'; }
     }
@@ -194,10 +231,11 @@
     function uuendaURL(push) {
       var params = new URLSearchParams();
       params.set('tase', tase);
+      params.set('vaade', vaade);
       if (valitudObjekt) { params.set('objekt_id', valitudObjekt.id); params.set('objekt_nimi', valitudObjekt.nimi); }
       if (valitudKirjeldus) params.set('kirjeldus', valitudKirjeldus);
       var url = '/lidl-eesti?' + params.toString();
-      var state = { tase: tase, objekt: valitudObjekt, kirjeldus: valitudKirjeldus };
+      var state = { tase: tase, vaade: vaade, objekt: valitudObjekt, kirjeldus: valitudKirjeldus };
       if (push) history.pushState(state, '', url);
       else history.replaceState(state, '', url);
     }
@@ -205,6 +243,19 @@
     function renderMurr() {
       var el = document.getElementById('murr');
       var osad = [];
+      if (vaade === 'projekt') {
+        osad.push('<span class="murr-osa' + (tase === 'p1' ? ' aktiivne' : '') + '" onclick="avaProjektiNimekiri(true)">📁 Projektid</span>');
+        if (valitudKirjeldus) {
+          osad.push('<span class="murr-sep">›</span>');
+          osad.push('<span class="murr-osa' + (tase === 'p2' ? ' aktiivne' : '') + '" onclick=\'avaProjektiPoed(' + JSON.stringify(valitudKirjeldus) + ', true)\'>' + valitudKirjeldus + '</span>');
+        }
+        if (tase === 'p3' && valitudObjekt) {
+          osad.push('<span class="murr-sep">›</span>');
+          osad.push('<span class="murr-osa aktiivne">' + valitudObjekt.nimi + '</span>');
+        }
+        el.innerHTML = osad.join('');
+        return;
+      }
       osad.push('<span class="murr-osa' + (tase === 1 ? ' aktiivne' : '') + '" onclick="avaPoed(true)">🏬 Poed</span>');
       if (valitudObjekt) {
         osad.push('<span class="murr-sep">›</span>');
@@ -219,6 +270,10 @@
 
     // ── TASE 1: Poed ───────────────────────────────────────────
     async function avaPoed(push) {
+      vaade = 'pood';
+      document.getElementById('vaade-pood').classList.add('ak');
+      document.getElementById('vaade-projekt').classList.remove('ak');
+      naitaVaateNupud(true);
       tase = 1; valitudObjekt = null; valitudKirjeldus = null;
       renderMurr();
       document.getElementById('toimingud-riba').style.display = 'none';
@@ -240,10 +295,104 @@
       }).join('') + '</div>';
     }
 
+    // ── PROJEKTIVAADE, TASE 1: projektide nimekiri ────────────
+    async function avaProjektiNimekiri(push) {
+      vaade = 'projekt';
+      document.getElementById('vaade-projekt').classList.add('ak');
+      document.getElementById('vaade-pood').classList.remove('ak');
+      naitaVaateNupud(true);
+      tase = 'p1'; valitudObjekt = null; valitudKirjeldus = null;
+      renderMurr();
+      document.getElementById('toimingud-riba').style.display = 'none';
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/projektide-nimekiri');
+      if (!r.ok || !r.projektid || !r.projektid.length) {
+        sisu.innerHTML = '<div class="tyhi">Ühtegi projekti pole veel</div>';
+        return;
+      }
+      var kokku = r.poode_kokku || 0;
+      sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
+        var poode = parseInt(p.poode_arv, 10) || 0;
+        var pct = kokku ? Math.round(poode / kokku * 100) : 0;
+        return '<div class="kaart" onclick=\'avaProjektiPoed(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
+          + '<div style="flex:1;min-width:0">'
+          + '<div class="kaart-nimi">' + p.kirjeldus + '</div>'
+          + '<div class="kaart-meta">' + poode + '/' + kokku + ' poodi tehtud · ' + p.piltide_arv + ' pilti'
+          + (p.viimane_kuupaev ? ' · viimati ' + formatKp(p.viimane_kuupaev) : '') + '</div>'
+          + '<div class="kaetus-riba" style="margin-top:9px"><i style="width:' + pct + '%"></i></div>'
+          + '</div>'
+          + '<div class="kaart-noole">›</div></div>';
+      }).join('') + '</div>';
+    }
+
+    // ── PROJEKTIVAADE, TASE 2: kõik poed selle projekti lõikes ─
+    async function avaProjektiPoed(kirjeldus, push) {
+      vaade = 'projekt';
+      naitaVaateNupud(true);
+      tase = 'p2'; valitudKirjeldus = kirjeldus; valitudObjekt = null;
+      renderMurr();
+      document.getElementById('toimingud-riba').style.display = 'none';
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/projekt-poed?kirjeldus=' + encodeURIComponent(kirjeldus));
+      if (!r.ok || !r.poed || !r.poed.length) {
+        sisu.innerHTML = '<div class="tyhi">Ühtegi aktiivset Lidli objekti pole</div>';
+        return;
+      }
+      var pct = r.kokku ? Math.round(r.tehtud / r.kokku * 100) : 0;
+      var kaetus = '<div class="kaetus">'
+        + '<span><b>' + r.tehtud + '</b> / ' + r.kokku + ' poodi tehtud</span>'
+        + '<div class="kaetus-riba"><i style="width:' + pct + '%"></i></div>'
+        + '<span style="color:#7a8290">' + (r.kokku - r.tehtud) + ' veel tegemata</span>'
+        + '</div>';
+      sisu.innerHTML = kaetus + '<div class="poe-grid">' + r.poed.map(function(p) {
+        var osad = poeNimiOsad(p.objekt_nimi);
+        var onTehtud = p.piltide_arv > 0;
+        var klikk = onTehtud
+          ? ' onclick=\'avaProjektiPildid(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\''
+          : '';
+        return '<div class="poe-kaart ' + (onTehtud ? 'tehtud' : 'tyhi') + '"' + klikk + '>'
+          + (onTehtud ? '<div class="poe-tehtud-markk">✓</div>' : '')
+          + (osad.number ? '<div class="poe-number">' + osad.number + '</div>' : '')
+          + '<div class="poe-nimi">' + osad.nimi + '</div>'
+          + '<div class="poe-meta">' + (onTehtud
+              ? (p.piltide_arv + ' pilti<br>' + formatKp(p.viimane_kuupaev))
+              : 'tegemata')
+          + '</div></div>';
+      }).join('') + '</div>';
+    }
+
+    // ── PROJEKTIVAADE, TASE 3: ühe poe pildid selle projekti all ─
+    async function avaProjektiPildid(objektId, objektNimi, push) {
+      vaade = 'projekt';
+      tase = 'p3'; valitudObjekt = { id: objektId, nimi: objektNimi };
+      renderMurr();
+      if (push) uuendaURL(true); else uuendaURL(false);
+      var sisu = document.getElementById('sisu');
+      sisu.innerHTML = '<div class="laadimine">Laadimine...</div>';
+      var r = await api('/api/kristo/pildid/' + objektId + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus));
+      praegusedPildid = (r.ok && r.pildid) ? r.pildid : [];
+      var riba = document.getElementById('toimingud-riba');
+      if (!praegusedPildid.length) {
+        riba.style.display = 'none';
+        sisu.innerHTML = '<div class="tyhi">Selle projekti alt pilte ei leitud</div>';
+        return;
+      }
+      riba.style.display = 'flex';
+      document.getElementById('foto-arv').textContent = praegusedPildid.length + ' pilti';
+      sisu.innerHTML = '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
+        return '<img src="' + p.url + '" loading="lazy" onclick="avaSuur(' + i + ')">';
+      }).join('') + '</div>';
+    }
+
     // ── KRONOLOOGIA: kõik tööd kõigist poodidest ühes voos, uusim üleslaetud pilt enne ──
     var kronoKirjed = [];
     async function avaKronoloogia(push) {
       tase = 'krono'; valitudObjekt = null; valitudKirjeldus = null;
+      naitaVaateNupud(false);
       document.getElementById('toimingud-riba').style.display = 'none';
       document.getElementById('murr').innerHTML = '<span class="murr-osa" onclick="avaPoed(true)">🏬 Poed</span><span class="murr-sep">›</span><span class="murr-osa aktiivne">🕐 Kronoloogia</span>';
       if (push) history.pushState({ tase: 'krono' }, '', '/lidl-eesti?tase=krono');
@@ -282,6 +431,8 @@
 
     // ── TASE 2: Projektid ühe poe sees ────────────────────────
     async function avaObjekt(objektId, objektNimi, push) {
+      vaade = 'pood';
+      naitaVaateNupud(true);
       tase = 2; valitudObjekt = { id: objektId, nimi: objektNimi }; valitudKirjeldus = null;
       renderMurr();
       document.getElementById('toimingud-riba').style.display = 'none';
@@ -306,6 +457,7 @@
 
     // ── TASE 3: Pildid ─────────────────────────────────────────
     async function avaProjekt(kirjeldus, push) {
+      vaade = 'pood';
       tase = 3; valitudKirjeldus = kirjeldus;
       renderMurr();
       if (push) uuendaURL(true); else uuendaURL(false);
@@ -429,6 +581,13 @@
       var s = e.state;
       if (!s || s.tase === 1) { avaPoed(false); return; }
       if (s.tase === 'krono') { avaKronoloogia(false); return; }
+      if (s.tase === 'p1') { avaProjektiNimekiri(false); return; }
+      if (s.tase === 'p2' && s.kirjeldus) { avaProjektiPoed(s.kirjeldus, false); return; }
+      if (s.tase === 'p3' && s.kirjeldus && s.objekt) {
+        valitudKirjeldus = s.kirjeldus;
+        avaProjektiPildid(s.objekt.id, s.objekt.nimi, false);
+        return;
+      }
       if (s.tase === 2 && s.objekt) { avaObjekt(s.objekt.id, s.objekt.nimi, false); return; }
       if (s.tase === 3 && s.objekt && s.kirjeldus) {
         valitudObjekt = s.objekt;
@@ -447,6 +606,13 @@
       var algTaseParam = params.get('tase') || '1';
       if (algTaseParam === 'krono') {
         await avaKronoloogia(false);
+      } else if (algTaseParam === 'p1') {
+        await avaProjektiNimekiri(false);
+      } else if (algTaseParam === 'p2' && params.get('kirjeldus')) {
+        await avaProjektiPoed(params.get('kirjeldus'), false);
+      } else if (algTaseParam === 'p3' && params.get('kirjeldus') && params.get('objekt_id')) {
+        valitudKirjeldus = params.get('kirjeldus');
+        await avaProjektiPildid(parseInt(params.get('objekt_id'), 10), params.get('objekt_nimi') || '', false);
       } else if (parseInt(algTaseParam, 10) === 2 && params.get('objekt_id')) {
         await avaObjekt(parseInt(params.get('objekt_id'), 10), params.get('objekt_nimi') || '', false);
       } else if (parseInt(algTaseParam, 10) === 3 && params.get('objekt_id') && params.get('kirjeldus')) {
