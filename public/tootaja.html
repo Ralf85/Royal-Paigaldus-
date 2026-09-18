@@ -72,6 +72,7 @@
     .emp-card.arved { background: #0a1f14; border-color: #14532d; cursor: pointer; }
     .emp-card.omaarved { background: #201607; border-color: #78350f; cursor: pointer; }
     .emp-card.padel { background: #052e16; border-color: #166534; cursor: pointer; }
+    .emp-card.latvia { background: #1f0a0d; border-color: #7c1d24; cursor: pointer; }
     .emp-logo { width: 40px; height: 40px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
     .emp-logo.lidl { background: #FFF200; border-radius: 50%; }
     .emp-logo.cramo { background: #CD2200; border-radius: 9px; }
@@ -84,6 +85,7 @@
     .emp-logo.arved { background: #16a34a; border-radius: 9px; }
     .emp-logo.omaarved { background: #b45309; border-radius: 9px; }
     .emp-logo.padel { background: #16a34a; border-radius: 9px; }
+    .emp-logo.latvia { background: #9E3039; border-radius: 9px; }
     .emp-logo span { font-size: 10px; font-weight: 800; }
     .emp-logo.lidl span { color: #0050AA; }
     .emp-logo.cramo span { color: #fff; }
@@ -101,6 +103,7 @@
     .emp-label.arved { color: #4ade80; }
     .emp-label.omaarved { color: #fb923c; }
     .emp-label.padel { color: #4ade80; }
+    .emp-label.latvia { color: #f08a90; }
     .emp-tunnid { font-size: 20px; font-weight: 700; color: #fff; }
     .emp-tunnid-sub { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 3px; }
     .kaart { background: var(--bg2); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
@@ -397,6 +400,7 @@
     var onArved = false;
     var onPadel = false;
     var onOmaArved = false;
+    var onLatvia = false;
     var TOKEN = localStorage.getItem('workerToken') || '';
     var kalenderKuu = new Date();
     var numpadVaartus = '0';
@@ -480,7 +484,11 @@
     async function laadiKoik() {
       document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
       document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), laadiMinuTeated()]);
+      // NB: ligipääsu kontrollid PEAVAD lõppema enne laadiEttevotted() käivitamist — plaatide
+      // HTML koostatakse onXseeria/onArved/onPadel/onLatvia lippude põhjal. Kui need jooksevad
+      // paralleelselt, jõuab joonistamine vahel enne vastust valmis ja moodul jääb plaadita.
+      await Promise.all([kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), kontrolliLatvia()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated()]);
     }
 
     async function kontrolliMerekohvik() {
@@ -525,6 +533,21 @@
       try { var v = await api('/api/padel/kontroll'); onPadel = v && v.lubatud; } catch(e) {}
     }
 
+    // LIDL LATVIA — eraldi fotomoodul, kogu liides inglise keeles. Plaat ilmub ainult neile
+    // töötajatele, kellele Läti admin on ligipääsu lubanud (lv_access).
+    async function kontrolliLatvia() {
+      try { var v = await api('/api/latvia/check'); onLatvia = v && v.allowed; } catch(e) { onLatvia = false; }
+    }
+
+    function latviaKaartHtml(extraAttr) {
+      if (!onLatvia) return '';
+      return '<a class="emp-card latvia" href="/lidl-latvia" ' + (extraAttr || '') + '>'
+        + '<div class="emp-logo latvia"><span style="font-size:18px">🇱🇻</span></div>'
+        + '<div class="emp-label latvia">LIDL LATVIA</div>'
+        + '<div class="emp-tunnid">📷</div>'
+        + '<div class="emp-tunnid-sub">photo upload</div></a>';
+    }
+
     async function laadiEttevotted() {
       var ettevotted = await api('/api/tood/minu-ettevotted');
       var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
@@ -551,7 +574,8 @@
             + '<div class="emp-logo padel"><span style="font-size:18px">🎾</span></div>'
             + '<div class="emp-label padel">PADEL</div>'
             + '<div class="emp-tunnid">✓</div>'
-            + '<div class="emp-tunnid-sub">tulemused ja edetabel</div></a>' : '');
+            + '<div class="emp-tunnid-sub">tulemused ja edetabel</div></a>' : '')
+          + latviaKaartHtml('style="grid-column:1"');
         return;
       }
       var tunnidFirma = {};
@@ -603,7 +627,8 @@
         + '<div class="emp-logo padel"><span style="font-size:18px">🎾</span></div>'
         + '<div class="emp-label padel">PADEL</div>'
         + '<div class="emp-tunnid">✓</div>'
-        + '<div class="emp-tunnid-sub">tulemused ja edetabel</div></a>' : '');
+        + '<div class="emp-tunnid-sub">tulemused ja edetabel</div></a>' : '')
+      + latviaKaartHtml('');
     }
 
     async function laadiMinuTeated() {
