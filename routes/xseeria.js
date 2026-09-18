@@ -896,13 +896,21 @@ router.get('/event/:eventId/tegevused', noudaLubatud, async (req, res) => {
 // ---------- WORKER: MINU KULUD (isiklikud kulud selle konkreetse võistluse kohta — kütus, toit, tööriistad jne) ----------
 // Sama põhimõte, mis Rally Estonia / EDGF "Minu kulud", aga siia lisandub event_id, kuna X-seerias
 // on mitu eraldi võistlust ja iga võistluse kulud tahetakse eraldi hoida.
+//
+// MAKSTUD: kui admin paneb kulureale "Makstud" linnukese (vt /admin/omakulud/:id/makstud allpool),
+// näeb töötaja seda kohe oma X-seeria vaates ("✅ Tasutud"). Makstud kulu on lukus — töötaja ei saa
+// seda enam muuta ega kustutada, sest siis muutuks tagantjärele summa, mis on juba välja makstud.
+// Admin saab sellist kirjet endiselt parandada (nt kui linnuke sai kogemata pandud).
 
 router.get('/event/:eventId/minu-kulud', noudaLubatud, async (req, res) => {
   try {
     const workerId = req.session.workerId || null;
     if (!workerId) return res.json({ ok: true, kulud: [] });
     const r = await pool.query(
-      'SELECT * FROM xseeria_omakulud WHERE event_id=$1 AND worker_id=$2 ORDER BY kuupaev DESC',
+      `SELECT *, COALESCE(makstud, false) AS makstud
+       FROM xseeria_omakulud
+       WHERE event_id=$1 AND worker_id=$2
+       ORDER BY COALESCE(makstud, false) ASC, kuupaev DESC`,
       [req.params.eventId, workerId]
     );
     res.json({ ok: true, kulud: r.rows });
@@ -951,6 +959,11 @@ router.post('/minu-kulud/:id/uuenda', noudaLubatud, upload.single('foto'), async
     const params = req.session.isAdmin ? [req.params.id] : [req.params.id, req.session.workerId];
     const vana = await pool.query(`SELECT * FROM xseeria_omakulud WHERE id=$1${omanikTingimus}`, params);
     if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    // Juba tasutud kulu on töötaja jaoks lukus — vastasel juhul muutuks tagantjärele summa,
+    // mille admin on juba välja maksnud. Admin saab vajadusel ikka parandada.
+    if (!req.session.isAdmin && vana.rows[0].makstud) {
+      return res.json({ ok: false, veateade: 'See kulu on juba tasutud — muutmiseks võta ühendust adminiga' });
+    }
     let foto_url = vana.rows[0].foto_url;
     let foto_public_id = vana.rows[0].foto_public_id;
     if (req.file) {
@@ -983,6 +996,9 @@ router.delete('/minu-kulud/:id', noudaLubatud, async (req, res) => {
     const params = req.session.isAdmin ? [req.params.id] : [req.params.id, req.session.workerId];
     const kulu = await pool.query(`SELECT * FROM xseeria_omakulud WHERE id=$1${omanikTingimus}`, params);
     if (!kulu.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    if (!req.session.isAdmin && kulu.rows[0].makstud) {
+      return res.json({ ok: false, veateade: 'See kulu on juba tasutud — kustutamiseks võta ühendust adminiga' });
+    }
     if (kulu.rows[0].foto_public_id) {
       try { await getCloudinary().uploader.destroy(kulu.rows[0].foto_public_id); } catch(e) {}
     }
@@ -1044,7 +1060,7 @@ router.put('/admin/kulud/:id/makstud', noudaAdmin, async (req, res) => {
   const { makstud } = req.body;
   try {
     await pool.query('UPDATE xseeria_kulud SET makstud=$1 WHERE id=$2', [!!makstud, req.params.id]);
-    res.json({ ok: true });
+    res.json({ ok: true, makstud: !!makstud });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -1059,7 +1075,7 @@ router.delete('/admin/kulud/:id', noudaAdmin, async (req, res) => {
 router.get('/admin/events/:eventId/minu-kulud', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT ok.*, w.nimi AS worker_nimi
+      `SELECT ok.*, COALESCE(ok.makstud, false) AS makstud, w.nimi AS worker_nimi
        FROM xseeria_omakulud ok
        JOIN workers w ON w.id = ok.worker_id
        WHERE ok.event_id=$1
@@ -1073,11 +1089,16 @@ router.get('/admin/events/:eventId/minu-kulud', noudaAdmin, async (req, res) => 
 });
 
 // Admin: märgi töötaja isiklik kulu (Minu kulud) talle tagasi makstuks/mittemakstuks.
+// Linnuke on kohe nähtav ka töötajale endale X-seeria moodulis ("✅ Tasutud").
 router.put('/admin/omakulud/:id/makstud', noudaAdmin, async (req, res) => {
   const { makstud } = req.body;
   try {
-    await pool.query('UPDATE xseeria_omakulud SET makstud=$1 WHERE id=$2', [!!makstud, req.params.id]);
-    res.json({ ok: true });
+    const r = await pool.query(
+      'UPDATE xseeria_omakulud SET makstud=$1 WHERE id=$2 RETURNING id',
+      [!!makstud, req.params.id]
+    );
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    res.json({ ok: true, makstud: !!makstud });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
