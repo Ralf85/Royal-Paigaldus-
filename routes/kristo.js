@@ -47,6 +47,86 @@ router.get('/poed', noudaKristo, async (req, res) => {
   }
 });
 
+// ── PROJEKTIPÕHINE VAADE: Projektid → Poed (KÕIK, ka tegemata) → Pildid ──
+// Teine tee samade piltide juurde. Poepõhine vaade (ülal) jääb muutumatuna alles.
+// Mõte: kui poode on palju, tahab kasutaja näha ÜHE projekti kaupa, millistes poodides see
+// on tehtud ja millistes veel mitte — seepärast tagastab /projekt-poed KÕIK LIDL-i aktiivsed
+// objektid, ka need, kus pilte pole (piltide_arv = 0), ja liides kuvab need hallina.
+
+router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
+  try {
+    // 1) Projektid, mille all on juba pilte (sh vanad vabateksti kirjeldused)
+    const piltidega = await pool.query(
+      `SELECT ${KIRJELDUS_VOTI} as kirjeldus,
+              COUNT(DISTINCT p.id) as piltide_arv,
+              COUNT(DISTINCT o.id) as poode_arv,
+              MAX(t.kuupaev) as viimane_kuupaev
+       FROM tookirje_pildid p
+       JOIN tookirjed t ON p.tookirje_id = t.id
+       JOIN objektid o ON t.objekt_id = o.id
+       JOIN ettevotted e ON o.ettevote_id = e.id
+       ${LP_JOIN}
+       WHERE e.nimi = 'LIDL'
+       GROUP BY ${KIRJELDUS_VOTI}
+       ORDER BY MAX(t.kuupaev) DESC`
+    );
+    // 2) Aktiivsed projektid nimekirjast, millel veel ühtegi pilti pole — need peavad samuti
+    //    nähtaval olema, muidu ei saa uue projekti kaetust üldse jälgida.
+    const koikProjektid = await pool.query(`SELECT nimi FROM lidl_projektid WHERE aktiivne = true ORDER BY jrk_nr, nimi`);
+    const olemas = new Set(piltidega.rows.map(x => x.kirjeldus));
+    const tyhjad = koikProjektid.rows
+      .filter(p => !olemas.has(p.nimi))
+      .map(p => ({ kirjeldus: p.nimi, piltide_arv: 0, poode_arv: 0, viimane_kuupaev: null }));
+
+    const poodeKokku = await pool.query(
+      `SELECT COUNT(*)::int as n FROM objektid o
+       JOIN ettevotted e ON o.ettevote_id = e.id
+       WHERE e.nimi = 'LIDL' AND o.aktiivne = true`
+    );
+    res.json({
+      ok: true,
+      projektid: piltidega.rows.concat(tyhjad),
+      poode_kokku: poodeKokku.rows[0].n
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.get('/projekt-poed', noudaKristo, async (req, res) => {
+  const { kirjeldus } = req.query;
+  if (!kirjeldus) return res.json({ ok: false, veateade: 'Projekt määramata' });
+  try {
+    // LEFT JOIN alampäringuga — nii jäävad alles ka poed, kus selle projekti pilte pole.
+    const r = await pool.query(
+      `SELECT o.id as objekt_id, o.nimi as objekt_nimi,
+              COALESCE(x.piltide_arv, 0)::int as piltide_arv,
+              x.viimane_kuupaev
+       FROM objektid o
+       JOIN ettevotted e ON o.ettevote_id = e.id
+       LEFT JOIN (
+         SELECT t.objekt_id,
+                COUNT(DISTINCT p.id) as piltide_arv,
+                MAX(t.kuupaev) as viimane_kuupaev
+         FROM tookirje_pildid p
+         JOIN tookirjed t ON p.tookirje_id = t.id
+         ${LP_JOIN}
+         WHERE ${KIRJELDUS_VOTI} = $1
+         GROUP BY t.objekt_id
+       ) x ON x.objekt_id = o.id
+       WHERE e.nimi = 'LIDL' AND o.aktiivne = true
+       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
+      [kirjeldus]
+    );
+    const tehtud = r.rows.filter(x => x.piltide_arv > 0).length;
+    res.json({ ok: true, kirjeldus, poed: r.rows, tehtud, kokku: r.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // ── KRONOLOOGIA: kõik tööd (kõigist poodidest) ühes voos, uusim üleslaetud pilt enne.
 // Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks, ilma poodide kaupa kaevamata.
 router.get('/kronoloogia', noudaKristo, async (req, res) => {
