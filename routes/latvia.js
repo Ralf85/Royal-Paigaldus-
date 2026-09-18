@@ -380,6 +380,80 @@ router.get('/gallery/stores', noudaLvLigipaas, async (req, res) => {
   }
 });
 
+// ── PROJEKTIPÕHINE VAADE: Projects → Stores → Photos ──────────────────────
+// Teine tee samade piltide juurde. Mõte: kui poode on palju, tahab admin näha ÜHE projekti
+// (nt "hinnatahvlite paigaldus") kaupa, millistes poodides on see tehtud ja millistes mitte.
+// Seepärast tagastab /gallery/project/:id/stores KÕIK aktiivsed poed, ka need, kus pilte pole —
+// liides kuvab need hallina. Poepõhine vaade (/gallery/stores) jääb muutumatuna alles.
+
+router.get('/gallery/projects', noudaLvLigipaas, async (req, res) => {
+  try {
+    const poodeKokku = await pool.query('SELECT COUNT(*)::int AS n FROM lv_stores WHERE active = true');
+    const r = await pool.query(
+      `SELECT pr.id AS project_id, pr.name AS project_name,
+              COUNT(p.id)::int AS photo_count,
+              COUNT(DISTINCT p.store_id)::int AS store_count,
+              MAX(p.work_date) AS last_date
+       FROM lv_projects pr
+       LEFT JOIN lv_photos p ON p.project_id = pr.id
+       WHERE pr.active = true
+       GROUP BY pr.id, pr.name, pr.sort_nr
+       ORDER BY pr.sort_nr, pr.name`
+    );
+    // Vanad pildid ilma projektita (kui neid on) näidatakse eraldi reana, et need kaduma ei läheks
+    const maaramata = await pool.query(
+      `SELECT COUNT(p.id)::int AS photo_count, COUNT(DISTINCT p.store_id)::int AS store_count,
+              MAX(p.work_date) AS last_date
+       FROM lv_photos p WHERE p.project_id IS NULL`
+    );
+    const projects = r.rows;
+    if (maaramata.rows[0] && maaramata.rows[0].photo_count > 0) {
+      projects.push({
+        project_id: 0,
+        project_name: 'Unassigned',
+        photo_count: maaramata.rows[0].photo_count,
+        store_count: maaramata.rows[0].store_count,
+        last_date: maaramata.rows[0].last_date
+      });
+    }
+    res.json({ ok: true, projects, total_stores: poodeKokku.rows[0].n });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+router.get('/gallery/project/:projectId/stores', noudaLvLigipaas, async (req, res) => {
+  const maaramata = String(req.params.projectId) === '0';
+  try {
+    let project = { id: 0, name: 'Unassigned' };
+    if (!maaramata) {
+      const pr = await pool.query('SELECT id, name FROM lv_projects WHERE id=$1', [req.params.projectId]);
+      if (!pr.rows.length) return res.json({ ok: false, error: 'Project not found' });
+      project = pr.rows[0];
+    }
+    // LEFT JOIN tingimusega — nii jäävad alles ka poed, kus selle projekti pilte pole (photo_count 0)
+    const seos = maaramata ? 'p.project_id IS NULL' : 'p.project_id = $1';
+    const params = maaramata ? [] : [req.params.projectId];
+    const r = await pool.query(
+      `SELECT s.id AS store_id, s.number, s.name,
+              COUNT(p.id)::int AS photo_count,
+              MAX(p.work_date) AS last_date
+       FROM lv_stores s
+       LEFT JOIN lv_photos p ON p.store_id = s.id AND ${seos}
+       WHERE s.active = true
+       GROUP BY s.id, s.number, s.name
+       ORDER BY NULLIF(regexp_replace(COALESCE(s.number,''), '^(\\d+).*$', '\\1'), COALESCE(s.number,''))::int NULLS LAST, s.number, s.name`,
+      params
+    );
+    const tehtud = r.rows.filter(x => x.photo_count > 0).length;
+    res.json({ ok: true, project, stores: r.rows, done: tehtud, total: r.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
 router.get('/gallery/store/:storeId/projects', noudaLvLigipaas, async (req, res) => {
   try {
     const store = await pool.query('SELECT id, number, name FROM lv_stores WHERE id=$1', [req.params.storeId]);
