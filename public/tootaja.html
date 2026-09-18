@@ -195,7 +195,7 @@
   <div class="topbar">
     <div class="brand">
       <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:24px;width:auto">
-      <div class="brand-sub" style="margin-left:2px">Tööpäevik</div>
+      <div class="brand-sub" id="brandSub" style="margin-left:2px">Tööpäevik</div>
     </div>
     <div class="topbar-right">
       <button onclick="tagasiAdminni()" id="tagasiAdminNupp" style="display:none;font-size:11px;font-weight:600;background:none;border:0.5px solid #c9a84c;border-radius:6px;padding:5px 10px;cursor:pointer;color:#c9a84c;white-space:nowrap">🔙 Tagasi adminni</button>
@@ -204,7 +204,7 @@
       <button onclick="vahetaTeema()" id="teemaNupp" style="font-size:16px;background:none;border:0.5px solid #333;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--text2)">&#127769;</button>
       <div class="avatar" id="avatarInitsiaalid">—</div>
       <span class="worker-nimi" id="workerNimiTop">...</span>
-      <button class="logout-btn" onclick="välju()">Välja</button>
+      <button class="logout-btn" id="logoutBtn" onclick="välju()">Välja</button>
     </div>
   </div>
 
@@ -363,14 +363,14 @@
     </div>
 
     <div class="kaart">
-      <div class="kaart-hdr"><span>&#128197;</span><span class="kaart-hdr-tekst">Tulevased tööd</span><span class="kaart-hdr-arv" id="tulevaste-arv">0</span></div>
+      <div class="kaart-hdr"><span>&#128197;</span><span class="kaart-hdr-tekst" id="hdrTulevased">Tulevased tööd</span><span class="kaart-hdr-arv" id="tulevaste-arv">0</span></div>
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
     </div>
     <div class="kaart">
-      <div class="kaart-hdr"><span>&#128203;</span><span class="kaart-hdr-tekst">Tööpäevik</span><span class="kaart-hdr-arv" id="toopaeviku-kuu">—</span></div>
+      <div class="kaart-hdr"><span>&#128203;</span><span class="kaart-hdr-tekst" id="hdrToopaevik">Tööpäevik</span><span class="kaart-hdr-arv" id="toopaeviku-kuu">—</span></div>
       <div id="toopaevikuSisu"><div class="tyhi-olek">Selle kuu kirjeid pole</div></div>
     </div>
-    <div class="kaart">
+    <div class="kaart" id="laekumisteKaart">
       <div class="kaart-hdr" onclick="toggleLaekumised()" style="cursor:pointer">
         <span>&#128176;</span><span class="kaart-hdr-tekst">Laekumised</span><span class="kaart-hdr-arv" id="laekumiste-kuu">—</span>
         <span id="laekumiste-silm" style="margin-left:8px;font-size:14px;color:var(--text3)">&#128065;</span>
@@ -390,7 +390,13 @@
 
   <script>
     var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+    var KUUD_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     var KUUD_LYHIKE = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
+    // LV = puhtalt Läti töötaja (Läti ligipääs olemas, ühtegi Eesti ettevõtet määratud pole).
+    // Tema vaade on tervikuna inglise keeles ja "Laekumised" kaarti ei kuvata — tal pole
+    // selles süsteemis tunnitasu ega väljamakseid, ainult fotode üleslaadimine.
+    var LV = false;
+    function kuuNimi(i) { return (LV ? KUUD_EN : KUUD)[i]; }
     var aktiivsKuu, aktiivsAasta, aktiivsWorkerId = null;
     var onMerekohvik = false;
     var naitaKoikTulevased = false;
@@ -427,6 +433,16 @@
       aktiivsKuu = t.getMonth() + 1;
       aktiivsAasta = t.getFullYear();
       document.getElementById('lk-kuupaev').value = t.toISOString().split('T')[0];
+
+      // Enne kuufiltri ehitamist peab olema teada, kas tegu on Läti töötajaga — kuude nimed
+      // ja kaartide pealkirjad sõltuvad sellest.
+      await kontrolliLatvia();
+      try {
+        var ev0 = await api('/api/tood/minu-ettevotted');
+        LV = onLatvia && Array.isArray(ev0) && ev0.length === 0;
+      } catch(e) { LV = false; }
+      if (LV) seaInglisekeelneVaade();
+
       ehitaKuuFilter(t);
 
       // Foto eelvaade seadistus
@@ -456,6 +472,16 @@
       await laadiKoik();
     }
 
+    function seaInglisekeelneVaade() {
+      var b = document.getElementById('brandSub'); if (b) b.textContent = 'Work log';
+      var l = document.getElementById('logoutBtn'); if (l) l.textContent = 'Log out';
+      var h1 = document.getElementById('hdrTulevased'); if (h1) h1.textContent = 'Upcoming jobs';
+      var h2 = document.getElementById('hdrToopaevik'); if (h2) h2.textContent = 'Work log';
+      var lk = document.getElementById('laekumisteKaart'); if (lk) lk.style.display = 'none';
+      var t1 = document.getElementById('tulevasteToodSisu'); if (t1) t1.innerHTML = '<div class="tyhi-olek">No upcoming jobs</div>';
+      var t2 = document.getElementById('toopaevikuSisu'); if (t2) t2.innerHTML = '<div class="tyhi-olek">No entries this month</div>';
+    }
+
     function ehitaKuuFilter(t) {
       var filter = document.getElementById('kuuFilter');
       for (var i = -3; i <= 2; i++) {
@@ -464,7 +490,7 @@
         if (kuu >= 12) { kuu -= 12; aasta++; }
         var btn = document.createElement('button');
         btn.className = 'kf-nupp' + (i === 0 ? ' ak' : '');
-        btn.textContent = KUUD[kuu].slice(0,3) + ' ' + aasta;
+        btn.textContent = kuuNimi(kuu).slice(0,3) + ' ' + aasta;
         btn.dataset.kuu = kuu + 1; btn.dataset.aasta = aasta;
         (function(b) { b.onclick = function() {
           document.querySelectorAll('.kf-nupp').forEach(function(x) { x.classList.remove('ak'); });
@@ -482,8 +508,8 @@
     }
 
     async function laadiKoik() {
-      document.getElementById('kuuPealkiri').textContent = KUUD[aktiivsKuu-1] + ' tööd';
-      document.getElementById('laekumiste-kuu').textContent = KUUD[aktiivsKuu-1];
+      document.getElementById('kuuPealkiri').textContent = LV ? (kuuNimi(aktiivsKuu-1) + ' work') : (KUUD[aktiivsKuu-1] + ' tööd');
+      document.getElementById('laekumiste-kuu').textContent = kuuNimi(aktiivsKuu-1);
       // NB: ligipääsu kontrollid PEAVAD lõppema enne laadiEttevotted() käivitamist — plaatide
       // HTML koostatakse onXseeria/onArved/onPadel/onLatvia lippude põhjal. Kui need jooksevad
       // paralleelselt, jõuab joonistamine vahel enne vastust valmis ja moodul jääb plaadita.
@@ -553,7 +579,7 @@
       var kokkuvote = await api('/api/tood/kokkuvote?aasta=' + aktiivsAasta + '&kuu=' + aktiivsKuu);
       var div = document.getElementById('ettevotteKaardid');
       if (!ettevotted.length) {
-        div.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>'
+        div.innerHTML = (LV ? '' : '<div style="color:var(--text3);font-size:13px;padding:20px;grid-column:1/-1">Ühtegi ettevõtet pole määratud</div>')
           + projektiKaardidHtml('style="grid-column:1"')
           + (onXseeria ? '<a class="emp-card xseeria" href="/xseeria" style="grid-column:1">'
             + '<div class="emp-logo xseeria"><img src="/logos/xseeria.png" alt="X-seeria" style="width:100%;height:100%;object-fit:contain;background:#fff;border-radius:9px;padding:4px;box-sizing:border-box"></div>'
@@ -668,7 +694,7 @@
       var naita = naitaKoikTulevased ? koik : koik.slice(0,5);
       var div = document.getElementById('tulevasteToodSisu');
       document.getElementById('tulevaste-arv').textContent = koik.length;
-      if (!koik.length) { div.innerHTML = '<div class="tyhi-olek">Tulevasi töid pole kirjas</div>'; return; }
+      if (!koik.length) { div.innerHTML = LV ? '<div class="tyhi-olek">No upcoming jobs</div>' : '<div class="tyhi-olek">Tulevasi töid pole kirjas</div>'; return; }
       div.innerHTML = naita.map(function(t) {
         var d = new Date(t.kuupaev), paevJaani = Math.ceil((d-taana)/86400000);
         var tyyp = (t.tyyp||'muu').toLowerCase();
@@ -686,10 +712,10 @@
     }
 
     async function laadiToopaevik() {
-      document.getElementById('toopaeviku-kuu').textContent = KUUD[aktiivsKuu-1];
+      document.getElementById('toopaeviku-kuu').textContent = kuuNimi(aktiivsKuu-1);
       var vastus = await api('/api/tood/kokkuvote?aasta='+aktiivsAasta+'&kuu='+aktiivsKuu);
       var div = document.getElementById('toopaevikuSisu');
-      if (!vastus.ok||!vastus.kirjed||!vastus.kirjed.length) { div.innerHTML='<div class="tyhi-olek">Selle kuu kirjeid pole</div>'; return; }
+      if (!vastus.ok||!vastus.kirjed||!vastus.kirjed.length) { div.innerHTML = LV ? '<div class="tyhi-olek">No entries this month</div>' : '<div class="tyhi-olek">Selle kuu kirjeid pole</div>'; return; }
       div.innerHTML = vastus.kirjed.map(function(k) {
         var d = new Date(k.kuupaev), tyyp=(k.ettevote_tyyp||'muu').toLowerCase();
         var kmInfo = parseFloat(k.kilomeetrid||0)>0?' · 🚗 '+k.kilomeetrid+'km':'';
