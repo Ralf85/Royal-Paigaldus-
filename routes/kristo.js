@@ -53,6 +53,45 @@ router.get('/poed', noudaKristo, async (req, res) => {
 // on tehtud ja millistes veel mitte — seepärast tagastab /projekt-poed KÕIK LIDL-i aktiivsed
 // objektid, ka need, kus pilte pole (piltide_arv = 0), ja liides kuvab need hallina.
 
+// ── PROJEKTI LISAINFO (PO number, projektinumber) ────────────────────────
+// Kristo saab need ise fotovaates projekti juurde kirjutada, et adminni ei peaks
+// neid eraldi küsima. Võtmeks on sama grupeerimisvõti (kirjeldus), mida kasutab kogu
+// ülejäänud vaade, nii et see töötab nii struktureeritud projektide kui vanade
+// vabateksti kirjelduste puhul.
+async function initKristoInfo() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lidl_projekti_info (
+      kirjeldus TEXT PRIMARY KEY,
+      po_number VARCHAR(100),
+      projekt_number VARCHAR(100),
+      markus TEXT,
+      uuendaja VARCHAR(100),
+      uuendatud TIMESTAMP DEFAULT NOW()
+    );
+  `);
+}
+initKristoInfo().catch(e => console.error('Lidl projekti info init failed:', e.message));
+
+router.put('/projekt-info', noudaKristo, async (req, res) => {
+  const { kirjeldus, po_number, projekt_number, markus } = req.body;
+  if (!kirjeldus) return res.json({ ok: false, veateade: 'Projekt määramata' });
+  try {
+    const uuendaja = req.session.isAdmin ? 'Admin' : (req.session.workerNimi || 'Töötaja');
+    await pool.query(
+      `INSERT INTO lidl_projekti_info (kirjeldus, po_number, projekt_number, markus, uuendaja, uuendatud)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (kirjeldus) DO UPDATE SET
+         po_number=EXCLUDED.po_number, projekt_number=EXCLUDED.projekt_number,
+         markus=EXCLUDED.markus, uuendaja=EXCLUDED.uuendaja, uuendatud=NOW()`,
+      [kirjeldus, (po_number || '').trim() || null, (projekt_number || '').trim() || null, (markus || '').trim() || null, uuendaja]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
   try {
     // 1) Projektid, mille all on juba pilte (sh vanad vabateksti kirjeldused)
@@ -83,9 +122,23 @@ router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
        JOIN ettevotted e ON o.ettevote_id = e.id
        WHERE e.nimi = 'LIDL' AND o.aktiivne = true`
     );
+    // Kristo lisatud PO/projektinumbrid — liidetakse juurde JS-is, et päringud jääksid lihtsaks
+    const info = await pool.query('SELECT * FROM lidl_projekti_info');
+    const infoMap = {};
+    info.rows.forEach(r => { infoMap[r.kirjeldus] = r; });
+    const koik = piltidega.rows.concat(tyhjad).map(p => {
+      const i = infoMap[p.kirjeldus] || {};
+      return {
+        ...p,
+        po_number: i.po_number || null,
+        projekt_number: i.projekt_number || null,
+        markus: i.markus || null,
+        info_uuendaja: i.uuendaja || null
+      };
+    });
     res.json({
       ok: true,
-      projektid: piltidega.rows.concat(tyhjad),
+      projektid: koik,
       poode_kokku: poodeKokku.rows[0].n
     });
   } catch (err) {
