@@ -2407,11 +2407,13 @@ async function lpMuudaNimi(id, vanaNimi) {
   if (r && r.ok) await lpLaadi();
   else alert((r && r.veateade) || 'Viga muutmisel');
 }
+let lpVanad = [];
 async function lpLaadiVanad() {
   const div = document.getElementById('lp-vanad');
   div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
   const r = await api('/api/kristo/admin/vanad-kirjeldused');
   const list = (r && r.ok && Array.isArray(r.kirjeldused)) ? r.kirjeldused : [];
+  lpVanad = list;
   if (!list.length) {
     div.innerHTML = '<div style="padding:14px;text-align:center;color:var(--hall);font-size:12px">Kõik fotod on juba projektide alla määratud 🎉</div>';
     return;
@@ -2421,31 +2423,74 @@ async function lpLaadiVanad() {
     return;
   }
   const valikud = lpProjektid.map(p => `<option value="${p.id}">${p.nimi}</option>`).join('');
-  div.innerHTML = list.map((k, i) => `
+  // Hulgi määramine: sama töö on sageli kirjas mitme erineva vabatekstina (trükivead, lisatud märkused).
+  // Linnukestega saab need korraga ühe projekti alla koondada, ilma iga rida eraldi klikkimata.
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:10px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tekst2);cursor:pointer">
+        <input type="checkbox" onchange="lpValiKoikVanad(this.checked)" style="width:auto"> Vali kõik
+      </label>
+      <span style="font-size:12px;color:var(--hall)">→ määra korraga:</span>
+      <select id="lp-bulk-projekt" style="font-size:12px;padding:5px 8px;width:auto">
+        <option value="">— vali projekt —</option>${valikud}
+      </select>
+      <button type="button" class="nupp kull" style="padding:5px 12px;font-size:11px" onclick="lpMaaraValitud()">Määra valitud</button>
+      <span id="lp-bulk-teade" style="font-size:12px;color:var(--hall)"></span>
+    </div>
+  ` + list.map((k, i) => `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--piir);flex-wrap:wrap">
+      <input type="checkbox" class="lp-vana-cb" value="${i}" style="width:auto;flex-shrink:0">
       <div style="flex:1;min-width:160px">
-        <div style="font-size:13px;color:var(--tekst)">${k.kirjeldus}</div>
-        <div style="font-size:11px;color:var(--hall)">${k.piltide_arv} pilti · ${k.poode_arv} pood${k.poode_arv==1?'':'i'} (${k.poed})</div>
+        <div style="font-size:13px;color:var(--tekst)">${escapeHtmlXs(k.kirjeldus)}</div>
+        <div style="font-size:11px;color:var(--hall)">${k.piltide_arv} pilti · ${k.poode_arv} pood${k.poode_arv==1?'':'i'} (${escapeHtmlXs(k.poed)})</div>
       </div>
       <select id="lp-vana-sihtmark-${i}" style="font-size:12px;padding:5px 8px">
         <option value="">— vali projekt —</option>
         ${valikud}
       </select>
-      <button type="button" class="nupp kull" style="padding:5px 12px;font-size:11px" onclick="lpMaaraVanaProjekt(${JSON.stringify(k.kirjeldus)}, ${i})">Määra</button>
+      <button type="button" class="nupp kull" style="padding:5px 12px;font-size:11px" onclick="lpMaaraVanaProjekt(${i})">Määra</button>
     </div>
   `).join('');
 }
-async function lpMaaraVanaProjekt(kirjeldus, i) {
+
+function lpValiKoikVanad(checked) {
+  document.querySelectorAll('.lp-vana-cb').forEach(cb => cb.checked = checked);
+}
+
+// NB: varem anti kirjeldus onclick-atribuudi sisse JSON.stringify'ga — see tekitas jutumärgid
+// juba jutumärkides oleva atribuudi sisse, HTML läks katki ja nupp ei teinud midagi.
+// Nüüd anname edasi ainult rea indeksi ja loeme teksti lpVanad massiivist.
+async function lpMaaraVanaProjekt(i) {
+  const kirje = lpVanad[i];
+  if (!kirje) { alert('Kirjeldust ei leitud — laadi leht uuesti'); return; }
   const sel = document.getElementById('lp-vana-sihtmark-' + i);
-  const projektId = sel.value;
+  const projektId = sel ? sel.value : '';
   if (!projektId) { alert('Vali enne projekt'); return; }
-  const r = await api('/api/kristo/kirjeldus/maara-projekt', { method: 'PUT', body: JSON.stringify({ kirjeldus, projekt_id: projektId }) });
+  const r = await api('/api/kristo/kirjeldus/maara-projekt', { method: 'PUT', body: JSON.stringify({ kirjeldus: kirje.kirjeldus, projekt_id: projektId }) });
   if (r && r.ok) {
     alert(`✅ ${r.muudetud} kirjet ümber määratud`);
     await lpLaadiVanad();
   } else {
     alert((r && r.veateade) || 'Viga ümbermääramisel');
   }
+}
+
+async function lpMaaraValitud() {
+  const projektId = document.getElementById('lp-bulk-projekt').value;
+  const teade = document.getElementById('lp-bulk-teade');
+  if (!projektId) { alert('Vali enne projekt, kuhu valitud read koondada'); return; }
+  const valitud = [...document.querySelectorAll('.lp-vana-cb:checked')].map(cb => lpVanad[parseInt(cb.value, 10)]).filter(Boolean);
+  if (!valitud.length) { alert('Vali vähemalt üks rida'); return; }
+  if (!confirm(`Koondad ${valitud.length} kirjeldust ühe projekti alla? Seda ei saa tagasi võtta.`)) return;
+  let kokku = 0, vigu = 0;
+  for (let n = 0; n < valitud.length; n++) {
+    if (teade) teade.textContent = `Määran ${n + 1}/${valitud.length}...`;
+    const r = await api('/api/kristo/kirjeldus/maara-projekt', { method: 'PUT', body: JSON.stringify({ kirjeldus: valitud[n].kirjeldus, projekt_id: projektId }) });
+    if (r && r.ok) kokku += (r.muudetud || 0); else vigu++;
+  }
+  if (teade) teade.textContent = '';
+  alert(`✅ ${kokku} kirjet ümber määratud` + (vigu ? ` · ${vigu} rida ebaõnnestus` : ''));
+  await lpLaadiVanad();
 }
 
 // ── KRISTO KOMMENTAARID (Lidl fotovaate teavitused) ───────────────────────
