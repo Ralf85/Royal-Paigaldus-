@@ -168,10 +168,19 @@
     <!-- WORKERS -->
     <div class="panel" id="panel-workers">
       <div class="card">
-        <div class="card-hdr">Worker access</div>
+        <div class="card-hdr">Add a worker</div>
         <div class="card-body">
-          <div class="hint">Workers log in with their normal PIN in the worker app and will see the LIDL LATVIA tile once you switch them on here.</div>
+          <div class="hint">Create the people who will upload photos. They log in at the worker app with the PIN you give them here, and see only the LIDL LATVIA module.</div>
+          <div class="row">
+            <div><label class="lbl">Name</label><input type="text" id="wName" placeholder="Jānis Bērziņš"></div>
+            <div style="max-width:160px"><label class="lbl">PIN</label><input type="text" id="wPin" placeholder="4412" maxlength="10"></div>
+            <div style="flex:0"><button class="btn primary" onclick="addWorker()">+ Add</button></div>
+          </div>
+          <div class="msg" id="workerMsg"></div>
         </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">Workers in this module</div>
         <div id="workerList"><div class="empty">Loading...</div></div>
       </div>
     </div>
@@ -512,17 +521,46 @@ async function loadWorkers() {
   div.innerHTML = '<div class="empty">Loading...</div>';
   const r = await api('/admin/workers');
   if (!r.ok) { div.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
-  if (!r.workers.length) { div.innerHTML = '<div class="empty">No active workers found.</div>'; return; }
-  div.innerHTML = '<table><thead><tr><th>Worker</th><th style="width:120px">Access</th></tr></thead><tbody>' +
-    r.workers.map(w => `
+  const list = r.canSeeAll ? r.workers : r.workers.filter(w => w.allowed);
+  if (!list.length) {
+    div.innerHTML = '<div class="empty">No workers in this module yet — add the first one above.</div>';
+    return;
+  }
+  div.innerHTML = '<table><thead><tr><th>Name</th><th style="width:130px">PIN</th><th style="width:100px">Access</th><th style="width:100px"></th></tr></thead><tbody>' +
+    list.map(w => `
       <tr>
-        <td style="color:${w.allowed ? '#e2e8f0' : '#7c8494'}">${w.allowed ? '👷 ' : ''}${esc(w.name)}</td>
+        <td><input type="text" value="${esc(w.name)}" id="wnm-${w.id}"></td>
+        <td><input type="text" value="${esc(w.pin || '')}" id="wpn-${w.id}" maxlength="10"></td>
         <td><label class="switch"><input type="checkbox" ${w.allowed ? 'checked' : ''} onchange="toggleWorker(${w.id}, this.checked)"><span class="slider"></span></label></td>
+        <td style="text-align:right"><button class="btn small" onclick="saveWorker(${w.id})">Save</button></td>
       </tr>`).join('') + '</tbody></table>';
 }
 
+async function addWorker() {
+  const name = document.getElementById('wName').value.trim();
+  const pin = document.getElementById('wPin').value.trim();
+  if (!name || !pin) return msg('workerMsg', 'err', 'Enter both a name and a PIN');
+  const r = await api('/admin/workers-new', { method: 'POST', body: JSON.stringify({ name, pin }) });
+  if (!r.ok) return msg('workerMsg', 'err', r.error || 'Failed');
+  document.getElementById('wName').value = '';
+  document.getElementById('wPin').value = '';
+  msg('workerMsg', 'ok', 'Worker added — give them the PIN and the worker app address');
+  loadWorkers();
+}
+
+async function saveWorker(id) {
+  const name = document.getElementById('wnm-' + id).value.trim();
+  const pin = document.getElementById('wpn-' + id).value.trim();
+  if (!name || !pin) return msg('workerMsg', 'err', 'Name and PIN cannot be empty');
+  const r = await api('/admin/workers-new/' + id, { method: 'PUT', body: JSON.stringify({ name, pin }) });
+  if (!r.ok) return msg('workerMsg', 'err', r.error || 'Failed');
+  msg('workerMsg', 'ok', 'Saved');
+}
+
 async function toggleWorker(id, allowed) {
-  await api('/admin/workers/' + id, { method: 'POST', body: JSON.stringify({ allowed }) });
+  const r = await api('/admin/workers/' + id, { method: 'POST', body: JSON.stringify({ allowed }) });
+  if (!r.ok) { msg('workerMsg', 'err', r.error || 'Failed'); loadWorkers(); return; }
+  if (!allowed) loadWorkers();
 }
 
 // ── LATVIA ADMINS (main admin only) ──────────────────────────────
