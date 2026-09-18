@@ -54,12 +54,21 @@
   /* Gallery */
   .crumb { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #7c8494; margin-bottom: 14px; flex-wrap: wrap; }
   .crumb button { background: none; border: none; color: #c9a84c; font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; }
-  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-  .store-card { background: #171b22; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px; cursor: pointer; }
-  .store-card:hover { border-color: #2563eb; }
-  .store-nr { font-size: 22px; font-weight: 800; color: #c9a84c; line-height: 1; }
-  .store-name { font-size: 14px; font-weight: 600; margin-top: 5px; }
-  .store-meta { font-size: 11px; color: #7c8494; margin-top: 6px; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
+  /* Lidli värvid: sinine #0050AA taustal, kollane #FFF200 poenumbri rõhuna. */
+  .store-card { background: linear-gradient(158deg, #0a2f66 0%, #0e1a2c 72%); border: 0.5px solid rgba(255,242,0,0.22); border-radius: 14px; padding: 14px 15px 15px; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+  .store-card:hover { border-color: #FFF200; transform: translateY(-2px); }
+  .store-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 11px; }
+  .store-badge { background: #FFF200; color: #0050AA; font-size: 15px; font-weight: 800; letter-spacing: 0.4px; padding: 3px 11px; border-radius: 7px; }
+  .store-photos { font-size: 11px; font-weight: 600; color: #9dc0ee; white-space: nowrap; }
+  .store-name { font-size: 14px; font-weight: 700; color: #ffffff; line-height: 1.32; }
+  .store-meta { font-size: 11px; color: #7d9bc4; margin-top: 7px; }
+  /* Projektikaart sama poe sees — neutraalne, et poed jääksid visuaalselt esiplaanile. */
+  .store-card.proj { background: linear-gradient(158deg, #1b1f27 0%, #0f1218 75%); border-color: rgba(255,255,255,0.09); }
+  .store-card.proj:hover { border-color: #FFF200; }
+  .store-card.proj .store-badge { background: rgba(255,242,0,0.14); color: #FFF200; font-size: 14px; }
+  .store-card.proj .store-photos { color: #7c8494; }
+  .store-card.proj .store-meta { color: #7c8494; }
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .photo-item { position: relative; border-radius: 8px; overflow: hidden; background: #171b22; aspect-ratio: 1; }
   .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
@@ -315,9 +324,12 @@ async function openGalleryStores() {
   if (!r.stores.length) { body.innerHTML = '<div class="empty">No photos have been uploaded yet.</div>'; return; }
   body.innerHTML = '<div class="grid-cards">' + r.stores.map(s => `
     <div class="store-card" onclick="openGalleryProjects(${s.store_id}, '${esc(s.number || '')}', '${esc(s.name).replace(/'/g, "\\'")}')">
-      ${s.number ? `<div class="store-nr">${esc(s.number)}</div>` : ''}
+      <div class="store-top">
+        <span class="store-badge">${esc(s.number || 'LV')}</span>
+        <span class="store-photos">📷 ${s.photo_count}</span>
+      </div>
       <div class="store-name">${esc(s.name)}</div>
-      <div class="store-meta">${s.project_count} project(s) · ${s.photo_count} photo(s)<br>Last: ${fmtDate(s.last_date)}</div>
+      <div class="store-meta">${s.project_count} project(s) · ${fmtDate(s.last_date)}</div>
     </div>`).join('') + '</div>';
 }
 
@@ -332,9 +344,13 @@ async function openGalleryProjects(storeId, number, name) {
   body.innerHTML =
     `<div style="margin-bottom:12px"><a class="btn small" href="/api/latvia/gallery/zip/${storeId}?_token=${encodeURIComponent(token)}" style="text-decoration:none">⬇ Download all photos (ZIP)</a></div>` +
     '<div class="grid-cards">' + r.projects.map(p => `
-      <div class="store-card" onclick="openGalleryPhotos(${p.project_id}, '${esc(p.project_name).replace(/'/g, "\\'")}')">
+      <div class="store-card proj" onclick="openGalleryPhotos(${p.project_id}, '${esc(p.project_name).replace(/'/g, "\\'")}')">
+        <div class="store-top">
+          <span class="store-badge">📁</span>
+          <span class="store-photos">📷 ${p.photo_count}</span>
+        </div>
         <div class="store-name">${esc(p.project_name)}</div>
-        <div class="store-meta">${p.photo_count} photo(s)<br>Last: ${fmtDate(p.last_date)}</div>
+        <div class="store-meta">Last: ${fmtDate(p.last_date)}</div>
       </div>`).join('') + '</div>';
 }
 
