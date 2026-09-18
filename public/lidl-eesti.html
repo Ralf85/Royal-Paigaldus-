@@ -32,6 +32,25 @@
     .kaart-nimi { font-size: 15px; font-weight: 600; color: #e2e8f0; }
     .kaart-meta { font-size: 12px; color: #7a8290; margin-top: 4px; }
     .kaart-noole { font-size: 18px; color: #555; flex-shrink: 0; }
+    /* PO / projektinumbri sildid ja lisamise nupp */
+    .info-sildid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .info-silt { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+    .info-silt.po { background: rgba(255,242,0,0.14); color: #FFF200; }
+    .info-silt.prj { background: rgba(37,99,235,0.18); color: #60a5fa; }
+    .info-silt.mrk { background: #1e2128; color: #9aa3b0; font-weight: 400; }
+    .info-nupp { background: #1e2128; border: 0.5px solid #333; color: #c9a84c; border-radius: 8px; padding: 7px 11px; font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0; font-family: inherit; white-space: nowrap; }
+    .info-nupp:hover { border-color: #c9a84c; }
+    .info-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 400; align-items: center; justify-content: center; padding: 20px; }
+    .info-modal.avatud { display: flex; }
+    .info-modal-sisu { background: #13161c; border: 0.5px solid #252830; border-radius: 14px; width: 100%; max-width: 420px; padding: 20px; }
+    .info-modal-hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+    .info-modal-hdr b { font-size: 15px; color: #e2e8f0; line-height: 1.3; }
+    .info-modal-sulge { background: none; border: none; color: #7a8290; font-size: 20px; cursor: pointer; line-height: 1; }
+    .info-vali { margin-bottom: 12px; }
+    .info-vali label { display: block; font-size: 11px; color: #7a8290; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 5px; }
+    .info-vali input { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 10px 12px; color: #e2e8f0; font-size: 14px; font-family: inherit; outline: none; }
+    .info-vali input:focus { border-color: #c9a84c; }
+    .info-salvesta { width: 100%; background: #FFF200; border: none; border-radius: 9px; padding: 13px; color: #002060; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 4px; }
     /* Poodide kastid (avavaade) */
     .poe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
     .poe-kaart { background: #13161c; border: 1.5px solid #252830; border-radius: 16px; padding: 22px 10px 16px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; }
@@ -156,6 +175,29 @@
     <img id="lightbox-img" src="" alt="">
     <button class="lightbox-nool lightbox-jargmine" onclick="navigeeri(1)">›</button>
     <div class="lightbox-info" id="lightbox-info"></div>
+  </div>
+  <!-- PO / projektinumbri lisamine -->
+  <div class="info-modal" id="infoModal">
+    <div class="info-modal-sisu">
+      <div class="info-modal-hdr">
+        <b id="info-pealkiri">—</b>
+        <button class="info-modal-sulge" onclick="suljeProjektiInfo()">✕</button>
+      </div>
+      <div class="info-vali">
+        <label>PO number</label>
+        <input type="text" id="info-po" placeholder="nt 4501439102">
+      </div>
+      <div class="info-vali">
+        <label>Projektinumber</label>
+        <input type="text" id="info-projekt" placeholder="nt PRJ-2026-014">
+      </div>
+      <div class="info-vali">
+        <label>Märkus (vabatahtlik)</label>
+        <input type="text" id="info-markus" placeholder="nt tellija Kristjan, arve kuu lõpus">
+      </div>
+      <button class="info-salvesta" onclick="salvestaProjektiInfo()">Salvesta</button>
+      <div id="info-teade" style="display:none;margin-top:10px;font-size:12px"></div>
+    </div>
   </div>
   <!-- Kommentaarid -->
   <div class="kmodal" id="kmodal">
@@ -313,18 +355,71 @@
         return;
       }
       var kokku = r.poode_kokku || 0;
-      sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
+      projektiInfoList = r.projektid;
+      sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p, i) {
         var poode = parseInt(p.poode_arv, 10) || 0;
         var pct = kokku ? Math.round(poode / kokku * 100) : 0;
+        var sildid = '';
+        if (p.po_number) sildid += '<span class="info-silt po">PO: ' + p.po_number + '</span>';
+        if (p.projekt_number) sildid += '<span class="info-silt prj">Projekt: ' + p.projekt_number + '</span>';
+        if (p.markus) sildid += '<span class="info-silt mrk">' + p.markus + '</span>';
         return '<div class="kaart" onclick=\'avaProjektiPoed(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
           + '<div style="flex:1;min-width:0">'
           + '<div class="kaart-nimi">' + p.kirjeldus + '</div>'
           + '<div class="kaart-meta">' + poode + '/' + kokku + ' poodi tehtud · ' + p.piltide_arv + ' pilti'
           + (p.viimane_kuupaev ? ' · viimati ' + formatKp(p.viimane_kuupaev) : '') + '</div>'
+          + (sildid ? '<div class="info-sildid">' + sildid + '</div>' : '')
           + '<div class="kaetus-riba" style="margin-top:9px"><i style="width:' + pct + '%"></i></div>'
           + '</div>'
+          + '<button class="info-nupp" onclick="event.stopPropagation();avaProjektiInfo(' + i + ')">'
+          + (p.po_number || p.projekt_number ? '✏️' : '➕ PO') + '</button>'
           + '<div class="kaart-noole">›</div></div>';
       }).join('') + '</div>';
+    }
+
+    // ── PO / projektinumbri lisamine (Kristo täidab ise, et adminni ei peaks küsima) ──
+    var projektiInfoList = [];
+    var infoMuudetavIndex = null;
+
+    function avaProjektiInfo(i) {
+      var p = projektiInfoList[i];
+      if (!p) return;
+      infoMuudetavIndex = i;
+      document.getElementById('info-pealkiri').textContent = p.kirjeldus;
+      document.getElementById('info-po').value = p.po_number || '';
+      document.getElementById('info-projekt').value = p.projekt_number || '';
+      document.getElementById('info-markus').value = p.markus || '';
+      document.getElementById('info-teade').style.display = 'none';
+      document.getElementById('infoModal').classList.add('avatud');
+    }
+
+    function suljeProjektiInfo() {
+      document.getElementById('infoModal').classList.remove('avatud');
+      infoMuudetavIndex = null;
+    }
+
+    async function salvestaProjektiInfo() {
+      var p = projektiInfoList[infoMuudetavIndex];
+      if (!p) return;
+      var teade = document.getElementById('info-teade');
+      var r = await api('/api/kristo/projekt-info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kirjeldus: p.kirjeldus,
+          po_number: document.getElementById('info-po').value,
+          projekt_number: document.getElementById('info-projekt').value,
+          markus: document.getElementById('info-markus').value
+        })
+      });
+      if (!r.ok) {
+        teade.style.display = 'block';
+        teade.style.color = '#f87171';
+        teade.textContent = r.veateade || 'Salvestamine ebaõnnestus';
+        return;
+      }
+      suljeProjektiInfo();
+      await avaProjektiNimekiri(false);
     }
 
     // ── PROJEKTIVAADE, TASE 2: kõik poed selle projekti lõikes ─
