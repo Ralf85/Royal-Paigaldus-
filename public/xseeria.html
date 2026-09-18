@@ -40,6 +40,9 @@
   .foto-kaart img { width: 100%; border-radius: 8px; margin-top: 8px; display: block; }
   .foto-nupp { display: inline-block; margin-top: 8px; background: #1e2128; border: 0.5px solid #333; color: #ccc; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
   .summary { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 13px; display: flex; justify-content: space-between; }
+  .summary.jaotus { font-size: 12px; color: #999; padding: 9px 16px; margin-top: -6px; }
+  .summary.jaotus .tasutud { color: #86efac; }
+  .summary.jaotus .ootel { color: #fbbf24; }
   .rajakaart-suur { display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #c9a84c, #a6842e); color: #0d0f13; border-radius: 14px; padding: 18px; margin-bottom: 14px; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; text-decoration: none; }
   .rajakaart-suur:active { opacity: 0.85; }
   .sponsor-kaart .nimi { display: flex; align-items: center; gap: 6px; }
@@ -51,6 +54,11 @@
   .tile.minu-park .nimi { color: #60a5fa; }
   .kulu-input { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 8px; color: #e2e8f0; font-size: 13px; }
   .kulu-label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+  /* Tasutud kulu: roheline raam + silt. Kaart on lukus (ilma Muuda/Kustuta nuppudeta),
+     sest summa on juba välja makstud — parandused käivad admini kaudu. */
+  .card.tasutud { border-color: rgba(74,222,128,0.4); background: rgba(22,163,74,0.06); }
+  .tasutud-silt { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #14532d; color: #86efac; margin-top: 8px; }
+  .tasutud-info { font-size: 11px; color: #666; margin-top: 8px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -349,6 +357,9 @@ function tegevusKaart(t) {
 }
 
 // ── MINU KULUD: isiklikud kulud (kütus, toit, tööriistad) selle konkreetse võistluse kohta ──
+// Kui admin on kulureale "Makstud" linnukese pannud, näeb töötaja kaardil "✅ TASUTUD" silti.
+// Tasutud kulu on lukus (ilma Muuda/Kustuta nuppudeta) — muidu saaks tagantjärele muuta summat,
+// mis on juba välja makstud. Parandamiseks pöördub töötaja admini poole.
 let praegusedKuludEvent = null;
 let muudetavKuluId = null;
 let muudaAndmedPuhver = null;
@@ -371,8 +382,16 @@ async function laadiKulud() {
   const d = await api('/event/' + praegusedKuludEvent.id + '/minu-kulud');
   if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
   const kokku = d.kulud.reduce((sum, k) => sum + parseFloat(k.summa), 0);
+  const tasutud = d.kulud.filter(k => k.makstud).reduce((sum, k) => sum + parseFloat(k.summa), 0);
+  const ootel = kokku - tasutud;
   let html = kuluVorm();
   html += `<div class="summary"><b>Kokku</b><span>${kokku.toFixed(2)} €</span></div>`;
+  if (d.kulud.length) {
+    html += `<div class="summary jaotus">
+        <span class="tasutud">✅ Tasutud: ${tasutud.toFixed(2)} €</span>
+        <span class="ootel">⏳ Ootel: ${ootel.toFixed(2)} €</span>
+      </div>`;
+  }
   html += d.kulud.length ? d.kulud.map(k => kuluKaart(k)).join('') : '<div class="empty">Kulusid pole veel lisatud.</div>';
   sisu.innerHTML = html;
   seadistaKuluFotoValjad();
@@ -435,15 +454,19 @@ function seadistaKuluFotoValjad() {
 function kuluKaart(k) {
   const kp = fmtKp(k.kuupaev);
   const kuupaevIso = (k.kuupaev || '').toString().substring(0, 10);
+  const tasutud = !!k.makstud;
   return `
-    <div class="card">
+    <div class="card ${tasutud ? 'tasutud' : ''}">
       <div class="rida1"><div class="nimi">${parseFloat(k.summa).toFixed(2)} €</div><div class="meta">${kp}</div></div>
       <div class="meta" style="margin-top:4px">${escapeHtml(k.selgitus)}</div>
       ${k.foto_url ? `<div style="margin-top:6px"><a href="${k.foto_url}" target="_blank" style="font-size:12px;color:#4ade80">📷 vaata tšekki</a></div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="foto-nupp" style="flex:1;text-align:center" onclick="muudaKulu(${k.id}, '${kuupaevIso}', ${parseFloat(k.summa)}, '${escapeAttr(k.selgitus)}')">✏️ Muuda</button>
-        <button class="foto-nupp" style="flex:1;text-align:center;color:#f87171" onclick="kustutaKulu(${k.id})">🗑 Kustuta</button>
-      </div>
+      ${tasutud
+        ? `<div class="tasutud-silt">✅ TASUTUD</div>
+           <div class="tasutud-info">See kulu on sulle välja makstud. Kui midagi on valesti, anna adminile teada.</div>`
+        : `<div style="display:flex;gap:8px;margin-top:10px">
+             <button class="foto-nupp" style="flex:1;text-align:center" onclick="muudaKulu(${k.id}, '${kuupaevIso}', ${parseFloat(k.summa)}, '${escapeAttr(k.selgitus)}')">✏️ Muuda</button>
+             <button class="foto-nupp" style="flex:1;text-align:center;color:#f87171" onclick="kustutaKulu(${k.id})">🗑 Kustuta</button>
+           </div>`}
     </div>`;
 }
 
@@ -494,7 +517,8 @@ async function salvestaKulu() {
 
 async function kustutaKulu(id) {
   if (!confirm('Kustutad selle kulu?')) return;
-  await api('/minu-kulud/' + id, { method: 'DELETE' });
+  const r = await api('/minu-kulud/' + id, { method: 'DELETE' });
+  if (r && r.ok === false && r.veateade) alert(r.veateade);
   await laadiKulud();
 }
 
