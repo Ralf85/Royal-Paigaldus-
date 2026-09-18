@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>LIDL Latvia</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0d0f13; color: #e2e8f0; }
+  header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 14px 16px; }
+  .hdr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  header h1 { font-size: 16px; font-weight: 800; letter-spacing: 0.3px; }
+  header h1 span { color: #c9a84c; }
+  .exit { color: #c9a84c; font-size: 12px; text-decoration: none; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; background: none; font-family: inherit; cursor: pointer; }
+  .who { font-size: 12px; color: #6b7280; margin-top: 8px; }
+  .tabs { display: flex; gap: 4px; margin-top: 12px; }
+  .tab { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; color: #7c8494; font-size: 13px; font-weight: 600; padding: 8px 4px; cursor: pointer; font-family: inherit; }
+  .tab.active { color: #e2e8f0; border-bottom-color: #2563eb; }
+  main { padding: 14px; max-width: 640px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+  label.lbl { display: block; font-size: 11px; color: #7c8494; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 5px; }
+  select, input[type=date] { background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 11px; color: #e2e8f0; font-size: 14px; width: 100%; font-family: inherit; outline: none; color-scheme: dark; }
+  select:focus, input:focus { border-color: #2563eb; }
+  .field { margin-bottom: 13px; }
+  .pick-row { display: flex; gap: 8px; }
+  .pick-btn { flex: 1; text-align: center; background: #1e2128; border: 0.5px solid #333; color: #cbd2dc; border-radius: 9px; padding: 13px 10px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .pick-btn:active { background: #262a33; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 10px; }
+  .thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #171b22; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border: none; border-radius: 50%; background: rgba(13,15,19,0.85); color: #f87171; font-size: 12px; cursor: pointer; line-height: 1; }
+  .save-btn { width: 100%; background: #16a34a; border: none; border-radius: 10px; padding: 15px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 4px; }
+  .save-btn:disabled { opacity: 0.6; cursor: default; }
+  .save-btn.done { background: #15803d; }
+  .msg { display: none; border-radius: 8px; padding: 10px 13px; font-size: 13px; margin-top: 11px; }
+  .msg.ok { background: #14532d; color: #86efac; }
+  .msg.err { background: #7f1d1d; color: #fca5a5; }
+  .progress { height: 5px; background: #1e2128; border-radius: 4px; overflow: hidden; margin-top: 11px; display: none; }
+  .progress i { display: block; height: 100%; background: #2563eb; width: 0; transition: width 0.25s; }
+  .empty { padding: 40px 20px; text-align: center; color: #5b6472; font-size: 13px; }
+  .empty a { color: #c9a84c; }
+  .item { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 11px; padding: 12px 14px; margin-bottom: 9px; display: flex; gap: 12px; align-items: center; }
+  .item img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; cursor: pointer; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-store { font-size: 14px; font-weight: 700; }
+  .item-sub { font-size: 11px; color: #7c8494; margin-top: 3px; }
+  .item-del { background: none; border: none; color: #6b7280; font-size: 16px; cursor: pointer; padding: 4px; }
+  .item-del:hover { color: #f87171; }
+  .tile { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 15px; margin-bottom: 9px; cursor: pointer; display: flex; align-items: center; gap: 13px; }
+  .tile:active { background: #1a1d24; }
+  .tile-nr { font-size: 20px; font-weight: 800; color: #c9a84c; min-width: 48px; }
+  .tile-info { flex: 1; min-width: 0; }
+  .tile-name { font-size: 15px; font-weight: 700; }
+  .tile-meta { font-size: 11px; color: #7c8494; margin-top: 3px; }
+  .crumb { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #7c8494; margin-bottom: 12px; flex-wrap: wrap; }
+  .crumb button { background: none; border: none; color: #c9a84c; font-size: 12px; cursor: pointer; font-family: inherit; padding: 0; }
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+  .photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; cursor: pointer; }
+  #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.94); z-index: 999; align-items: center; justify-content: center; padding: 16px; }
+  #lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+  #lightbox .close { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255,255,255,0.14); color: #fff; font-size: 20px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-top">
+    <h1>LIDL <span>LATVIA</span></h1>
+    <button class="exit" onclick="goBack()">← Back</button>
+  </div>
+  <div class="who" id="whoAmI"></div>
+  <div class="tabs" id="tabs" style="display:none">
+    <button class="tab active" data-panel="upload" onclick="openTab('upload')">Add photos</button>
+    <button class="tab" data-panel="mine" onclick="openTab('mine')">My uploads</button>
+    <button class="tab" data-panel="gallery" onclick="openTab('gallery')">Gallery</button>
+  </div>
+</header>
+
+<main>
+  <div id="noAccess" style="display:none"></div>
+
+  <!-- UPLOAD -->
+  <div class="panel active" id="panel-upload" style="display:none">
+    <div class="card">
+      <div class="card-title">📷 Add photos</div>
+
+      <div class="field">
+        <label class="lbl">Store</label>
+        <select id="storeSel"><option value="">— Select a store —</option></select>
+      </div>
+
+      <div class="field">
+        <label class="lbl">Project</label>
+        <select id="projectSel"><option value="">— Select a project —</option></select>
+      </div>
+
+      <div class="field">
+        <label class="lbl">Date of work</label>
+        <input type="date" id="workDate">
+      </div>
+
+      <div class="field">
+        <label class="lbl">Photos (up to 12)</label>
+        <div class="pick-row">
+          <label class="pick-btn">📷 Camera<input type="file" id="fileCam" accept="image/*" capture="environment" multiple style="display:none"></label>
+          <label class="pick-btn">🖼️ Gallery<input type="file" id="fileLib" accept="image/*" multiple style="display:none"></label>
+        </div>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+
+      <button class="save-btn" id="saveBtn" onclick="uploadPhotos()">Upload</button>
+      <div class="progress" id="progress"><i id="progressBar"></i></div>
+      <div class="msg" id="uploadMsg"></div>
+    </div>
+  </div>
+
+  <!-- MY UPLOADS -->
+  <div class="panel" id="panel-mine">
+    <div id="mineBody"><div class="empty">Loading...</div></div>
+  </div>
+
+  <!-- GALLERY -->
+  <div class="panel" id="panel-gallery">
+    <div class="crumb" id="galleryCrumb"></div>
+    <div id="galleryBody"><div class="empty">Loading...</div></div>
+  </div>
+</main>
+
+<div id="lightbox" onclick="closeLightbox(event)">
+  <button class="close" onclick="closeLightbox(event, true)">✕</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script>
+const token = localStorage.getItem('workerToken');
+let selectedFiles = [];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function storeLabel(nr, name) {
+  return (nr ? nr + ' — ' : '') + (name || '');
+}
+function msg(id, type, text) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + (type === 'ok' ? 'ok' : 'err');
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'x-session-token': token }, opts.headers || {});
+  if (!(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
+  try {
+    const r = await fetch('/api/latvia' + path, opts);
+    return await r.json();
+  } catch (e) {
+    return { ok: false, error: 'Network error — check your connection' };
+  }
+}
+
+function goBack() { window.location = '/tootaja'; }
+
+// ── START ────────────────────────────────────────────────────────
+if (!token) {
+  document.getElementById('noAccess').innerHTML =
+    '<div class="empty">You are not logged in.<br><br>Open the <a href="/tootaja">worker app</a>, log in with your PIN, then open this page again.</div>';
+  document.getElementById('noAccess').style.display = 'block';
+} else {
+  start();
+}
+
+async function start() {
+  const s = await api('/session');
+  if (!s.ok || !s.loggedIn) {
+    document.getElementById('noAccess').innerHTML =
+      '<div class="empty">Your session has expired.<br><br>Open the <a href="/tootaja">worker app</a> and log in again.</div>';
+    document.getElementById('noAccess').style.display = 'block';
+    return;
+  }
+  if (s.role === 'worker' && s.allowed === false) {
+    document.getElementById('noAccess').innerHTML =
+      '<div class="empty">You do not have access to the Latvia module yet.<br>Ask your administrator to switch it on for you.</div>';
+    document.getElementById('noAccess').style.display = 'block';
+    return;
+  }
+  document.getElementById('whoAmI').textContent = s.name ? 'Hello, ' + s.name : '';
+  document.getElementById('tabs').style.display = 'flex';
+  document.getElementById('panel-upload').style.display = 'block';
+  document.getElementById('workDate').value = new Date().toISOString().slice(0, 10);
+  await loadStoresAndProjects();
+  setupFileInputs();
+}
+
+function openTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
+  document.querySelectorAll('.panel').forEach(p => {
+    const on = p.id === 'panel-' + name;
+    p.classList.toggle('active', on);
+    p.style.display = on ? 'block' : 'none';
+  });
+  if (name === 'mine') loadMine();
+  if (name === 'gallery') openGalleryStores();
+}
+
+// ── LOAD SELECTS ─────────────────────────────────────────────────
+async function loadStoresAndProjects() {
+  const [st, pr] = await Promise.all([api('/stores'), api('/projects')]);
+  const storeSel = document.getElementById('storeSel');
+  const projSel = document.getElementById('projectSel');
+
+  if (st.ok && st.stores.length) {
+    storeSel.innerHTML = '<option value="">— Select a store —</option>' +
+      st.stores.map(s => `<option value="${s.id}">${esc(storeLabel(s.number, s.name))}</option>`).join('');
+  } else {
+    storeSel.innerHTML = '<option value="">No stores yet — ask your admin</option>';
+  }
+
+  if (pr.ok && pr.projects.length) {
+    projSel.innerHTML = '<option value="">— Select a project —</option>' +
+      pr.projects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  } else {
+    projSel.innerHTML = '<option value="">No projects yet — ask your admin</option>';
+  }
+
+  // Meelde jäetakse viimane valitud pood/projekt — töötaja teeb päeva jooksul tavaliselt
+  // mitu üleslaadimist samas poes, nii ei pea iga kord uuesti valima.
+  const lastStore = localStorage.getItem('lvLastStore');
+  const lastProject = localStorage.getItem('lvLastProject');
+  if (lastStore) storeSel.value = lastStore;
+  if (lastProject) projSel.value = lastProject;
+}
+
+// ── FILE PICKING ─────────────────────────────────────────────────
+function setupFileInputs() {
+  ['fileCam', 'fileLib'].forEach(id => {
+    document.getElementById(id).addEventListener('change', function() {
+      addFiles(this.files);
+      this.value = '';
+    });
+  });
+}
+
+function addFiles(files) {
+  const room = 12 - selectedFiles.length;
+  if (room <= 0) { msg('uploadMsg', 'err', 'Maximum 12 photos at a time'); return; }
+  Array.from(files).slice(0, room).forEach(f => {
+    selectedFiles.push({ file: f, url: URL.createObjectURL(f) });
+  });
+  drawThumbs();
+}
+
+function removeFile(i) {
+  URL.revokeObjectURL(selectedFiles[i].url);
+  selectedFiles.splice(i, 1);
+  drawThumbs();
+}
+
+function drawThumbs() {
+  document.getElementById('thumbs').innerHTML = selectedFiles.map((f, i) => `
+    <div class="thumb">
+      <img src="${f.url}" alt="">
+      <button onclick="removeFile(${i})">✕</button>
+    </div>`).join('');
+}
+
+// Suured telefonipildid tihendatakse enne saatmist — muidu läheb üleslaadimine nõrgas
+// võrgus väga aeglaseks või jookseb ajapiirangusse.
+function compress(file, maxSide, quality) {
+  maxSide = maxSide || 1600; quality = quality || 0.8;
+  return new Promise(resolve => {
+    if (!file.type || !file.type.startsWith('image/')) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxSide || h > maxSide) {
+        if (w > h) { h = Math.round(h * maxSide / w); w = maxSide; }
+        else { w = Math.round(w * maxSide / h); h = maxSide; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(b => { URL.revokeObjectURL(url); resolve(b || file); }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+// ── UPLOAD ───────────────────────────────────────────────────────
+let uploading = false;
+
+async function uploadPhotos() {
+  if (uploading) return;
+  const storeId = document.getElementById('storeSel').value;
+  const projectId = document.getElementById('projectSel').value;
+  const workDate = document.getElementById('workDate').value;
+
+  if (!storeId) return msg('uploadMsg', 'err', 'Please select a store');
+  if (!projectId) return msg('uploadMsg', 'err', 'Please select a project');
+  if (!workDate) return msg('uploadMsg', 'err', 'Please choose the date');
+  if (!selectedFiles.length) return msg('uploadMsg', 'err', 'Please add at least one photo');
+
+  uploading = true;
+  const btn = document.getElementById('saveBtn');
+  const bar = document.getElementById('progressBar');
+  btn.disabled = true;
+  btn.textContent = 'Preparing photos...';
+  document.getElementById('progress').style.display = 'block';
+  bar.style.width = '10%';
+
+  try {
+    const fd = new FormData();
+    fd.append('store_id', storeId);
+    fd.append('project_id', projectId);
+    fd.append('work_date', workDate);
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const small = await compress(selectedFiles[i].file);
+      fd.append('photos', small, 'photo' + (i + 1) + '.jpg');
+      bar.style.width = (10 + Math.round((i + 1) / selectedFiles.length * 40)) + '%';
+    }
+
+    btn.textContent = 'Uploading...';
+    bar.style.width = '65%';
+    const r = await api('/photos', { method: 'POST', body: fd });
+    bar.style.width = '100%';
+
+    if (!r.ok) {
+      msg('uploadMsg', 'err', r.error || 'Upload failed');
+      btn.textContent = 'Upload';
+    } else {
+      localStorage.setItem('lvLastStore', storeId);
+      localStorage.setItem('lvLastProject', projectId);
+      selectedFiles.forEach(f => URL.revokeObjectURL(f.url));
+      selectedFiles = [];
+      drawThumbs();
+      btn.className = 'save-btn done';
+      btn.textContent = '✅ ' + r.uploaded + ' photo(s) uploaded';
+      msg('uploadMsg', 'ok', 'Saved. You can add more photos or check "My uploads".');
+      setTimeout(() => { btn.className = 'save-btn'; btn.textContent = 'Upload'; }, 2500);
+    }
+  } catch (e) {
+    msg('uploadMsg', 'err', 'Upload failed — please try again');
+    btn.textContent = 'Upload';
+  }
+
+  setTimeout(() => {
+    document.getElementById('progress').style.display = 'none';
+    bar.style.width = '0';
+  }, 800);
+  btn.disabled = false;
+  uploading = false;
+}
+
+// ── MY UPLOADS ───────────────────────────────────────────────────
+async function loadMine() {
+  const body = document.getElementById('mineBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/my-photos');
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.photos.length) { body.innerHTML = '<div class="empty">You have not uploaded any photos yet.</div>'; return; }
+  body.innerHTML = r.photos.map(p => `
+    <div class="item">
+      <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
+      <div class="item-info">
+        <div class="item-store">${esc(storeLabel(p.store_number, p.store_name))}</div>
+        <div class="item-sub">${esc(p.project_name || '')} · ${fmtDate(p.work_date)}</div>
+      </div>
+      <button class="item-del" onclick="deleteMine(${p.id})" title="Delete">🗑</button>
+    </div>`).join('');
+}
+
+async function deleteMine(id) {
+  if (!confirm('Delete this photo?')) return;
+  const r = await api('/my-photos/' + id, { method: 'DELETE' });
+  if (!r.ok) { alert(r.error || 'Delete failed'); return; }
+  loadMine();
+}
+
+// ── GALLERY ──────────────────────────────────────────────────────
+let gStore = null;
+
+async function openGalleryStores() {
+  gStore = null;
+  document.getElementById('galleryCrumb').innerHTML = '<span>Stores</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/stores');
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.stores.length) { body.innerHTML = '<div class="empty">No photos yet.</div>'; return; }
+  body.innerHTML = r.stores.map(s => `
+    <div class="tile" onclick="openGalleryProjects(${s.store_id}, '${esc(s.number || '')}', '${esc(s.name).replace(/'/g, "\\'")}')">
+      <div class="tile-nr">${esc(s.number || '🏬')}</div>
+      <div class="tile-info">
+        <div class="tile-name">${esc(s.name)}</div>
+        <div class="tile-meta">${s.photo_count} photo(s) · last ${fmtDate(s.last_date)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function openGalleryProjects(storeId, number, name) {
+  gStore = { id: storeId, number, name };
+  document.getElementById('galleryCrumb').innerHTML =
+    '<button onclick="openGalleryStores()">Stores</button><span>›</span><span>' + esc(storeLabel(number, name)) + '</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/store/' + storeId + '/projects');
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  body.innerHTML = r.projects.map(p => `
+    <div class="tile" onclick="openGalleryPhotos(${p.project_id}, '${esc(p.project_name).replace(/'/g, "\\'")}')">
+      <div class="tile-nr">📁</div>
+      <div class="tile-info">
+        <div class="tile-name">${esc(p.project_name)}</div>
+        <div class="tile-meta">${p.photo_count} photo(s) · last ${fmtDate(p.last_date)}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function openGalleryPhotos(projectId, projectName) {
+  document.getElementById('galleryCrumb').innerHTML =
+    '<button onclick="openGalleryStores()">Stores</button><span>›</span>' +
+    `<button onclick="openGalleryProjects(${gStore.id}, '${esc(gStore.number || '')}', '${esc(gStore.name).replace(/'/g, "\\'")}')">${esc(storeLabel(gStore.number, gStore.name))}</button>` +
+    '<span>›</span><span>' + esc(projectName) + '</span>';
+  const body = document.getElementById('galleryBody');
+  body.innerHTML = '<div class="empty">Loading...</div>';
+  const r = await api('/gallery/store/' + gStore.id + '/photos?project_id=' + projectId);
+  if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
+  if (!r.photos.length) { body.innerHTML = '<div class="empty">No photos.</div>'; return; }
+  body.innerHTML = '<div class="photo-grid">' +
+    r.photos.map(p => `<img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">`).join('') + '</div>';
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────────────────
+function openLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox(e, force) {
+  if (!force && e.target.id !== 'lightbox') return;
+  document.getElementById('lightbox').style.display = 'none';
+  document.getElementById('lightboxImg').src = '';
+}
+</script>
+</body>
+</html>
