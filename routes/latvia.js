@@ -496,18 +496,65 @@ router.get('/gallery/zip/:storeId', noudaLvLigipaas, async (req, res) => {
 });
 
 // ── LÄTI ADMIN: töötajate ligipääs ────────────────────────────────────────
+// TÄHTIS: Läti admin EI näe Royal Paigalduse Eesti töötajate nimekirja — ta näeb ainult
+// neid töötajaid, kes on juba Läti moodulisse lisatud, ja saab ise uusi juurde luua.
+// Peaadmin näeb kõiki ja saab soovi korral ka mõne olemasoleva Eesti töötaja siia lubada.
 
 router.get('/admin/workers', noudaLvAdmin, async (req, res) => {
+  const koikNahtavad = onPeaadmin(req);
+  try {
+    const sql = koikNahtavad
+      ? `SELECT w.id, w.nimi AS name, w.pin, (a.worker_id IS NOT NULL) AS allowed
+         FROM workers w
+         LEFT JOIN lv_access a ON a.worker_id = w.id
+         WHERE w.aktiivne = true AND COALESCE(w.arhiveeritud, false) = false
+         ORDER BY w.nimi`
+      : `SELECT w.id, w.nimi AS name, w.pin, true AS allowed
+         FROM workers w
+         JOIN lv_access a ON a.worker_id = w.id
+         WHERE COALESCE(w.arhiveeritud, false) = false
+         ORDER BY w.nimi`;
+    const r = await pool.query(sql);
+    res.json({ ok: true, workers: r.rows, canSeeAll: koikNahtavad });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// Uue Läti töötaja loomine — nimi + PIN. Töötaja tekib workers tabelisse (sama PIN-iga logib
+// ta /tootaja lehele sisse) ja saab kohe Läti mooduli ligipääsu. Ühtegi Eesti ettevõtet talle
+// ei määrata, seega näeb ta ingliskeelset vaadet ainult fotode üleslaadimisega.
+router.post('/admin/workers-new', noudaLvAdmin, async (req, res) => {
+  const { name, pin } = req.body;
+  if (!name || !name.trim()) return res.json({ ok: false, error: 'Enter a name' });
+  if (!pin || !String(pin).trim()) return res.json({ ok: false, error: 'Enter a PIN' });
   try {
     const r = await pool.query(
-      `SELECT w.id, w.nimi AS name, (a.worker_id IS NOT NULL) AS allowed
-       FROM workers w
-       LEFT JOIN lv_access a ON a.worker_id = w.id
-       WHERE w.aktiivne = true AND COALESCE(w.arhiveeritud, false) = false
-       ORDER BY w.nimi`
+      'INSERT INTO workers (nimi, pin, aktiivne) VALUES ($1,$2,true) RETURNING id',
+      [name.trim(), String(pin).trim()]
     );
-    res.json({ ok: true, workers: r.rows });
+    await pool.query('INSERT INTO lv_access (worker_id) VALUES ($1) ON CONFLICT DO NOTHING', [r.rows[0].id]);
+    res.json({ ok: true, id: r.rows[0].id });
   } catch (err) {
+    if (err.code === '23505') return res.json({ ok: false, error: 'This PIN is already in use' });
+    res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+// Nime/PIN-i muutmine — Läti admin saab muuta ainult neid, kes on Läti moodulis.
+router.put('/admin/workers-new/:id', noudaLvAdmin, async (req, res) => {
+  const { name, pin } = req.body;
+  if (!name || !name.trim()) return res.json({ ok: false, error: 'Enter a name' });
+  if (!pin || !String(pin).trim()) return res.json({ ok: false, error: 'Enter a PIN' });
+  try {
+    if (!onPeaadmin(req)) {
+      const lubatud = await pool.query('SELECT 1 FROM lv_access WHERE worker_id=$1', [req.params.id]);
+      if (!lubatud.rows.length) return res.status(403).json({ ok: false, error: 'This worker is not in the Latvia module' });
+    }
+    await pool.query('UPDATE workers SET nimi=$1, pin=$2 WHERE id=$3', [name.trim(), String(pin).trim(), req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23505') return res.json({ ok: false, error: 'This PIN is already in use' });
     res.status(500).json({ ok: false, error: 'Server error' });
   }
 });
@@ -515,6 +562,11 @@ router.get('/admin/workers', noudaLvAdmin, async (req, res) => {
 router.post('/admin/workers/:workerId', noudaLvAdmin, async (req, res) => {
   const { allowed } = req.body;
   try {
+    // Läti admin tohib ligipääsu ainult ÄRA võtta (oma nimekirjast eemaldada) — uue töötaja
+    // lisamine käib tal läbi workers-new, mitte Eesti töötajate nimekirjast valides.
+    if (allowed && !onPeaadmin(req)) {
+      return res.status(403).json({ ok: false, error: 'Use "Add worker" to add someone to the module' });
+    }
     if (allowed) {
       await pool.query('INSERT INTO lv_access (worker_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.params.workerId]);
     } else {
