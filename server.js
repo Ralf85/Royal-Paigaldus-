@@ -82,6 +82,9 @@ app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
 app.use('/api/padel', require('./routes/padel'));
 app.use('/api/webauthn', require('./routes/webauthn'));
+// LIDL LATVIA — eraldiseisev fotomoodul (oma tabelid, oma admini PIN, kogu liides inglise keeles).
+// Ei puuduta Eesti Lidli moodulit (/api/kristo) ega töökirjeid.
+app.use('/api/latvia', require('./routes/latvia'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -93,6 +96,9 @@ app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 
 // poodide fotokorpuseks) — vana /kristo aadress jääb alles ja suunab uuele, et miski katki ei läheks.
 app.get('/lidl-eesti', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-eesti.html')));
 app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
+// Lidl Latvia: töötaja fotode üleslaadimine ja galerii + Läti admini oma leht (oma PIN).
+app.get('/lidl-latvia', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia.html')));
+app.get('/lidl-latvia-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia-admin.html')));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
