@@ -299,14 +299,19 @@ router.put('/kirjeldus/maara-projekt', noudaAdmin, async (req, res) => {
   const { kirjeldus, projekt_id } = req.body;
   if (!kirjeldus || !projekt_id) return res.json({ ok: false, veateade: 'Kirjeldus ja projekt on kohustuslikud' });
   try {
+    // NB: varem oli siin UPDATE ... FROM koos LEFT JOIN lidl_projektid ON t.lidl_projekt_id — Postgres
+    // ei luba sihttabelile (t) FROM-klausli liitumistingimuses viidata ja päring viskas vea.
+    // Kuna ümber määratakse ainult veel projektita kirjeid, saab võtme lihtsalt kommentaarist.
     const r = await pool.query(
-      `UPDATE tookirjed t SET lidl_projekt_id = $1
-       FROM objektid o
-       JOIN ettevotted e ON o.ettevote_id = e.id
-       LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
-       WHERE t.objekt_id = o.id AND e.nimi = 'LIDL'
-         AND ${KIRJELDUS_VOTI} = $2
-         AND t.id IN (SELECT tookirje_id FROM tookirje_pildid)`,
+      `UPDATE tookirjed SET lidl_projekt_id = $1
+       WHERE lidl_projekt_id IS NULL
+         AND COALESCE(kommentaar, 'Määramata') = $2
+         AND objekt_id IN (
+           SELECT o.id FROM objektid o
+           JOIN ettevotted e ON o.ettevote_id = e.id
+           WHERE e.nimi = 'LIDL'
+         )
+         AND id IN (SELECT tookirje_id FROM tookirje_pildid)`,
       [projekt_id, kirjeldus]
     );
     res.json({ ok: true, muudetud: r.rowCount });
