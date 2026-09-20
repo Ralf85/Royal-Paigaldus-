@@ -22,7 +22,8 @@
     document.getElementById('ts-eelvaade').style.display = 'none';
     document.getElementById('ts-alusta').style.display = 'block';
     tsTeade('');
-    document.getElementById('ts-fail').value = '';
+        var f1 = document.getElementById('ts-fail'); if (f1) f1.value = '';
+    var f2 = document.getElementById('ts-fail-album'); if (f2) f2.value = '';
   };
 
   window.tsSulge = function () {
@@ -102,11 +103,17 @@
     modal.innerHTML = '<div class="tootaja-modal-sisu" style="max-width:480px">'
       + '<div class="tm-hdr"><span>📷 Lisa tšekk</span><span class="tm-sulge" onclick="tsSulge()">✕</span></div>'
       + '<div style="padding:18px 22px">'
-      + '<div id="ts-alusta">'
-      + '<label style="display:block;text-align:center;background:rgba(37,99,235,0.12);border:2px dashed var(--sinine);border-radius:12px;padding:32px 16px;color:var(--sinine);font-size:15px;font-weight:700;cursor:pointer">'
-      + '📷 Pildista või vali tšekk'
-      + '<input type="file" id="ts-fail" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="tsFailValitud(this)">'
+        + '<div id="ts-alusta">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + '<label style="text-align:center;background:rgba(37,99,235,0.12);border:2px dashed var(--sinine);border-radius:12px;padding:26px 10px;color:var(--sinine);font-size:14px;font-weight:700;cursor:pointer">'
+      + '📷<br>Pildista'
+      + '<input type="file" id="ts-fail" accept="image/*" capture="environment" style="display:none" onchange="tsFailValitud(this)">'
       + '</label>'
+      + '<label style="text-align:center;background:var(--bg3);border:2px dashed var(--sisend-piir);border-radius:12px;padding:26px 10px;color:var(--tekst2);font-size:14px;font-weight:700;cursor:pointer">'
+      + '🖼️<br>Albumist'
+      + '<input type="file" id="ts-fail-album" accept="image/*,application/pdf" style="display:none" onchange="tsFailValitud(this)">'
+      + '</label>'
+      + '</div>'
       + '<div style="font-size:12px;color:var(--hall);text-align:center;margin-top:10px">Läheb Royal Paigalduse kuluks, staatusega makstud.</div>'
       + '</div>'
       + '<div id="ts-eelvaade" style="display:none;margin-bottom:14px"><img id="ts-pilt" style="width:100%;max-height:200px;object-fit:contain;border-radius:10px;background:var(--bg3)"></div>'
