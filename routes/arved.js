@@ -1401,5 +1401,27 @@ router.put('/:id/muuja', noudaAdmin, async (req, res) => {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+// ── SISSETULEVA KULU MÜÜJA (minu ettevõte) ───────────────────────────────
+// Puudus varem täiesti: liides kutsus PUT /sisse/:id/muuja, aga sellist teed polnud ja server
+// vastas 404 — valik ei salvestunud ega andnud ka veateadet. Lisaks tagame, et vajalik veerg
+// on tabelis olemas (vanades andmebaasides seda polnud, mistõttu /sisse-muujad viskas 500).
+async function initSisseMuuja() {
+  await pool.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id)`);
+}
+initSisseMuuja().catch(e => console.error('arve_sisse.muuja_id init failed:', e.message));
 
+router.put('/sisse/:id/muuja', noudaAdmin, async (req, res) => {
+  const { muuja_id } = req.body;
+  try {
+    const r = await pool.query(
+      'UPDATE arve_sisse SET muuja_id=$1 WHERE id=$2',
+      [muuja_id || null, req.params.id]
+    );
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
 module.exports = router;
