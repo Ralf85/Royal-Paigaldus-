@@ -1989,6 +1989,8 @@ document.getElementById('muudaVahetusModal2')?.addEventListener('click', functio
         <select id="as-filt-muuja" style="font-size:11px;padding:5px 10px;width:auto" onchange="avFiltreeriSisseMuuja(this.value)"><option value="koik">Kõik minu ettevõtted</option></select>
         <button type="button" class="nupp hall" id="as-zip-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avLaadiValitudZip()">⬇️ Laadi valitud alla (ZIP)</button>
         <button type="button" class="nupp hall" id="as-kustuta-nupp" style="font-size:12px;padding:5px 12px;display:none;color:#f87171" onclick="avKustutaValitudSisse()">🗑 Kustuta valitud</button>
+                <select id="as-hulgi-muuja" style="font-size:11px;padding:5px 10px;width:auto;display:none"></select>
+        <button type="button" class="nupp kull" id="as-hulgi-nupp" style="font-size:12px;padding:5px 12px;display:none" onclick="avMaaraValitudMuuja()">✔ Määra valitutele</button>
         <span id="av-sisseajalugu-nool" onclick="avToggleKaart('av-sisseajalugu-body','av-sisseajalugu-nool')" style="cursor:pointer;color:var(--hall);font-size:12px;padding:2px 4px">▲</span>
       </div>
       <div id="av-sisseajalugu-body">
