@@ -1,7 +1,11 @@
-// Märkmed — admini isiklikud kiired mõtted ja kokkulepped.
-// Eraldi failis, sest admin.html on liiga suur, et sinna turvaliselt koodi kleepida.
+// Märkmed — admini isiklikud mõtted ja kokkulepped. Pealkiri + sisu, sisu saab hiljem täiendada.
 (function () {
   var mkList = [];
+  var mkAvatudId = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
 
   function mkUuendaBadge() {
     var badge = document.getElementById('mk-badge');
@@ -11,64 +15,91 @@
     badge.textContent = lahtiseid;
   }
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function kpTekst(m) {
+    var d = new Date(m.uuendatud);
+    var kp = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear()
+      + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    return kp + (new Date(m.loodud).getTime() !== d.getTime() ? ' · muudetud' : '');
   }
 
   async function mkLaadi() {
-    var div = document.getElementById('mk-nimekiri');
-    div.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hall);font-size:13px">Laadimine...</div>';
     var r = await api('/api/markmed');
     mkList = (r && r.ok && Array.isArray(r.markmed)) ? r.markmed : [];
     mkUuendaBadge();
-    if (!mkList.length) {
-      div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall);font-size:13px">Märkmeid pole veel. Kirjuta esimene ülalt.</div>';
+    mkJoonista();
+  }
+
+  function mkJoonista() {
+    var div = document.getElementById('mk-sisu');
+    if (!div) return;
+
+    // Muutmisvaade: pealkiri + sisu ühes vormis, et saaks rahulikult täiendada.
+    if (mkAvatudId !== null) {
+      var m = mkList.find(function (x) { return x.id === mkAvatudId; }) || { pealkiri: '', tekst: '' };
+      div.innerHTML = '<div style="padding:16px 24px">'
+        + '<input type="text" id="mk-e-pealkiri" placeholder="Pealkiri" value="' + esc(m.pealkiri || '') + '" style="font-size:15px;font-weight:600;margin-bottom:10px">'
+        + '<textarea id="mk-e-tekst" rows="10" placeholder="Sisu..." style="resize:vertical">' + esc(m.tekst || '') + '</textarea>'
+        + '<div style="display:flex;gap:8px;margin-top:12px">'
+        + '<button class="nupp kull" onclick="mkSalvesta()">💾 Salvesta</button>'
+        + '<button class="nupp hall" onclick="mkTagasi()">← Tagasi</button>'
+        + (mkAvatudId !== 'uus' ? '<button class="nupp punane" style="margin-left:auto" onclick="mkKustuta(' + mkAvatudId + ')">🗑 Kustuta</button>' : '')
+        + '</div></div>';
+      var p = document.getElementById('mk-e-pealkiri');
+      if (p) p.focus();
       return;
     }
-    div.innerHTML = mkList.map(function (m, i) {
-      var d = new Date(m.uuendatud);
-      var kp = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear()
-        + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-      var muudetud = new Date(m.loodud).getTime() !== d.getTime();
-      return '<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 24px;border-bottom:0.5px solid var(--piir3)' + (m.tehtud ? ';opacity:0.5' : '') + '">'
+
+    // Nimekirjavaade
+    var html = '<div style="padding:14px 24px;border-bottom:0.5px solid var(--piir2)">'
+      + '<button class="nupp kull" style="width:100%" onclick="mkUus()">+ Uus märge</button></div>';
+
+    if (!mkList.length) {
+      div.innerHTML = html + '<div style="padding:28px;text-align:center;color:var(--hall);font-size:13px">Märkmeid pole veel.</div>';
+      return;
+    }
+
+    div.innerHTML = html + mkList.map(function (m) {
+      var pealkiri = m.pealkiri || (m.tekst || '').split('\n')[0].slice(0, 60) || 'Pealkirjata';
+      var sisu = (m.tekst || '').replace(/\s+/g, ' ').slice(0, 120);
+      return '<div style="display:flex;gap:10px;align-items:flex-start;padding:13px 24px;border-bottom:0.5px solid var(--piir3)' + (m.tehtud ? ';opacity:0.45' : '') + '">'
         + '<input type="checkbox" ' + (m.tehtud ? 'checked' : '') + ' onchange="mkTehtud(' + m.id + ', this.checked)" style="width:auto;margin-top:3px;flex-shrink:0">'
-        + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:13px;color:var(--tekst);white-space:pre-wrap' + (m.tehtud ? ';text-decoration:line-through' : '') + '">' + esc(m.tekst) + '</div>'
-        + '<div style="font-size:11px;color:var(--hall);margin-top:4px">' + kp + (muudetud ? ' · muudetud' : '') + '</div>'
+        + '<div style="flex:1;min-width:0;cursor:pointer" onclick="mkAva(' + m.id + ')">'
+        + '<div style="font-size:14px;font-weight:600;color:var(--tekst)' + (m.tehtud ? ';text-decoration:line-through' : '') + '">' + esc(pealkiri) + '</div>'
+        + (sisu ? '<div style="font-size:12px;color:var(--tekst3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(sisu) + '</div>' : '')
+        + '<div style="font-size:11px;color:var(--hall);margin-top:4px">' + kpTekst(m) + '</div>'
         + '</div>'
-        + '<button class="av-tegevus-ikoon" title="Muuda" onclick="mkMuuda(' + i + ')">✏️</button>'
-        + '<button class="av-tegevus-ikoon kustuta" title="Kustuta" onclick="mkKustuta(' + m.id + ')">🗑</button>'
+        + '<span style="color:var(--hall);font-size:16px;flex-shrink:0">›</span>'
         + '</div>';
     }).join('');
   }
 
   window.mkAvaPaneel = function () {
+    mkAvatudId = null;
     document.getElementById('mkModal').classList.add('avatud');
-    document.getElementById('mk-uus-tekst').value = '';
     mkLaadi();
   };
 
   window.mkSuljePaneel = function () {
     document.getElementById('mkModal').classList.remove('avatud');
+    mkAvatudId = null;
   };
 
-  window.mkLisa = async function () {
-    var el = document.getElementById('mk-uus-tekst');
-    var tekst = el.value.trim();
-    if (!tekst) return;
-    var r = await api('/api/markmed', { method: 'POST', body: JSON.stringify({ tekst: tekst }) });
-    if (!r || !r.ok) { alert((r && r.veateade) || 'Salvestamine ebaõnnestus'); return; }
-    el.value = '';
-    await mkLaadi();
-  };
+  window.mkUus = function () { mkAvatudId = 'uus'; mkJoonista(); };
+  window.mkAva = function (id) { mkAvatudId = id; mkJoonista(); };
+  window.mkTagasi = function () { mkAvatudId = null; mkJoonista(); };
 
-  window.mkMuuda = async function (i) {
-    var m = mkList[i];
-    if (!m) return;
-    var uus = prompt('Muuda märget:', m.tekst);
-    if (uus === null || !uus.trim() || uus.trim() === m.tekst) return;
-    var r = await api('/api/markmed/' + m.id, { method: 'PUT', body: JSON.stringify({ tekst: uus.trim() }) });
+  window.mkSalvesta = async function () {
+    var pealkiri = document.getElementById('mk-e-pealkiri').value.trim();
+    var tekst = document.getElementById('mk-e-tekst').value.trim();
+    if (!pealkiri && !tekst) { alert('Märge on tühi'); return; }
+    var r;
+    if (mkAvatudId === 'uus') {
+      r = await api('/api/markmed', { method: 'POST', body: JSON.stringify({ pealkiri: pealkiri, tekst: tekst }) });
+    } else {
+      r = await api('/api/markmed/' + mkAvatudId, { method: 'PUT', body: JSON.stringify({ pealkiri: pealkiri, tekst: tekst }) });
+    }
     if (!r || !r.ok) { alert((r && r.veateade) || 'Salvestamine ebaõnnestus'); return; }
+    mkAvatudId = null;
     await mkLaadi();
   };
 
@@ -80,6 +111,7 @@
   window.mkKustuta = async function (id) {
     if (!confirm('Kustutad selle märkme jäädavalt?')) return;
     await api('/api/markmed/' + id, { method: 'DELETE' });
+    mkAvatudId = null;
     await mkLaadi();
   };
 
@@ -89,21 +121,18 @@
     nupp.className = 'topbar-ikoon-nupp';
     nupp.title = 'Märkmed';
     nupp.onclick = window.mkAvaPaneel;
-    nupp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>'
-      + '<span id="mk-badge" style="display:none;position:absolute;top:2px;right:2px;background:var(--kuld);color:#0d0f13;font-size:9px;font-weight:800;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center">0</span>';
+    nupp.style.padding = '7px 12px';
+    nupp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="21" height="21"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>'
+      + '<span id="mk-badge" style="display:none;position:absolute;top:1px;right:3px;background:var(--kuld);color:#0d0f13;font-size:9px;font-weight:800;border-radius:8px;padding:1px 5px;min-width:15px;text-align:center">0</span>';
     var kelluke = document.getElementById('kk-kelluke');
     if (kelluke && kelluke.parentNode) kelluke.parentNode.insertBefore(nupp, kelluke);
 
     var modal = document.createElement('div');
     modal.className = 'tootaja-modal-overlay';
     modal.id = 'mkModal';
-    modal.innerHTML = '<div class="tootaja-modal-sisu" style="max-width:600px">'
+    modal.innerHTML = '<div class="tootaja-modal-sisu" style="max-width:620px">'
       + '<div class="tm-hdr"><span>📝 Märkmed</span><span class="tm-sulge" onclick="mkSuljePaneel()">✕</span></div>'
-      + '<div style="padding:16px 24px;border-bottom:0.5px solid var(--piir2)">'
-      + '<textarea id="mk-uus-tekst" rows="2" placeholder="Kirjuta mõte või kokkulepe..." style="resize:vertical"></textarea>'
-      + '<button class="nupp kull" style="margin-top:8px" onclick="mkLisa()">+ Lisa märge</button>'
-      + '</div>'
-      + '<div id="mk-nimekiri" style="padding:8px 0;max-height:60vh;overflow-y:auto"></div></div>';
+      + '<div id="mk-sisu" style="max-height:70vh;overflow-y:auto"></div></div>';
     document.body.appendChild(modal);
     modal.addEventListener('click', function (e) { if (e.target === this) window.mkSuljePaneel(); });
 
