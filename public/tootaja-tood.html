@@ -211,7 +211,7 @@
               <input type="file" id="foto-kaamera" accept="image/*" capture="environment" multiple>
             </label>
             <label class="foto-nupp">
-              🖼️ Album (kuni 12)
+              🖼️ Album (kuni 20)
               <input type="file" id="foto-album" accept="image/*" multiple>
             </label>
           </div>
@@ -371,8 +371,8 @@
     }
     // ── FOTOD ────────────────────────────────────────────────
     function lisaFotod(files) {
-      var uued = Array.from(files).slice(0, 12 - valitudFotod.length);
-      valitudFotod = valitudFotod.concat(uued).slice(0, 12);
+         var uued = Array.from(files).slice(0, 20 - valitudFotod.length);
+      valitudFotod = valitudFotod.concat(uued).slice(0, 20);
       uuendaFotoEelvaade();
     }
     function uuendaFotoEelvaade() {
