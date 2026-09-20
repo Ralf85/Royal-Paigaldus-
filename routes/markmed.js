@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
-// Admini isiklikud märkmed — kiired mõtted, kokkulepped, asjad mida tulevikus vaja meeles pidada.
+// Admini isiklikud märkmed — pealkiri + sisu, mida saab hiljem täiendada.
 async function initMarkmed() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_markmed (
@@ -13,6 +13,8 @@ async function initMarkmed() {
       uuendatud TIMESTAMP DEFAULT NOW()
     );
   `);
+  // Pealkiri lisandus hiljem — olemasolevatel märkmetel jääb see tühjaks ja sisu on endine tekst.
+  await pool.query(`ALTER TABLE admin_markmed ADD COLUMN IF NOT EXISTS pealkiri TEXT`);
 }
 initMarkmed().catch(e => console.error('admin_markmed init failed:', e.message));
 
@@ -32,10 +34,14 @@ router.get('/', noudaAdmin, async (req, res) => {
 });
 
 router.post('/', noudaAdmin, async (req, res) => {
+  const pealkiri = (req.body.pealkiri || '').trim();
   const tekst = (req.body.tekst || '').trim();
-  if (!tekst) return res.json({ ok: false, veateade: 'Märkme tekst on tühi' });
+  if (!pealkiri && !tekst) return res.json({ ok: false, veateade: 'Märge on tühi' });
   try {
-    const r = await pool.query('INSERT INTO admin_markmed (tekst) VALUES ($1) RETURNING *', [tekst]);
+    const r = await pool.query(
+      'INSERT INTO admin_markmed (pealkiri, tekst) VALUES ($1,$2) RETURNING *',
+      [pealkiri || null, tekst]
+    );
     res.json({ ok: true, markme: r.rows[0] });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -43,10 +49,14 @@ router.post('/', noudaAdmin, async (req, res) => {
 });
 
 router.put('/:id', noudaAdmin, async (req, res) => {
+  const pealkiri = (req.body.pealkiri || '').trim();
   const tekst = (req.body.tekst || '').trim();
-  if (!tekst) return res.json({ ok: false, veateade: 'Märkme tekst on tühi' });
+  if (!pealkiri && !tekst) return res.json({ ok: false, veateade: 'Märge on tühi' });
   try {
-    const r = await pool.query('UPDATE admin_markmed SET tekst=$1, uuendatud=NOW() WHERE id=$2 RETURNING *', [tekst, req.params.id]);
+    const r = await pool.query(
+      'UPDATE admin_markmed SET pealkiri=$1, tekst=$2, uuendatud=NOW() WHERE id=$3 RETURNING *',
+      [pealkiri || null, tekst, req.params.id]
+    );
     if (!r.rowCount) return res.json({ ok: false, veateade: 'Märget ei leitud' });
     res.json({ ok: true, markme: r.rows[0] });
   } catch (err) {
