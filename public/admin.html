@@ -5849,12 +5849,26 @@ function avEemaldaRida(idx) {
   avJoonistaRead();
 }
 
+// NB: varem kutsus iga klahvivajutus avJoonistaRead(), mis joonistas kogu tabeli uuesti —
+// sisestusväli hävitati ja loodi uuesti, nii et kursor hüppas välja ja sai kirjutada ainult
+// tähthaaval. Nüüd uuendame mudelit ja ainult arvutatud numbreid, välju ennast puutumata.
 function avUuendaRida(idx, valjs, val) {
   avRead[idx][valjs] = val;
   if (valjs === 'kogus' || valjs === 'hind') {
     avRead[idx].summa = +((parseFloat(avRead[idx].kogus) || 0) * (parseFloat(avRead[idx].hind) || 0)).toFixed(2);
+    const summaLahter = document.getElementById('av-rida-summa-' + idx);
+    if (summaLahter) summaLahter.textContent = avFmtEur(avRead[idx].summa);
   }
-  avJoonistaRead();
+  avUuendaKokkuvotted();
+}
+
+function avUuendaKokkuvotted() {
+  const summaKmTa = avRead.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
+  const kaibemaks = summaKmTa * (avKmProtsent / 100);
+  document.getElementById('av-summa-kmta').textContent = avFmtEur(summaKmTa);
+  document.getElementById('av-kaibemaks').textContent = avFmtEur(kaibemaks);
+  document.getElementById('av-kaibemaks-silt').textContent = `Käibemaks ${avKmProtsent}%`;
+  document.getElementById('av-kokku').textContent = avFmtEur(summaKmTa + kaibemaks);
 }
 
 function avJoonistaRead() {
@@ -5865,15 +5879,10 @@ function avJoonistaRead() {
       <td><input type="number" step="0.1" value="${r.kogus}" oninput="avUuendaRida(${idx},'kogus',this.value)"></td>
       <td><input type="text" value="${r.uhik||''}" oninput="avUuendaRida(${idx},'uhik',this.value)"></td>
       <td><input type="number" step="0.01" value="${r.hind}" oninput="avUuendaRida(${idx},'hind',this.value)"></td>
-      <td style="text-align:right;font-weight:600">${avFmtEur(r.summa)}</td>
+      <td id="av-rida-summa-${idx}" style="text-align:right;font-weight:600">${avFmtEur(r.summa)}</td>
       <td><button onclick="avEemaldaRida(${idx})" style="background:none;border:none;color:var(--hall);cursor:pointer">✕</button></td>
     </tr>`).join('');
-  const summaKmTa = avRead.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-  const kaibemaks = summaKmTa * (avKmProtsent / 100);
-  document.getElementById('av-summa-kmta').textContent = avFmtEur(summaKmTa);
-  document.getElementById('av-kaibemaks').textContent = avFmtEur(kaibemaks);
-  document.getElementById('av-kaibemaks-silt').textContent = `Käibemaks ${avKmProtsent}%`;
-  document.getElementById('av-kokku').textContent = avFmtEur(summaKmTa + kaibemaks);
+  avUuendaKokkuvotted();
 }
 
 async function avAutotaida(viis) {
