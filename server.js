@@ -80,6 +80,7 @@ app.use('/api/projektid', require('./routes/projektid'));
 app.use('/api/omaarved', require('./routes/omaarved'));
 app.use('/api/xseeria', require('./routes/xseeria'));
 app.use('/api/arved', require('./routes/arved'));
+app.use('/api/markmed', require('./routes/markmed'));
 app.use('/api/padel', require('./routes/padel'));
 app.use('/api/webauthn', require('./routes/webauthn'));
 // LIDL LATVIA — eraldiseisev fotomoodul (oma tabelid, oma admini PIN, kogu liides inglise keeles).
