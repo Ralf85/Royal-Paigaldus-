@@ -2943,7 +2943,15 @@ async function laadiKokkuvote() {
   renderKokkuvoteTable();
 }
 
-function dashOtsiMuutus(v) { dashOtsing = (v||'').toLowerCase(); dashLehekülg = 1; renderKokkuvoteTable(); }
+function dashOtsiMuutus(v) {
+  dashOtsing = (v||'').toLowerCase();
+  dashLehekülg = 1;
+  renderKokkuvoteTable();
+  // Otsingukast asub tabeli sees, mis joonistatakse iga tähe järel uuesti — seega väli
+  // hävib ja kursor kaob. Anname fookuse kohe tagasi, kursor teksti lõppu.
+  const el = document.querySelector('#kokkuvoteKast .tabel-otsi');
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
 function dashStaatusMuutus(f) { dashStaatusFilter = f; dashLehekülg = 1; renderKokkuvoteTable(); }
 function dashLeheVaheta(delta) { dashLehekülg += delta; renderKokkuvoteTable(); }
 
