@@ -6504,8 +6504,30 @@ function avUuendaZipNupp() {
 // Hulgimääramine — ilma selleta tuleks ajaloolised kulud ükshaaval läbi klikkida,
 // enne kui neid saab müüja järgi filtreerida ja raamatupidajale ZIP-ina saata.
 async function avMaaraValitudMuuja() {
-  const muujaId =
+  const muujaId = document.getElementById('as-hulgi-muuja').value;
+  if (!muujaId) { alert('Vali enne ettevõte, kelle alla need kulud lähevad'); return; }
+  if (!avSisseValitud.size) return;
+  const nimi = (avmMuujad.find(m => String(m.id) === String(muujaId)) || {}).ettevote_nimi || '';
+  if (!confirm(`Määrad ${avSisseValitud.size} kirjet ettevõtte "${nimi}" alla?`)) return;
+  const r = await api('/api/arved/sisse/muuja-hulgi', {
+    method: 'PUT',
+    body: JSON.stringify({ ids: [...avSisseValitud], muuja_id: muujaId })
+  });
+  if (!r || !r.ok) { alert((r && r.veateade) || 'Salvestamine ebaõnnestus'); return; }
+  await laadiSisseTabel();
+}
 
+function avLaadiValitudZip() {
+  if (!avSisseValitud.size) return;
+  window.open(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}&_token=${TOKEN}`, '_blank');
+}
+
+async function avKustutaValitudSisse() {
+  if (!avSisseValitud.size) return;
+  if (!confirm(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
+  await api(`/api/arved/sisse?ids=${[...avSisseValitud].join(',')}`, { method: 'DELETE' });
+  await laadiSisseTabel();
+}
 function avMuudaSisse(id) {
   const s = avSisseList.find(x => x.id === id);
   if (!s) return;
