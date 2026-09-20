@@ -6480,25 +6480,31 @@ function avVaataKoikSisse(koik) {
 function avUuendaZipNupp() {
   const nupp = document.getElementById('as-zip-nupp');
   const kustNupp = document.getElementById('as-kustuta-nupp');
+  const hulgiSel = document.getElementById('as-hulgi-muuja');
+  const hulgiNupp = document.getElementById('as-hulgi-nupp');
+  const onValitud = avSisseValitud.size > 0;
   if (nupp) {
-    nupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    nupp.style.display = onValitud ? 'inline-block' : 'none';
     nupp.textContent = `⬇️ Laadi valitud alla (${avSisseValitud.size} ZIP-ina)`;
   }
   if (kustNupp) {
-    kustNupp.style.display = avSisseValitud.size ? 'inline-block' : 'none';
+    kustNupp.style.display = onValitud ? 'inline-block' : 'none';
     kustNupp.textContent = `🗑 Kustuta valitud (${avSisseValitud.size})`;
   }
+  if (hulgiSel) {
+    hulgiSel.style.display = onValitud ? 'inline-block' : 'none';
+    if (onValitud && !hulgiSel.options.length) {
+      hulgiSel.innerHTML = '<option value="">— määra minu ettevõte —</option>' +
+        avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('');
+    }
+  }
+  if (hulgiNupp) hulgiNupp.style.display = onValitud ? 'inline-block' : 'none';
 }
-function avLaadiValitudZip() {
-  if (!avSisseValitud.size) return;
-  window.open(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}&_token=${TOKEN}`, '_blank');
-}
-async function avKustutaValitudSisse() {
-  if (!avSisseValitud.size) return;
-  if (!confirm(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
-  await api(`/api/arved/sisse?ids=${[...avSisseValitud].join(',')}`, { method: 'DELETE' });
-  await laadiSisseTabel();
-}
+
+// Hulgimääramine — ilma selleta tuleks ajaloolised kulud ükshaaval läbi klikkida,
+// enne kui neid saab müüja järgi filtreerida ja raamatupidajale ZIP-ina saata.
+async function avMaaraValitudMuuja() {
+  const muujaId =
 
 function avMuudaSisse(id) {
   const s = avSisseList.find(x => x.id === id);
