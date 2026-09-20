@@ -6689,26 +6689,7 @@ async function avLaadiOaLogo(muujaId, input) {
   input.value = '';
   laadiOaArvedLigipaas();
 }
-// ── MÄRKMED (ainult admin) ────────────────────────────────────────────────
-// Nupp ja paneel luuakse siin JS-iga, et HTML-i sees midagi käsitsi muuta ei peaks.
-(function seadistaMarkmed() {
-  var nupp = document.createElement('button');
-  nupp.type = 'button';
-  nupp.className = 'topbar-ikoon-nupp';
-  nupp.title = 'Märkmed';
-  nupp.onclick = mkAvaPaneel;
-  nupp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>'
-    + '<span id="mk-badge" style="display:none;position:absolute;top:2px;right:2px;background:var(--kuld);color:#0d0f13;font-size:9px;font-weight:800;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center">0</span>';
-  var kelluke = document.getElementById('kk-kelluke');
-  if (kelluke && kelluke.parentNode) kelluke.parentNode.insertBefore(nupp, kelluke);
 
-  var modal = document.createElement('div');
-  modal.className = 'tootaja-modal-overlay';
-  modal.id = 'mkModal';
-  modal.innerHTML = '<div class="tootaja-modal-sisu" style="max-width:600px">'
-    + '<div class="tm-hdr"><span>📝 Märkmed</span><span class="tm-sulge" onclick="mkSuljePaneel()">✕</span></div>'
-    + '<div style="padding:16px 24px;border-bottom:0.5px solid var(--piir2)">'
-    + '<textarea id="mk-uus-tekst" rows="2" placeholder="Kirjuta mõte või
 init();
 </script>
 </body>
