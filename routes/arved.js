@@ -1424,4 +1424,15 @@ router.put('/sisse/:id/muuja', noudaAdmin, async (req, res) => {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+router.put('/sisse/muuja-hulgi', noudaAdmin, async (req, res) => {
+  const { ids, muuja_id } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.json({ ok: false, veateade: 'Vali vähemalt üks kirje' });
+  try {
+    const r = await pool.query('UPDATE arve_sisse SET muuja_id=$1 WHERE id = ANY($2)', [muuja_id || null, ids]);
+    res.json({ ok: true, muudetud: r.rowCount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
 module.exports = router;
