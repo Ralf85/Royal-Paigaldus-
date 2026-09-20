@@ -1435,4 +1435,39 @@ router.put('/sisse/muuja-hulgi', noudaAdmin, async (req, res) => {
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
+// Kiire tšeki lisamine telefonist — üks päring, mis loeb AI-ga ja salvestab kohe.
+// Eraldi endpoint, sest tavaline /sisse eeldab, et kasutaja on vormi käsitsi täitnud.
+router.post('/tsekk-kiire', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  try {
+    const muujaR = await pool.query('SELECT id FROM arve_muujad WHERE vaikimisi=true');
+    const muujaId = muujaR.rows.length ? muujaR.rows[0].id : null;
+    const result = await new Promise((resolve, reject) => {
+      const stream = getCloudinary().uploader.upload_stream(
+        cloudinaryUploadOpts('royal-paigaldus/arved-sisse', req.file.mimetype, req.file.originalname),
+        (err, r) => err ? reject(err) : resolve(r)
+      );
+      stream.end(req.file.buffer);
+    });
+    const r = await pool.query(
+      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id, fail_resource_type, muuja_id)
+       VALUES ($1,$2,$3,$4,$5,'makstud',$6,$7,$8,$9) RETURNING *`,
+      [
+        req.body.kuupaev || new Date().toISOString().split('T')[0],
+        req.body.ettevote_id || null,
+        (req.body.kirjeldus || '').trim(),
+        parseFloat(req.body.summa) || 0,
+        parseFloat(req.body.kaibemaks) || 0,
+        result.secure_url,
+        result.public_id,
+        cloudinaryResourceType(req.file.mimetype),
+        muujaId
+      ]
+    );
+    res.json({ ok: true, kirje: r.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
 module.exports = router;
