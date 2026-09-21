@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>X-seeria — Tiim</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d0f13">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #0d0f13; color: #e2e8f0; }
+  header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 14px 16px; }
+  .hdr-top { display: flex; align-items: center; justify-content: space-between; }
+  header h1 { margin: 0; font-size: 17px; }
+  header a.exit, header button.exit { color: #c9a84c; font-size: 12px; text-decoration: none; border: 0.5px solid #333; border-radius: 6px; padding: 6px 10px; background: none; font-family: inherit; cursor: pointer; }
+  .rada { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; margin-top: 8px; flex-wrap: wrap; }
+  .rada button { background: none; border: none; color: #c9a84c; font-size: 12px; cursor: pointer; padding: 0; }
+  #app { padding: 12px; max-width: 640px; margin: 0 auto; }
+  .who { font-size: 12px; color: #666; text-align: right; margin-bottom: 6px; }
+  .tile { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; gap: 14px; }
+  .tile:active { background: #1a1d24; }
+  .tile.haldus { border-color: #c9a84c; background: rgba(201,168,76,0.08); }
+  .tile .ikoon { font-size: 26px; width: 44px; text-align: center; }
+  .tile .ikoon.foto { width: 52px; height: 52px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .tile .ikoon.foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile .info { flex: 1; }
+  .tile .nimi { font-size: 16px; font-weight: 700; }
+  .tile .sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .progress { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #1e2128; color: #aaa; }
+  .progress.ok { background: #14532d; color: #86efac; }
+  .card { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .card .rida1 { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .nimi { font-size: 16px; font-weight: 700; }
+  .card .staatused { display: flex; gap: 8px; margin-top: 10px; }
+  .stbtn { flex: 1; padding: 12px 8px; border-radius: 8px; border: 2px solid #252830; font-size: 13px; font-weight: 600; background: #0d0f13; color: #888; }
+  .stbtn.done { background: #16a34a; border-color: #16a34a; color: white; }
+  .stbtn.clean { background: #0ea5e9; border-color: #0ea5e9; color: white; }
+  .meta { font-size: 11px; color: #666; margin-top: 6px; }
+  .empty { text-align: center; color: #666; margin-top: 60px; padding: 0 20px; }
+  .empty a { color: #c9a84c; }
+  .foto-kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .foto-kaart img { width: 100%; border-radius: 8px; margin-top: 8px; display: block; }
+  .foto-nupp { display: inline-block; margin-top: 8px; background: #1e2128; border: 0.5px solid #333; color: #ccc; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  .summary { background: #13161c; border: 0.5px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; font-size: 13px; display: flex; justify-content: space-between; }
+  .summary.jaotus { font-size: 12px; color: #999; padding: 9px 16px; margin-top: -6px; }
+  .summary.jaotus .tasutud { color: #86efac; }
+  .summary.jaotus .ootel { color: #fbbf24; }
+  .rajakaart-suur { display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #c9a84c, #a6842e); color: #0d0f13; border-radius: 14px; padding: 18px; margin-bottom: 14px; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; text-decoration: none; }
+  .rajakaart-suur:active { opacity: 0.85; }
+  .sponsor-kaart .nimi { display: flex; align-items: center; gap: 6px; }
+  .sponsor-kaart .markused { font-size: 13px; color: #ccc; margin-top: 8px; background: #1a1d24; border-radius: 8px; padding: 8px 10px; }
+  .sp-staatused { display: flex; gap: 6px; margin-top: 10px; }
+  .sp-stbtn { flex: 1; padding: 10px 4px; border-radius: 8px; border: 2px solid #252830; font-size: 12px; font-weight: 600; background: #0d0f13; color: #888; }
+  .sp-stbtn.active { background: #c9a84c; border-color: #c9a84c; color: #0d0f13; }
+  .tile.minu-park { border-color: #3b82f6; background: rgba(59,130,246,0.12); }
+  .tile.minu-park .nimi { color: #60a5fa; }
+  .kulu-input { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 8px; color: #e2e8f0; font-size: 13px; }
+  .kulu-label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+  /* Tasutud kulu: roheline raam + silt. Kaart on lukus (ilma Muuda/Kustuta nuppudeta),
+     sest summa on juba välja makstud — parandused käivad admini kaudu. */
+  .card.tasutud { border-color: rgba(74,222,128,0.4); background: rgba(22,163,74,0.06); }
+  .tasutud-silt { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #14532d; color: #86efac; margin-top: 8px; }
+  .tasutud-info { font-size: 11px; color: #666; margin-top: 8px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="rajakaartUlekate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;flex-shrink:0">
+    <button type="button" onclick="minimeeriRajakaart()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:20px;padding:0 16px;height:40px;font-size:14px;font-weight:600;cursor:pointer">▾ Peida (jätka mängu)</button>
+    <button type="button" onclick="suletaRajakaart()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:20px;width:40px;height:40px;font-size:20px;cursor:pointer">✕</button>
+  </div>
+  <div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:0 8px 16px">
+    <img id="rajakaartImg" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;display:none">
+  </div>
+</div>
+
+<a id="rajakaartMull" href="#" style="display:none;align-items:center;justify-content:center;position:fixed;bottom:20px;right:20px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#c9a84c,#a6842e);box-shadow:0 4px 14px rgba(0,0,0,0.4);font-size:26px;cursor:pointer;z-index:9998;text-decoration:none">🗺️</a>
+
+<header>
+  <div class="hdr-top">
+    <h1 id="hdr-title" style="display:flex;align-items:center;gap:8px"><img src="/logos/xseeria.png" alt="X-seeria" style="height:22px;width:auto;background:#fff;border-radius:5px;padding:2px 4px">X-seeria</h1>
+    <button class="exit" onclick="tagasi()">← Tagasi</button>
+  </div>
+  <div class="rada" id="rada"></div>
+</header>
+
+<div id="app">
+  <div class="who" id="kes"></div>
+  <div id="sisu">Laadimine...</div>
+</div>
+
+<script>
+let token = localStorage.getItem('workerToken');
+
+if (!token) {
+  document.getElementById('sisu').innerHTML = '<div class="empty">Sa pole sisse logitud.<br><br>Ava esmalt <a href="/tootaja">Töötaja rakendus</a> ja logi oma PIN-koodiga sisse, seejärel ava see leht uuesti.</div>';
+} else {
+  algatus();
+}
+
+let praeguneTootajaId = null;
+let minuOigused = {};
+
+async function algatus() {
+  try {
+    const r = await fetch('/api/auth/sessioon', { headers: { 'x-session-token': token } });
+    const s = await r.json();
+    if (!s.sisselogitud || s.isAdmin) {
+      document.getElementById('sisu').innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja">Töötaja rakendus</a> ja logi uuesti sisse.</div>';
+      return;
+    }
+    document.getElementById('kes').textContent = 'Tere, ' + s.nimi;
+    praeguneTootajaId = s.workerId || null;
+  } catch (e) {}
+  try {
+    const o = await api('/minu-oigused');
+    minuOigused = (o.ok && o.oigused) ? o.oigused : {};
+  } catch (e) { minuOigused = {}; }
+  naitaVoistlused();
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ 'x-session-token': token }, opts.headers || {});
+  if (!(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
+  const r = await fetch('/api/xseeria' + path, opts);
+  return r.json();
+}
+
+function breadcrumb(parts) {
+  const box = document.getElementById('rada');
+  box.innerHTML = parts.map((p, i) =>
+    (i > 0 ? '<span>›</span>' : '') + (p.onclick ? `<button onclick="${p.onclick}">${p.tekst}</button>` : `<span>${p.tekst}</span>`)
+  ).join(' ');
+}
+
+// "← Tagasi" nupp peab minema üks samm tagasi (mitte kohe töötaja rakendusse) — iga vaade
+// registreerib siia, kuhu "Tagasi" peaks minema, kui parasjagu SEE vaade on ekraanil.
+let tagasiSamm = null;
+function seaTagasiSamm(fn) { tagasiSamm = fn; }
+function tagasi() {
+  if (typeof tagasiSamm === 'function') tagasiSamm();
+  else window.location = '/tootaja';
+}
+
+// ── TASE 1: kõik võistlused ──────────────────────────────────
+async function naitaVoistlused() {
+  seaTagasiSamm(null); // esimene tase — "Tagasi" väljub töötaja rakendusse
+  breadcrumb([]);
+  praeguneEvent = null;
+  seadistaRajakaartMull(null);
+  const sisu = document.getElementById('sisu');
+  const kontroll = await api('/kontroll');
+  if (kontroll.ok === false && kontroll.veateade === 'Palun logi sisse') {
+    sisu.innerHTML = '<div class="empty">Sisselogimine aegus.<br><br>Ava <a href="/tootaja">Töötaja rakendus</a> ja logi uuesti sisse.</div>';
+    return;
+  }
+  // "Poolenisti admin" — kui töötajale on lubatud vähemalt üks X-seeria haldusmoodul
+  // (sponsorid ja/või tegevused), näitame talle eraldi Haldus-plaati enne võistluste nimekirja.
+  const haldusTile = (minuOigused.xseeria_sponsorid || minuOigused.xseeria_tegevused)
+    ? `<div class="tile haldus" onclick="window.location='/xseeria-haldus'">
+        <div class="ikoon">🔧</div>
+        <div class="info">
+          <div class="nimi">HALDUS</div>
+          <div class="sub">Sponsorid ja tegevused</div>
+        </div>
+      </div>`
+    : '';
+  if (kontroll.lubatud === false) {
+    sisu.innerHTML = haldusTile || '<div class="empty">Sul pole veel X-seeria ligipääsu.<br>Palu adminil see lubada.</div>';
+    return;
+  }
+  const d = await api('/events');
+  if (!d.ok || !d.events.length) {
+    sisu.innerHTML = haldusTile + '<div class="empty">Ühtegi võistlust pole veel lisatud.<br>Küsi adminilt.</div>';
+    return;
+  }
+  sisu.innerHTML = haldusTile + d.events.map(e => `
+    <div class="tile" onclick="naitaAsukohad(${e.id}, '${escapeAttr(e.nimi)}')">
+      ${e.kaas_foto_url
+        ? `<div class="ikoon foto"><img src="${e.kaas_foto_url}" alt=""></div>`
+        : `<div class="ikoon">🏆</div>`}
+      <div class="info">
+        <div class="nimi">${escapeHtml(e.nimi)}</div>
+        <div class="sub">${fmtKp(e.kuupaev)}${e.aktiivne ? ' · praegu aktiivne' : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── TASE 2: pargid (asukohad) otse võistluse all ──────────────
+let praeguneEvent = null;
+
+async function naitaAsukohad(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaVoistlused());
+  breadcrumb([
+    { tekst: eventNimi }
+  ]);
+  praeguneEvent = { id: eventId, nimi: eventNimi };
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const [d, sp, ul, teg] = await Promise.all([
+    api('/event/' + eventId + '/asukohad'),
+    api('/event/' + eventId + '/sponsorid'),
+    api('/event/' + eventId + '/ulesanded'),
+    api('/event/' + eventId + '/tegevused')
+  ]);
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  const sponsorHtml = (sp && sp.ok && sp.sponsorid.length) ? sponsorKaardid(eventId, sp.sponsorid) : '';
+  const ulesandedHtml = (ul && ul.ok && ul.ulesanded.length) ? (() => {
+    const tegemataArv = ul.ulesanded.filter(u => !u.tehtud).length;
+    const tekst = tegemataArv === 0
+      ? 'Kõik ülesanded tehtud'
+      : tegemataArv === 1
+        ? 'Sul on 1 ülesanne mis vajab tegemist'
+        : `Sul on ${tegemataArv} ülesannet mis vajavad tegemist`;
+    return `<div class="tile" onclick="naitaUlesanded(${eventId}, '${escapeAttr(eventNimi)}')">
+        <div class="ikoon">❗</div>
+        <div class="info">
+          <div class="nimi">ÜLESANDED</div>
+          <div class="sub">${tekst}</div>
+        </div>
+      </div>`;
+  })() : '';
+  const tegevusedHtml = (teg && teg.ok && teg.tegevused.length)
+    ? `<div class="tile" onclick="naitaTegevused(${eventId}, '${escapeAttr(eventNimi)}')">
+        <div class="ikoon">🚚</div>
+        <div class="info">
+          <div class="nimi">TEGEVUSED</div>
+          <div class="sub">${teg.tegevused.length} sulle määratud tegevust</div>
+        </div>
+      </div>`
+    : '';
+  const kuludHtml = `<div class="tile" onclick="naitaKulud(${eventId}, '${escapeAttr(eventNimi)}')">
+      <div class="ikoon">💰</div>
+      <div class="info">
+        <div class="nimi">MINU KULUD</div>
+        <div class="sub">Kütus, toit, tööriistad...</div>
+      </div>
+    </div>`;
+  const rajakaartUrl = d.event && d.event.rajakaart_url;
+  const rajakaartOnPilt = rajakaartUrl && (/\.(jpe?g|png|gif|webp|bmp|heic)(\?|#|$)/i.test(rajakaartUrl) || rajakaartUrl.includes('cloudinary.com'));
+  praeguneEvent.rajakaartUrl = rajakaartUrl || null;
+  praeguneEvent.rajakaartOnPilt = rajakaartOnPilt;
+  seadistaRajakaartMull(rajakaartUrl, rajakaartOnPilt);
+  const rajakaartHtml = !rajakaartUrl ? '' : rajakaartOnPilt
+    ? `<button type="button" class="rajakaart-suur" style="border:none;width:100%;cursor:pointer;font-family:inherit" onclick="avaRajakaart('${escapeAttr(rajakaartUrl)}')">🗺️ RAJAKAART</button>`
+    : `<a class="rajakaart-suur" href="${escapeAttr(rajakaartUrl)}" target="rajakaartAken" rel="noopener noreferrer">🗺️ RAJAKAART</a>`;
+  if (!d.asukohad.length) { sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + '<div class="empty">Parke pole veel lisatud.<br>Küsi adminilt.</div>'; return; }
+  sisu.innerHTML = sponsorHtml + ulesandedHtml + tegevusedHtml + kuludHtml + rajakaartHtml + d.asukohad.map(a => {
+    const valmis = a.korvide_koguarv > 0 && a.paigaldatud_arv === a.korvide_koguarv;
+    const vahemik = (a.min_nr && a.max_nr) ? ` (rajad ${a.min_nr}-${a.max_nr})` : '';
+    const vastutajad = (a.vastutajad || []);
+    const minuPark = praeguneTootajaId && vastutajad.some(v => String(v.id) === String(praeguneTootajaId));
+    const vastutajadTekst = vastutajad.length ? escapeHtml(vastutajad.map(v => v.nimi).join(', ')) : '';
+    return `
+    <div class="tile ${minuPark ? 'minu-park' : ''}" onclick="naitaKorvid(${a.id}, '${escapeAttr(a.nimi)}', ${eventId}, '${escapeAttr(eventNimi)}')">
+      <div class="ikoon">${a.foto_url ? '🖼️' : '📍'}</div>
+      <div class="info">
+        <div class="nimi">${escapeHtml(a.nimi)}</div>
+        <div class="sub">${a.korvide_koguarv} korvi${vahemik}</div>
+        ${vastutajadTekst ? `<div class="sub">👤 ${vastutajadTekst}</div>` : ''}
+      </div>
+      <div class="progress ${valmis ? 'ok' : ''}">${a.paigaldatud_arv}/${a.korvide_koguarv}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── SPONSORID: "käsklus" kaardid, näidatakse enne rajakaardi nuppu ──
+function sponsorKaardid(eventId, sponsorid) {
+  return sponsorid.map(s => sponsorKaart(eventId, s)).join('');
+}
+
+function sponsorKaart(eventId, s) {
+  const staatus = s.staatus || 'ootel';
+  const nupp = (val, label) => `<button class="sp-stbtn ${staatus === val ? 'active' : ''}" onclick="muudaSponsorStaatus(${eventId}, ${s.sponsor_id}, '${val}')">${label}</button>`;
+  return `
+    <div class="card sponsor-kaart">
+      <div class="rida1"><div class="nimi">🎁 ${escapeHtml(s.nimi)}</div></div>
+      ${s.vastutaja_nimi ? `<div class="meta">👤 Vastutaja: ${escapeHtml(s.vastutaja_nimi)}</div>` : ''}
+      ${s.markused ? `<div class="markused">${escapeHtml(s.markused)}</div>` : ''}
+      <div class="sp-staatused">
+        ${nupp('ootel', '⬜ Ootel')}
+        ${nupp('kaes', '📦 Käes')}
+        ${nupp('tagastatud', '✅ Tagastatud')}
+      </div>
+    </div>`;
+}
+
+async function muudaSponsorStaatus(eventId, sponsorId, staatus) {
+  await api('/event/' + eventId + '/sponsorid/' + sponsorId + '/staatus', { method: 'POST', body: JSON.stringify({ staatus }) });
+  if (praeguneEvent && praeguneEvent.id === eventId) naitaAsukohad(eventId, praeguneEvent.nimi);
+}
+
+// ── ÜLESANDED: organisatoorne checklist, aga ainult need, kus mina olen vastutaja ──
+async function naitaUlesanded(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Ülesanded' }
+  ]);
+  await laadiUlesanded(eventId, eventNimi);
+}
+
+async function laadiUlesanded(eventId, eventNimi) {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + eventId + '/ulesanded');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  if (!d.ulesanded.length) { sisu.innerHTML = '<div class="empty">Sulle pole hetkel ühtegi ülesannet määratud.</div>'; return; }
+  sisu.innerHTML = d.ulesanded.map(u => ulesandeKaart(eventId, eventNimi, u)).join('');
+}
+
+function ulesandeKaart(eventId, eventNimi, u) {
+  const tehtud = !!u.tehtud;
+  const tahtaeg = u.tahtaeg ? fmtKp(u.tahtaeg) : '';
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi" style="${tehtud ? 'text-decoration:line-through;opacity:0.6' : ''}">${escapeHtml(u.tekst)}</div></div>
+      ${u.kategooria ? `<div class="meta">🏷️ ${escapeHtml(u.kategooria)}</div>` : ''}
+      ${tahtaeg ? `<div class="meta">📅 ${tahtaeg}</div>` : ''}
+      <div class="staatused">
+        <button class="stbtn ${tehtud ? 'done' : ''}" onclick="lulitaUlesanne(${eventId}, '${escapeAttr(eventNimi)}', ${u.id})">
+          ${tehtud ? '✅ Tehtud' : '⬜ Märgi tehtuks'}
+        </button>
+      </div>
+    </div>`;
+}
+
+async function lulitaUlesanne(eventId, eventNimi, id) {
+  await api('/event/' + eventId + '/ulesanded/' + id + '/toggle', { method: 'POST' });
+  await laadiUlesanded(eventId, eventNimi);
+}
+
+// ── TEGEVUSED: logistilised ülesanded (kuupäev+kellaaeg, võib olla mitu inimest) ──
+async function naitaTegevused(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Tegevused' }
+  ]);
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + eventId + '/tegevused');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  if (!d.tegevused.length) { sisu.innerHTML = '<div class="empty">Sulle pole hetkel ühtegi tegevust määratud.</div>'; return; }
+  sisu.innerHTML = d.tegevused.map(t => tegevusKaart(t)).join('');
+}
+
+function tegevusKaart(t) {
+  const kp = t.kuupaev ? fmtKp(t.kuupaev) : '';
+  const kell = t.kellaaeg ? String(t.kellaaeg).slice(0, 5) : '';
+  const inimesed = (t.inimesed || []).map(p => escapeHtml(p.nimi)).join(', ');
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">🚚 ${escapeHtml(t.tegevus)}</div></div>
+      ${(kp || kell) ? `<div class="meta">📅 ${kp}${kell ? ' kell ' + kell : ''}</div>` : ''}
+      ${inimesed ? `<div class="meta">👷 ${inimesed}</div>` : ''}
+    </div>`;
+}
+
+// ── MINU KULUD: isiklikud kulud (kütus, toit, tööriistad) selle konkreetse võistluse kohta ──
+// Kui admin on kulureale "Makstud" linnukese pannud, näeb töötaja kaardil "✅ TASUTUD" silti.
+// Tasutud kulu on lukus (ilma Muuda/Kustuta nuppudeta) — muidu saaks tagantjärele muuta summat,
+// mis on juba välja makstud. Parandamiseks pöördub töötaja admini poole.
+let praegusedKuludEvent = null;
+let muudetavKuluId = null;
+let muudaAndmedPuhver = null;
+
+async function naitaKulud(eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: 'Minu kulud' }
+  ]);
+  praegusedKuludEvent = { id: eventId, nimi: eventNimi };
+  muudetavKuluId = null;
+  muudaAndmedPuhver = null;
+  await laadiKulud();
+}
+
+async function laadiKulud() {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/event/' + praegusedKuludEvent.id + '/minu-kulud');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  const kokku = d.kulud.reduce((sum, k) => sum + parseFloat(k.summa), 0);
+  const tasutud = d.kulud.filter(k => k.makstud).reduce((sum, k) => sum + parseFloat(k.summa), 0);
+  const ootel = kokku - tasutud;
+  let html = kuluVorm();
+  html += `<div class="summary"><b>Kokku</b><span>${kokku.toFixed(2)} €</span></div>`;
+  if (d.kulud.length) {
+    html += `<div class="summary jaotus">
+        <span class="tasutud">✅ Tasutud: ${tasutud.toFixed(2)} €</span>
+        <span class="ootel">⏳ Ootel: ${ootel.toFixed(2)} €</span>
+      </div>`;
+  }
+  html += d.kulud.length ? d.kulud.map(k => kuluKaart(k)).join('') : '<div class="empty">Kulusid pole veel lisatud.</div>';
+  sisu.innerHTML = html;
+  seadistaKuluFotoValjad();
+  if (muudaAndmedPuhver) {
+    document.getElementById('kulu-kuupaev').value = muudaAndmedPuhver.kuupaev;
+    document.getElementById('kulu-summa').value = muudaAndmedPuhver.summa;
+    document.getElementById('kulu-selgitus').value = muudaAndmedPuhver.selgitus;
+  } else {
+    document.getElementById('kulu-kuupaev').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function kuluVorm() {
+  const muutmisel = !!muudetavKuluId;
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">${muutmisel ? '✏️ Muuda kulu' : '➕ Lisa kulu'}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+        <div><label class="kulu-label">Kuupäev</label>
+          <input type="date" id="kulu-kuupaev" class="kulu-input" style="color-scheme:dark"></div>
+        <div><label class="kulu-label">Summa (€)</label>
+          <input type="number" id="kulu-summa" class="kulu-input" placeholder="0.00" step="0.01" min="0"></div>
+      </div>
+      <div style="margin-top:8px"><label class="kulu-label">Selgitus</label>
+        <input type="text" id="kulu-selgitus" class="kulu-input" placeholder="nt. kütus, toit, tööriistad..."></div>
+      <div style="margin-top:10px">
+        <label class="kulu-label">Pilt (tšekk, vabatahtlik)</label>
+        <div style="display:flex;gap:8px">
+          <label class="foto-nupp" style="flex:1;text-align:center;margin:0">📷 Kaamera<input type="file" id="kulu-foto" accept="image/*" capture="environment" style="display:none"></label>
+          <label class="foto-nupp" style="flex:1;text-align:center;margin:0">🖼️ Album<input type="file" id="kulu-foto-album" accept="image/*" style="display:none"></label>
+        </div>
+        <div id="kulu-foto-eelvaade" style="display:none;margin-top:8px"><img id="kulu-foto-img" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="foto-nupp" style="flex:1;background:#16a34a;color:#fff;border:none;text-align:center" onclick="salvestaKulu()">${muutmisel ? 'Salvesta muudatus' : 'Salvesta'}</button>
+        ${muutmisel ? `<button class="foto-nupp" style="background:#1e2128;text-align:center" onclick="tuhistaKuluMuutmine()">Tühista</button>` : ''}
+      </div>
+      <div id="kulu-teade" style="display:none;margin-top:8px;font-size:12px"></div>
+    </div>`;
+}
+
+function seadistaKuluFotoValjad() {
+  ['kulu-foto', 'kulu-foto-album'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.onchange = function() {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('kulu-foto-img').src = e.target.result;
+        document.getElementById('kulu-foto-eelvaade').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+      window._kuluFotoInput = id;
+    };
+  });
+}
+
+function kuluKaart(k) {
+  const kp = fmtKp(k.kuupaev);
+  const kuupaevIso = (k.kuupaev || '').toString().substring(0, 10);
+  const tasutud = !!k.makstud;
+  return `
+    <div class="card ${tasutud ? 'tasutud' : ''}">
+      <div class="rida1"><div class="nimi">${parseFloat(k.summa).toFixed(2)} €</div><div class="meta">${kp}</div></div>
+      <div class="meta" style="margin-top:4px">${escapeHtml(k.selgitus)}</div>
+      ${k.foto_url ? `<div style="margin-top:6px"><a href="${k.foto_url}" target="_blank" style="font-size:12px;color:#4ade80">📷 vaata tšekki</a></div>` : ''}
+      ${tasutud
+        ? `<div class="tasutud-silt">✅ TASUTUD</div>
+           <div class="tasutud-info">See kulu on sulle välja makstud. Kui midagi on valesti, anna adminile teada.</div>`
+        : `<div style="display:flex;gap:8px;margin-top:10px">
+             <button class="foto-nupp" style="flex:1;text-align:center" onclick="muudaKulu(${k.id}, '${kuupaevIso}', ${parseFloat(k.summa)}, '${escapeAttr(k.selgitus)}')">✏️ Muuda</button>
+             <button class="foto-nupp" style="flex:1;text-align:center;color:#f87171" onclick="kustutaKulu(${k.id})">🗑 Kustuta</button>
+           </div>`}
+    </div>`;
+}
+
+function muudaKulu(id, kuupaev, summa, selgitus) {
+  muudetavKuluId = id;
+  muudaAndmedPuhver = { kuupaev, summa, selgitus };
+  laadiKulud();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function tuhistaKuluMuutmine() {
+  muudetavKuluId = null;
+  muudaAndmedPuhver = null;
+  laadiKulud();
+}
+
+async function salvestaKulu() {
+  const kuupaev = document.getElementById('kulu-kuupaev').value;
+  const summa = document.getElementById('kulu-summa').value;
+  const selgitus = document.getElementById('kulu-selgitus').value;
+  const teade = document.getElementById('kulu-teade');
+  if (!kuupaev || !summa || !selgitus) {
+    teade.style.display = 'block'; teade.style.color = '#f87171'; teade.textContent = 'Täida kõik väljad';
+    return;
+  }
+  const fotoInput = window._kuluFotoInput;
+  const foto = fotoInput ? document.getElementById(fotoInput).files[0] : null;
+  const fd = new FormData();
+  fd.append('kuupaev', kuupaev);
+  fd.append('summa', summa);
+  fd.append('selgitus', selgitus);
+  if (foto) fd.append('foto', foto);
+  let r;
+  if (muudetavKuluId) {
+    r = await api('/minu-kulud/' + muudetavKuluId + '/uuenda', { method: 'POST', body: fd });
+  } else {
+    r = await api('/event/' + praegusedKuludEvent.id + '/minu-kulud', { method: 'POST', body: fd });
+  }
+  if (r.ok) {
+    window._kuluFotoInput = null;
+    muudetavKuluId = null;
+    muudaAndmedPuhver = null;
+    await laadiKulud();
+  } else {
+    teade.style.display = 'block'; teade.style.color = '#f87171'; teade.textContent = r.veateade || 'Viga';
+  }
+}
+
+async function kustutaKulu(id) {
+  if (!confirm('Kustutad selle kulu?')) return;
+  const r = await api('/minu-kulud/' + id, { method: 'DELETE' });
+  if (r && r.ok === false && r.veateade) alert(r.veateade);
+  await laadiKulud();
+}
+
+// ── TASE 3: korvid (üksikud, + rajakaart) ───────────────────────
+let praeguneAsukoht = null;
+
+async function naitaKorvid(asukohtId, asukohtNimi, eventId, eventNimi) {
+  seaTagasiSamm(() => naitaAsukohad(eventId, eventNimi));
+  breadcrumb([
+    { tekst: eventNimi, onclick: `naitaAsukohad(${eventId}, '${escapeAttr(eventNimi)}')` },
+    { tekst: asukohtNimi }
+  ]);
+  praeguneAsukoht = { id: asukohtId, eventId, eventNimi };
+  await laadiKorvid();
+}
+
+let praegusedKorvidAndmed = null;
+let naidatudPildid = new Set();
+
+async function laadiKorvid() {
+  const sisu = document.getElementById('sisu');
+  sisu.innerHTML = 'Laadimine...';
+  const d = await api('/asukoht/' + praeguneAsukoht.id + '/korvid');
+  if (!d.ok) { sisu.innerHTML = '<div class="empty">Viga laadimisel.</div>'; return; }
+  praegusedKorvidAndmed = d;
+  joonistaKorvid();
+}
+
+function joonistaKorvid() {
+  const d = praegusedKorvidAndmed;
+  const sisu = document.getElementById('sisu');
+  const a = d.asukoht;
+  const tehtud = d.korvid.filter(k => k.paigaldus_staatus === 'tehtud').length;
+  const puhas = d.korvid.filter(k => k.puhastus_staatus === 'tehtud').length;
+
+  let html = `<div class="summary"><b>${escapeHtml(a.nimi)}</b><span>${tehtud}/${d.korvid.length} paigaldatud · ${puhas}/${d.korvid.length} puhas</span></div>`;
+
+  html += d.korvid.map(k => kaart(k)).join('');
+  sisu.innerHTML = html || '<div class="empty">Korve pole.</div>';
+}
+
+function lulitaPilt(korvId) {
+  if (naidatudPildid.has(korvId)) naidatudPildid.delete(korvId);
+  else naidatudPildid.add(korvId);
+  joonistaKorvid();
+}
+
+function kaart(k) {
+  const done = k.paigaldus_staatus === 'tehtud';
+  const clean = k.puhastus_staatus === 'tehtud';
+  const piltNaidatud = naidatudPildid.has(k.id);
+  return `
+    <div class="card">
+      <div class="rida1"><div class="nimi">Rada nr ${escapeHtml(k.number)}</div></div>
+      ${k.foto_url ? `
+        <button class="foto-nupp" style="margin-top:8px" onclick="lulitaPilt(${k.id})">🖼️ ${piltNaidatud ? 'Peida pilt' : 'Näita pilti'}</button>
+        ${piltNaidatud ? `<a href="${k.foto_url}" target="_blank"><img src="${k.foto_url}" alt="Rajakaart nr ${escapeHtml(k.number)}" style="width:100%;border-radius:8px;margin-top:8px;display:block"></a>` : ''}
+      ` : ''}
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label class="foto-nupp" style="margin:0">📷 ${k.foto_url ? 'Vaheta pilt' : 'Lisa pilt'}
+          <input type="file" accept="image/*" style="display:none" onchange="laeUlesRajakaart(${k.id}, this)">
+        </label>
+        ${k.foto_url ? `<button class="foto-nupp" style="border:0.5px solid #333;color:#f87171;background:#1e2128" onclick="kustutaRajakaart(${k.id})">🗑 Kustuta pilt</button>` : ''}
+      </div>
+      <div class="staatused">
+        <button class="stbtn ${done ? 'done' : ''}" onclick="toggleKorv(${k.id}, 'paigaldatud', ${done})">
+          ${done ? '✅ Paigaldatud' : '⬜ Märgi paigaldatuks'}
+        </button>
+        <button class="stbtn ${clean ? 'clean' : ''}" onclick="toggleKorv(${k.id}, 'puhas', ${clean})">
+          ${clean ? '🧹 Puhas' : '⬜ Märgi puhtaks'}
+        </button>
+      </div>
+      ${done ? `<div class="meta">Paigaldas: ${escapeHtml(k.paigaldas_nimi || '')} ${fmtAeg(k.paigaldatud_kell)}</div>` : ''}
+      ${clean ? `<div class="meta">Puhastas: ${escapeHtml(k.puhastas_nimi || '')} ${fmtAeg(k.puhastatud_kell)}</div>` : ''}
+    </div>`;
+}
+
+async function toggleKorv(id, tuup, praeguOn) {
+  const tee = tuup === 'paigaldatud'
+    ? (praeguOn ? '/korvid/' + id + '/paigaldus-tagasi' : '/korvid/' + id + '/paigaldatud')
+    : (praeguOn ? '/korvid/' + id + '/puhastus-tagasi' : '/korvid/' + id + '/puhas');
+  await api(tee, { method: 'POST' });
+  laadiKorvid();
+}
+
+function tihendaPilt(file, maxKylg, kvaliteet) {
+  maxKylg = maxKylg || 1600; kvaliteet = kvaliteet || 0.8;
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/')) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxKylg || height > maxKylg) {
+        if (width > height) { height = Math.round(height * maxKylg / width); width = maxKylg; }
+        else { width = Math.round(width * maxKylg / height); height = maxKylg; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => { URL.revokeObjectURL(url); resolve(blob || file); }, 'image/jpeg', kvaliteet);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function laeUlesRajakaart(korvId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label = input.closest('label');
+  const algneTekst = label ? label.innerHTML : '';
+  if (label) label.innerHTML = '⏳ Laen üles...';
+  try {
+    const compressed = await tihendaPilt(file);
+    const fd = new FormData();
+    fd.append('foto', compressed, 'rajakaart.jpg');
+    const controller = new AbortController();
+    const ajapiirang = setTimeout(() => controller.abort(), 25000);
+    try {
+      await api('/korvid/' + korvId + '/rajakaart', { method: 'POST', body: fd, signal: controller.signal });
+    } finally {
+      clearTimeout(ajapiirang);
+    }
+  } catch (e) {
+    alert('Pildi üleslaadimine ebaõnnestus. Proovi uuesti (kontrolli internetiühendust).');
+  }
+  laadiKorvid();
+}
+
+async function kustutaRajakaart(korvId) {
+  if (!confirm('Kustutada selle raja pilt?')) return;
+  await api('/korvid/' + korvId + '/rajakaart', { method: 'DELETE' });
+  laadiKorvid();
+}
+
+function fmtAeg(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('et-EE') + ' ' + d.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtKp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('et-EE');
+}
+
+function escapeHtml(s) {
+  return (s || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escapeAttr(s) {
+  return escapeHtml(s).replace(/'/g, "\\'");
+}
+
+// Seadistab püsiva "🗺️" mulli (paremal all), mis on nähtav KÕIGIS X-seeria vaadetes ühe
+// ürituse sees (nii pargi valikus kui ka üksiku pargi korvide märkimise vaates) — nii ei pea
+// töötaja kunagi kaardi vaatamiseks tagasi peavaatesse navigeerima.
+function seadistaRajakaartMull(url, onPilt) {
+  const mull = document.getElementById('rajakaartMull');
+  if (!url) { mull.style.display = 'none'; return; }
+  if (onPilt) {
+    mull.href = 'javascript:void(0)';
+    mull.removeAttribute('target');
+    mull.onclick = function(e) { e.preventDefault(); avaRajakaart(url); };
+  } else {
+    mull.href = url;
+    mull.target = 'rajakaartAken';
+    mull.rel = 'noopener noreferrer';
+    mull.onclick = null;
+  }
+  mull.style.display = 'flex';
+}
+
+// Rajakaart avaneb ekraanitäie ülekattena, kui see on pilt (see on turvaline, ei riku
+// sisselogimist). Kui see on väline link (nt Eventhosi jagamislink), kasutatakse selle asemel
+// päris HTML linki (vt üleval rajakaartHtml) — see on ainus usaldusväärne viis, kuidas
+// selliseid linke uue vahelehena avada ilma sisselogimist rikkumata.
+var praeguneRajakaartUrl = null;
+function avaRajakaart(url) {
+  if (praeguneRajakaartUrl === url) { taastaRajakaart(); return; }
+  praeguneRajakaartUrl = url;
+  var img = document.getElementById('rajakaartImg');
+  img.src = url; img.style.display = 'block';
+  document.getElementById('rajakaartUlekate').style.display = 'flex';
+  document.getElementById('rajakaartMull').style.display = 'none';
+}
+function minimeeriRajakaart() {
+  document.getElementById('rajakaartUlekate').style.display = 'none';
+  document.getElementById('rajakaartMull').style.display = 'flex';
+  document.getElementById('rajakaartMull').style.alignItems = 'center';
+  document.getElementById('rajakaartMull').style.justifyContent = 'center';
+}
+function taastaRajakaart() {
+  document.getElementById('rajakaartUlekate').style.display = 'flex';
+  document.getElementById('rajakaartMull').style.display = 'none';
+}
+function suletaRajakaart() {
+  document.getElementById('rajakaartUlekate').style.display = 'none';
+  document.getElementById('rajakaartImg').src = '';
+  praeguneRajakaartUrl = null;
+  // Mull jääb nähtavale (uuesti avatavana) — üritusel on ju rajakaart endiselt olemas.
+  if (praeguneEvent && praeguneEvent.rajakaartUrl) seadistaRajakaartMull(praeguneEvent.rajakaartUrl, praeguneEvent.rajakaartOnPilt);
+}
+</script>
+</body>
+</html>
