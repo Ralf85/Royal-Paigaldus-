@@ -791,6 +791,20 @@ async function initDB() {
       );
     `);
 
+    // Admini Face ID seadmed. Erinevalt töötajatest pole siin worker_id'd —
+    // admin on üks konto (ADMIN_PIN), aga seadmeid võib olla mitu (telefon + arvuti).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_webauthn (
+        id SERIAL PRIMARY KEY,
+        credential_id TEXT NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        counter BIGINT NOT NULL DEFAULT 0,
+        device_name VARCHAR(100),
+        transports TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // ── MOODULID / ÕIGUSED (üldistatud ligipääsu-tase per moodul/alammoodul) ──────────
     // Erinevalt vanadest "kas lubatud jah/ei" tabelitest (xseeria_lubatud, arve_lubatud jne)
     // saab siin määrata KONKREETSE mooduli/alammooduli kohta taseme: 'vaata' või 'muuda'.
