@@ -161,4 +161,151 @@ router.post('/login-verify', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN — Face ID / sõrmejälg
+// Sama loogika nagu töötajatel, aga admin on üks konto (ADMIN_PIN), nii et
+// worker_id't pole. Seadmeid võib olla mitu: telefon, iPad, arvuti.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function noudaAdminit(req, res, next) {
+  if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse admini PIN-iga' });
+  next();
+}
+
+// Väljakutsete Map'is eraldi võti — ei põrku töötajate numbriliste worker_id'dega.
+const ADMIN_VOTI = 'admin';
+
+router.get('/admin-register-options', noudaAdminit, async (req, res) => {
+  try {
+    const olemasoleva = await pool.query('SELECT credential_id, transports FROM admin_webauthn');
+    const options = await generateRegistrationOptions({
+      rpName: 'Royal Paigaldus',
+      rpID: rpID(req),
+      userID: 'admin',
+      userName: 'admin',
+      userDisplayName: 'Royal Admin',
+      attestationType: 'none',
+      excludeCredentials: olemasoleva.rows.map(r => ({
+        id: Buffer.from(r.credential_id, 'base64url'),
+        type: 'public-key',
+        transports: r.transports ? r.transports.split(',') : undefined
+      })),
+      authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'preferred' }
+    });
+    registreerimiseValjakutsed.set(ADMIN_VOTI, { challenge: options.challenge, aegub: Date.now() + 5 * 60 * 1000 });
+    res.json({ ok: true, options });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+router.post('/admin-register-verify', noudaAdminit, async (req, res) => {
+  const salvestatud = registreerimiseValjakutsed.get(ADMIN_VOTI);
+  if (!salvestatud) return res.json({ ok: false, veateade: 'Registreerimise aeg aegus, proovi uuesti' });
+  try {
+    const tulemus = await verifyRegistrationResponse({
+      response: req.body,
+      expectedChallenge: salvestatud.challenge,
+      expectedOrigin: origin(req),
+      expectedRPID: rpID(req)
+    });
+    registreerimiseValjakutsed.delete(ADMIN_VOTI);
+    if (!tulemus.verified || !tulemus.registrationInfo) return res.json({ ok: false, veateade: 'Kinnitamine ebaõnnestus' });
+    const { credentialID, credentialPublicKey, counter } = tulemus.registrationInfo;
+    await pool.query(
+      `INSERT INTO admin_webauthn (credential_id, public_key, counter, device_name, transports)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (credential_id) DO NOTHING`,
+      [
+        Buffer.from(credentialID).toString('base64url'),
+        Buffer.from(credentialPublicKey).toString('base64'),
+        counter,
+        (req.body.deviceName || 'Telefon/arvuti').slice(0, 100),
+        (req.body.response && req.body.response.transports || []).join(',')
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.json({ ok: false, veateade: 'Kinnitamine ebaõnnestus: ' + err.message });
+  }
+});
+
+router.get('/admin-seadmed', noudaAdminit, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, device_name, loodud FROM admin_webauthn ORDER BY loodud DESC');
+    res.json({ ok: true, seadmed: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/admin-seadmed/:id', noudaAdminit, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM admin_webauthn WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.get('/admin-login-options', async (req, res) => {
+  try {
+    const kredid = await pool.query('SELECT credential_id, transports FROM admin_webauthn');
+    // Ühtegi admini seadet pole veel registreeritud — leht ei näita Face ID nuppu.
+    if (!kredid.rows.length) return res.json({ ok: false, puudub: true });
+    const options = await generateAuthenticationOptions({
+      rpID: rpID(req),
+      userVerification: 'preferred',
+      // Piirame valiku admini seadmetega, et telefon ei pakuks siin töötaja passkey'd.
+      allowCredentials: kredid.rows.map(r => ({
+        id: Buffer.from(r.credential_id, 'base64url'),
+        type: 'public-key',
+        transports: r.transports ? r.transports.split(',') : undefined
+      }))
+    });
+    const id = Buffer.from(options.challenge).toString('hex') + Date.now();
+    sisselogimiseValjakutsed.set(id, { challenge: options.challenge, aegub: Date.now() + 5 * 60 * 1000 });
+    res.json({ ok: true, options, valjakutseId: id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+router.post('/admin-login-verify', async (req, res) => {
+  const { valjakutseId, response } = req.body;
+  const salvestatud = sisselogimiseValjakutsed.get(valjakutseId);
+  if (!salvestatud) return res.json({ ok: false, veateade: 'Sisselogimise aeg aegus, proovi uuesti' });
+  sisselogimiseValjakutsed.delete(valjakutseId);
+  try {
+    const kredR = await pool.query('SELECT * FROM admin_webauthn WHERE credential_id=$1', [response.id]);
+    if (!kredR.rows.length) return res.json({ ok: false, veateade: 'Seda seadet pole admini jaoks registreeritud. Kasuta PIN-koodi.' });
+    const kred = kredR.rows[0];
+
+    const tulemus = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: salvestatud.challenge,
+      expectedOrigin: origin(req),
+      expectedRPID: rpID(req),
+      authenticator: {
+        credentialID: Buffer.from(kred.credential_id, 'base64url'),
+        credentialPublicKey: Buffer.from(kred.public_key, 'base64'),
+        counter: Number(kred.counter),
+        transports: kred.transports ? kred.transports.split(',') : undefined
+      }
+    });
+    if (!tulemus.verified) return res.json({ ok: false, veateade: 'Kinnitamine ebaõnnestus' });
+
+    await pool.query('UPDATE admin_webauthn SET counter=$1 WHERE id=$2', [tulemus.authenticationInfo.newCounter, kred.id]);
+
+    const token = await req.saveSession({ isAdmin: true });
+    res.json({ ok: true, token });
+  } catch (err) {
+    console.error(err);
+    res.json({ ok: false, veateade: 'Kinnitamine ebaõnnestus' });
+  }
+});
+
 module.exports = router;
