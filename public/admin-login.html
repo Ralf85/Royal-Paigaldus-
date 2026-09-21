@@ -14,46 +14,277 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .kast { background: #1e293b; border-radius: 16px; padding: 40px; width: 100%; max-width: 360px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .kast { background: #1e293b; border-radius: 16px; padding: 32px 28px; width: 100%; max-width: 360px; }
     h1 { font-size: 22px; margin-bottom: 6px; }
-    p { color: #94a3b8; font-size: 13px; margin-bottom: 28px; }
+    p.alapealkiri { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
     label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
-    input { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; font-size: 18px; color: #f1f5f9; letter-spacing: 4px; text-align: center; outline: none; }
-    .nupp { width: 100%; background: #7c3aed; color: white; border: none; border-radius: 8px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; }
+    input { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; font-size: 20px; color: #f1f5f9; letter-spacing: 6px; text-align: center; outline: none; }
+    input:focus { border-color: #7c3aed; }
+
+    /* Numbriklahvistik — suured nupud, et telefonis ei peaks väikest tähtedega klaviatuuri kasutama */
+    .numbriklahvistik { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+    .klahv { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-size: 20px; color: #e2e8f0; cursor: pointer; text-align: center; transition: background .15s, border-color .15s, transform .1s; user-select: none; -webkit-user-select: none; }
+    .klahv:hover { background: #312e52; border-color: #7c3aed; }
+    .klahv:active { transform: scale(0.95); }
+    .klahv.kustuta { font-size: 16px; color: #ef4444; }
+    .klahv.kinnita { background: #7c3aed; border-color: #7c3aed; color: #fff; font-size: 22px; font-weight: 700; }
+    .klahv.kinnita:hover { background: #8b5cf6; }
+
+    .nupp { width: 100%; background: #7c3aed; color: white; border: none; border-radius: 8px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; font-family: inherit; }
     .nupp.hall { background: transparent; border: 1px solid #334155; color: #64748b; font-size: 13px; margin-top: 10px; }
-    .viga { background: #7f1d1d; color: #fca5a5; border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 10px; display: none; }
+    .nupp.faceid { background: transparent; border: 1px solid #7c3aed; color: #c4b5fd; margin-top: 16px; display: none; }
+    .nupp.faceid:hover { background: rgba(124,58,237,0.12); }
+    .viga { background: #7f1d1d; color: #fca5a5; border-radius: 8px; padding: 10px; font-size: 13px; margin-top: 12px; display: none; }
+
+    /* Pakkumine pärast PIN-iga sisenemist: kas salvestada Face ID sellesse seadmesse */
+    .pakkumine { display: none; text-align: center; }
+    .pakkumine .ikoon { font-size: 42px; margin-bottom: 12px; }
+    .pakkumine h2 { font-size: 18px; margin-bottom: 8px; }
+    .pakkumine p { color: #94a3b8; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
+    .peidetud { display: none !important; }
   </style>
 </head>
 <body>
   <div class="kast">
-    <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:30px;width:auto;margin-bottom:20px">
-    <h1>🔐 Admin sisenemine</h1>
-    <p>Ainult ülemusele</p>
-    <label>Admin PIN</label>
-    <input type="password" id="pin" maxlength="8" placeholder="••••••••" autofocus>
-    <button class="nupp" onclick="logi()">Sisene</button>
-    <button class="nupp hall" onclick="window.location='/'">← Tagasi</button>
-    <div class="viga" id="viga"></div>
+
+    <!-- ── Sisselogimine ─────────────────────────────────────────────── -->
+    <div id="sisselogimine">
+      <img src="/logos/royal-paigaldus-gold.svg" alt="Royal Paigaldus" style="height:30px;width:auto;margin-bottom:20px">
+      <h1>🔐 Admin sisenemine</h1>
+      <p class="alapealkiri">Ainult ülemusele</p>
+
+      <label>Admin PIN</label>
+      <input type="password" id="pin" maxlength="8" placeholder="••••••••" inputmode="none" readonly>
+
+      <div class="numbriklahvistik">
+        <div class="klahv" onclick="lisaNumber('1')">1</div>
+        <div class="klahv" onclick="lisaNumber('2')">2</div>
+        <div class="klahv" onclick="lisaNumber('3')">3</div>
+        <div class="klahv" onclick="lisaNumber('4')">4</div>
+        <div class="klahv" onclick="lisaNumber('5')">5</div>
+        <div class="klahv" onclick="lisaNumber('6')">6</div>
+        <div class="klahv" onclick="lisaNumber('7')">7</div>
+        <div class="klahv" onclick="lisaNumber('8')">8</div>
+        <div class="klahv" onclick="lisaNumber('9')">9</div>
+        <div class="klahv kustuta" onclick="kustutaViimane()">⌫</div>
+        <div class="klahv" onclick="lisaNumber('0')">0</div>
+        <div class="klahv kinnita" onclick="logi()">✓</div>
+      </div>
+
+      <button class="nupp faceid" id="faceIdNupp" onclick="logiFaceId()">🔐 Logi sisse Face ID / sõrmejäljega</button>
+      <button class="nupp hall" onclick="window.location='/'">← Tagasi</button>
+      <div class="viga" id="viga"></div>
+    </div>
+
+    <!-- ── Pärast õiget PIN-i: pakume Face ID seadistamist ───────────── -->
+    <div id="pakkumine" class="pakkumine">
+      <div class="ikoon">🔐</div>
+      <h2>Seadista Face ID?</h2>
+      <p>Järgmisel korral saad siia siseneda ilma PIN-koodi trükkimata. Sinu nägu ega sõrmejälg ei jõua kunagi serverisse — see jääb ainult sellesse seadmesse.</p>
+      <button class="nupp" onclick="seadistaFaceId()">Seadista nüüd</button>
+      <button class="nupp hall" onclick="jatkaAdminisse()">Hiljem</button>
+      <div class="viga" id="viga2"></div>
+    </div>
+
   </div>
+
   <script>
-    document.getElementById('pin').addEventListener('keydown', e => { if(e.key==='Enter') logi(); });
+    // ── Abifunktsioonid: base64url <-> ArrayBuffer (WebAuthn kasutab base64url kodeeringut)
+    function b64uToBuf(base64url) {
+      var padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+      var base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var raw = atob(base64);
+      var buf = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+      return buf.buffer;
+    }
+    function bufToB64u(buffer) {
+      var bytes = new Uint8Array(buffer);
+      var str = '';
+      for (var i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+      return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function naitaViga(tekst, id) {
+      var el = document.getElementById(id || 'viga');
+      el.style.display = 'block';
+      el.textContent = tekst;
+    }
+    function peidaViga() {
+      document.getElementById('viga').style.display = 'none';
+      document.getElementById('viga2').style.display = 'none';
+    }
+
+    // ── PIN-i sisestus numbriklahvistikult ────────────────────────────
+    function lisaNumber(n) {
+      var p = document.getElementById('pin');
+      if (p.value.length < 8) p.value += n;
+      peidaViga();
+    }
+    function kustutaViimane() {
+      var p = document.getElementById('pin');
+      p.value = p.value.slice(0, -1);
+    }
+
+    // Arvutis saab ka füüsiliselt klaviatuurilt numbreid trükkida
+    document.addEventListener('keydown', function(e) {
+      if (document.getElementById('sisselogimine').classList.contains('peidetud')) return;
+      if (e.key >= '0' && e.key <= '9') lisaNumber(e.key);
+      if (e.key === 'Backspace') kustutaViimane();
+      if (e.key === 'Enter') logi();
+    });
+
+    // ── Sisselogimine PIN-koodiga ─────────────────────────────────────
     async function logi() {
-      const pin = document.getElementById('pin').value;
-      const r = await fetch('/api/auth/admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      }).then(r => r.json());
-      if (r.ok) {
-        localStorage.setItem('adminToken', r.token);
-        window.location = '/admin';
-      } else {
-        document.getElementById('viga').style.display = 'block';
-        document.getElementById('viga').textContent = r.veateade;
-        document.getElementById('pin').value = '';
+      var pin = document.getElementById('pin').value;
+      if (!pin) return;
+      try {
+        var r = await fetch('/api/auth/admin-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pin })
+        }).then(function(x) { return x.json(); });
+        if (r.ok) {
+          localStorage.setItem('adminToken', r.token);
+          parastSisselogimist();
+        } else {
+          naitaViga(r.veateade || 'Vale PIN');
+          document.getElementById('pin').value = '';
+        }
+      } catch (e) {
+        naitaViga('Ühendus serveriga ebaõnnestus');
       }
     }
+
+    // Pärast õiget PIN-i: kui seade toetab Face ID-d ja me pole veel pakkunud, pakume.
+    function parastSisselogimist() {
+      var toetab = !!window.PublicKeyCredential;
+      var juba = localStorage.getItem('adminFaceIdKysitud');
+      if (toetab && !juba) {
+        document.getElementById('sisselogimine').classList.add('peidetud');
+        document.getElementById('pakkumine').style.display = 'block';
+      } else {
+        jatkaAdminisse();
+      }
+    }
+    function jatkaAdminisse() {
+      localStorage.setItem('adminFaceIdKysitud', '1');
+      window.location = '/admin';
+    }
+
+    // ── Face ID seadistamine (vajab kehtivat admini sessiooni) ────────
+    async function seadistaFaceId() {
+      peidaViga();
+      var token = localStorage.getItem('adminToken');
+      try {
+        var optR = await fetch('/api/webauthn/admin-register-options', {
+          headers: { 'x-session-token': token }
+        }).then(function(x) { return x.json(); });
+        if (!optR.ok) throw new Error(optR.veateade || 'Viga');
+
+        var options = optR.options;
+        options.challenge = b64uToBuf(options.challenge);
+        options.user.id = new TextEncoder().encode(options.user.id);
+        if (options.excludeCredentials) {
+          options.excludeCredentials = options.excludeCredentials.map(function(c) {
+            return Object.assign({}, c, { id: b64uToBuf(c.id) });
+          });
+        }
+
+        var kred = await navigator.credentials.create({ publicKey: options });
+        var vastus = {
+          id: kred.id,
+          rawId: bufToB64u(kred.rawId),
+          type: kred.type,
+          response: {
+            clientDataJSON: bufToB64u(kred.response.clientDataJSON),
+            attestationObject: bufToB64u(kred.response.attestationObject),
+            transports: kred.response.getTransports ? kred.response.getTransports() : []
+          },
+          clientExtensionResults: kred.getClientExtensionResults(),
+          deviceName: (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || 'Telefon/arvuti'
+        };
+
+        var r = await fetch('/api/webauthn/admin-register-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-session-token': token },
+          body: JSON.stringify(vastus)
+        }).then(function(x) { return x.json(); });
+
+        if (r.ok) {
+          alert('✅ Face ID on seadistatud. Järgmisel korral saad kohe sellega siseneda.');
+          jatkaAdminisse();
+        } else {
+          naitaViga(r.veateade || 'Seadistamine ebaõnnestus', 'viga2');
+        }
+      } catch (e) {
+        // Kasutaja vajutas "Cancel" — ei ole viga, laseme lihtsalt admini lehele
+        if (e.name === 'NotAllowedError' || e.name === 'AbortError') { jatkaAdminisse(); return; }
+        naitaViga('Face ID seadistamine ebaõnnestus. Võid jätkata PIN-koodiga.', 'viga2');
+      }
+    }
+
+    // ── Sisselogimine Face ID-ga ──────────────────────────────────────
+    async function logiFaceId() {
+      peidaViga();
+      try {
+        var optR = await fetch('/api/webauthn/admin-login-options').then(function(x) { return x.json(); });
+        if (!optR.ok) {
+          naitaViga(optR.puudub ? 'Ühtegi seadet pole veel registreeritud. Logi sisse PIN-koodiga.' : (optR.veateade || 'Viga'));
+          return;
+        }
+        var options = optR.options;
+        options.challenge = b64uToBuf(options.challenge);
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map(function(c) {
+            return Object.assign({}, c, { id: b64uToBuf(c.id) });
+          });
+        }
+
+        var kinnitus = await navigator.credentials.get({ publicKey: options });
+        var vastus = {
+          id: kinnitus.id,
+          rawId: bufToB64u(kinnitus.rawId),
+          type: kinnitus.type,
+          response: {
+            clientDataJSON: bufToB64u(kinnitus.response.clientDataJSON),
+            authenticatorData: bufToB64u(kinnitus.response.authenticatorData),
+            signature: bufToB64u(kinnitus.response.signature),
+            userHandle: kinnitus.response.userHandle ? bufToB64u(kinnitus.response.userHandle) : undefined
+          },
+          clientExtensionResults: kinnitus.getClientExtensionResults()
+        };
+
+        var r = await fetch('/api/webauthn/admin-login-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valjakutseId: optR.valjakutseId, response: vastus })
+        }).then(function(x) { return x.json(); });
+
+        if (r.ok) {
+          localStorage.setItem('adminToken', r.token);
+          localStorage.setItem('adminFaceIdKysitud', '1');
+          window.location = '/admin';
+        } else {
+          naitaViga(r.veateade || 'Face ID sisselogimine ebaõnnestus');
+        }
+      } catch (e) {
+        if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+          naitaViga('Face ID sisselogimine ebaõnnestus. Kasuta PIN-koodi.');
+        }
+      }
+    }
+
+    // Näitame Face ID nuppu ainult siis, kui seade toetab JA vähemalt üks seade on registreeritud
+    (function naitaFaceIdNuppKuiSobib() {
+      if (!window.PublicKeyCredential) return;
+      fetch('/api/webauthn/admin-login-options')
+        .then(function(x) { return x.json(); })
+        .then(function(r) {
+          if (r.ok) document.getElementById('faceIdNupp').style.display = 'block';
+        })
+        .catch(function() {});
+    })();
   </script>
 </body>
 </html>
