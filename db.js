@@ -833,6 +833,18 @@ async function initDB() {
       ON CONFLICT (kood) DO NOTHING;
     `);
 
+    // ── TÖÖTAJATE PROFIILIPILDID (ainult admini vaates) ─────────────────
+    // Eraldi tabel, mitte workers tabeli veerg — nii ei saa pilt kogemata ühegi
+    // töötaja-poolse päringu (SELECT * FROM workers) kaudu töötajatele lekkida.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tootaja_admin_fotod (
+        worker_id INTEGER PRIMARY KEY REFERENCES workers(id) ON DELETE CASCADE,
+        foto_url TEXT NOT NULL,
+        foto_public_id TEXT,
+        muudetud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
