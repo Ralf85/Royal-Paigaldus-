@@ -4,6 +4,24 @@ const { pool } = require('../db');
 const { Parser } = require('json2csv');
 const { saadaTeavitus } = require('./push');
 const { Resend } = require('resend');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+function getCloudinary() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  return cloudinary;
+}
+const fotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Ainult pildifailid!'));
+  }
+});
 function getResend() {
   console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? 'OK' : 'PUUDUB');
   return new Resend(process.env.RESEND_API_KEY);
@@ -21,6 +39,71 @@ function noudaAdmin(req, res, next) {
 router.get('/tootajad', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT id, nimi, pin, aktiivne, email, COALESCE(arhiveeritud,false) as arhiveeritud FROM workers ORDER BY nimi');
   res.json(r.rows);
+});
+
+// ── TÖÖTAJATE PILDID (ainult admin näeb) ─────────────────────────
+// Tagastab iga töötaja pildi: esmalt admini enda üles laetud pilt, selle puudumisel
+// Padeli profiilipilt (kui töötaja on Padelis pildi lisanud). allikas = 'admin' | 'padel'.
+router.get('/tootaja-fotod', noudaAdmin, async (req, res) => {
+  try {
+    const adm = await pool.query(
+      `SELECT f.worker_id, w.nimi, f.foto_url FROM tootaja_admin_fotod f JOIN workers w ON w.id=f.worker_id`
+    );
+    let padel = { rows: [] };
+    try {
+      padel = await pool.query(
+        `SELECT DISTINCT ON (pl.worker_id) pl.worker_id, w.nimi, pl.foto_url
+         FROM padel_liikmed pl JOIN workers w ON w.id=pl.worker_id
+         WHERE pl.foto_url IS NOT NULL AND pl.worker_id IS NOT NULL
+         ORDER BY pl.worker_id, pl.id DESC`
+      );
+    } catch (e) { /* Padeli tabelit pole — pole hullu */ }
+    const tulemus = {};
+    padel.rows.forEach(r => { tulemus[r.worker_id] = { worker_id: r.worker_id, nimi: r.nimi, foto_url: r.foto_url, allikas: 'padel' }; });
+    adm.rows.forEach(r => { tulemus[r.worker_id] = { worker_id: r.worker_id, nimi: r.nimi, foto_url: r.foto_url, allikas: 'admin' }; });
+    res.json({ ok: true, fotod: Object.values(tulemus) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.post('/tootajad/:id/foto', noudaAdmin, fotoUpload.single('foto'), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
+  try {
+    const w = await pool.query('SELECT id FROM workers WHERE id=$1', [req.params.id]);
+    if (!w.rows.length) return res.json({ ok: false, veateade: 'Töötajat ei leitud' });
+    const vana = await pool.query('SELECT foto_public_id FROM tootaja_admin_fotod WHERE worker_id=$1', [req.params.id]);
+    if (vana.rows.length && vana.rows[0].foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
+    }
+    const result = await new Promise((resolve, reject) => {
+      const stream = getCloudinary().uploader.upload_stream(
+        { folder: 'royal-paigaldus/tootajad', resource_type: 'image', quality: 'auto', transformation: [{ width: 300, height: 300, crop: 'fill', gravity: 'face' }] },
+        (err, result) => err ? reject(err) : resolve(result)
+      );
+      stream.end(req.file.buffer);
+    });
+    await pool.query(
+      `INSERT INTO tootaja_admin_fotod (worker_id, foto_url, foto_public_id, muudetud) VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (worker_id) DO UPDATE SET foto_url=EXCLUDED.foto_url, foto_public_id=EXCLUDED.foto_public_id, muudetud=NOW()`,
+      [req.params.id, result.secure_url, result.public_id]
+    );
+    res.json({ ok: true, foto_url: result.secure_url });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+router.delete('/tootajad/:id/foto', noudaAdmin, async (req, res) => {
+  try {
+    const vana = await pool.query('DELETE FROM tootaja_admin_fotod WHERE worker_id=$1 RETURNING foto_public_id', [req.params.id]);
+    if (vana.rows.length && vana.rows[0].foto_public_id) {
+      try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
 });
 
 router.post('/tootajad', noudaAdmin, async (req, res) => {
@@ -450,6 +533,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     const kogMakstud = parseFloat(kogMakstudRes.rows[0].kokku) || 0;
 
     andmed.push({
+      id: w.id,
       nimi: w.nimi,
       tunnid: tunnid.toFixed(2),
       teenitud: teenitud.toFixed(2),
