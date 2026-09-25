@@ -12,6 +12,32 @@ function tootajaVarv(id) {
   const i = Number.isFinite(n) ? Math.abs(n) : 0;
   return TOOTAJA_VARVID[i % TOOTAJA_VARVID.length];
 }
+// ── TÖÖTAJATE PILDID (ainult admin näeb; laetakse /api/admin/tootaja-fotod kaudu) ──
+let tootajaFotod = {};       // worker_id -> { foto_url, allikas }
+let tootajaFotodNimi = {};   // nimi -> foto_url (varuks, kui andmetes id puudub)
+let tootajaFotodLaaditud = false;
+async function laadiTootajaFotod(sunni) {
+  if (tootajaFotodLaaditud && !sunni) return;
+  const r = await api('/api/admin/tootaja-fotod');
+  tootajaFotod = {}; tootajaFotodNimi = {};
+  if (r && r.ok && Array.isArray(r.fotod)) {
+    r.fotod.forEach(f => { tootajaFotod[f.worker_id] = f; if (f.nimi) tootajaFotodNimi[f.nimi] = f.foto_url; });
+    tootajaFotodLaaditud = true;
+  }
+}
+function tootajaFotoUrl(w) {
+  if (!w) return null;
+  if (w.id && tootajaFotod[w.id]) return tootajaFotod[w.id].foto_url;
+  return tootajaFotodNimi[w.nimi] || null;
+}
+// Avatari sisu: pilt, kui on olemas, muidu nime esitäht (nagu varem)
+function tootajaAvatar(w) {
+  const url = tootajaFotoUrl(w);
+  const taht = (w && w.nimi ? w.nimi[0] : '?');
+  if (!url) return taht;
+  return `<img src="${url}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${taht.replace(/'/g, "\\'")}'))">`;
+}
+
 function tootajaVarvRgb(id) {
   const hex = tootajaVarv(id).replace('#','');
   return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)].join(',');
@@ -309,7 +335,7 @@ function renderEttevoteTootajad(rowList, esitusHind) {
     const summa = esitusHind ? (w.tunnid * esitusHind * 1.24) : 0;
     const vc = tootajaVarv(w.id);
     html += `<tr id="worker-rida-${safeId}">
-      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span>${w.nimi}</td>
+      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span>${w.nimi}</td>
       <td style="text-align:right;color:#5b9cf6">${w.tunnid.toFixed(1)} h</td>
       ${esitusHind ? `<td style="text-align:right;color:#4ade80">${summa.toFixed(2)} €</td>` : ''}
       <td style="text-align:right"><button class="av-tegevus-ikoon" id="kirjed-chevron-${safeId}" onclick="toggleKirjed('${safeId}')" title="Näita töökirjeid"><span class="tj-arhiiv-chevron">▾</span></button></td>
@@ -513,7 +539,7 @@ function vrRenderList() {
   div.innerHTML = list.map(w => {
     const vc = tootajaVarv(w.id || w.nimi);
     return `<div class="tj-arhiiv-rida" style="cursor:pointer" onclick="vrVahetaTootaja(${w.id})">
-      <span style="display:flex;align-items:center;gap:10px"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span><span style="font-weight:600;color:var(--tekst)">${w.nimi}</span></span>
+      <span style="display:flex;align-items:center;gap:10px"><span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span><span style="font-weight:600;color:var(--tekst)">${w.nimi}</span></span>
       <span style="color:var(--hall)">→</span>
     </div>`;
   }).join('');
@@ -655,7 +681,10 @@ const DASH_LEHE_SUURUS = 8;
 async function laadiKokkuvote() {
   const kuu = document.getElementById('kv-kuu').value;
   const aasta = document.getElementById('kv-aasta').value;
-  const andmed = await api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`);
+  const [andmed] = await Promise.all([
+    api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`),
+    laadiTootajaFotod()
+  ]);
   dashViimatiLaaditud = Array.isArray(andmed) ? andmed : [];
   dashLehekülg = 1;
   kuvaTootajaKaardid(dashViimatiLaaditud);
@@ -725,7 +754,7 @@ function renderKokkuvoteTable() {
     const vc = tootajaVarv(w.id || w.nimi);
     html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
       <td style="font-weight:600;cursor:pointer;color:${tunnid>0||kulud>0?'#2563eb':'var(--hall)'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
-        <span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span>${w.nimi}
+        <span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span>${w.nimi}
       </td>
       <td style="text-align:right;color:#5b9cf6">${tunnid>0?tunnid.toFixed(1)+' h':'—'}</td>
       <td style="text-align:right;color:#4ade80">${teenitud>0?teenitud.toFixed(2)+' €':'—'}</td>
@@ -802,30 +831,81 @@ function saldoStaatus(teenitud, makstud) {
   return { text: 'Tasumata', cls: 'punane' };
 }
 
+const TOP_TOOTAJAID = 12;
 function kuvaTootajaKaardid(andmed) {
   const div = document.getElementById('kokkuvote-tootajad-kaardid');
   if (!div) return;
+  // Järjestus: kõige rohkem teeninud (koos kuludega) sel kuul ees
   const aktiivsed = (andmed || []).filter(w => {
     const kulud = parseFloat(w.edgf||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
     return parseFloat(w.tunnid) > 0 || kulud > 0;
-  }).sort((a,b) => parseFloat(b.tunnid) - parseFloat(a.tunnid));
+  }).sort((a,b) => parseFloat(b.kogusumma || b.teenitud) - parseFloat(a.kogusumma || a.teenitud));
   if (!aktiivsed.length) { div.innerHTML = ''; return; }
-  const top5 = aktiivsed.slice(0, 5);
+  const top = aktiivsed.slice(0, TOP_TOOTAJAID);
   div.innerHTML = `<div class="top-tootajad-kaart">
-    <div class="top-tootajad-hdr">Top töötajad</div>
-    <div class="top-tootajad-scroll">` + top5.map(w => {
+    <div class="top-tootajad-hdr">
+      <span>Top töötajad <span style="color:var(--hall);font-weight:500">· ${top.length} enim teeninud</span></span>
+      <span class="top-nooled">
+        <button type="button" class="top-noole-nupp" onclick="topKeri(-1)" aria-label="Eelmised">‹</button>
+        <button type="button" class="top-noole-nupp" onclick="topKeri(1)" aria-label="Järgmised">›</button>
+      </span>
+    </div>
+    <div class="top-tootajad-scroll" id="top-tootajad-scroll">` + top.map((w, i) => {
     const vc = tootajaVarv(w.id || w.nimi);
     const tunnid = parseFloat(w.tunnid);
     const teenitud = parseFloat(w.kogusumma || w.teenitud);
     const makstud = parseFloat(w.makstud || 0);
     const st = saldoStaatus(teenitud, makstud);
     return `<div class="top-tootaja-kaart" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
-      <div class="top-tootaja-avatar" style="background:${vc}">${w.nimi[0]}</div>
+      <div class="top-tootaja-koht">${i+1}.</div>
+      <div class="top-tootaja-avatar" style="background:${vc}">${tootajaAvatar(w)}</div>
       <div class="top-tootaja-nimi">${w.nimi}</div>
       <div class="top-tootaja-info">${tunnid.toFixed(1)}h · ${teenitud.toFixed(0)}€</div>
       <span class="staatus-pill ${st.cls}">${st.text}</span>
     </div>`;
   }).join('') + `</div></div>`;
+}
+function topKeri(suund) {
+  const el = document.getElementById('top-tootajad-scroll');
+  if (!el) return;
+  el.scrollBy({ left: suund * Math.max(160, el.clientWidth * 0.8), behavior: 'smooth' });
+}
+
+// Pildi üleslaadimine töötaja detailvaates. Pilt vähendatakse enne saatmist (max 800px),
+// et telefonipildid ei ületaks serveri 10 MB piiri ja üleslaadimine oleks kiire.
+async function tjVahendaPilt(fail) {
+  try {
+    const bmp = await createImageBitmap(fail);
+    const max = 800, k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || fail), 'image/jpeg', 0.85));
+  } catch (e) { return fail; }
+}
+async function tjLaeFoto(workerId, input) {
+  const fail = input.files && input.files[0];
+  if (!fail) return;
+  const av = document.querySelector('.tj-detail-avatar');
+  if (av) av.style.opacity = '0.5';
+  const fd = new FormData();
+  fd.append('foto', await tjVahendaPilt(fail), 'foto.jpg');
+  const r = await api(`/api/admin/tootajad/${workerId}/foto`, { method: 'POST', body: fd });
+  input.value = '';
+  if (!r || !r.ok) { if (av) av.style.opacity = ''; alert('Pildi üleslaadimine ebaõnnestus: ' + ((r && r.veateade) || '')); return; }
+  await laadiTootajaFotod(true);
+  tjRenderDetail();
+  if (typeof tjRenderList === 'function') tjRenderList();
+  if (dashViimatiLaaditud && dashViimatiLaaditud.length) { kuvaTootajaKaardid(dashViimatiLaaditud); renderKokkuvoteTable(); }
+}
+async function tjEemaldaFoto(workerId) {
+  if (!confirm('Eemaldada selle töötaja pilt?')) return;
+  const r = await api(`/api/admin/tootajad/${workerId}/foto`, { method: 'DELETE' });
+  if (!r || !r.ok) { alert('Pildi eemaldamine ebaõnnestus: ' + ((r && r.veateade) || '')); return; }
+  await laadiTootajaFotod(true);
+  tjRenderDetail();
+  if (typeof tjRenderList === 'function') tjRenderList();
+  if (dashViimatiLaaditud && dashViimatiLaaditud.length) { kuvaTootajaKaardid(dashViimatiLaaditud); renderKokkuvoteTable(); }
 }
 
 async function uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMakstud) {
@@ -903,7 +983,7 @@ function uuendaStatKaardid(andmed, kuu, aasta, kokkuTunnid, kokkuTeenitud, kokku
 async function avaTootajaModal(workerId, workerNimi) {
   const kuu = document.getElementById('kv-kuu').value;
   const aasta = document.getElementById('kv-aasta').value;
-  document.getElementById('tm-avatar').textContent = workerNimi[0];
+  document.getElementById('tm-avatar').innerHTML = tootajaAvatar({ id: workerId, nimi: workerNimi });
   document.getElementById('tm-nimi').textContent = workerNimi;
   document.getElementById('tm-kuu').textContent = KUUD[kuu-1] + ' ' + aasta;
   document.getElementById('tm-tunnid').textContent = '...';
@@ -1008,9 +1088,11 @@ const TJ_SVG_RECEIPT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 async function laadiTootajad() {
   const [workers, xsList, arvedList, omaarvedList] = await Promise.all([
     api('/api/admin/tootajad'),
+    // (pildid laetakse paralleelselt; tulemus läheb globaalsesse tootajaFotod muutujasse)
     api('/api/xseeria/admin/lubatud'),
     api('/api/arved/admin/lubatud'),
-    api('/api/omaarved/admin/lubatud')
+    api('/api/omaarved/admin/lubatud'),
+    laadiTootajaFotod()
   ]);
   tjKoikTootajad = Array.isArray(workers) ? workers : [];
   tjKoikXs = {}; if (Array.isArray(xsList)) xsList.forEach(w => tjKoikXs[w.id] = !!w.lubatud);
@@ -1112,7 +1194,7 @@ function tjRenderList() {
     const vc = tootajaVarv(w.id || w.nimi);
     const onXs = !!tjKoikXs[w.id];
     return `<tr class="tj-tabeli-rida${tjValitudId===w.id?' aktiivne-valik':''}" onclick="tjValiTootaja(${w.id})">
-      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${w.nimi[0]}</span>${w.nimi}</td>
+      <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span>${w.nimi}</td>
       <td style="color:var(--hall);font-size:12px">${w.pin}</td>
       <td>${nimed.length ? nimed.slice(0,2).map(n=>`<span class="tj-badge">${n}</span>`).join('') + (nimed.length>2?`<span class="tj-badge">+${nimed.length-2}</span>`:'') : '<span style="color:var(--hall);font-size:11px">—</span>'}${onXs?'<span class="tj-badge" style="color:var(--sinine)">🥏 X-seeria</span>':''}</td>
       <td><span class="staatus-pill ${w.aktiivne?'roheline':'hall'}">${w.aktiivne?'Aktiivne':'Mitteaktiivne'}</span></td>
@@ -1179,10 +1261,11 @@ function tjRenderDetail() {
   const vc = tootajaVarv(w.id || w.nimi);
   div.innerHTML = `
     <div class="tj-detail-hdr">
-      <div class="tj-detail-avatar" style="background:${vc}">${w.nimi[0]}</div>
+      <div class="tj-detail-avatar tj-foto-muuda" style="background:${vc}" onclick="document.getElementById('tj-foto-input').click()" title="Lisa / muuda pilti (näeb ainult admin)">${tootajaAvatar(w)}<span class="tj-foto-kaamera">📷</span></div>
+      <input type="file" id="tj-foto-input" accept="image/*" style="display:none" onchange="tjLaeFoto(${w.id}, this)">
       <div style="flex:1;min-width:0">
         <div style="font-size:16px;font-weight:700;color:var(--tekst)">${w.nimi}${w.arhiveeritud ? '<span class="tj-badge" style="margin-left:8px;color:var(--hall)">📦 Arhiveeritud</span>' : ''}</div>
-        <div style="font-size:12px;color:var(--hall)">Töötaja profiil</div>
+        <div style="font-size:12px;color:var(--hall)">Töötaja profiil${(tootajaFotod[w.id] && tootajaFotod[w.id].allikas === 'admin') ? ` · <a href="#" class="tj-foto-eemalda" style="color:var(--hall)" onclick="event.preventDefault();tjEemaldaFoto(${w.id})">Eemalda pilt</a>` : (tootajaFotod[w.id] ? ' · pilt Padelist' : '')}</div>
       </div>
       ${w.arhiveeritud
         ? `<button type="button" class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="tjTaastaTootaja(${w.id})">↩ Taasta</button>`
@@ -1878,4 +1961,3 @@ async function salvestaMuuTasu(kirjeId) {
   await api(`/api/admin/kirjed/${kirjeId}/muu-tasu`,{method:'PUT',body:JSON.stringify({tunnitasu:tasu})});
   laadiKokkuvote();
 }
-
