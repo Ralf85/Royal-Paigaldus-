@@ -749,7 +749,7 @@ function renderKokkuvoteTable() {
     </tr></thead><tbody>`;
   lehelised.forEach(w => {
     const tunnid=parseFloat(w.tunnid), teenitud=parseFloat(w.teenitud), makstud=parseFloat(w.makstud), saada=parseFloat(w.saadaVeel);
-    const edgf=parseFloat(w.edgf||0), lisakulu=parseFloat(w.lisakulu||0), xseeria=parseFloat(w.xseeria||0), kulud=edgf+lisakulu+xseeria, kogusumma=parseFloat(w.kogusumma||w.teenitud);
+    const edgf=parseFloat(w.edgf||0)+parseFloat(w.re||0), lisakulu=parseFloat(w.lisakulu||0), xseeria=parseFloat(w.xseeria||0), kulud=edgf+lisakulu+xseeria, kogusumma=parseFloat(w.kogusumma||w.teenitud);
     const st = saldoStaatus(kogusumma, makstud);
     const vc = tootajaVarv(w.id || w.nimi);
     html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
@@ -837,7 +837,7 @@ function kuvaTootajaKaardid(andmed) {
   if (!div) return;
   // Järjestus: kõige rohkem teeninud (koos kuludega) sel kuul ees
   const aktiivsed = (andmed || []).filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
+    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
     return parseFloat(w.tunnid) > 0 || kulud > 0;
   }).sort((a,b) => parseFloat(b.kogusumma || b.teenitud) - parseFloat(a.kogusumma || a.teenitud));
   if (!aktiivsed.length) { div.innerHTML = ''; return; }
@@ -912,7 +912,7 @@ async function uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMaks
   const div = document.getElementById('dash-kiirkokkuvote');
   if (!div) return;
   const aktiivseid = (andmed||[]).filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
+    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
     return parseFloat(w.tunnid) > 0 || kulud > 0;
   }).length;
   const volgu = kokkuTeenitud - kokkuMakstud;
@@ -958,7 +958,7 @@ function uuendaStatKaardid(andmed, kuu, aasta, kokkuTunnid, kokkuTeenitud, kokku
   const kaardid = document.getElementById('stat-kaardid');
   if (!kaardid) return;
   const aktiivseid = andmed.filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
+    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
     return parseFloat(w.tunnid) > 0 || kulud > 0;
   }).length;
   const kuuNimi = (typeof KUUD !== 'undefined' && KUUD[kuu-1]) ? KUUD[kuu-1] : '';
@@ -980,41 +980,77 @@ function uuendaStatKaardid(andmed, kuu, aasta, kokkuTunnid, kokkuTeenitud, kokku
   uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMakstud);
 }
 
+function tmEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function tmKp(kp) {
+  if (!kp) return '—';
+  const [a, k, p] = String(kp).slice(0, 10).split('-');
+  return `${p}.${k}.${a}`;
+}
+function tmEur(v, margiga) {
+  const n = parseFloat(v) || 0;
+  return (margiga && n > 0 ? '+' : '') + n.toFixed(2) + ' €';
+}
+function tmSaldoVarv(v) {
+  const n = parseFloat(v) || 0;
+  return n > 0.004 ? '#fbbf24' : n < -0.004 ? '#ef4444' : 'var(--hall)';
+}
+function tmKuluKlass(liik) {
+  return liik === 'EDGF' ? 'l-edgf' : liik === 'Rally Estonia' ? 'l-re' : liik === 'X-seeria' ? 'l-xs' : liik === 'Kilometraaž' ? 'l-km' : '';
+}
+const TM_TYHI = t => `<div style="color:var(--hall);font-size:13px">${t}</div>`;
+
 async function avaTootajaModal(workerId, workerNimi) {
   const kuu = document.getElementById('kv-kuu').value;
   const aasta = document.getElementById('kv-aasta').value;
   document.getElementById('tm-avatar').innerHTML = tootajaAvatar({ id: workerId, nimi: workerNimi });
   document.getElementById('tm-nimi').textContent = workerNimi;
   document.getElementById('tm-kuu').textContent = KUUD[kuu-1] + ' ' + aasta;
-  document.getElementById('tm-tunnid').textContent = '...';
-  document.getElementById('tm-teenitud').textContent = '...';
-  document.getElementById('tm-makstud').textContent = '...';
-  document.getElementById('tm-saada').textContent = '...';
-  document.getElementById('tm-ettevotted').innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  document.getElementById('tm-maksed').innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  document.getElementById('tm-kirjed').innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
+  ['tm-tunnid','tm-teenitud','tm-makstud','tm-saada'].forEach(id => { document.getElementById(id).textContent = '...'; });
+  ['tm-saldo-ulevaade','tm-ettevotted','tm-kulud','tm-maksed','tm-liikumine','tm-ajalugu','tm-kirjed'].forEach(id => {
+    document.getElementById(id).innerHTML = TM_TYHI('Laadimine...');
+  });
+  document.getElementById('tm-kulud-kokku').textContent = '';
+  document.getElementById('tm-maksed-kokku').textContent = '';
   document.getElementById('tootajaModal').classList.add('avatud');
-  const [kokkuvote, maksed] = await Promise.all([
+
+  const [kokkuvote, detail] = await Promise.all([
     api(`/api/admin/kokkuvote?aasta=${aasta}&kuu=${kuu}`),
-    api(`/api/admin/maksed?worker_id=${workerId}&aasta=${aasta}&kuu=${kuu}`)
+    api(`/api/admin/tootaja-kuu?worker_id=${workerId}&aasta=${aasta}&kuu=${kuu}`)
   ]);
-  const workerData = Array.isArray(kokkuvote) ? kokkuvote.find(w => w.nimi === workerNimi) : null;
-  if (!workerData) {
-    document.getElementById('tm-tunnid').textContent = '0 h';
-    document.getElementById('tm-teenitud').textContent = '0 €';
-    document.getElementById('tm-makstud').textContent = '0 €';
-    document.getElementById('tm-saada').textContent = '0 €';
-    document.getElementById('tm-ettevotted').innerHTML = '<div style="color:var(--hall);font-size:13px">Andmed puuduvad</div>';
-    document.getElementById('tm-kirjed').innerHTML = '<div style="color:var(--hall);font-size:13px">Kirjeid pole</div>';
+  const workerData = Array.isArray(kokkuvote) ? (kokkuvote.find(w => String(w.id) === String(workerId)) || kokkuvote.find(w => w.nimi === workerNimi)) : null;
+  const d = (detail && !detail.viga) ? detail : null;
+
+  // ── Ülemised numbrid ──
+  const tunnid = workerData ? parseFloat(workerData.tunnid) : 0;
+  const teenitud = workerData ? parseFloat(workerData.teenitud) : 0;
+  const makstud = d ? d.makstud : (workerData ? parseFloat(workerData.makstud) : 0);
+  const saada = d ? d.loppsaldo : (workerData ? parseFloat(workerData.saadaVeel) : 0);
+  document.getElementById('tm-tunnid').textContent = tunnid.toFixed(1) + ' h';
+  document.getElementById('tm-teenitud').textContent = teenitud.toFixed(2) + ' €';
+  document.getElementById('tm-makstud').textContent = makstud.toFixed(2) + ' €';
+  const saadaEl = document.getElementById('tm-saada');
+  saadaEl.textContent = tmEur(saada, true);
+  saadaEl.style.color = tmSaldoVarv(saada);
+
+  // ── Saldo ülevaade ──
+  if (d) {
+    document.getElementById('tm-saldo-ulevaade').innerHTML = `
+      <div class="tm-saldo-rida"><span>Algsaldo (eelmistest kuudest üle tulnud)</span><span style="color:${tmSaldoVarv(d.algsaldo)};font-weight:600">${tmEur(d.algsaldo, true)}</span></div>
+      <div class="tm-saldo-rida"><span>+ Töötasu sel kuul</span><span style="color:#4ade80">${tmEur(d.too)}</span></div>
+      <div class="tm-saldo-rida"><span>+ Kulud sel kuul</span><span style="color:#f59e0b">${tmEur(d.kulud_kokku)}</span></div>
+      <div class="tm-saldo-rida"><span>− Makstud sel kuul</span><span style="color:#94a3b8">−${(parseFloat(d.makstud)||0).toFixed(2)} €</span></div>
+      <div class="tm-saldo-rida lopp"><span>${d.loppsaldo < -0.004 ? 'Ettemaks (makstud rohkem)' : 'Saldo kuu lõpus (veel maksta)'}</span><span style="color:${tmSaldoVarv(d.loppsaldo)}">${tmEur(d.loppsaldo, true)}</span></div>`;
   } else {
-    const tunnid = parseFloat(workerData.tunnid), teenitud = parseFloat(workerData.teenitud);
-    const makstud = parseFloat(workerData.makstud), saada = parseFloat(workerData.saadaVeel);
-    document.getElementById('tm-tunnid').textContent = tunnid.toFixed(1) + ' h';
-    document.getElementById('tm-teenitud').textContent = teenitud.toFixed(2) + ' €';
-    document.getElementById('tm-makstud').textContent = makstud.toFixed(2) + ' €';
-    const saadaEl = document.getElementById('tm-saada');
-    saadaEl.textContent = (saada > 0 ? '+' : '') + saada.toFixed(2) + ' €';
-    saadaEl.style.color = saada > 0 ? '#fbbf24' : saada < 0 ? '#ef4444' : 'var(--hall)';
+    document.getElementById('tm-saldo-ulevaade').innerHTML = TM_TYHI('Saldo andmeid ei õnnestunud laadida' + (detail && detail.viga ? ': ' + tmEsc(detail.viga) : ''));
+  }
+
+  // ── Ettevõttepõhine jaotus + töökirjed ──
+  if (!workerData || !workerData.kirjed || !workerData.kirjed.length) {
+    document.getElementById('tm-ettevotted').innerHTML = TM_TYHI('Töökirjeid pole');
+    document.getElementById('tm-kirjed').innerHTML = TM_TYHI('Kirjeid pole');
+  } else {
     const ettevotteGrupp = {};
     workerData.kirjed.forEach(k => {
       const e = k.ettevote_nimi;
@@ -1022,25 +1058,77 @@ async function avaTootajaModal(workerId, workerNimi) {
       ettevotteGrupp[e].tunnid += parseFloat(k.tunnid);
       ettevotteGrupp[e].summa += parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
     });
-    const ettevotteHtml = Object.entries(ettevotteGrupp).map(([nimi, data]) => {
+    document.getElementById('tm-ettevotted').innerHTML = Object.entries(ettevotteGrupp).map(([nimi, data]) => {
       const tyyp = (data.tyyp || 'muu').toLowerCase();
-      return `<div class="tm-ettevote-rida"><span class="tm-ettevote-badge badge-${tyyp}">${nimi}</span><span style="color:var(--tekst3);font-size:13px">${data.tunnid.toFixed(1)} h</span><span style="color:#4ade80;font-size:13px;margin-left:auto">${data.summa.toFixed(2)} €</span></div>`;
+      return `<div class="tm-ettevote-rida"><span class="tm-ettevote-badge badge-${tyyp}">${tmEsc(nimi)}</span><span style="color:var(--tekst3);font-size:13px">${data.tunnid.toFixed(1)} h</span><span style="color:#4ade80;font-size:13px;margin-left:auto">${data.summa.toFixed(2)} €</span></div>`;
     }).join('');
-    document.getElementById('tm-ettevotted').innerHTML = ettevotteHtml || '<div style="color:var(--hall);font-size:13px">Töökirjeid pole</div>';
-    const kirjedHtml = workerData.kirjed.length ? workerData.kirjed.map(k => {
+    document.getElementById('tm-kirjed').innerHTML = workerData.kirjed.map(k => {
       const tyyp = (k.ettevote_tyyp || 'muu').toLowerCase();
       const summa = parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
       const muudetud = k.muudetud_tootaja;
       const rowStyle = muudetud ? ' style="background:rgba(251,191,36,0.14);border-left:3px solid #fbbf24"' : '';
       const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')}"` : '';
       const muudetudBadge = muudetud ? `<span style="color:#fbbf24;font-size:9px;font-weight:700;white-space:nowrap">✏️ MUUDETUD</span>` : '';
-      return `<div class="tm-kirje-rida"${rowStyle}${muudetudTitle}><span style="color:var(--hall);min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${k.ettevote_nimi}</span><span style="color:var(--tekst3)">${k.objekt_nimi || '—'}</span><span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>${muudetudBadge}<span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
-    }).join('') : '<div style="color:var(--hall);font-size:13px">Kirjeid pole</div>';
-    document.getElementById('tm-kirjed').innerHTML = kirjedHtml;
+      return `<div class="tm-kirje-rida"${rowStyle}${muudetudTitle}><span style="color:var(--hall);min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${tmEsc(k.ettevote_nimi)}</span><span style="color:var(--tekst3)">${tmEsc(k.objekt_nimi || '—')}</span><span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>${muudetudBadge}<span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
+    }).join('');
   }
-  const maksedHtml = Array.isArray(maksed) && maksed.length ? maksed.map(m => `
-    <div class="tm-makse-rida"><div><div style="color:var(--tekst)">${formatKp(m.kuupaev)}</div>${m.kommentaar ? `<div style="font-size:11px;color:var(--hall)">${m.kommentaar}</div>` : ''}</div><div style="color:#4ade80;font-weight:700">+${parseFloat(m.summa).toFixed(2)} €</div></div>`).join('') : '<div style="color:var(--hall);font-size:13px">Selle kuu makseid pole</div>';
-  document.getElementById('tm-maksed').innerHTML = maksedHtml;
+
+  if (!d) {
+    ['tm-kulud','tm-maksed','tm-liikumine','tm-ajalugu'].forEach(id => { document.getElementById(id).innerHTML = TM_TYHI('Andmed puuduvad'); });
+    return;
+  }
+
+  // ── Kulud ──
+  document.getElementById('tm-kulud-kokku').textContent = d.kulud.length ? tmEur(d.kulud_kokku) : '';
+  document.getElementById('tm-kulud').innerHTML = d.kulud.length ? d.kulud.map(k => `
+    <div class="tm-kulu-rida">
+      <span style="color:var(--hall);min-width:78px;font-size:12px">${tmKp(k.kuupaev)}</span>
+      <span class="tm-kulu-liik ${tmKuluKlass(k.liik)}">${tmEsc(k.liik)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="color:var(--tekst)">${tmEsc(k.selgitus || '—')}</div>
+        ${k.lisainfo ? `<div style="font-size:11px;color:var(--hall)">${tmEsc(k.lisainfo)}</div>` : ''}
+      </div>
+      <span style="color:#f59e0b;font-weight:700;white-space:nowrap">${tmEur(k.summa)}</span>
+    </div>`).join('') : TM_TYHI('Selle kuu kulusid pole');
+
+  // ── Maksed ──
+  document.getElementById('tm-maksed-kokku').textContent = d.maksed.length ? tmEur(d.makstud) : '';
+  document.getElementById('tm-maksed').innerHTML = d.maksed.length ? d.maksed.map(m => `
+    <div class="tm-makse-rida">
+      <div>
+        <div style="color:var(--tekst)">Makstud ${tmKp(m.kuupaev)}</div>
+        ${(m.kommentaar || m.ettevote_nimi) ? `<div style="font-size:11px;color:var(--hall)">${tmEsc([m.kommentaar, m.ettevote_nimi].filter(Boolean).join(' · '))}</div>` : ''}
+      </div>
+      <div style="color:#4ade80;font-weight:700">${tmEur(m.summa)}</div>
+    </div>`).join('') : TM_TYHI('Selle kuu makseid pole');
+
+  // ── Saldo jooksev liikumine ──
+  const liikRead = d.liikumine.map(s => {
+    const varv = s.tyyp === 'makse' ? '#94a3b8' : s.tyyp === 'kulu' ? '#f59e0b' : '#4ade80';
+    const summaTekst = s.summa < 0 ? '−' + Math.abs(s.summa).toFixed(2) + ' €' : '+' + s.summa.toFixed(2) + ' €';
+    return `<tr><td>${tmKp(s.kuupaev)}</td><td class="kirj">${tmEsc(s.kirjeldus)}</td><td style="color:${varv}">${summaTekst}</td><td style="color:${tmSaldoVarv(s.saldo)};font-weight:600">${tmEur(s.saldo, true)}</td></tr>`;
+  }).join('');
+  document.getElementById('tm-liikumine').innerHTML = `
+    <div class="tm-tabel-wrap"><table class="tm-tabel">
+      <thead><tr><th>Kuupäev</th><th style="text-align:left">Kirjeldus</th><th>Summa</th><th>Saldo</th></tr></thead>
+      <tbody>
+        <tr><td>—</td><td class="kirj" style="color:var(--hall)">Algsaldo kuu alguses</td><td></td><td style="color:${tmSaldoVarv(d.algsaldo)};font-weight:600">${tmEur(d.algsaldo, true)}</td></tr>
+        ${liikRead || '<tr><td></td><td class="kirj" style="color:var(--hall)">Sel kuul liikumisi pole</td><td></td><td></td></tr>'}
+        <tr class="valitud"><td></td><td class="kirj">Saldo kuu lõpus</td><td></td><td style="color:${tmSaldoVarv(d.loppsaldo)}">${tmEur(d.loppsaldo, true)}</td></tr>
+      </tbody>
+    </table></div>`;
+
+  // ── Saldo kuude kaupa ──
+  const valitudVoti = `${aasta}-${String(kuu).padStart(2,'0')}`;
+  document.getElementById('tm-ajalugu').innerHTML = d.ajalugu.length ? `
+    <div class="tm-tabel-wrap"><table class="tm-tabel">
+      <thead><tr><th>Kuu</th><th>Algsaldo</th><th>Töötasu</th><th>Kulud</th><th>Makstud</th><th>Saldo</th></tr></thead>
+      <tbody>${d.ajalugu.map(r => {
+        const [a, k] = r.kuu.split('-');
+        return `<tr class="${r.kuu === valitudVoti ? 'valitud' : ''}"><td>${KUUD[parseInt(k,10)-1]} ${a}</td><td>${tmEur(r.algsaldo)}</td><td style="color:#4ade80">${tmEur(r.too)}</td><td style="color:#f59e0b">${tmEur(r.kulud)}</td><td style="color:#94a3b8">${tmEur(r.makstud)}</td><td style="color:${tmSaldoVarv(r.saldo)};font-weight:600">${tmEur(r.saldo, true)}</td></tr>`;
+      }).join('')}</tbody>
+    </table></div>
+    <div style="font-size:11px;color:var(--hall);margin-top:8px">Viimased 12 aktiivset kuud kuni valitud kuuni. Positiivne saldo = veel maksta, negatiivne = ettemaks.</div>` : TM_TYHI('Ajalugu pole');
 }
 
 function sulgeTootajaModal() { document.getElementById('tootajaModal').classList.remove('avatud'); }
