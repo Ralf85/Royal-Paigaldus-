@@ -597,7 +597,8 @@ router.put('/nadalad/:id/setid', noudaPadelLigipaas, async (req, res) => {
   }
 });
 
-// Minu enda saldo — ainult nädalad, kus ma ISE osalesin (asendaja-nädalad ei lähe minu arvele)
+// Minu enda saldo — ainult KINNITATUD trennid, kus ma ISE osalesin (asendaja-nädalad ei lähe minu arvele).
+// Kinnitamata koht (keegi teine lisas mind, ma pole kinnitanud) trennitasu arvele ei too.
 router.get('/minu-saldo', noudaPadelLigipaas, async (req, res) => {
   try {
     const r = await pool.query(
@@ -606,7 +607,7 @@ router.get('/minu-saldo', noudaPadelLigipaas, async (req, res) => {
        JOIN padel_liikmed pl ON pl.id = pk.liige_id
        JOIN padel_nadalad pn ON pn.id = pk.nadal_id
        JOIN padel_ryhmad r ON r.id = pn.ryhm_id
-       WHERE pl.worker_id = $1 AND pk.osaleb = true AND pk.makstud = false AND pk.summa IS NOT NULL
+       WHERE pl.worker_id = $1 AND pk.osaleb = true AND pk.kinnitatud = true AND pk.makstud = false AND pk.summa IS NOT NULL
        ORDER BY pn.kuupaev DESC`,
       [req.session.workerId]
     );
@@ -625,6 +626,7 @@ router.get('/minu-saldo', noudaPadelLigipaas, async (req, res) => {
 
 // ── ADMIN: MAKSETE HALDUS (kes on mulle üle kandnud, kui palju) ───────────
 // Kõik Padeli mängijad (üle kõigi gruppide, dubleerimata) koos nende koguvõla/saldoga.
+// Trennitasu arvestatakse ainult kinnitatud kohtadelt (kinnitatud = osaleb = tasu arvel).
 router.get('/admin/saldod', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
@@ -635,7 +637,7 @@ router.get('/admin/saldod', noudaAdmin, async (req, res) => {
        volad AS (
          SELECT pl.worker_id, COALESCE(SUM(pk.summa), 0) AS volg
          FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
-         WHERE pk.osaleb = true AND pk.makstud = false AND pk.summa IS NOT NULL
+         WHERE pk.osaleb = true AND pk.kinnitatud = true AND pk.makstud = false AND pk.summa IS NOT NULL
          GROUP BY pl.worker_id
        ),
        maksed AS (
