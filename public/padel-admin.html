@@ -128,6 +128,28 @@
   .makse-ajalugu-rida { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--piir); color: var(--tekst2); }
   .makse-ajalugu-rida:last-child { border-bottom: none; }
 
+  .mt-rida { display: grid; grid-template-columns: 92px 1fr 70px 160px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--piir); font-size: 13px; }
+  .mt-rida:last-child { border-bottom: none; }
+  .mt-rida .kp { color: var(--tekst2); font-variant-numeric: tabular-nums; }
+  .mt-rida .gr { color: var(--tekst3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mt-rida .sm { text-align: right; font-variant-numeric: tabular-nums; }
+  .mt-rida .st { text-align: right; }
+  .kandis-nupp { background: var(--kollane-bg); color: var(--kollane); border: 1px solid rgba(251,191,36,0.35); border-radius: 7px; padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; width: 100%; }
+  .kandis-nupp:hover { background: rgba(251,191,36,0.22); }
+  .kandis-silt { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; font-size: 12px; font-weight: 700; color: var(--roheline); }
+  .kandis-silt button { background: none; border: none; color: var(--tekst3); cursor: pointer; font-size: 12px; padding: 0 2px; }
+  .kandis-silt button:hover { color: var(--punane); }
+  .mt-alapealkiri { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--tekst3); margin: 14px 0 4px; }
+  .logi-rida { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px 16px; border-bottom: 1px solid var(--piir); font-size: 13px; }
+  .logi-rida:last-child { border-bottom: none; }
+  .logi-rida .alam { grid-column: 1 / -1; font-size: 11px; color: var(--tekst3); }
+  @media (max-width: 600px) {
+    .mt-rida { grid-template-columns: 1fr 70px; }
+    .mt-rida .gr { grid-column: 1; grid-row: 2; }
+    .mt-rida .st { grid-column: 2; grid-row: 2; }
+    .mt-rida .st .kandis-nupp { width: auto; }
+  }
+
   /* Grupid */
   .liige-tag { background: var(--bg3); border-radius: 20px; padding: 5px 6px 5px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; margin: 0 4px 6px 0; }
   .liige-tag button { background: none; border: none; color: var(--tekst3); cursor: pointer; font-size: 13px; padding: 0 4px; }
@@ -189,8 +211,10 @@
       <div class="kast"><div class="n">Kokku võlgu</div><div class="v" id="mk-volg" style="color:var(--kollane)">—</div></div>
       <div class="kast"><div class="n">Võlglasi</div><div class="v" id="mk-volglasi">—</div></div>
     </div>
-    <div class="vihje" style="margin:0 2px 10px">Trennitasu läheb arvele ainult <b>kinnitatud</b> osalejatele. Vajuta nimele, et lisada makse või näha makseajalugu.</div>
+    <div class="vihje" style="margin:0 2px 10px">Vajuta nimele → näed tema trenne. Kui ta kandis, vajuta trenni juures <b>„Kandis“</b> — makse ja kuupäev jäävad logisse. Suurema summa (nt mitme trenni eest korraga) saad lisada all "Muu summa" kaudu.</div>
     <div class="plokk" id="maksedSisu"><div class="tyhi">Laadimine...</div></div>
+    <div class="sektsioon-pealkiri"><span>Maksete logi</span><span id="logiArv"></span></div>
+    <div class="plokk" id="maksedLogi"><div class="tyhi">Laadimine...</div></div>
   </div>
 
   <!-- ── GRUPID ── -->
@@ -588,11 +612,20 @@ async function salvestaTulemus(nadalId, ryhmId) {
 // ═══════════════════════════════════════════════════════════════════
 //  MAKSED
 // ═══════════════════════════════════════════════════════════════════
+// Iga mängija juures tema trennid: vajutad "Kandis" -> tekib trenniga seotud makse (kuupäev + logi).
+// Üldmaksed (ilma trennita, nt 46,50 € korraga) katavad trennid vanimast alates ("kaetud").
 var lahtineMaksja = null;
+
+function fmtAeg(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  return fmtKp(d) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
 
 async function laadiMaksed() {
   var r = await api('/api/padel/admin/saldod');
   var div = document.getElementById('maksedSisu');
+  laadiMakseLogi();
   if (!r.ok || !r.mangijad || !r.mangijad.length) { div.innerHTML = '<div class="tyhi">Mängijaid pole veel.</div>'; return; }
   var mangijad = r.mangijad.map(function(m) { return Object.assign({}, m, { saldo: parseFloat(m.saldo) || 0 }); })
     .sort(function(a, b) { return b.saldo - a.saldo || String(a.nimi).localeCompare(String(b.nimi)); });
@@ -605,33 +638,96 @@ async function laadiMaksed() {
     var tekst = m.saldo > 0.004 ? fmtEur(m.saldo) + ' võlgu' : (m.saldo < -0.004 ? fmtEur(-m.saldo) + ' ettemaks' : 'Makstud ✓');
     return '<div class="makse-mangija' + (lahtineMaksja === m.worker_id ? ' lahti' : '') + '" id="maksja-' + m.worker_id + '">'
       + '<div class="makse-pais" onclick="lylitaMaksja(' + m.worker_id + ')"><span style="font-weight:600">' + esc(m.nimi) + '</span><span style="font-weight:700;color:' + varv + '">' + tekst + '</span></div>'
-      + '<div class="makse-keha">'
-      +   '<div class="rida-flex">'
-      +     '<input type="number" step="0.01" min="0.01" id="makse-summa-' + m.worker_id + '" placeholder="Summa €" style="width:100px"' + (m.saldo > 0.004 ? ' value="' + m.saldo.toFixed(2) + '"' : '') + '>'
-      +     '<input type="date" id="makse-kp-' + m.worker_id + '" value="' + tanaVoti() + '">'
-      +     '<input type="text" id="makse-kommentaar-' + m.worker_id + '" placeholder="märkus" style="flex:1;min-width:100px">'
-      +     '<button class="nupp pisike" onclick="lisaMakse(' + m.worker_id + ')">Lisa makse</button>'
-      +   '</div>'
-      +   '<div id="makse-ajalugu-' + m.worker_id + '" style="margin-top:10px"></div>'
-      + '</div></div>';
+      + '<div class="makse-keha" id="maksja-keha-' + m.worker_id + '"></div>'
+      + '</div>';
   }).join('');
-  if (lahtineMaksja) naitaMakseAjalugu(lahtineMaksja);
+  if (lahtineMaksja) laadiMaksja(lahtineMaksja);
 }
+
 function lylitaMaksja(workerId) {
   lahtineMaksja = lahtineMaksja === workerId ? null : workerId;
   document.querySelectorAll('.makse-mangija').forEach(function(el) { el.classList.toggle('lahti', el.id === 'maksja-' + lahtineMaksja); });
-  if (lahtineMaksja) naitaMakseAjalugu(workerId);
+  if (lahtineMaksja) laadiMaksja(workerId);
 }
-async function naitaMakseAjalugu(workerId) {
-  var div = document.getElementById('makse-ajalugu-' + workerId);
-  if (!div) return;
-  var r = await api('/api/padel/admin/maksed/' + workerId);
-  if (!r.ok || !r.maksed || !r.maksed.length) { div.innerHTML = '<div class="vihje">Makseid pole veel.</div>'; return; }
-  div.innerHTML = '<div class="vihje" style="margin-bottom:4px">Varasemad maksed</div>' + r.maksed.map(function(m) {
-    return '<div class="makse-ajalugu-rida"><span>' + fmtKp(m.kuupaev) + (m.kommentaar ? ' · ' + esc(m.kommentaar) : '') + '</span>'
-      + '<span class="rida-flex" style="gap:4px"><b style="color:var(--roheline)">+' + fmtEur(m.summa) + '</b>'
-      + '<button class="nupp kustuta" title="Kustuta makse" onclick="kustutaMakse(' + m.id + ',' + workerId + ')">✕</button></span></div>';
-  }).join('');
+
+async function laadiMaksja(workerId) {
+  var keha = document.getElementById('maksja-keha-' + workerId);
+  if (!keha) return;
+  if (!keha.innerHTML) keha.innerHTML = '<div class="vihje">Laadimine...</div>';
+  var r = await api('/api/padel/admin/mangija/' + workerId);
+  if (!r.ok) { keha.innerHTML = '<div class="teade viga">' + esc(r.veateade || 'Viga laadimisel') + '</div>'; return; }
+
+  var tana = tanaVoti();
+  var trennid = r.trennid || [];
+  var maksmata = trennid.filter(function(t) { return t.staatus === 'maksmata'; });
+
+  function staatus(t) {
+    if (t.staatus === 'kandis') return '<span class="kandis-silt" title="Märgitud ' + esc(fmtAeg(t.makse.loodud)) + '">✓ Kandis ' + fmtKp(t.makse.kuupaev) + '<button title="Võta märge tagasi" onclick="tyhistaKandis(' + t.makse.id + ',' + workerId + ')">↺</button></span>';
+    if (t.staatus === 'kaetud') return '<span class="kandis-silt" style="color:var(--tekst2)" title="Kaetud üldmaksega">✓ Kaetud</span>';
+    if (t.staatus === 'kinnitamata') return '<span class="vihje" title="Kinnitamata — tasu pole arvel. Kui ta mängis ja kandis, vajuta Kandis.">kinnitamata</span> <button class="nupp tekst pisike" style="padding:2px 4px" onclick="markiKandis(' + t.koht_id + ',' + workerId + ')">Kandis</button>';
+    return '<button class="kandis-nupp" onclick="markiKandis(' + t.koht_id + ',' + workerId + ')">Kandis</button>';
+  }
+  function rida(t) {
+    var tulevane = t.kuupaev >= tana;
+    return '<div class="mt-rida">'
+      + '<span class="kp">' + fmtKp(t.kuupaev + 'T12:00:00') + '</span>'
+      + '<span class="gr">' + esc(t.ryhm_nimi) + (tulevane ? ' · tulemas' : '') + '</span>'
+      + '<span class="sm" style="color:' + (t.staatus === 'kinnitamata' ? 'var(--tekst3)' : 'var(--tekst)') + '">' + fmtEur(t.summa) + '</span>'
+      + '<span class="st">' + staatus(t) + '</span>'
+      + '</div>';
+  }
+
+  var html = '';
+  if (maksmata.length > 1) {
+    var summa = maksmata.reduce(function(s, t) { return s + t.summa; }, 0);
+    html += '<div class="rida-flex" style="justify-content:space-between;margin-bottom:4px"><span class="vihje">' + maksmata.length + ' trenni maksmata · ' + fmtEur(summa) + '</span>'
+      + '<button class="nupp pisike" onclick="markiKoikKandis(' + workerId + ')">Kandis kõik (' + fmtEur(summa) + ')</button></div>';
+  }
+  html += '<div class="mt-alapealkiri">Trennid</div>'
+    + (trennid.length ? trennid.slice(0, 30).map(rida).join('') : '<div class="vihje">Trenne pole.</div>');
+  if (r.jaak_ettemaks > 0.004) html += '<div class="vihje" style="margin-top:6px">Kasutamata ettemaks: <b style="color:var(--roheline)">' + fmtEur(r.jaak_ettemaks) + '</b></div>';
+
+  html += '<div class="mt-alapealkiri">Muu summa</div>'
+    + '<div class="rida-flex">'
+    + '<input type="number" step="0.01" min="0.01" id="makse-summa-' + workerId + '" placeholder="Summa €" style="width:100px">'
+    + '<input type="date" id="makse-kp-' + workerId + '" value="' + tana + '">'
+    + '<input type="text" id="makse-kommentaar-' + workerId + '" placeholder="märkus" style="flex:1;min-width:100px">'
+    + '<button class="nupp hall pisike" onclick="lisaMakse(' + workerId + ')">Lisa makse</button>'
+    + '</div>';
+
+  html += '<div class="mt-alapealkiri">Tema maksed</div>'
+    + ((r.maksed && r.maksed.length) ? r.maksed.map(function(m) {
+        return '<div class="makse-ajalugu-rida"><span>' + fmtKp(m.kuupaev + 'T12:00:00') + (m.kommentaar ? ' · ' + esc(m.kommentaar) : '')
+          + (m.loodud ? ' <span class="vihje">(märgitud ' + esc(fmtAeg(m.loodud)) + ')</span>' : '') + '</span>'
+          + '<span class="rida-flex" style="gap:4px"><b style="color:var(--roheline)">+' + fmtEur(m.summa) + '</b>'
+          + '<button class="nupp kustuta" title="Kustuta makse" onclick="kustutaMakse(' + m.id + ',' + workerId + ')">✕</button></span></div>';
+      }).join('') : '<div class="vihje">Makseid pole veel.</div>');
+  keha.innerHTML = html;
+}
+
+async function markiKandis(kohtId, workerId) {
+  var r = await api('/api/padel/admin/kohad/' + kohtId + '/kandis', { method: 'POST', body: JSON.stringify({ kuupaev: tanaVoti() }) });
+  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  lahtineMaksja = workerId;
+  await laadiMaksed();
+  laadiKoikTrennid();
+}
+async function markiKoikKandis(workerId) {
+  var r = await api('/api/padel/admin/mangija/' + workerId);
+  var maksmata = ((r && r.trennid) || []).filter(function(t) { return t.staatus === 'maksmata'; });
+  if (!maksmata.length) return;
+  if (!confirm('Märkida kõik ' + maksmata.length + ' trenni makstuks (täna)?')) return;
+  for (var i = 0; i < maksmata.length; i++) {
+    await api('/api/padel/admin/kohad/' + maksmata[i].koht_id + '/kandis', { method: 'POST', body: JSON.stringify({ kuupaev: tanaVoti() }) });
+  }
+  lahtineMaksja = workerId;
+  await laadiMaksed();
+}
+async function tyhistaKandis(makseId, workerId) {
+  if (!confirm('Võtta "kandis" märge tagasi? (Makse kustutatakse logist.)')) return;
+  await api('/api/padel/admin/maksed/' + makseId, { method: 'DELETE' });
+  lahtineMaksja = workerId;
+  await laadiMaksed();
 }
 async function lisaMakse(workerId) {
   var summa = document.getElementById('makse-summa-' + workerId).value;
@@ -647,6 +743,20 @@ async function kustutaMakse(id, workerId) {
   await api('/api/padel/admin/maksed/' + id, { method: 'DELETE' });
   lahtineMaksja = workerId;
   await laadiMaksed();
+}
+
+async function laadiMakseLogi() {
+  var div = document.getElementById('maksedLogi');
+  var r = await api('/api/padel/admin/maksed-logi');
+  if (!r.ok || !r.maksed || !r.maksed.length) { div.innerHTML = '<div class="tyhi">Makseid pole veel märgitud.</div>'; document.getElementById('logiArv').textContent = ''; return; }
+  document.getElementById('logiArv').textContent = r.maksed.length + (r.maksed.length >= 100 ? '+ ' : ' ') + 'kannet';
+  div.innerHTML = r.maksed.map(function(m) {
+    return '<div class="logi-rida">'
+      + '<span><b>' + esc(m.nimi) + '</b> kandis ' + fmtKp(m.kuupaev + 'T12:00:00') + '</span>'
+      + '<b style="color:var(--roheline)">+' + fmtEur(m.summa) + '</b>'
+      + '<span class="alam">' + (m.kommentaar ? esc(m.kommentaar) + ' · ' : '') + (m.loodud ? 'märgitud ' + esc(fmtAeg(m.loodud)) : '') + '</span>'
+      + '</div>';
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════
