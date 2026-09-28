@@ -200,6 +200,63 @@ router.delete('/admin/nadalad/:id', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── ADMIN: TRENNI MÄNGIJATE HALDUS ─────────────────────────────────────
+// Admin lisab mängija otse trennile (Paar 1 / Paar 2 / Ootele) — koht on KOHE kinnitatud.
+router.post('/admin/nadalad/:id/lisa', noudaAdmin, async (req, res) => {
+  const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
+  const liigeId = parseInt(req.body.liige_id, 10);
+  if (!liigeId) return res.json({ ok: false, veateade: 'Vali mängija' });
+  try {
+    const nadalR = await pool.query(
+      `SELECT pn.ryhm_id, r.hind FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id WHERE pn.id=$1`,
+      [req.params.id]
+    );
+    if (!nadalR.rows.length) return res.json({ ok: false, veateade: 'Trenni ei leitud' });
+    const { ryhm_id, hind } = nadalR.rows[0];
+
+    const liigeR = await pool.query('SELECT id FROM padel_liikmed WHERE id=$1 AND ryhm_id=$2', [liigeId, ryhm_id]);
+    if (!liigeR.rows.length) return res.json({ ok: false, veateade: 'See inimene ei ole selle grupi liige' });
+
+    if (paar) {
+      const kohtiR = await pool.query(
+        'SELECT COUNT(*) c FROM padel_kohad WHERE nadal_id=$1 AND paar=$2 AND liige_id<>$3',
+        [req.params.id, paar, liigeId]
+      );
+      if (parseInt(kohtiR.rows[0].c, 10) >= 2) return res.json({ ok: false, veateade: `Paar ${paar} on juba täis` });
+    }
+
+    await pool.query(
+      `INSERT INTO padel_kohad (nadal_id, liige_id, paar, osaleb, kinnitatud, summa) VALUES ($1,$2,$3,true,true,$4)
+       ON CONFLICT (nadal_id, liige_id) DO UPDATE SET paar=$3, osaleb=true, kinnitatud=true`,
+      [req.params.id, liigeId, paar, hind]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Admin kinnitab (või võtab kinnituse maha) ühe mängija koha trennil
+router.put('/admin/kohad/:id/kinnitatud', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('UPDATE padel_kohad SET kinnitatud=$1 WHERE id=$2 RETURNING id', [req.body.kinnitatud !== false, req.params.id]);
+    if (!r.rows.length) return res.json({ ok: false, veateade: 'Kohta ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Admin kinnitab korraga kõik selle trenni registreerunud mängijad
+router.post('/admin/nadalad/:id/kinnita-koik', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('UPDATE padel_kohad SET kinnitatud=true WHERE nadal_id=$1 AND kinnitatud=false', [req.params.id]);
+    res.json({ ok: true, kinnitati: r.rowCount });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.put('/admin/kohad/:id/makse', noudaAdmin, async (req, res) => {
   const { makstud } = req.body;
   try {
