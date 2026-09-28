@@ -150,6 +150,9 @@
     .mt-rida .st .kandis-nupp { width: auto; }
   }
 
+  .hoiatus { background: var(--kollane-bg); border: 1px solid rgba(251,191,36,0.3); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; color: var(--tekst); display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .hoiatus b { color: var(--kollane); }
+
   /* Grupid */
   .liige-tag { background: var(--bg3); border-radius: 20px; padding: 5px 6px 5px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; margin: 0 4px 6px 0; }
   .liige-tag button { background: none; border: none; color: var(--tekst3); cursor: pointer; font-size: 13px; padding: 0 4px; }
@@ -212,6 +215,7 @@
       <div class="kast"><div class="n">Võlglasi</div><div class="v" id="mk-volglasi">—</div></div>
     </div>
     <div class="vihje" style="margin:0 2px 10px">Vajuta nimele → näed tema trenne. Kui ta kandis, vajuta trenni juures <b>„Kandis“</b> — makse ja kuupäev jäävad logisse. Suurema summa (nt mitme trenni eest korraga) saad lisada all "Muu summa" kaudu.</div>
+    <div id="tasutaHoiatus"></div>
     <div class="plokk" id="maksedSisu"><div class="tyhi">Laadimine...</div></div>
     <div class="sektsioon-pealkiri"><span>Maksete logi</span><span id="logiArv"></span></div>
     <div class="plokk" id="maksedLogi"><div class="tyhi">Laadimine...</div></div>
@@ -633,9 +637,20 @@ async function laadiMaksed() {
   document.getElementById('mk-volg').textContent = fmtEur(volg);
   document.getElementById('mk-volglasi').textContent = mangijad.filter(function(m) { return m.saldo > 0.004; }).length + ' / ' + mangijad.length;
 
+  var tasutaKokku = mangijad.reduce(function(s, m) { return s + (parseInt(m.tasuta, 10) || 0); }, 0);
+  document.getElementById('tasutaHoiatus').innerHTML = tasutaKokku
+    ? '<div class="hoiatus"><span>⚠ <b>' + tasutaKokku + ' trennikohta</b> möödunud trennides: mängija oli paaris (mängis), aga trennitasu pole tal arvel (kinnitamata või hind puudu — vana süsteemi kohad).</span>'
+      + '<button class="nupp pisike" onclick="paneTasuArvele(' + tasutaKokku + ')">Pane tasu arvele</button></div>'
+    : '';
+
   div.innerHTML = mangijad.map(function(m) {
+    var tasuta = parseInt(m.tasuta, 10) || 0;
+    var makstud = parseFloat(m.makstud) || 0, volgKokku = parseFloat(m.volg) || 0;
     var varv = m.saldo > 0.004 ? 'var(--kollane)' : (m.saldo < -0.004 ? 'var(--roheline)' : 'var(--tekst3)');
-    var tekst = m.saldo > 0.004 ? fmtEur(m.saldo) + ' võlgu' : (m.saldo < -0.004 ? fmtEur(-m.saldo) + ' ettemaks' : 'Makstud ✓');
+    var tekst = m.saldo > 0.004 ? fmtEur(m.saldo) + ' võlgu'
+      : (m.saldo < -0.004 ? fmtEur(-m.saldo) + ' ettemaks'
+      : (volgKokku > 0 || makstud > 0 ? 'Makstud ✓' : 'Võlga pole'));
+    if (tasuta) tekst += ' <span class="silt ootab" title="Mängis, aga tasu pole arvel">⚠ ' + tasuta + ' tasuta</span>';
     return '<div class="makse-mangija' + (lahtineMaksja === m.worker_id ? ' lahti' : '') + '" id="maksja-' + m.worker_id + '">'
       + '<div class="makse-pais" onclick="lylitaMaksja(' + m.worker_id + ')"><span style="font-weight:600">' + esc(m.nimi) + '</span><span style="font-weight:700;color:' + varv + '">' + tekst + '</span></div>'
       + '<div class="makse-keha" id="maksja-keha-' + m.worker_id + '"></div>'
@@ -664,6 +679,7 @@ async function laadiMaksja(workerId) {
   function staatus(t) {
     if (t.staatus === 'kandis') return '<span class="kandis-silt" title="Märgitud ' + esc(fmtAeg(t.makse.loodud)) + '">✓ Kandis ' + fmtKp(t.makse.kuupaev) + '<button title="Võta märge tagasi" onclick="tyhistaKandis(' + t.makse.id + ',' + workerId + ')">↺</button></span>';
     if (t.staatus === 'kaetud') return '<span class="kandis-silt" style="color:var(--tekst2)" title="Kaetud üldmaksega">✓ Kaetud</span>';
+    if (t.staatus === 'hind_puudu') return '<span class="vihje" title="Mängis, aga hind puudub — tasu pole arvel">hind puudu</span> <button class="nupp tekst pisike" style="padding:2px 4px" onclick="markiKandis(' + t.koht_id + ',' + workerId + ')">Kandis</button>';
     if (t.staatus === 'kinnitamata') return '<span class="vihje" title="Kinnitamata — tasu pole arvel. Kui ta mängis ja kandis, vajuta Kandis.">kinnitamata</span> <button class="nupp tekst pisike" style="padding:2px 4px" onclick="markiKandis(' + t.koht_id + ',' + workerId + ')">Kandis</button>';
     return '<button class="kandis-nupp" onclick="markiKandis(' + t.koht_id + ',' + workerId + ')">Kandis</button>';
   }
@@ -672,7 +688,7 @@ async function laadiMaksja(workerId) {
     return '<div class="mt-rida">'
       + '<span class="kp">' + fmtKp(t.kuupaev + 'T12:00:00') + '</span>'
       + '<span class="gr">' + esc(t.ryhm_nimi) + (tulevane ? ' · tulemas' : '') + '</span>'
-      + '<span class="sm" style="color:' + (t.staatus === 'kinnitamata' ? 'var(--tekst3)' : 'var(--tekst)') + '">' + fmtEur(t.summa) + '</span>'
+      + '<span class="sm" style="color:' + (t.staatus === 'kinnitamata' || t.staatus === 'hind_puudu' ? 'var(--tekst3)' : 'var(--tekst)') + '">' + fmtEur(t.summa) + '</span>'
       + '<span class="st">' + staatus(t) + '</span>'
       + '</div>';
   }
@@ -703,6 +719,15 @@ async function laadiMaksja(workerId) {
           + '<button class="nupp kustuta" title="Kustuta makse" onclick="kustutaMakse(' + m.id + ',' + workerId + ')">✕</button></span></div>';
       }).join('') : '<div class="vihje">Makseid pole veel.</div>');
   keha.innerHTML = html;
+}
+
+async function paneTasuArvele(arv) {
+  if (!confirm('Panna trennitasu arvele ' + arv + ' trennikohale?\n\nNeed on möödunud trennid, kus mängija oli Paar 1 või Paar 2 koosseisus, aga tasu polnud arvel. Nad märgitakse ka kinnitatuks.')) return;
+  var r = await api('/api/padel/admin/pane-tasu-arvele', { method: 'POST' });
+  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  await laadiMaksed();
+  laadiKoikTrennid();
+  alert('✓ Tasu pandi arvele ' + r.parandati + ' trennikohale.');
 }
 
 async function markiKandis(kohtId, workerId) {
