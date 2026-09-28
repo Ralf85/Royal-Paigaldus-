@@ -495,7 +495,15 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     );
     const vabad_lisakulud = parseFloat(lisakulud.rows[0].kokku);
 
-    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + xseeria_kokku + vabad_lisakulud;
+    // Jooksva kuu Rally Estonia kulud
+    const reKulud = await pool.query(
+      `SELECT COALESCE(SUM(summa),0) as kokku FROM re_kulud
+       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
+      [w.id, aasta, kuu]
+    );
+    const re_kokku = parseFloat(reKulud.rows[0].kokku);
+
+    const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + re_kokku + xseeria_kokku + vabad_lisakulud;
 
     // Jooksva kuu maksed (kuvamiseks)
     const maksed = await pool.query(
@@ -514,6 +522,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
          COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
        AS kokku
        FROM tookirjed tk
@@ -540,6 +549,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
       km_raha: km_raha_kokku.toFixed(2),
       lisakulu: lisakulu_kokku.toFixed(2),
       edgf: edgf_kokku.toFixed(2),
+      re: re_kokku.toFixed(2),
       xseeria: xseeria_kokku.toFixed(2),
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
@@ -548,6 +558,156 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     });
   }
   res.json(andmed);
+});
+
+// ── TÖÖTAJA KUU DETAIL (dashboardi töötaja-modaal) ───────────────
+// Valitud kuu kulud detailselt (liik, kirjeldus, summa), maksed kuupäevadega,
+// saldo jooksev liikumine (algsaldo → töö/kulud/maksed → lõppsaldo) ning kuude kaupa ajalugu.
+// Saldo loogika on sama mis /kokkuvote "saadaVeel" (töö + km + lisakulud + EDGF + RE + X-seeria + vabad lisakulud − maksed).
+
+router.get('/tootaja-kuu', noudaAdmin, async (req, res) => {
+  try {
+    const workerId = parseInt(req.query.worker_id, 10);
+    const aasta = parseInt(req.query.aasta, 10);
+    const kuu = parseInt(req.query.kuu, 10);
+    if (!workerId || !aasta || !kuu) return res.status(400).json({ viga: 'worker_id, aasta ja kuu on kohustuslikud' });
+    const kuuAlgus = `${aasta}-${String(kuu).padStart(2, '0')}-01`;
+    const kuuVoti = kuuAlgus.slice(0, 7);
+    const KUU_FILTER = `>= $2::date AND %COL% < $2::date + INTERVAL '1 month'`;
+    const f = (col) => `${col} ${KUU_FILTER.replace('%COL%', col)}`;
+
+    // 1) Valitud kuu kulud detailselt
+    const kuludRes = await pool.query(
+      `SELECT * FROM (
+         SELECT 'Lisakulu' AS liik, to_char(t.kuupaev,'YYYY-MM-DD') AS kuupaev, COALESCE(t.lisakulu_summa,0)::numeric AS summa,
+                COALESCE(NULLIF(t.lisakulu_selgitus,''), 'Töökirje lisakulu')::text AS selgitus,
+                (e.nimi || COALESCE(' · ' || NULLIF(o.nimi,''), ''))::text AS lisainfo
+         FROM tookirjed t JOIN ettevotted e ON e.id=t.ettevote_id LEFT JOIN objektid o ON o.id=t.objekt_id
+         WHERE t.worker_id=$1 AND ${f('t.kuupaev')} AND COALESCE(t.lisakulu_summa,0) <> 0
+         UNION ALL
+         SELECT 'Kilometraaž', to_char(t.kuupaev,'YYYY-MM-DD'), COALESCE(t.km_raha,0)::numeric,
+                (COALESCE(t.kilomeetrid,0)::text || ' km')::text,
+                (e.nimi || COALESCE(' · ' || NULLIF(o.nimi,''), ''))::text
+         FROM tookirjed t JOIN ettevotted e ON e.id=t.ettevote_id LEFT JOIN objektid o ON o.id=t.objekt_id
+         WHERE t.worker_id=$1 AND ${f('t.kuupaev')} AND COALESCE(t.km_raha,0) <> 0
+         UNION ALL
+         SELECT 'EDGF', to_char(kuupaev,'YYYY-MM-DD'), summa::numeric, COALESCE(selgitus,'')::text, ''::text
+         FROM edgf_kulud WHERE worker_id=$1 AND ${f('kuupaev')}
+         UNION ALL
+         SELECT 'Rally Estonia', to_char(kuupaev,'YYYY-MM-DD'), summa::numeric, COALESCE(selgitus,'')::text, ''::text
+         FROM re_kulud WHERE worker_id=$1 AND ${f('kuupaev')}
+         UNION ALL
+         SELECT 'X-seeria', to_char(ok.kuupaev,'YYYY-MM-DD'), ok.summa::numeric, COALESCE(ok.selgitus,'')::text, COALESCE(ev.nimi,'')::text
+         FROM xseeria_omakulud ok LEFT JOIN xseeria_events ev ON ev.id=ok.event_id
+         WHERE ok.worker_id=$1 AND ${f('ok.kuupaev')}
+         UNION ALL
+         SELECT 'Vaba lisakulu', to_char(kuupaev,'YYYY-MM-DD'), summa::numeric, COALESCE(selgitus,'')::text, ''::text
+         FROM lisakulud WHERE worker_id=$1 AND ${f('kuupaev')}
+       ) k ORDER BY kuupaev, liik`,
+      [workerId, kuuAlgus]
+    );
+    const kulud = kuludRes.rows.map(r => ({ ...r, summa: parseFloat(r.summa) || 0 }));
+
+    // 2) Valitud kuu maksed
+    const maksedRes = await pool.query(
+      `SELECT m.id, to_char(m.kuupaev,'YYYY-MM-DD') AS kuupaev, m.summa::numeric AS summa,
+              COALESCE(m.kommentaar,'') AS kommentaar, COALESCE(e.nimi,'') AS ettevote_nimi
+       FROM maksed m LEFT JOIN ettevotted e ON e.id=m.ettevote_id
+       WHERE m.worker_id=$1 AND ${f('m.kuupaev')}
+       ORDER BY m.kuupaev, m.id`,
+      [workerId, kuuAlgus]
+    );
+    const maksed = maksedRes.rows.map(r => ({ ...r, summa: parseFloat(r.summa) || 0 }));
+
+    // 3) Valitud kuu töötasu päevade kaupa
+    const tooRes = await pool.query(
+      `SELECT to_char(t.kuupaev,'YYYY-MM-DD') AS kuupaev,
+              SUM(t.tunnid)::numeric AS tunnid,
+              SUM(t.tunnid * COALESCE(t.muu_tunnitasu, we.tunnitasu, 0))::numeric AS summa,
+              string_agg(DISTINCT e.nimi, ', ') AS ettevotted
+       FROM tookirjed t
+       JOIN ettevotted e ON e.id=t.ettevote_id
+       LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
+       WHERE t.worker_id=$1 AND ${f('t.kuupaev')}
+       GROUP BY 1 ORDER BY 1`,
+      [workerId, kuuAlgus]
+    );
+
+    // 4) Kogu aja ajalugu kuude kaupa
+    const ajaluguRes = await pool.query(
+      `SELECT kuu, SUM(too)::numeric AS too, SUM(kulud)::numeric AS kulud, SUM(makstud)::numeric AS makstud FROM (
+         SELECT to_char(tk.kuupaev,'YYYY-MM') AS kuu, SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0))::numeric AS too, 0::numeric AS kulud, 0::numeric AS makstud
+         FROM tookirjed tk LEFT JOIN worker_ettevotted we ON (we.worker_id=tk.worker_id AND we.ettevote_id=tk.ettevote_id)
+         WHERE tk.worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, SUM(COALESCE(km_raha,0) + COALESCE(lisakulu_summa,0))::numeric, 0 FROM tookirjed WHERE worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, SUM(summa)::numeric, 0 FROM lisakulud WHERE worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, SUM(summa)::numeric, 0 FROM edgf_kulud WHERE worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, SUM(summa)::numeric, 0 FROM re_kulud WHERE worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, SUM(summa)::numeric, 0 FROM xseeria_omakulud WHERE worker_id=$1 GROUP BY 1
+         UNION ALL
+         SELECT to_char(kuupaev,'YYYY-MM'), 0, 0, SUM(summa)::numeric FROM maksed WHERE worker_id=$1 GROUP BY 1
+       ) x GROUP BY kuu ORDER BY kuu`,
+      [workerId]
+    );
+
+    let jooksev = 0, algsaldo = 0;
+    const ajalugu = [];
+    ajaluguRes.rows.forEach(r => {
+      const too = parseFloat(r.too) || 0, kuluSumma = parseFloat(r.kulud) || 0, makstud = parseFloat(r.makstud) || 0;
+      const algus = jooksev;
+      jooksev = Math.round((jooksev + too + kuluSumma - makstud) * 100) / 100;
+      if (r.kuu < kuuVoti) algsaldo = jooksev;
+      if (r.kuu <= kuuVoti) ajalugu.push({ kuu: r.kuu, algsaldo: algus, too, kulud: kuluSumma, makstud, saldo: jooksev });
+    });
+
+    // 5) Saldo liikumine valitud kuus (kronoloogiliselt: töö → kulud → maksed samal päeval)
+    const syndmused = [];
+    tooRes.rows.forEach(r => syndmused.push({
+      kuupaev: r.kuupaev, jrk: 1, tyyp: 'too',
+      kirjeldus: `Töö ${parseFloat(r.tunnid).toFixed(1)} h` + (r.ettevotted ? ` · ${r.ettevotted}` : ''),
+      summa: parseFloat(r.summa) || 0
+    }));
+    kulud.forEach(k => syndmused.push({
+      kuupaev: k.kuupaev, jrk: 2, tyyp: 'kulu',
+      kirjeldus: `${k.liik}${k.selgitus ? ': ' + k.selgitus : ''}`,
+      summa: k.summa
+    }));
+    maksed.forEach(m => syndmused.push({
+      kuupaev: m.kuupaev, jrk: 3, tyyp: 'makse',
+      kirjeldus: 'Makse' + (m.kommentaar ? ': ' + m.kommentaar : ''),
+      summa: -m.summa
+    }));
+    syndmused.sort((a, b) => a.kuupaev < b.kuupaev ? -1 : a.kuupaev > b.kuupaev ? 1 : a.jrk - b.jrk);
+    let saldo = algsaldo;
+    const liikumine = syndmused.map(s => {
+      saldo = Math.round((saldo + s.summa) * 100) / 100;
+      return { kuupaev: s.kuupaev, tyyp: s.tyyp, kirjeldus: s.kirjeldus, summa: s.summa, saldo };
+    });
+
+    const kuuToo = tooRes.rows.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
+    const kuuKulud = kulud.reduce((s, k) => s + k.summa, 0);
+    const kuuMakstud = maksed.reduce((s, m) => s + m.summa, 0);
+
+    res.json({
+      algsaldo,
+      too: Math.round(kuuToo * 100) / 100,
+      kulud_kokku: Math.round(kuuKulud * 100) / 100,
+      makstud: Math.round(kuuMakstud * 100) / 100,
+      loppsaldo: Math.round((algsaldo + kuuToo + kuuKulud - kuuMakstud) * 100) / 100,
+      kulud,
+      maksed,
+      liikumine,
+      ajalugu: ajalugu.slice(-12).reverse()
+    });
+  } catch (err) {
+    console.error('tootaja-kuu viga:', err);
+    res.status(500).json({ viga: 'Serveri viga: ' + err.message });
+  }
 });
 
 // ── CSV RAPORT ────────────────────────────────────────────────────
