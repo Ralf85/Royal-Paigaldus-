@@ -22,6 +22,12 @@ const upload = multer({
   }
 });
 
+// Padeli maksete lisaveerg: koht_id seob makse konkreetse trenniga ("Siim kandis 30.09 trenni eest").
+// Lisatakse automaatselt serveri käivitumisel (IF NOT EXISTS — ohutu korduvalt jooksutada).
+const maksedVeergValmis = pool.query(
+  `ALTER TABLE padel_maksed ADD COLUMN IF NOT EXISTS koht_id INTEGER REFERENCES padel_kohad(id) ON DELETE SET NULL`
+).catch(err => console.error('padel_maksed.koht_id lisamine ebaõnnestus:', err.message));
+
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
   next();
@@ -689,6 +695,107 @@ router.delete('/admin/maksed/:id', noudaAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM padel_maksed WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── ADMIN: ÜHE MÄNGIJA TRENNID + MAKSED (märkimine "kandis") ────────────
+// Tagastab mängija kõik trennid koos tasu staatusega:
+//   - kinnitamata  -> tasu pole arvel
+//   - kandis       -> sellele trennile on seotud makse (admin märkis "kandis")
+//   - kaetud       -> üldmaksed (ilma trennita) katavad selle trenni (vanimad trennid enne)
+//   - maksmata     -> tasu arvel, makset pole
+router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
+  try {
+    await maksedVeergValmis;
+    const workerId = parseInt(req.params.workerId, 10);
+    const trennidR = await pool.query(
+      `SELECT pk.id AS koht_id, to_char(pn.kuupaev,'YYYY-MM-DD') AS kuupaev, r.nimi AS ryhm_nimi,
+              COALESCE(pk.summa, r.hind)::numeric AS summa, pk.kinnitatud, pk.osaleb, pk.makstud, pk.paar
+       FROM padel_kohad pk
+       JOIN padel_liikmed pl ON pl.id = pk.liige_id
+       JOIN padel_nadalad pn ON pn.id = pk.nadal_id
+       JOIN padel_ryhmad r ON r.id = pn.ryhm_id
+       WHERE pl.worker_id = $1 AND pk.osaleb = true
+       ORDER BY pn.kuupaev ASC, pk.id ASC`,
+      [workerId]
+    );
+    const maksedR = await pool.query(
+      `SELECT id, summa::numeric AS summa, to_char(kuupaev,'YYYY-MM-DD') AS kuupaev, kommentaar, koht_id, loodud
+       FROM padel_maksed WHERE worker_id=$1 ORDER BY kuupaev DESC, id DESC`,
+      [workerId]
+    );
+    const maksed = maksedR.rows.map(m => ({ ...m, summa: parseFloat(m.summa) || 0 }));
+    const seotud = {};
+    maksed.forEach(m => { if (m.koht_id) seotud[m.koht_id] = m; });
+    let yldmaksed = maksed.filter(m => !m.koht_id || !trennidR.rows.some(t => t.koht_id === m.koht_id))
+      .reduce((s, m) => s + m.summa, 0);
+
+    const trennid = trennidR.rows.map(t => {
+      const summa = parseFloat(t.summa) || 0;
+      const rida = { koht_id: t.koht_id, kuupaev: t.kuupaev, ryhm_nimi: t.ryhm_nimi, summa, kinnitatud: t.kinnitatud, paar: t.paar };
+      if (!t.kinnitatud) rida.staatus = 'kinnitamata';
+      else if (t.makstud) rida.staatus = 'kaetud';            // vana asendaja-süsteemi lipp
+      else if (seotud[t.koht_id]) { rida.staatus = 'kandis'; rida.makse = { id: seotud[t.koht_id].id, kuupaev: seotud[t.koht_id].kuupaev, loodud: seotud[t.koht_id].loodud }; }
+      else rida.staatus = 'maksmata';
+      return rida;
+    });
+    // Üldmaksed katavad maksmata trennid vanimast alates
+    trennid.forEach(t => {
+      if (t.staatus === 'maksmata' && yldmaksed >= t.summa - 0.001) { t.staatus = 'kaetud'; yldmaksed -= t.summa; }
+    });
+
+    const volg = trennid.filter(t => t.kinnitatud).reduce((s, t) => s + (trennidR.rows.find(x => x.koht_id === t.koht_id).makstud ? 0 : t.summa), 0);
+    const makstud = maksed.reduce((s, m) => s + m.summa, 0);
+    res.json({ ok: true, trennid: trennid.reverse(), maksed, saldo: +(volg - makstud).toFixed(2), jaak_ettemaks: +yldmaksed.toFixed(2) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Märgi, et mängija kandis konkreetse trenni eest -> tekib makse (seotud trenniga), jääb logisse.
+// Kui koht polnud kinnitatud, kinnitatakse see ka (ta mängis ja maksis).
+router.post('/admin/kohad/:id/kandis', noudaAdmin, async (req, res) => {
+  try {
+    await maksedVeergValmis;
+    const kohtR = await pool.query(
+      `SELECT pk.id, COALESCE(pk.summa, r.hind) AS summa, pl.worker_id, to_char(pn.kuupaev,'DD.MM.YYYY') AS kp, r.nimi AS ryhm_nimi
+       FROM padel_kohad pk
+       JOIN padel_liikmed pl ON pl.id = pk.liige_id
+       JOIN padel_nadalad pn ON pn.id = pk.nadal_id
+       JOIN padel_ryhmad r ON r.id = pn.ryhm_id
+       WHERE pk.id = $1`,
+      [req.params.id]
+    );
+    if (!kohtR.rows.length) return res.json({ ok: false, veateade: 'Trenni kohta ei leitud' });
+    const k = kohtR.rows[0];
+    const olemas = await pool.query('SELECT id FROM padel_maksed WHERE koht_id=$1', [k.id]);
+    if (olemas.rows.length) return res.json({ ok: false, veateade: 'See trenn on juba märgitud makstuks' });
+    const kuupaev = /^\d{4}-\d{2}-\d{2}$/.test(req.body.kuupaev || '') ? req.body.kuupaev : new Date().toISOString().slice(0, 10);
+    await pool.query('UPDATE padel_kohad SET kinnitatud=true, summa=COALESCE(summa,$2) WHERE id=$1', [k.id, k.summa]);
+    const r = await pool.query(
+      'INSERT INTO padel_maksed (worker_id, summa, kuupaev, kommentaar, koht_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [k.worker_id, k.summa, kuupaev, `Trenn ${k.kp} (${k.ryhm_nimi})`, k.id]
+    );
+    res.json({ ok: true, makse_id: r.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Maksete logi üle kõigi mängijate (uuemad eespool)
+router.get('/admin/maksed-logi', noudaAdmin, async (req, res) => {
+  try {
+    await maksedVeergValmis;
+    const r = await pool.query(
+      `SELECT m.id, m.worker_id, w.nimi, m.summa::numeric AS summa, to_char(m.kuupaev,'YYYY-MM-DD') AS kuupaev,
+              m.kommentaar, m.koht_id, m.loodud
+       FROM padel_maksed m JOIN workers w ON w.id = m.worker_id
+       ORDER BY m.loodud DESC NULLS LAST, m.id DESC
+       LIMIT 100`
+    );
+    res.json({ ok: true, maksed: r.rows.map(m => ({ ...m, summa: parseFloat(m.summa) || 0 })) });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
