@@ -63,6 +63,22 @@
   .tul-ootel .liige-tag { color: var(--text); }
   .tul-jalus { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
   @media (max-width: 520px) { .tul-paarid { grid-template-columns: 1fr; } }
+  /* Trenni mängijate haldus (admin kinnitab/lisab ise) */
+  .mg-vorm { background: var(--bg); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px; margin: 4px 0 12px; width: 100%; }
+  .mg-grupp { margin-bottom: 12px; }
+  .mg-grupp-silt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .mg-mangija { display: flex; align-items: center; gap: 8px; background: var(--bg2); border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; flex-wrap: wrap; }
+  .mg-mangija .mg-nimi { flex: 1; min-width: 110px; font-size: 13px; font-weight: 600; }
+  .mg-mangija select { padding: 5px 6px; font-size: 12px; }
+  .mg-staatus { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+  .mg-staatus.ok { background: rgba(74,222,128,0.14); color: #4ade80; }
+  .mg-staatus.ootab { background: rgba(251,191,36,0.14); color: #fbbf24; }
+  .mg-tyhi-koht { border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 5px; font-size: 12px; color: var(--text3); }
+  .mg-lisa { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-top: 12px; border-top: 0.5px solid var(--border); }
+  .mg-lisa select { flex: 1; min-width: 140px; }
+  .tr-loend { font-size: 11px; color: var(--text3); }
+  .tr-loend b { color: var(--text); }
+  .tr-loend .ootab { color: #fbbf24; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -226,21 +242,160 @@ async function vaataTrennid(ryhmId, jataLahti) {
   trenniAndmed[ryhmId] = r;
   var nimekiri = r.nadalad.slice().sort(function(a, b) { return new Date(a.kuupaev) - new Date(b.kuupaev); });
   var tana = new Date(); tana.setHours(23, 59, 59, 0);
-  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:6px 0">Trennid — sisesta või paranda tulemus, kustuta kogemata loodud trennid</div>'
+  div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin:6px 0">Trennid — halda mängijaid (lisa/kinnita/vaheta paari), sisesta või paranda tulemus, kustuta kogemata loodud trennid</div>'
     + nimekiri.map(function(n) {
       var onTulemus = n.setid && n.setid.length;
       var moodas = new Date(n.kuupaev) <= tana;
       var info = '<div class="tr-rida-info"><span>' + fmtKp(n.kuupaev) + (onTulemus ? ' — tulemus sees' : '') + '</span>'
         + (onTulemus ? '<span class="tr-skoor">' + paariNimed(n, 1) + ' vs ' + paariNimed(n, 2) + ' · <b>' + skoorTekst(n) + '</b></span>' : '')
         + '</div>';
+      var kohad = n.kohad || [];
+      var mangib = kohad.filter(function(k) { return k.paar === 1 || k.paar === 2; }).length;
+      var ootabKinnitust = kohad.filter(function(k) { return !k.kinnitatud; }).length;
+      var ootel = kohad.filter(function(k) { return k.paar !== 1 && k.paar !== 2; }).length;
+      var loend = '<span class="tr-loend">👥 <b>' + mangib + '/4</b> paaris'
+        + (ootel ? ' · ' + ootel + ' ootel' : '')
+        + (ootabKinnitust ? ' · <span class="ootab">⏳ ' + ootabKinnitust + ' ootab kinnitust</span>' : '')
+        + '</span>';
+      info = info.replace('</div>', loend + '</div>');
       var tulNupp = (onTulemus || moodas)
         ? '<button class="nupp ' + (onTulemus ? 'hall' : 'sinine') + ' pisike" onclick="avaTulemus(' + n.id + ',' + ryhmId + ')">' + (onTulemus ? '✏️ Muuda tulemust' : '➕ Lisa tulemus') + '</button>'
         : '';
       return '<div class="rida">' + info
-        + '<span class="tr-nupud">' + tulNupp
+        + '<span class="tr-nupud">'
+        + '<button class="nupp hall pisike" onclick="avaMangijad(' + n.id + ',' + ryhmId + ')">👥 Mängijad</button>'
+        + tulNupp
         + '<button class="nupp punane pisike" onclick="kustutaTrenn(' + n.id + ',' + ryhmId + ')">🗑 Kustuta</button></span>'
+        + '<div id="mg-' + n.id + '" style="width:100%;display:none"></div>'
         + '<div id="tul-' + n.id + '" style="width:100%;display:none"></div></div>';
     }).join('') + '<div style="margin-top:8px"></div>';
+}
+
+// ── TRENNI MÄNGIJATE HALDUS (admin lisab / kinnitab ise) ─────────────
+// Admin näeb iga trenni kohta: Paar 1, Paar 2, Ootel. Iga mängija juures staatus
+// (✅ kinnitatud / ⏳ ootab kinnitust), paari vahetus, kinnitamine ja eemaldamine.
+// Admini lisatud mängija on kohe kinnitatud — trenni hind läheb talle arvele.
+var mgAvatud = null; // { nadalId, ryhmId }
+
+function mgEsc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+
+function avaMangijad(nadalId, ryhmId, jataLahti) {
+  var kast = document.getElementById('mg-' + nadalId);
+  if (!kast) return;
+  if (!jataLahti && kast.style.display !== 'none') { kast.style.display = 'none'; kast.innerHTML = ''; mgAvatud = null; return; }
+  document.querySelectorAll('[id^="tul-"], [id^="mg-"]').forEach(function(k) { if (k !== kast) { k.style.display = 'none'; k.innerHTML = ''; } });
+  mgAvatud = { nadalId: nadalId, ryhmId: ryhmId };
+
+  var andmed = trenniAndmed[ryhmId];
+  var n = andmed.nadalad.find(function(x) { return x.id === nadalId; });
+  if (!n) { kast.style.display = 'none'; return; }
+  var kohad = n.kohad || [];
+  var p1 = kohad.filter(function(k) { return k.paar === 1; });
+  var p2 = kohad.filter(function(k) { return k.paar === 2; });
+  var ootel = kohad.filter(function(k) { return k.paar !== 1 && k.paar !== 2; });
+  var ootabKinnitust = kohad.filter(function(k) { return !k.kinnitatud; }).length;
+
+  function mangijaRida(k) {
+    var paarVal = k.paar === 1 ? '1' : k.paar === 2 ? '2' : '';
+    return '<div class="mg-mangija">'
+      + '<span class="mg-nimi">' + mgEsc(k.nimi) + '</span>'
+      + (k.kinnitatud
+          ? '<span class="mg-staatus ok" title="Vajuta, et kinnitus maha võtta" style="cursor:pointer" onclick="mgKinnita(' + k.id + ', false)">✅ Kinnitatud</span>'
+          : '<button class="nupp pisike" style="padding:4px 10px" onclick="mgKinnita(' + k.id + ', true)">✔ Kinnita</button>')
+      + '<select onchange="mgMuudaPaar(' + k.id + ', this.value)" title="Vaheta paari">'
+      + '<option value="1"' + (paarVal === '1' ? ' selected' : '') + '>Paar 1</option>'
+      + '<option value="2"' + (paarVal === '2' ? ' selected' : '') + '>Paar 2</option>'
+      + '<option value=""' + (paarVal === '' ? ' selected' : '') + '>Ootel</option>'
+      + '</select>'
+      + '<button class="nupp hall pisike" style="padding:4px 8px;color:#f87171" title="Eemalda trennilt" onclick="mgEemalda(' + k.id + ')">✕</button>'
+      + '</div>';
+  }
+  function paariPlokk(nimi, varv, list) {
+    var html = '<div class="mg-grupp"><div class="mg-grupp-silt" style="color:' + varv + '"><span>' + nimi + '</span><span style="color:var(--text3)">' + list.length + '/2</span></div>'
+      + list.map(mangijaRida).join('');
+    for (var i = list.length; i < 2; i++) html += '<div class="mg-tyhi-koht">Vaba koht</div>';
+    return html + '</div>';
+  }
+
+  var registreeritud = kohad.map(function(k) { return k.liige_id; });
+  var vabadLiikmed = andmed.liikmed.filter(function(l) { return registreeritud.indexOf(l.id) === -1; });
+  var vaikimisiPaar = p1.length < 2 ? '1' : (p2.length < 2 ? '2' : '');
+
+  kast.innerHTML = '<div class="mg-vorm">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+    + '<span style="font-size:13px;font-weight:700">👥 Mängijad — ' + fmtKp(n.kuupaev) + (n.kellaaeg ? ' kell ' + String(n.kellaaeg).slice(0,5) : '') + '</span>'
+    + (ootabKinnitust ? '<button class="nupp pisike" onclick="mgKinnitaKoik(' + nadalId + ')">✔ Kinnita kõik (' + ootabKinnitust + ')</button>' : '<span class="mg-staatus ok">Kõik kinnitatud</span>')
+    + '</div>'
+    + paariPlokk('Paar 1', '#4ade80', p1)
+    + paariPlokk('Paar 2', '#60a5fa', p2)
+    + (ootel.length ? '<div class="mg-grupp"><div class="mg-grupp-silt" style="color:#fbbf24"><span>Ootel</span><span style="color:var(--text3)">' + ootel.length + '</span></div>' + ootel.map(mangijaRida).join('') + '</div>' : '')
+    + '<div class="mg-lisa">'
+    + (vabadLiikmed.length
+        ? '<select id="mg-lisa-liige-' + nadalId + '"><option value="">— lisa mängija —</option>'
+          + vabadLiikmed.map(function(l) { return '<option value="' + l.id + '">' + mgEsc(l.nimi) + '</option>'; }).join('') + '</select>'
+          + '<select id="mg-lisa-paar-' + nadalId + '" style="flex:0 0 auto">'
+          + '<option value="1"' + (vaikimisiPaar === '1' ? ' selected' : '') + '>Paar 1</option>'
+          + '<option value="2"' + (vaikimisiPaar === '2' ? ' selected' : '') + '>Paar 2</option>'
+          + '<option value=""' + (vaikimisiPaar === '' ? ' selected' : '') + '>Ootel</option>'
+          + '</select>'
+          + '<button class="nupp pisike" onclick="mgLisa(' + nadalId + ')">+ Lisa ja kinnita</button>'
+        : '<span style="font-size:12px;color:var(--text3)">Kõik grupi liikmed on sellel trennil juba kirjas.</span>')
+    + '</div>'
+    + '<div id="mg-teade-' + nadalId + '" class="teade"></div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:10px">Kinnitatud mängijatele läheb trenni hind arvele ja nemad saavad uksekoodi teavituse. Ootel olevatele läheb hind samuti arvele — kui keegi ei mänginud, eemalda ta ✕ nupuga.</div>'
+    + '</div>';
+  kast.style.display = 'block';
+}
+
+async function mgVarskenda() {
+  if (!mgAvatud) return;
+  var a = mgAvatud;
+  await vaataTrennid(a.ryhmId, true);
+  avaMangijad(a.nadalId, a.ryhmId, true);
+}
+function mgViga(nadalId, t) {
+  var el = document.getElementById('mg-teade-' + nadalId);
+  if (el) { el.className = 'teade viga'; el.textContent = t; } else alert(t);
+}
+
+async function mgLisa(nadalId) {
+  var liige = document.getElementById('mg-lisa-liige-' + nadalId).value;
+  var paarV = document.getElementById('mg-lisa-paar-' + nadalId).value;
+  if (!liige) return mgViga(nadalId, 'Vali mängija');
+  var r = await api('/api/padel/admin/nadalad/' + nadalId + '/lisa', { method: 'POST', body: JSON.stringify({ liige_id: parseInt(liige, 10), paar: paarV ? parseInt(paarV, 10) : null }) });
+  if (!r.ok) return mgViga(nadalId, r.veateade || 'Lisamine ebaõnnestus');
+  await mgVarskenda();
+}
+
+async function mgKinnita(kohaId, kinnitatud) {
+  var r = await api('/api/padel/admin/kohad/' + kohaId + '/kinnitatud', { method: 'PUT', body: JSON.stringify({ kinnitatud: kinnitatud }) });
+  if (!r.ok) return mgViga(mgAvatud && mgAvatud.nadalId, r.veateade || 'Ei õnnestunud');
+  await mgVarskenda();
+}
+
+async function mgKinnitaKoik(nadalId) {
+  var r = await api('/api/padel/admin/nadalad/' + nadalId + '/kinnita-koik', { method: 'POST' });
+  if (!r.ok) return mgViga(nadalId, r.veateade || 'Ei õnnestunud');
+  await mgVarskenda();
+}
+
+async function mgMuudaPaar(kohaId, paarV) {
+  var paar = paarV ? parseInt(paarV, 10) : null;
+  if (paar && mgAvatud) {
+    var n = trenniAndmed[mgAvatud.ryhmId].nadalad.find(function(x) { return x.id === mgAvatud.nadalId; });
+    var seal = (n.kohad || []).filter(function(k) { return k.paar === paar && k.id !== kohaId; }).length;
+    if (seal >= 2) { mgViga(mgAvatud.nadalId, 'Paar ' + paar + ' on juba täis — tõsta enne keegi sealt ootele'); await mgVarskenda(); return; }
+  }
+  var r = await api('/api/padel/kohad/' + kohaId + '/paar', { method: 'PUT', body: JSON.stringify({ paar: paar }) });
+  if (!r.ok) return mgViga(mgAvatud && mgAvatud.nadalId, r.veateade || 'Ei õnnestunud');
+  await mgVarskenda();
+}
+
+async function mgEemalda(kohaId) {
+  if (!confirm('Eemaldada see mängija sellelt trennilt? (Trenni hinda talle siis arvele ei lähe.)')) return;
+  var r = await api('/api/padel/kohad/' + kohaId, { method: 'DELETE' });
+  if (!r.ok) return mgViga(mgAvatud && mgAvatud.nadalId, r.veateade || 'Ei õnnestunud');
+  await mgVarskenda();
 }
 
 // ── TULEMUS TAGANTJÄRELE ──────────────────────────────────────────────
@@ -252,7 +407,7 @@ async function vaataTrennid(ryhmId, jataLahti) {
 function avaTulemus(nadalId, ryhmId) {
   var kast = document.getElementById('tul-' + nadalId);
   if (kast.style.display !== 'none') { kast.style.display = 'none'; kast.innerHTML = ''; return; }
-  document.querySelectorAll('[id^="tul-"]').forEach(function(k) { k.style.display = 'none'; k.innerHTML = ''; });
+  document.querySelectorAll('[id^="tul-"], [id^="mg-"]').forEach(function(k) { k.style.display = 'none'; k.innerHTML = ''; });
   var andmed = trenniAndmed[ryhmId];
   var n = andmed.nadalad.find(function(x) { return x.id === nadalId; });
   var kohad = n.kohad || [];
