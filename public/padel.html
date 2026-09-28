@@ -62,6 +62,56 @@
   .tulemus-vorm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .tulemus-vorm input { width: 60px; text-align: center; font-weight: 700; }
   .medal { font-size: 16px; margin-right: 4px; }
+  /* Avatavad moodulid (Minu saldo, Statistika) */
+  .ava-pais { padding: 16px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .ava-pais .pealkiri { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; flex: 1; }
+  .ava-pais .vaartus { font-size: 15px; font-weight: 800; }
+  .ava-pais .nool { color: var(--text3); font-size: 12px; transition: transform .15s; }
+  .ava-kaart.lahti .ava-pais .nool { transform: rotate(90deg); }
+  .ava-keha { display: none; border-top: 0.5px solid var(--border); padding: 16px 18px; }
+  .ava-kaart.lahti .ava-keha { display: block; }
+  .pea-alam { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin: 18px 0 8px; }
+  .pea-alam:first-child { margin-top: 0; }
+  .led-rida { display: grid; grid-template-columns: 82px 1fr auto; gap: 4px 10px; align-items: center; padding: 9px 0; border-bottom: 0.5px solid var(--border); font-size: 13px; }
+  .led-rida:last-child { border-bottom: none; }
+  .led-rida .kp { color: var(--text3); font-variant-numeric: tabular-nums; }
+  .led-rida .summa { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .led-rida .alam { grid-column: 2 / -1; font-size: 11px; color: var(--text3); }
+  .staatus-silt { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; margin-left: 6px; vertical-align: middle; }
+  .staatus-silt.ok { background: rgba(74,222,128,0.14); color: var(--groen); }
+  .staatus-silt.ei { background: rgba(251,191,36,0.14); color: #fbbf24; }
+  /* Statistika */
+  .st-chipid { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .st-chip { background: var(--bg3); border: 0.5px solid var(--border); color: var(--text2); border-radius: 20px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .st-chip.aktiivne { background: var(--groen); color: #052e16; border-color: var(--groen); }
+  .st-ruudud { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .st-ruut { background: var(--bg3); border-radius: 10px; padding: 10px 12px; }
+  .st-ruut .n { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+  .st-ruut .v { font-size: 20px; font-weight: 800; margin-top: 2px; }
+  .st-ruut .a { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .vorm { display: flex; gap: 4px; }
+  .vorm span { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+  .vorm .V { background: rgba(74,222,128,0.18); color: var(--groen); }
+  .vorm .K { background: rgba(248,113,113,0.18); color: #f87171; }
+  .vorm .Vi { background: var(--bg2); color: var(--text2); }
+  .st-rida { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 0.5px solid var(--border); font-size: 13px; }
+  .st-rida:last-child { border-bottom: none; }
+  .st-rida .nimi { flex: 1; min-width: 0; }
+  .st-rida .nimi > b { display: block; font-weight: 700; }
+  .st-rida .nimi small b { color: var(--text); }
+  .st-rida .nimi small { color: var(--text3); font-size: 11px; }
+  .st-rida .num { font-weight: 800; text-align: right; white-space: nowrap; }
+  .st-kaardid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .st-kaart { background: var(--bg3); border-radius: 10px; padding: 12px; }
+  .st-kaart .silt { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin-bottom: 8px; }
+  .st-kaart .kes { display: flex; align-items: center; font-weight: 700; font-size: 13px; }
+  .st-kaart .mis { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .riba { height: 5px; border-radius: 3px; background: var(--bg2); overflow: hidden; margin-top: 4px; }
+  .riba > div { height: 100%; background: var(--groen); border-radius: 3px; }
+  .avatarid { display: inline-flex; margin-right: 8px; }
+  .avatarid > * { margin-right: -8px !important; border: 2px solid var(--bg2); border-radius: 50%; }
+  .avatarid > *:last-child { margin-right: 0 !important; }
+  @media (max-width: 420px) { .st-ruudud { grid-template-columns: repeat(2, 1fr); } .st-kaardid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -75,14 +125,26 @@
   <div id="lubamatuTeade" style="display:none" class="tyhi">Sul pole Padel mooduli ligipääsu. Palun küsi adminilt.</div>
 
   <div id="sisu" style="display:none">
-    <div class="kaart">
-      <div class="kaart-hdr">💰 Minu saldo</div>
-      <div class="kaart-body" id="saldoSisu"><div class="laadimine">Laadimine...</div></div>
+    <div class="kaart ava-kaart" id="saldoKaart">
+      <div class="ava-pais" onclick="lylitaKaart('saldoKaart')">
+        <span class="pealkiri">💰 MINU SALDO</span>
+        <span class="vaartus" id="saldoPais">…</span>
+        <span class="nool">▶</span>
+      </div>
+      <div class="ava-keha" id="saldoSisu"><div class="laadimine">Laadimine...</div></div>
     </div>
 
     <div id="tanaBanner"></div>
 
     <div id="ryhmadSisu"><div class="laadimine">Laadimine...</div></div>
+
+    <div class="kaart ava-kaart" id="statKaart">
+      <div class="ava-pais" onclick="lylitaKaart('statKaart')">
+        <span class="pealkiri">📊 STATISTIKA</span>
+        <span class="nool">▶</span>
+      </div>
+      <div class="ava-keha" id="statSisu"><div class="laadimine">Laadimine...</div></div>
+    </div>
   </div>
 
 <script>
@@ -146,31 +208,64 @@ var MAKSE_KONTOD = [
   { pank: 'LHV',      logo: '/lhv.jpg',      tausta: '#0d0f13', iban: 'EE097700771000752043' }
 ];
 
+function lylitaKaart(id) {
+  var el = document.getElementById(id);
+  el.classList.toggle('lahti');
+  if (id === 'statKaart' && el.classList.contains('lahti') && !statLaetud) laadiStatistika();
+}
+function fmtKpS(kp) { var o = String(kp).slice(0, 10).split('-'); return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : fmtKp(kp); }
+function escH(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+
 async function laadiSaldo() {
   var r = await api('/api/padel/minu-saldo');
   var div = document.getElementById('saldoSisu');
-  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga saldo laadimisel</div>'; return; }
-  var maksedHtml = (r.maksed && r.maksed.length)
-    ? '<div style="margin-top:14px"><div class="paar-pealkiri" style="margin-bottom:6px">Maksete ajalugu</div>' + r.maksed.map(function(m) {
-        return '<div class="rida"><span>' + fmtKp(m.kuupaev) + (m.kommentaar ? ' — ' + m.kommentaar : '') + '</span><span style="font-weight:600;color:var(--groen)">+' + fmtEur(m.summa) + '</span></div>';
-      }).join('') + '</div>'
-    : '';
-  if (r.kokku <= 0 && !r.vola.length) {
-    div.innerHTML = '<div class="saldo-summa null">0,00 € — kõik makstud! ✅</div>' + maksedHtml;
-    return;
+  var pais = document.getElementById('saldoPais');
+  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga saldo laadimisel</div>'; pais.textContent = ''; return; }
+
+  // Päis (nähtav ka suletuna)
+  if (r.kokku > 0.004) { pais.textContent = fmtEur(r.kokku) + ' võlgu'; pais.style.color = '#fbbf24'; }
+  else if (r.kokku < -0.004) { pais.textContent = '+' + fmtEur(-r.kokku); pais.style.color = 'var(--groen)'; }
+  else { pais.textContent = '0,00 € ✓'; pais.style.color = 'var(--groen)'; }
+
+  var html = '';
+  if (r.kokku > 0.004) {
+    html += '<button class="nupp" style="width:100%" onclick="lylitaMakse(' + r.kokku + ')">💳 MAKSA ' + fmtEur(r.kokku) + '</button>'
+      + '<div id="makse-paneel" style="display:none;margin-top:12px;background:var(--bg3);border-radius:10px;padding:14px"></div>';
+  } else if (r.kokku < -0.004) {
+    html += '<div style="font-size:13px;color:var(--groen)">Sul on ' + fmtEur(-r.kokku) + ' ettemaksu — see läheb järgmiste trennide arvelt maha.</div>';
+  } else {
+    html += '<div style="font-size:13px;color:var(--groen)">Kõik makstud! ✅</div>';
   }
-  var pealkiriKlass = r.kokku > 0 ? 'voolgu' : 'null';
-  var pealkiriTekst = r.kokku > 0 ? fmtEur(r.kokku) + ' võlgu' : (r.kokku < 0 ? fmtEur(-r.kokku) + ' sinu kasuks (üle makstud)' : '0,00 € — kõik makstud! ✅');
-  var maksaNuppHtml = r.kokku > 0
-    ? '<button class="nupp pisike" style="background:var(--groen);color:#052e16;font-weight:700;margin-top:10px" onclick="lylitaMakse(' + r.kokku + ')">💳 MAKSA ' + fmtEur(r.kokku) + '</button>'
-      + '<div id="makse-paneel" style="display:none;margin-top:12px;background:var(--bg3);border-radius:10px;padding:14px"></div>'
-    : '';
-  div.innerHTML = '<div class="saldo-summa ' + pealkiriKlass + '">' + pealkiriTekst + '</div>'
-    + maksaNuppHtml
-    + '<div style="margin-top:10px">' + r.vola.map(function(v) {
-      return '<div class="rida"><span>' + v.ryhm_nimi + ' — ' + fmtKp(v.kuupaev) + '</span><span style="font-weight:600">' + fmtEur(v.summa) + '</span></div>';
-    }).join('') + '</div>'
-    + maksedHtml;
+
+  // Kronoloogiline liikumine: trennitasud (−) ja maksed (+) koos jooksva saldoga
+  var sundmused = [];
+  (r.trennid || []).forEach(function(t) { sundmused.push({ kp: t.kuupaev, tyyp: 'trenn', summa: t.summa, t: t }); });
+  (r.maksed || []).forEach(function(m) { sundmused.push({ kp: String(m.kuupaev).slice(0, 10), tyyp: 'makse', summa: parseFloat(m.summa) || 0, m: m }); });
+  sundmused.sort(function(a, b) { return a.kp < b.kp ? -1 : a.kp > b.kp ? 1 : (a.tyyp === 'trenn' ? -1 : 1); });
+  var jooksev = 0;
+  sundmused.forEach(function(e) { jooksev += e.tyyp === 'trenn' ? e.summa : -e.summa; e.saldo = jooksev; });
+
+  html += '<div class="pea-alam" style="margin-top:18px">Trennitasud ja maksed</div>';
+  if (!sundmused.length) html += '<div style="font-size:13px;color:var(--text3)">Veel pole ühtegi trenni ega makset.</div>';
+  html += sundmused.slice().reverse().map(function(e) {
+    var saldoTekst = e.saldo > 0.004 ? 'võlg ' + fmtEur(e.saldo) : (e.saldo < -0.004 ? 'ettemaks ' + fmtEur(-e.saldo) : 'tasa');
+    if (e.tyyp === 'trenn') {
+      var t = e.t, silt = '';
+      if (t.staatus === 'kandis') silt = '<span class="staatus-silt ok">✓ makstud ' + fmtKpS(t.makse.kuupaev) + '</span>';
+      else if (t.staatus === 'kaetud') silt = '<span class="staatus-silt ok">✓ kaetud</span>';
+      else silt = '<span class="staatus-silt ei">maksmata</span>';
+      return '<div class="led-rida"><span class="kp">' + fmtKpS(t.kuupaev) + '</span>'
+        + '<span>🎾 Trenn · ' + escH(t.ryhm_nimi) + silt + '</span>'
+        + '<span class="summa">−' + fmtEur(t.summa) + '</span>'
+        + '<span class="alam">pärast: ' + saldoTekst + '</span></div>';
+    }
+    var m = e.m;
+    return '<div class="led-rida"><span class="kp">' + fmtKpS(m.kuupaev) + '</span>'
+      + '<span>💶 Makse' + (m.kommentaar ? ' · <span style="color:var(--text3)">' + escH(m.kommentaar) + '</span>' : '') + '</span>'
+      + '<span class="summa" style="color:var(--groen)">+' + fmtEur(m.summa) + '</span>'
+      + '<span class="alam">pärast: ' + saldoTekst + '</span></div>';
+  }).join('');
+  div.innerHTML = html;
 }
 
 function lylitaMakse(summa) {
@@ -474,7 +569,7 @@ async function salvestaTulemus(ryhmId, nadalId) {
   var teade = document.getElementById('nadal-teade-' + nadalId);
   if (!setid.length) { teade.className = 'teade viga'; teade.textContent = 'Sisesta vähemalt ühe geimi tulemus'; return; }
   var r = await api('/api/padel/nadalad/' + nadalId + '/setid', { method: 'PUT', body: JSON.stringify({ setid: setid }) });
-  if (r.ok) { teade.className = 'teade ok'; teade.textContent = '✅ Tulemus salvestatud'; laadiRyhmSisu(ryhmId); }
+  if (r.ok) { teade.className = 'teade ok'; teade.textContent = '✅ Tulemus salvestatud'; laadiRyhmSisu(ryhmId); if (statLaetud) laadiStatistika(statRyhm); }
   else { teade.className = 'teade viga'; teade.textContent = r.veateade || 'Viga'; }
 }
 
@@ -521,6 +616,129 @@ async function saadaSonum(ryhmId) {
   var res = await api('/api/padel/ryhm/' + ryhmId + '/sonum', { method: 'POST', body: JSON.stringify({ pealkiri: pealkiri, sonum: sonum, liige_id: liigeId }) });
   if (res.ok) alert('✅ Sõnum saadetud (' + res.saadeti + ' saajale)');
   else alert('Viga: ' + (res.veateade || ''));
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATISTIKA
+// ═══════════════════════════════════════════════════════════════════
+var statLaetud = false;
+var statRyhm = null;
+
+async function laadiStatistika(ryhmId) {
+  statLaetud = true;
+  statRyhm = ryhmId || null;
+  var div = document.getElementById('statSisu');
+  div.innerHTML = '<div class="laadimine">Arvutan...</div>';
+  var r = await api('/api/padel/statistika' + (statRyhm ? '?ryhm_id=' + statRyhm : ''));
+  if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + escH(r.veateade || '') + '</div>'; return; }
+  var P = r.inimesed || {};
+  function nimi(id) { return P[id] ? P[id].nimi : '?'; }
+  function ees(id) { return nimi(id).split(' ')[0]; }
+  function av(id, s) { return avatarHtml(P[id] && P[id].foto_url, nimi(id), s || 30); }
+  function duoAv(ids, s) { return '<span class="avatarid">' + ids.map(function(id) { return avatarHtml(P[id] && P[id].foto_url, nimi(id), s || 26); }).join('') + '</span>'; }
+  function duoNimi(ids) { return ids.map(ees).join(' & '); }
+  function mark(v) { return (v > 0 ? '+' : '') + v; }
+  function mangTekst(m) { return duoNimi(m.p1) + ' <b>' + m.g1 + ':' + m.g2 + '</b> ' + duoNimi(m.p2); }
+
+  var html = '';
+  if (r.ryhmad && r.ryhmad.length > 1) {
+    html += '<div class="st-chipid"><button class="st-chip' + (!statRyhm ? ' aktiivne' : '') + '" onclick="laadiStatistika()">Kõik grupid</button>'
+      + r.ryhmad.map(function(g) { return '<button class="st-chip' + (statRyhm === g.id ? ' aktiivne' : '') + '" onclick="laadiStatistika(' + g.id + ')">' + escH(g.nimi) + '</button>'; }).join('') + '</div>';
+  }
+  if (!r.mange) { div.innerHTML = html + '<div class="tyhi">Statistika tekib, kui trennidele on tulemused sisestatud (2 + 2 mängijat ja geimid).</div>'; return; }
+
+  html += '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">Arvestatud <b style="color:var(--text)">' + r.mange + ' trenni</b> ja ' + r.geime_kokku + ' geimi. Võit = paaril rohkem geime trenni peale kokku.</div>';
+
+  // ── MINU NUMBRID ──
+  var m = r.mina;
+  if (m) {
+    var seeriaTekst = m.seeria && m.seeria.pikkus > 1
+      ? (m.seeria.tyyp === 'V' ? '🔥 ' + m.seeria.pikkus + ' võitu järjest' : m.seeria.tyyp === 'K' ? '🥶 ' + m.seeria.pikkus + ' kaotust järjest' : m.seeria.pikkus + ' viiki järjest')
+      : '';
+    html += '<div class="pea-alam">Minu numbrid</div>'
+      + '<div class="st-ruudud">'
+      + '<div class="st-ruut"><div class="n">Trenne</div><div class="v">' + m.mange + '</div><div class="a">' + m.koht_edetabelis + '. koht võidu% järgi</div></div>'
+      + '<div class="st-ruut"><div class="n">Võidu %</div><div class="v" style="color:var(--groen)">' + m.voidu_pr + '%</div><div class="a">' + m.voidud + 'V · ' + m.viigid + 'Vi · ' + m.kaotused + 'K</div></div>'
+      + '<div class="st-ruut"><div class="n">Geimivahe</div><div class="v" style="color:' + (m.geimivahe >= 0 ? 'var(--groen)' : '#f87171') + '">' + mark(m.geimivahe) + '</div><div class="a">' + m.geime_poolt + ' : ' + m.geime_vastu + '</div></div>'
+      + '<div class="st-ruut"><div class="n">Geime / trenn</div><div class="v">' + m.keskm_geime + '</div><div class="a">keskmiselt võidetud</div></div>'
+      + '<div class="st-ruut"><div class="n">Pikim võiduseeria</div><div class="v">' + m.pikim_voiduseeria + '</div><div class="a">' + (seeriaTekst || '&nbsp;') + '</div></div>'
+      + '<div class="st-ruut"><div class="n">Suurim võit</div><div class="v">' + (m.suurim_voit != null ? '+' + m.suurim_voit : '—') + '</div><div class="a">' + (m.suurim_kaotus != null ? 'suurim kaotus −' + m.suurim_kaotus : '&nbsp;') + '</div></div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-top:10px"><span style="font-size:11px;color:var(--text3)">Viimased trennid:</span><span class="vorm">'
+      + m.viimased.map(function(t) { return '<span class="' + t + '">' + t + '</span>'; }).join('') + '</span></div>';
+
+    // Partnerid
+    if (m.partnerid.length) {
+      var parim = m.partnerid.filter(function(p) { return p.mange >= 2; })[0] || m.partnerid[0];
+      html += '<div class="pea-alam">Kellega sul klapib</div>'
+        + '<div class="st-kaart" style="margin-bottom:10px;background:rgba(74,222,128,0.08);border:0.5px solid rgba(74,222,128,0.25)">'
+        + '<div class="silt">💚 Parim partner</div><div class="kes">' + av(parim.worker_id, 34) + escH(nimi(parim.worker_id)) + '</div>'
+        + '<div class="mis">' + parim.mange + ' trenni koos · ' + parim.voidud + ' võitu · ' + parim.voidu_pr + '% · geimivahe ' + mark(parim.geimivahe) + '</div></div>'
+        + m.partnerid.map(function(p) {
+          return '<div class="st-rida">' + av(p.worker_id, 30) + '<span class="nimi"><b>' + escH(nimi(p.worker_id)) + '</b><small>' + p.mange + ' trenni koos · geimivahe ' + mark(p.geimivahe) + '</small>'
+            + '<div class="riba"><div style="width:' + p.voidu_pr + '%"></div></div></span><span class="num">' + p.voidu_pr + '%</span></div>';
+        }).join('');
+    }
+    // Vastased
+    if (m.lemmikvastane || m.raskeim_vastane) {
+      html += '<div class="pea-alam">Vastased</div><div class="st-kaardid">';
+      if (m.lemmikvastane) html += '<div class="st-kaart"><div class="silt">😎 Lemmikvastane</div><div class="kes">' + av(m.lemmikvastane.worker_id, 30) + escH(nimi(m.lemmikvastane.worker_id)) + '</div><div class="mis">Võidad teda ' + m.lemmikvastane.voidu_pr + '% (' + m.lemmikvastane.voidud + '/' + m.lemmikvastane.mange + ')</div></div>';
+      if (m.raskeim_vastane && (!m.lemmikvastane || m.raskeim_vastane.worker_id !== m.lemmikvastane.worker_id)) html += '<div class="st-kaart"><div class="silt">😤 Kõige raskem vastane</div><div class="kes">' + av(m.raskeim_vastane.worker_id, 30) + escH(nimi(m.raskeim_vastane.worker_id)) + '</div><div class="mis">Võidad teda ainult ' + m.raskeim_vastane.voidu_pr + '% (' + m.raskeim_vastane.voidud + '/' + m.raskeim_vastane.mange + ')</div></div>';
+      html += '</div>';
+    }
+  }
+
+  // ── GRUPI REKORDID ──
+  var rk = r.rekordid || {};
+  var rekordRead = [];
+  if (rk.koige_aktiivsem) rekordRead.push(['🏃 Kõige aktiivsem', rk.koige_aktiivsem.worker_id, rk.koige_aktiivsem.mange + ' trenni']);
+  if (rk.parim_voidu_pr) rekordRead.push(['👑 Kõrgeim võidu %', rk.parim_voidu_pr.worker_id, rk.parim_voidu_pr.voidu_pr + '% (' + rk.parim_voidu_pr.mange + ' trenni)']);
+  if (rk.enim_geime_keskm) rekordRead.push(['🎯 Enim geime trenni kohta', rk.enim_geime_keskm.worker_id, rk.enim_geime_keskm.keskm_geime + ' keskmiselt']);
+  if (rk.parim_geimivahe) rekordRead.push(['📈 Parim geimivahe', rk.parim_geimivahe.worker_id, mark(rk.parim_geimivahe.geimivahe) + ' kokku']);
+  html += '<div class="pea-alam">Grupi rekordid</div>'
+    + rekordRead.map(function(x) {
+      return '<div class="st-rida">' + av(x[1], 30) + '<span class="nimi"><b>' + escH(nimi(x[1])) + '</b><small>' + x[0] + '</small></span><span class="num">' + x[2] + '</span></div>';
+    }).join('');
+  if (rk.suurim_voit) html += '<div class="st-rida"><span style="font-size:18px;width:30px;text-align:center">💥</span><span class="nimi"><b>Suurim võit</b><small>' + fmtKpS(rk.suurim_voit.kuupaev) + ' · ' + mangTekst(rk.suurim_voit) + '</small></span><span class="num">' + Math.abs(rk.suurim_voit.g1 - rk.suurim_voit.g2) + ' geimi</span></div>';
+  if (rk.enim_geime_trennis) html += '<div class="st-rida"><span style="font-size:18px;width:30px;text-align:center">⏱</span><span class="nimi"><b>Kõige pikem trenn</b><small>' + fmtKpS(rk.enim_geime_trennis.kuupaev) + ' · ' + mangTekst(rk.enim_geime_trennis) + '</small></span><span class="num">' + (rk.enim_geime_trennis.g1 + rk.enim_geime_trennis.g2) + ' geimi</span></div>';
+
+  // ── PARIMAD PAARID ──
+  if (r.parimad_paarid && r.parimad_paarid.length) {
+    html += '<div class="pea-alam">Parimad paarid <span style="text-transform:none;letter-spacing:0;font-weight:400">(vähemalt 2 trenni koos)</span></div>'
+      + r.parimad_paarid.map(function(d) {
+        return '<div class="st-rida">' + duoAv(d.mangijad) + '<span class="nimi"><b>' + escH(duoNimi(d.mangijad)) + '</b><small>' + d.mange + ' trenni · ' + d.voidud + ' võitu · geimivahe ' + mark(d.geimivahe) + '</small></span><span class="num">' + d.voidu_pr + '%</span></div>';
+      }).join('');
+  }
+
+  // ── PINGELISEMAD VASTASSEISUD ──
+  if (r.pingelisemad_vastasseisud && r.pingelisemad_vastasseisud.length) {
+    html += '<div class="pea-alam">Kõige pingelisemad vastasseisud</div>'
+      + r.pingelisemad_vastasseisud.map(function(v) {
+        return '<div class="st-rida"><span class="nimi"><b>' + escH(duoNimi(v.duo1)) + ' <span style="color:var(--text3);font-weight:400">vs</span> ' + escH(duoNimi(v.duo2)) + '</b>'
+          + '<small>' + v.mange + ' trenni · seis ' + v.duo1_voidud + ':' + v.duo2_voidud + '</small></span>'
+          + '<span class="num" title="Keskmine geimide vahe">±' + v.keskm_vahe + '</span></div>';
+      }).join('')
+      + '<div style="font-size:11px;color:var(--text3);margin-top:4px">±X = keskmine geimide vahe nende paaride vahel (mida väiksem, seda tasavägisem).</div>';
+  }
+
+  // ── TASAVÄGISEMAD TRENNID ──
+  if (r.tasavagisemad_mangud && r.tasavagisemad_mangud.length) {
+    html += '<div class="pea-alam">Kõige tasavägisemad trennid</div>'
+      + r.tasavagisemad_mangud.map(function(g) {
+        return '<div class="st-rida"><span class="nimi"><b>' + escH(duoNimi(g.p1)) + ' <span style="color:var(--groen)">' + g.g1 + ':' + g.g2 + '</span> ' + escH(duoNimi(g.p2)) + '</b><small>' + fmtKpS(g.kuupaev) + ' · ' + escH(g.ryhm) + ' · ' + (g.setid || []).map(function(x) { return x.g1 + ':' + x.g2; }).join(', ') + '</small></span></div>';
+      }).join('');
+  }
+
+  // ── KÕIK MÄNGIJAD ──
+  html += '<div class="pea-alam">Kõik mängijad</div>'
+    + '<table><thead><tr><th>Mängija</th><th style="text-align:right">Trenne</th><th style="text-align:right">Võit %</th><th style="text-align:right">Geime/tr</th><th style="text-align:right">+/−</th></tr></thead><tbody>'
+    + r.mangijad.map(function(p) {
+      var mina = r.mina && p.worker_id === r.mina.worker_id;
+      return '<tr' + (mina ? ' style="background:rgba(74,222,128,0.07)"' : '') + '><td>' + av(p.worker_id, 22) + escH(p.nimi) + '</td><td style="text-align:right">' + p.mange + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + p.voidu_pr + '%</td><td style="text-align:right">' + p.keskm_geime + '</td><td style="text-align:right;color:' + (p.geimivahe >= 0 ? 'var(--text2)' : '#f87171') + '">' + mark(p.geimivahe) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  div.innerHTML = html;
 }
 
 init();
