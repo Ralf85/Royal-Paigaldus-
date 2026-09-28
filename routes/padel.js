@@ -649,17 +649,49 @@ router.get('/admin/saldod', noudaAdmin, async (req, res) => {
        maksed AS (
          SELECT worker_id, COALESCE(SUM(summa), 0) AS makstud
          FROM padel_maksed GROUP BY worker_id
+       ),
+       tasuta AS (
+         -- Möödunud trennid, kus mängija OLI PAARIS (mängis), aga tasu pole arvel
+         -- (kinnitamata või hind puudub — vana süsteemi automaatselt loodud kohad)
+         SELECT pl.worker_id, COUNT(*) AS arv
+         FROM padel_kohad pk
+         JOIN padel_liikmed pl ON pl.id = pk.liige_id
+         JOIN padel_nadalad pn ON pn.id = pk.nadal_id
+         WHERE pn.kuupaev < CURRENT_DATE AND pk.osaleb = true AND pk.makstud = false
+           AND pk.paar IN (1,2) AND (pk.kinnitatud = false OR pk.summa IS NULL)
+         GROUP BY pl.worker_id
        )
        SELECT m.worker_id, m.nimi,
               COALESCE(v.volg, 0) AS volg,
               COALESCE(mk.makstud, 0) AS makstud,
-              COALESCE(v.volg, 0) - COALESCE(mk.makstud, 0) AS saldo
+              COALESCE(v.volg, 0) - COALESCE(mk.makstud, 0) AS saldo,
+              COALESCE(t.arv, 0)::int AS tasuta
        FROM mangijad m
        LEFT JOIN volad v ON v.worker_id = m.worker_id
        LEFT JOIN maksed mk ON mk.worker_id = m.worker_id
+       LEFT JOIN tasuta t ON t.worker_id = m.worker_id
        ORDER BY m.nimi`
     );
     res.json({ ok: true, mangijad: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Pane trennitasu arvele kõigile, kes möödunud trennides olid PAARIS (st mängisid), aga kelle
+// koht on kinnitamata või ilma hinnata. Admin käivitab selle ise nupust (ühekordne korrastus).
+router.post('/admin/pane-tasu-arvele', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE padel_kohad pk
+       SET kinnitatud = true, summa = COALESCE(pk.summa, r.hind)
+       FROM padel_nadalad pn, padel_ryhmad r
+       WHERE pn.id = pk.nadal_id AND r.id = pn.ryhm_id
+         AND pn.kuupaev < CURRENT_DATE AND pk.osaleb = true AND pk.makstud = false
+         AND pk.paar IN (1,2) AND (pk.kinnitatud = false OR pk.summa IS NULL)
+       RETURNING pk.id`
+    );
+    res.json({ ok: true, parandati: r.rowCount });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -712,7 +744,7 @@ router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
     const workerId = parseInt(req.params.workerId, 10);
     const trennidR = await pool.query(
       `SELECT pk.id AS koht_id, to_char(pn.kuupaev,'YYYY-MM-DD') AS kuupaev, r.nimi AS ryhm_nimi,
-              COALESCE(pk.summa, r.hind)::numeric AS summa, pk.kinnitatud, pk.osaleb, pk.makstud, pk.paar
+              COALESCE(pk.summa, r.hind)::numeric AS summa, (pk.summa IS NULL) AS hind_puudu, pk.kinnitatud, pk.osaleb, pk.makstud, pk.paar
        FROM padel_kohad pk
        JOIN padel_liikmed pl ON pl.id = pk.liige_id
        JOIN padel_nadalad pn ON pn.id = pk.nadal_id
@@ -736,6 +768,7 @@ router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
       const summa = parseFloat(t.summa) || 0;
       const rida = { koht_id: t.koht_id, kuupaev: t.kuupaev, ryhm_nimi: t.ryhm_nimi, summa, kinnitatud: t.kinnitatud, paar: t.paar };
       if (!t.kinnitatud) rida.staatus = 'kinnitamata';
+      else if (t.hind_puudu && !t.makstud && !seotud[t.koht_id]) rida.staatus = 'hind_puudu';
       else if (t.makstud) rida.staatus = 'kaetud';            // vana asendaja-süsteemi lipp
       else if (seotud[t.koht_id]) { rida.staatus = 'kandis'; rida.makse = { id: seotud[t.koht_id].id, kuupaev: seotud[t.koht_id].kuupaev, loodud: seotud[t.koht_id].loodud }; }
       else rida.staatus = 'maksmata';
@@ -746,7 +779,7 @@ router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
       if (t.staatus === 'maksmata' && yldmaksed >= t.summa - 0.001) { t.staatus = 'kaetud'; yldmaksed -= t.summa; }
     });
 
-    const volg = trennid.filter(t => t.kinnitatud).reduce((s, t) => s + (trennidR.rows.find(x => x.koht_id === t.koht_id).makstud ? 0 : t.summa), 0);
+    const volg = trennidR.rows.filter(t => t.kinnitatud && !t.makstud && !t.hind_puudu).reduce((s, t) => s + (parseFloat(t.summa) || 0), 0);
     const makstud = maksed.reduce((s, m) => s + m.summa, 0);
     res.json({ ok: true, trennid: trennid.reverse(), maksed, saldo: +(volg - makstud).toFixed(2), jaak_ettemaks: +yldmaksed.toFixed(2) });
   } catch (err) {
