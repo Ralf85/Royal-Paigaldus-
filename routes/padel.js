@@ -28,6 +28,13 @@ const maksedVeergValmis = pool.query(
   `ALTER TABLE padel_maksed ADD COLUMN IF NOT EXISTS koht_id INTEGER REFERENCES padel_kohad(id) ON DELETE SET NULL`
 ).catch(err => console.error('padel_maksed.koht_id lisamine ebaõnnestus:', err.message));
 
+// Mängija pilt: 1) selle grupi Padeli pilt, 2) mõne teise grupi Padeli pilt, 3) peaadmini töötajapilt.
+function fotoSql(alias) {
+  return `COALESCE(${alias}.foto_url,
+    (SELECT pf.foto_url FROM padel_liikmed pf WHERE pf.worker_id = ${alias}.worker_id AND pf.foto_url IS NOT NULL ORDER BY pf.id DESC LIMIT 1),
+    (SELECT af.foto_url FROM tootaja_admin_fotod af WHERE af.worker_id = ${alias}.worker_id LIMIT 1))`;
+}
+
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
   next();
@@ -93,7 +100,7 @@ router.get('/admin/ryhmad', noudaAdmin, async (req, res) => {
   try {
     const ryhmadR = await pool.query('SELECT * FROM padel_ryhmad ORDER BY nimi');
     const liikmedR = await pool.query(
-      `SELECT pl.id, pl.ryhm_id, pl.worker_id, pl.jrk_nr, pl.foto_url, w.nimi
+      `SELECT pl.id, pl.ryhm_id, pl.worker_id, pl.jrk_nr, ${fotoSql('pl')} AS foto_url, w.nimi
        FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
        ORDER BY pl.ryhm_id, pl.jrk_nr`
     );
@@ -296,7 +303,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
     const ryhmR = await pool.query('SELECT * FROM padel_ryhmad WHERE id=$1', [req.params.id]);
     if (!ryhmR.rows.length) return res.json({ ok: false, veateade: 'Gruppi ei leitud' });
     const liikmedR = await pool.query(
-      `SELECT pl.id, pl.worker_id, pl.jrk_nr, pl.foto_url, w.nimi
+      `SELECT pl.id, pl.worker_id, pl.jrk_nr, ${fotoSql('pl')} AS foto_url, w.nimi
        FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
        WHERE pl.ryhm_id=$1 ORDER BY pl.jrk_nr`,
       [req.params.id]
@@ -337,7 +344,7 @@ router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
 
     const nadaladR = await pool.query(
       `SELECT pn.*,
-              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'worker_id', pl2.worker_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'nimi', w.nimi, 'foto_url', pl2.foto_url, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
+              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'worker_id', pl2.worker_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'nimi', w.nimi, 'foto_url', ${fotoSql('pl2')}, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
                 FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
                 WHERE pk.nadal_id = pn.id) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
@@ -624,7 +631,10 @@ router.get('/minu-saldo', noudaPadelLigipaas, async (req, res) => {
     const volgSumma = r.rows.reduce((s, row) => s + parseFloat(row.summa), 0);
     const makstudSumma = maksedR.rows.reduce((s, row) => s + parseFloat(row.summa), 0);
     const kokku = volgSumma - makstudSumma;
-    res.json({ ok: true, vola: r.rows, maksed: maksedR.rows, kokku: +kokku.toFixed(2) });
+    // Detailne ülevaade (trenn-trennilt staatus + maksed kuupäevadega) — ainult arvel olevad trennid
+    const u = await mangijaUlevaade(req.session.workerId);
+    const trennid = u.trennid.filter(t => t.staatus !== 'kinnitamata' && t.staatus !== 'hind_puudu');
+    res.json({ ok: true, vola: r.rows, maksed: u.maksed, trennid, kokku: +kokku.toFixed(2) });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -738,10 +748,8 @@ router.delete('/admin/maksed/:id', noudaAdmin, async (req, res) => {
 //   - kandis       -> sellele trennile on seotud makse (admin märkis "kandis")
 //   - kaetud       -> üldmaksed (ilma trennita) katavad selle trenni (vanimad trennid enne)
 //   - maksmata     -> tasu arvel, makset pole
-router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
-  try {
+async function mangijaUlevaade(workerId) {
     await maksedVeergValmis;
-    const workerId = parseInt(req.params.workerId, 10);
     const trennidR = await pool.query(
       `SELECT pk.id AS koht_id, to_char(pn.kuupaev,'YYYY-MM-DD') AS kuupaev, r.nimi AS ryhm_nimi,
               COALESCE(pk.summa, r.hind)::numeric AS summa, (pk.summa IS NULL) AS hind_puudu, pk.kinnitatud, pk.osaleb, pk.makstud, pk.paar
@@ -781,7 +789,13 @@ router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
 
     const volg = trennidR.rows.filter(t => t.kinnitatud && !t.makstud && !t.hind_puudu).reduce((s, t) => s + (parseFloat(t.summa) || 0), 0);
     const makstud = maksed.reduce((s, m) => s + m.summa, 0);
-    res.json({ ok: true, trennid: trennid.reverse(), maksed, saldo: +(volg - makstud).toFixed(2), jaak_ettemaks: +yldmaksed.toFixed(2) });
+    return { trennid: trennid.reverse(), maksed, saldo: +(volg - makstud).toFixed(2), jaak_ettemaks: +yldmaksed.toFixed(2) };
+}
+
+router.get('/admin/mangija/:workerId', noudaAdmin, async (req, res) => {
+  try {
+    const u = await mangijaUlevaade(parseInt(req.params.workerId, 10));
+    res.json({ ok: true, ...u });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -829,6 +843,160 @@ router.get('/admin/maksed-logi', noudaAdmin, async (req, res) => {
        LIMIT 100`
     );
     res.json({ ok: true, maksed: r.rows.map(m => ({ ...m, summa: parseFloat(m.summa) || 0 })) });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── STATISTIKA ─────────────────────────────────────────────────────────
+// Arvutatakse kõigist trennidest, kus on tulemus sees ja mõlemas paaris 2 mängijat.
+// Võitja = paar, kellel on trenni peale kokku rohkem geime (sama loogika mis edetabelis).
+// ?ryhm_id=X piirab ühe grupiga; muidu kõik grupid, kus küsija on liige (admin: kõik grupid).
+router.get('/statistika', noudaPadelLigipaas, async (req, res) => {
+  try {
+    const minaId = req.session.workerId || null;
+    let ryhmad;
+    if (req.session.isAdmin) {
+      ryhmad = (await pool.query('SELECT id, nimi FROM padel_ryhmad ORDER BY nimi')).rows;
+    } else {
+      ryhmad = (await pool.query(
+        `SELECT DISTINCT r.id, r.nimi FROM padel_ryhmad r JOIN padel_liikmed pl ON pl.ryhm_id = r.id WHERE pl.worker_id = $1 ORDER BY r.nimi`,
+        [minaId]
+      )).rows;
+    }
+    const ryhmId = parseInt(req.query.ryhm_id, 10);
+    const ryhmIdd = ryhmId && ryhmad.some(g => g.id === ryhmId) ? [ryhmId] : ryhmad.map(g => g.id);
+    if (!ryhmIdd.length) return res.json({ ok: true, ryhmad, mange: 0 });
+
+    const mangudR = await pool.query(
+      `SELECT pn.id, to_char(pn.kuupaev,'YYYY-MM-DD') AS kuupaev, r.nimi AS ryhm_nimi,
+              (SELECT json_agg(json_build_object('g1', ps.paar1_geimid, 'g2', ps.paar2_geimid) ORDER BY ps.jrk_nr) FROM padel_setid ps WHERE ps.nadal_id = pn.id) AS setid,
+              (SELECT json_agg(json_build_object('worker_id', pl.worker_id, 'nimi', w.nimi, 'paar', pk.paar, 'foto_url', ${fotoSql('pl')}))
+                 FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id JOIN workers w ON w.id = pl.worker_id
+                 WHERE pk.nadal_id = pn.id AND pk.paar IN (1,2)) AS mangijad
+       FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id
+       WHERE pn.ryhm_id = ANY($1::int[]) AND EXISTS (SELECT 1 FROM padel_setid ps WHERE ps.nadal_id = pn.id)
+       ORDER BY pn.kuupaev ASC, pn.id ASC`,
+      [ryhmIdd]
+    );
+
+    const inimesed = {};   // worker_id -> { nimi, foto_url }
+    const mangud = [];
+    mangudR.rows.forEach(m => {
+      const mj = m.mangijad || [];
+      const p1 = mj.filter(x => x.paar === 1), p2 = mj.filter(x => x.paar === 2);
+      if (p1.length !== 2 || p2.length !== 2) return;
+      mj.forEach(x => { inimesed[x.worker_id] = { worker_id: x.worker_id, nimi: x.nimi, foto_url: x.foto_url }; });
+      const setid = m.setid || [];
+      const g1 = setid.reduce((t, x) => t + x.g1, 0), g2 = setid.reduce((t, x) => t + x.g2, 0);
+      mangud.push({ id: m.id, kuupaev: m.kuupaev, ryhm: m.ryhm_nimi, p1: p1.map(x => x.worker_id), p2: p2.map(x => x.worker_id), g1, g2, setid });
+    });
+
+    // Abifunktsioon: ühe mängija vaade ühest mängust
+    function vaade(m, wid) {
+      const minuPaar = m.p1.includes(wid) ? 1 : m.p2.includes(wid) ? 2 : 0;
+      if (!minuPaar) return null;
+      const minu = minuPaar === 1 ? m.g1 : m.g2, nende = minuPaar === 1 ? m.g2 : m.g1;
+      return {
+        tulemus: minu > nende ? 'V' : minu < nende ? 'K' : 'Vi',
+        minu, nende,
+        partner: (minuPaar === 1 ? m.p1 : m.p2).find(x => x !== wid),
+        vastased: minuPaar === 1 ? m.p2 : m.p1
+      };
+    }
+    const pr = (v, k) => k ? Math.round(v / k * 100) : 0;
+
+    // ── Kõigi mängijate koondtabel ──
+    const mangijad = Object.values(inimesed).map(p => {
+      let mange = 0, v = 0, vi = 0, k = 0, gPoolt = 0, gVastu = 0;
+      mangud.forEach(m => {
+        const x = vaade(m, p.worker_id); if (!x) return;
+        mange++; gPoolt += x.minu; gVastu += x.nende;
+        if (x.tulemus === 'V') v++; else if (x.tulemus === 'K') k++; else vi++;
+      });
+      return { ...p, mange, voidud: v, viigid: vi, kaotused: k, voidu_pr: pr(v, mange), geime_poolt: gPoolt, geime_vastu: gVastu,
+               keskm_geime: mange ? +(gPoolt / mange).toFixed(1) : 0, geimivahe: gPoolt - gVastu };
+    }).filter(p => p.mange > 0);
+
+    // ── Paarid (duod) ja duo-vs-duo vastasseisud ──
+    const duoVoti = arr => arr.slice().sort((a, b) => a - b).join('-');
+    const duod = {}, vastasseisud = {};
+    mangud.forEach(m => {
+      [[m.p1, m.g1, m.g2], [m.p2, m.g2, m.g1]].forEach(([paar, minu, nende]) => {
+        const kkey = duoVoti(paar);
+        const d = duod[kkey] = duod[kkey] || { mangijad: paar.slice().sort((a, b) => a - b), mange: 0, voidud: 0, geimivahe: 0 };
+        d.mange++; if (minu > nende) d.voidud++; d.geimivahe += minu - nende;
+      });
+      const a = duoVoti(m.p1), b = duoVoti(m.p2);
+      const vkey = [a, b].sort().join('|');
+      const vs = vastasseisud[vkey] = vastasseisud[vkey] || { duo1: a < b ? m.p1.slice().sort((x, y) => x - y) : m.p2.slice().sort((x, y) => x - y), duo2: a < b ? m.p2.slice().sort((x, y) => x - y) : m.p1.slice().sort((x, y) => x - y), mange: 0, vahe_summa: 0, geime: 0, duo1_voidud: 0, duo2_voidud: 0 };
+      vs.mange++; vs.vahe_summa += Math.abs(m.g1 - m.g2); vs.geime += m.g1 + m.g2;
+      const duo1G = a < b ? m.g1 : m.g2, duo2G = a < b ? m.g2 : m.g1;
+      if (duo1G > duo2G) vs.duo1_voidud++; else if (duo2G > duo1G) vs.duo2_voidud++;
+    });
+    const duoList = Object.values(duod).map(d => ({ ...d, voidu_pr: pr(d.voidud, d.mange) }));
+    const parimadPaarid = duoList.filter(d => d.mange >= 2).sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange || b.geimivahe - a.geimivahe).slice(0, 5);
+    const pingelisemadVastasseisud = Object.values(vastasseisud)
+      .map(v => ({ ...v, keskm_vahe: +(v.vahe_summa / v.mange).toFixed(1) }))
+      .sort((a, b) => a.keskm_vahe - b.keskm_vahe || b.mange - a.mange).slice(0, 5);
+    const tasavagisemadMangud = mangud.slice()
+      .sort((a, b) => Math.abs(a.g1 - a.g2) - Math.abs(b.g1 - b.g2) || (b.g1 + b.g2) - (a.g1 + a.g2)).slice(0, 5)
+      .map(m => ({ kuupaev: m.kuupaev, ryhm: m.ryhm, p1: m.p1, p2: m.p2, g1: m.g1, g2: m.g2, setid: m.setid }));
+    const suurimVoit = mangud.slice().sort((a, b) => Math.abs(b.g1 - b.g2) - Math.abs(a.g1 - a.g2))[0] || null;
+    const koigeRohkemGeime = mangud.slice().sort((a, b) => (b.g1 + b.g2) - (a.g1 + a.g2))[0] || null;
+
+    const rekordid = {
+      koige_aktiivsem: mangijad.slice().sort((a, b) => b.mange - a.mange)[0] || null,
+      parim_voidu_pr: mangijad.filter(p => p.mange >= 3).sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange)[0] || null,
+      enim_geime_keskm: mangijad.filter(p => p.mange >= 2).sort((a, b) => b.keskm_geime - a.keskm_geime)[0] || null,
+      parim_geimivahe: mangijad.slice().sort((a, b) => b.geimivahe - a.geimivahe)[0] || null,
+      suurim_voit: suurimVoit && { kuupaev: suurimVoit.kuupaev, ryhm: suurimVoit.ryhm, p1: suurimVoit.p1, p2: suurimVoit.p2, g1: suurimVoit.g1, g2: suurimVoit.g2 },
+      enim_geime_trennis: koigeRohkemGeime && { kuupaev: koigeRohkemGeime.kuupaev, ryhm: koigeRohkemGeime.ryhm, p1: koigeRohkemGeime.p1, p2: koigeRohkemGeime.p2, g1: koigeRohkemGeime.g1, g2: koigeRohkemGeime.g2 }
+    };
+
+    // ── Minu statistika ──
+    let mina = null;
+    if (minaId && mangijad.some(p => p.worker_id === minaId)) {
+      const minuMangud = mangud.map(m => ({ m, x: vaade(m, minaId) })).filter(o => o.x);
+      const partnerid = {}, vastased = {};
+      let seeria = 0, seeriaTyyp = null, pikimVoiduseeria = 0, jooksevVoit = 0;
+      minuMangud.forEach(({ x }) => {
+        const pa = partnerid[x.partner] = partnerid[x.partner] || { worker_id: x.partner, mange: 0, voidud: 0, geimivahe: 0 };
+        pa.mange++; if (x.tulemus === 'V') pa.voidud++; pa.geimivahe += x.minu - x.nende;
+        x.vastased.forEach(vid => {
+          const va = vastased[vid] = vastased[vid] || { worker_id: vid, mange: 0, voidud: 0, kaotused: 0, geimivahe: 0 };
+          va.mange++; if (x.tulemus === 'V') va.voidud++; if (x.tulemus === 'K') va.kaotused++; va.geimivahe += x.minu - x.nende;
+        });
+        if (x.tulemus === 'V') { jooksevVoit++; pikimVoiduseeria = Math.max(pikimVoiduseeria, jooksevVoit); } else jooksevVoit = 0;
+        if (x.tulemus === seeriaTyyp) seeria++; else { seeriaTyyp = x.tulemus; seeria = 1; }
+      });
+      const pList = Object.values(partnerid).map(p => ({ ...p, voidu_pr: pr(p.voidud, p.mange) }))
+        .sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange || b.geimivahe - a.geimivahe);
+      const vList = Object.values(vastased).map(v => ({ ...v, voidu_pr: pr(v.voidud, v.mange) }));
+      const minuRida = mangijad.find(p => p.worker_id === minaId);
+      const voidud = minuMangud.filter(o => o.x.tulemus === 'V').map(o => o.x.minu - o.x.nende);
+      const kaotused = minuMangud.filter(o => o.x.tulemus === 'K').map(o => o.x.nende - o.x.minu);
+      mina = {
+        ...minuRida,
+        koht_edetabelis: mangijad.slice().sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange).findIndex(p => p.worker_id === minaId) + 1,
+        seeria: { tyyp: seeriaTyyp, pikkus: seeria },
+        pikim_voiduseeria: pikimVoiduseeria,
+        suurim_voit: voidud.length ? Math.max.apply(null, voidud) : null,
+        suurim_kaotus: kaotused.length ? Math.max.apply(null, kaotused) : null,
+        viimased: minuMangud.slice(-8).map(o => o.x.tulemus),
+        partnerid: pList,
+        lemmikvastane: vList.slice().sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange)[0] || null,
+        raskeim_vastane: vList.slice().sort((a, b) => a.voidu_pr - b.voidu_pr || b.mange - a.mange)[0] || null,
+        vastased: vList.sort((a, b) => b.mange - a.mange)
+      };
+    }
+
+    res.json({
+      ok: true, ryhmad, valitud_ryhm: ryhmIdd.length === 1 ? ryhmIdd[0] : null,
+      mange: mangud.length, geime_kokku: mangud.reduce((t, m) => t + m.g1 + m.g2, 0),
+      inimesed, mangijad: mangijad.sort((a, b) => b.voidu_pr - a.voidu_pr || b.mange - a.mange),
+      mina, rekordid, parimad_paarid: parimadPaarid, pingelisemad_vastasseisud: pingelisemadVastasseisud, tasavagisemad_mangud: tasavagisemadMangud
+    });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
