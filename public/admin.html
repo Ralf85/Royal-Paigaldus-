@@ -1369,12 +1369,28 @@
       <div class="tm-stat"><div class="tm-stat-n">Saldo</div><div class="tm-stat-v" id="tm-saada">—</div></div>
     </div>
     <div class="tm-sektsioon">
+      <div class="tm-sektsioon-pealkiri">Saldo ülevaade</div>
+      <div id="tm-saldo-ulevaade">Laadimine...</div>
+    </div>
+    <div class="tm-sektsioon">
       <div class="tm-sektsioon-pealkiri">Ettevõttepõhine jaotus</div>
       <div id="tm-ettevotted">Laadimine...</div>
     </div>
     <div class="tm-sektsioon">
-      <div class="tm-sektsioon-pealkiri">Maksete ajalugu</div>
+      <div class="tm-sektsioon-pealkiri">Kulud <span id="tm-kulud-kokku" style="float:right;color:#f59e0b;text-transform:none;letter-spacing:0;font-weight:700"></span></div>
+      <div id="tm-kulud">Laadimine...</div>
+    </div>
+    <div class="tm-sektsioon">
+      <div class="tm-sektsioon-pealkiri">Maksete ajalugu <span id="tm-maksed-kokku" style="float:right;color:#4ade80;text-transform:none;letter-spacing:0;font-weight:700"></span></div>
       <div id="tm-maksed">Laadimine...</div>
+    </div>
+    <div class="tm-sektsioon">
+      <div class="tm-sektsioon-pealkiri">Saldo jooksev liikumine</div>
+      <div id="tm-liikumine">Laadimine...</div>
+    </div>
+    <div class="tm-sektsioon">
+      <div class="tm-sektsioon-pealkiri">Saldo kuude kaupa</div>
+      <div id="tm-ajalugu">Laadimine...</div>
     </div>
     <div class="tm-sektsioon">
       <div class="tm-sektsioon-pealkiri">Töökirjed detailselt</div>
@@ -1382,6 +1398,25 @@
     </div>
   </div>
 </div>
+<style>
+  .tm-saldo-rida { display:flex; justify-content:space-between; align-items:center; padding:7px 12px; font-size:13px; color:var(--tekst3); }
+  .tm-saldo-rida + .tm-saldo-rida { border-top:0.5px solid var(--piir3); }
+  .tm-saldo-rida.lopp { background:var(--bg3); border-radius:8px; margin-top:6px; border-top:none; font-weight:700; color:var(--tekst); font-size:14px; }
+  .tm-kulu-rida { display:flex; gap:10px; align-items:center; padding:8px 12px; background:var(--bg3); border-radius:8px; margin-bottom:6px; font-size:13px; }
+  .tm-kulu-liik { font-size:9px; font-weight:700; padding:2px 7px; border-radius:4px; white-space:nowrap; background:rgba(245,158,11,0.15); color:#f59e0b; }
+  .tm-kulu-liik.l-edgf { background:rgba(37,99,235,0.15); color:#60a5fa; }
+  .tm-kulu-liik.l-re { background:rgba(239,68,68,0.15); color:#f87171; }
+  .tm-kulu-liik.l-xs { background:rgba(168,85,247,0.15); color:#c084fc; }
+  .tm-kulu-liik.l-km { background:rgba(148,163,184,0.15); color:#94a3b8; }
+  .tm-tabel { width:100%; border-collapse:collapse; font-size:12px; }
+  .tm-tabel th { text-align:right; font-size:9px; text-transform:uppercase; letter-spacing:0.8px; color:var(--hall); font-weight:600; padding:6px 8px; border-bottom:0.5px solid var(--piir2); }
+  .tm-tabel th:first-child, .tm-tabel td:first-child { text-align:left; }
+  .tm-tabel td { text-align:right; padding:7px 8px; border-bottom:0.5px solid var(--piir3); color:var(--tekst3); white-space:nowrap; }
+  .tm-tabel td.kirj { text-align:left; white-space:normal; color:var(--tekst3); }
+  .tm-tabel tr.valitud td { background:rgba(37,99,235,0.10); color:var(--tekst); font-weight:600; }
+  .tm-tabel-wrap { overflow-x:auto; }
+  @media (max-width:600px) { .tm-stats { grid-template-columns:repeat(2,1fr); } .tm-sektsioon { padding:14px 16px; } }
+</style>
 <!-- Muuda tulevane modal -->
 <div id="muutaTulevaneModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
   <div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:16px;padding:28px;width:100%;max-width:480px;margin:20px">
