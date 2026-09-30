@@ -11,6 +11,9 @@ const { pool } = require('../db');
 // Pood loetakse TEHTUKS automaatselt, kui sellel projektil + poel on vähemalt üks töökirje.
 // Admin saab seda käsitsi üle kirjutada (kasitsi_tehtud: true = tehtud, false = tegemata,
 // NULL = automaatne), nt kui töö tehti ilma kirjeta või osaliselt ja tuleb uuesti minna.
+//
+// Töötajad: kui projektile on määratud töötajad (lidl_projekt_tootajad), näevad projekti
+// "Tulevased projektid" all ainult nemad. Kui ühtegi pole määratud, näevad seda kõik Lidli töötajad.
 
 async function initLidlPoed() {
   await pool.query(`
@@ -21,6 +24,15 @@ async function initLidlPoed() {
       kasitsi_tehtud BOOLEAN,
       lisatud TIMESTAMP DEFAULT NOW(),
       UNIQUE (projekt_id, objekt_id)
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lidl_projekt_tootajad (
+      id SERIAL PRIMARY KEY,
+      projekt_id INTEGER NOT NULL REFERENCES lidl_projektid(id) ON DELETE CASCADE,
+      worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      lisatud TIMESTAMP DEFAULT NOW(),
+      UNIQUE (projekt_id, worker_id)
     );
   `);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
@@ -94,7 +106,13 @@ router.get('/tulevased', noudaSisslogimist, async (req, res) => {
        FROM lidl_projektid lp
        WHERE lp.aktiivne = true
          AND EXISTS (SELECT 1 FROM lidl_projekt_poed pp WHERE pp.projekt_id = lp.id)
-       ORDER BY lp.tahtaeg NULLS LAST, lp.jrk_nr, lp.nimi`
+         AND (
+           $1::int IS NULL
+           OR NOT EXISTS (SELECT 1 FROM lidl_projekt_tootajad pt WHERE pt.projekt_id = lp.id)
+           OR EXISTS (SELECT 1 FROM lidl_projekt_tootajad pt WHERE pt.projekt_id = lp.id AND pt.worker_id = $1)
+         )
+       ORDER BY lp.tahtaeg NULLS LAST, lp.jrk_nr, lp.nimi`,
+      [req.session.isAdmin ? null : req.session.workerId]
     );
     const poed = await poedStaatusega(p.rows.map(x => x.id));
     const projektid = p.rows.map(pr => {
@@ -129,6 +147,10 @@ router.get('/admin/kokkuvote', noudaAdmin, async (req, res) => {
     await tagaInit();
     const p = await pool.query(`SELECT id, tahtaeg, markus FROM lidl_projektid`);
     const poed = await poedStaatusega(p.rows.map(x => x.id));
+    const tt = await pool.query(
+      `SELECT pt.projekt_id, w.nimi FROM lidl_projekt_tootajad pt
+       JOIN workers w ON w.id = pt.worker_id ORDER BY w.nimi`
+    );
     const kokkuvote = {};
     p.rows.forEach(pr => {
       const minu = poed.filter(x => x.projekt_id === pr.id);
@@ -136,7 +158,8 @@ router.get('/admin/kokkuvote', noudaAdmin, async (req, res) => {
         kokku: minu.length,
         tehtud: minu.filter(x => x.tehtud).length,
         tahtaeg: pr.tahtaeg,
-        markus: pr.markus
+        markus: pr.markus,
+        tootajad: tt.rows.filter(x => x.projekt_id === pr.id).map(x => x.nimi)
       };
     });
     res.json({ ok: true, kokkuvote });
@@ -174,7 +197,19 @@ router.get('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
         viimane_kuupaev: v ? v.viimane_kuupaev : null
       };
     });
-    res.json({ ok: true, projekt: projekt.rows[0], poed });
+    // Lidli töötajad + kas nad on sellele projektile määratud
+    const tootajad = await pool.query(
+      `SELECT DISTINCT w.id, w.nimi,
+              EXISTS (SELECT 1 FROM lidl_projekt_tootajad pt WHERE pt.projekt_id = $1 AND pt.worker_id = w.id) AS valitud
+       FROM workers w
+       JOIN worker_ettevotted we ON we.worker_id = w.id
+       JOIN ettevotted e ON e.id = we.ettevote_id
+       WHERE (e.tyyp = 'lidl' OR UPPER(e.nimi) = 'LIDL')
+         AND w.aktiivne = true AND COALESCE(w.arhiveeritud, false) = false
+       ORDER BY w.nimi`,
+      [projektId]
+    );
+    res.json({ ok: true, projekt: projekt.rows[0], poed, tootajad: tootajad.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -185,6 +220,8 @@ router.get('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
 router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
   const projektId = parseInt(req.params.projektId, 10);
   const ids = (Array.isArray(req.body.objekt_ids) ? req.body.objekt_ids : [])
+    .map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+  const workerIds = (Array.isArray(req.body.worker_ids) ? req.body.worker_ids : [])
     .map(x => parseInt(x, 10)).filter(x => !isNaN(x));
   const tahtaeg = req.body.tahtaeg || null;
   const markus = (req.body.markus || '').trim() || null;
@@ -204,8 +241,16 @@ router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
         [projektId, oid]
       );
     }
+    // Töötajad (tühi nimekiri = kõik Lidli töötajad näevad)
+    await client.query(`DELETE FROM lidl_projekt_tootajad WHERE projekt_id = $1`, [projektId]);
+    for (const wid of workerIds) {
+      await client.query(
+        `INSERT INTO lidl_projekt_tootajad (projekt_id, worker_id) VALUES ($1, $2) ON CONFLICT (projekt_id, worker_id) DO NOTHING`,
+        [projektId, wid]
+      );
+    }
     await client.query('COMMIT');
-    res.json({ ok: true, kokku: ids.length });
+    res.json({ ok: true, kokku: ids.length, tootajaid: workerIds.length });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error(err);
