@@ -207,6 +207,23 @@
     .lr-komm { font-size: 11px; color: var(--text4); margin-top: 1px; }
     .lr-summa { font-size: 15px; font-weight: 700; color: #4ade80; }
     body.hele .lr-summa { color: #15803d; }
+    /* Tulevased projektid (Lidl) */
+    .tp-projekt { padding: 13px 16px; border-bottom: 0.5px solid var(--border2); }
+    .tp-projekt:last-child { border-bottom: none; }
+    .tp-rida1 { display: flex; align-items: center; gap: 8px; }
+    .tp-nimi { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+    .tp-arv { font-size: 11px; color: var(--text3); white-space: nowrap; }
+    .tp-riba { height: 4px; background: var(--bg3); border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
+    .tp-riba i { display: block; height: 100%; background: #4ade80; border-radius: 4px; }
+    .tp-meta { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+    .tp-meta b { color: #f59e0b; font-weight: 600; }
+    .tp-markus { font-size: 11px; color: var(--text4); font-style: italic; margin-bottom: 8px; }
+    .tp-poed { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tp-pood { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 10px; border-radius: 8px; background: var(--bg3); border: 0.5px solid var(--bg4); color: var(--text); text-decoration: none; }
+    .tp-pood.tegemata { border-color: rgba(245,158,11,0.45); }
+    .tp-pood.tegemata::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+    .tp-pood.tehtud { color: var(--text3); background: none; }
+    .tp-naita-tehtud { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 6px 0 0; text-decoration: underline; }
     .tyhi-olek { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 13px; }
     .tp-rida { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 0.5px solid var(--border2); }
     .tp-rida:last-child { border-bottom: none; }
@@ -498,6 +515,11 @@
       <div id="minuTeatedSisu"></div>
     </div>
 
+    <div class="kaart" id="lidlProjektidKaart" style="display:none">
+      <div class="kaart-hdr"><span>&#127978;</span><span class="kaart-hdr-tekst">Tulevased projektid</span><span class="kaart-hdr-arv" id="lidlProjektidArv">0</span></div>
+      <div id="lidlProjektidSisu"></div>
+    </div>
+
     <div class="kaart">
       <div class="kaart-hdr"><span>&#128197;</span><span class="kaart-hdr-tekst" id="hdrTulevased">Tulevased tööd</span><span class="kaart-hdr-arv" id="tulevaste-arv">0</span></div>
       <div id="tulevasteToodSisu"><div class="tyhi-olek">Tulevasi töid pole kirjas</div></div>
@@ -679,7 +701,7 @@
       // HTML koostatakse onXseeria/onArved/onPadel/onLatvia lippude põhjal. Kui need jooksevad
       // paralleelselt, jõuab joonistamine vahel enne vastust valmis ja moodul jääb plaadita.
       await Promise.all([kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), kontrolliLatvia()]);
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated(), laadiLidlTulevasedProjektid()]);
     }
 
     async function kontrolliMerekohvik() {
@@ -839,6 +861,66 @@
             + '</div></div>';
         }).join('');
       } catch(e) {}
+    }
+
+    // ── TULEVASED PROJEKTID (Lidl) ─────────────────────────────
+    // Admin määrab projekti juurde poed; siin näeb töötaja, kus veel tegemata on.
+    // Poele vajutades avaneb töökirje vorm, kus projekt ja pood on juba valitud.
+    var lidlTulevased = [];
+    var lidlNaitaTehtud = {};
+    async function laadiLidlTulevasedProjektid() {
+      var kaart = document.getElementById('lidlProjektidKaart');
+      if (LV) { kaart.style.display = 'none'; return; }
+      try {
+        var r = await api('/api/lidl-poed/tulevased');
+        if (!r || !r.ok || !r.lubatud || !r.projektid || !r.projektid.length) { kaart.style.display = 'none'; return; }
+        lidlTulevased = r.projektid;
+        window._lidlEttevoteId = r.lidl_ettevote_id;
+        kaart.style.display = '';
+        joonistaLidlTulevased();
+      } catch (e) { kaart.style.display = 'none'; }
+    }
+    function joonistaLidlTulevased() {
+      var ettevoteId = window._lidlEttevoteId;
+      var taana = new Date(); taana.setHours(0,0,0,0);
+      var tegemataKokku = 0;
+      var html = lidlTulevased.map(function(p) {
+        var tegemata = p.poed.filter(function(x) { return !x.tehtud; });
+        var tehtud = p.poed.filter(function(x) { return x.tehtud; });
+        tegemataKokku += tegemata.length;
+        var pct = p.kokku ? Math.round(p.tehtud / p.kokku * 100) : 0;
+        var meta = '';
+        if (p.tahtaeg) {
+          var d = new Date(String(p.tahtaeg).substring(0,10) + 'T12:00:00');
+          var paevi = Math.ceil((d - taana) / 86400000);
+          meta = 'Tähtaeg ' + d.getDate() + '. ' + KUUD_LYHIKE[d.getMonth()]
+            + (paevi > 0 ? ' · <b>' + paevi + ' p jäänud</b>' : paevi === 0 ? ' · <b>täna</b>' : ' · <b style="color:#ef4444">' + (-paevi) + ' p üle</b>');
+        }
+        var poodLink = function(x, klass) {
+          return '<a class="tp-pood ' + klass + '" href="/tootaja-tood?ettevote=' + encodeURIComponent(ettevoteId)
+            + '&projekt=' + p.id + '&objekt=' + x.objekt_id + '">'
+            + (klass === 'tehtud' ? '✓ ' : '') + esc(x.objekt_nimi) + '</a>';
+        };
+        return '<div class="tp-projekt">'
+          + '<div class="tp-rida1"><span class="tp-nimi">' + esc(p.nimi) + '</span><span class="tp-arv">' + p.tehtud + '/' + p.kokku + ' tehtud</span></div>'
+          + '<div class="tp-riba"><i style="width:' + pct + '%"></i></div>'
+          + (meta ? '<div class="tp-meta">' + meta + '</div>' : '')
+          + (p.markus ? '<div class="tp-markus">' + esc(p.markus) + '</div>' : '')
+          + '<div class="tp-poed">' + tegemata.map(function(x) { return poodLink(x, 'tegemata'); }).join('') + '</div>'
+          + (tehtud.length
+              ? (lidlNaitaTehtud[p.id]
+                  ? '<div class="tp-poed" style="margin-top:6px">' + tehtud.map(function(x) { return poodLink(x, 'tehtud'); }).join('') + '</div>'
+                    + '<button class="tp-naita-tehtud" onclick="lidlToggleTehtud(' + p.id + ')">Peida tehtud</button>'
+                  : '<button class="tp-naita-tehtud" onclick="lidlToggleTehtud(' + p.id + ')">Näita tehtud poode (' + tehtud.length + ')</button>')
+              : '')
+          + '</div>';
+      }).join('');
+      document.getElementById('lidlProjektidSisu').innerHTML = html;
+      document.getElementById('lidlProjektidArv').textContent = tegemataKokku + ' poodi';
+    }
+    function lidlToggleTehtud(id) {
+      lidlNaitaTehtud[id] = !lidlNaitaTehtud[id];
+      joonistaLidlTulevased();
     }
 
     async function laadiTulevasedTood() {
