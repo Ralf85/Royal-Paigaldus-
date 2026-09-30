@@ -140,6 +140,7 @@ async function lpLaadi() {
       <div style="flex:1;min-width:160px">
         <div style="font-size:13px;${p.aktiivne ? '' : 'color:var(--hall);text-decoration:line-through'}">${escapeHtmlXs(p.nimi)}</div>
         ${k.kokku ? `<div style="font-size:11px;color:${valmis ? 'var(--roheline)' : 'var(--hall)'}">${valmis ? '✓ kõik poed tehtud' : (k.kokku - k.tehtud) + ' poodi veel tegemata'}${tahtaeg}</div>` : ''}
+        ${k.kokku ? `<div style="font-size:11px;color:var(--hall)">👷 ${(k.tootajad && k.tootajad.length) ? escapeHtmlXs(k.tootajad.join(', ')) : 'kõik Lidli töötajad'}</div>` : ''}
       </div>
       <button type="button" class="nupp ${k.kokku ? 'outline' : 'kull'}" style="padding:4px 10px;font-size:11px" onclick="lppAva(${p.id})">${poeSilt}</button>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--hall);cursor:pointer">
@@ -157,6 +158,7 @@ async function lpLaadi() {
 // "tehtuks", kui töötaja lisab sellele projektile + poele töökirje; käsitsi saab üle kirjutada.
 let lppProjektId = null;
 let lppPoed = [];
+let lppTootajad = [];
 function lppModal() {
   let m = document.getElementById('lppModal');
   if (m) return m;
@@ -170,6 +172,11 @@ function lppModal() {
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Tähtaeg (vabatahtlik)</label><input type="date" id="lpp-tahtaeg"></div>
           <div class="vorm-grupp"><label>Märkus töötajale (vabatahtlik)</label><input type="text" id="lpp-markus" placeholder="nt. võti poejuhatajalt, töö enne 8:00..."></div>
+        </div>
+        <div class="vorm-grupp">
+          <label>👷 Töötajad, kes seda projekti näevad</label>
+          <div id="lpp-tootajad" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div id="lpp-tootajad-info" style="font-size:11px;color:var(--hall);margin-top:4px"></div>
         </div>
         <div class="vorm-grupp">
           <label>Kleebi poodide nimekiri (numbrid)</label>
@@ -215,9 +222,34 @@ async function lppAva(projektId) {
   document.getElementById('lpp-tahtaeg').value = r.projekt.tahtaeg ? String(r.projekt.tahtaeg).split('T')[0] : '';
   document.getElementById('lpp-markus').value = r.projekt.markus || '';
   lppPoed = r.poed;
+  lppTootajad = Array.isArray(r.tootajad) ? r.tootajad : [];
+  lppJoonistaTootajad();
   // Kui midagi on juba valitud, näita vaikimisi ainult valitud poode
   document.getElementById('lpp-ainult-valitud').checked = lppPoed.some(p => p.valitud);
   lppJoonista();
+}
+function lppJoonistaTootajad() {
+  const div = document.getElementById('lpp-tootajad');
+  const info = document.getElementById('lpp-tootajad-info');
+  if (!lppTootajad.length) {
+    div.innerHTML = '<span style="font-size:12px;color:var(--hall)">Ühelgi töötajal pole LIDL ettevõtet määratud</span>';
+    info.textContent = '';
+    return;
+  }
+  div.innerHTML = lppTootajad.map((w, i) => `
+    <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;border:1px solid ${w.valitud ? 'var(--sinine)' : 'var(--piir)'};background:${w.valitud ? 'rgba(37,99,235,0.12)' : 'none'};color:var(--tekst)">
+      <input type="checkbox" ${w.valitud ? 'checked' : ''} onchange="lppToggleTootaja(${i}, this.checked)" style="width:auto;margin:0">
+      ${escapeHtmlXs(w.nimi)}
+    </label>`).join('');
+  const valitud = lppTootajad.filter(w => w.valitud).length;
+  info.innerHTML = valitud
+    ? `Projekti näevad ainult ${valitud} valitud töötaja${valitud === 1 ? '' : 't'}.`
+    : '<span style="color:var(--oranz)">Kedagi pole valitud — projekti näevad KÕIK Lidli töötajad.</span>';
+}
+function lppToggleTootaja(i, valitud) {
+  if (!lppTootajad[i]) return;
+  lppTootajad[i].valitud = valitud;
+  lppJoonistaTootajad();
 }
 function lppSulge() {
   const m = document.getElementById('lppModal');
@@ -312,6 +344,7 @@ async function lppSalvesta() {
     method: 'PUT',
     body: JSON.stringify({
       objekt_ids,
+      worker_ids: lppTootajad.filter(w => w.valitud).map(w => w.id),
       tahtaeg: document.getElementById('lpp-tahtaeg').value || null,
       markus: document.getElementById('lpp-markus').value || ''
     })
