@@ -251,6 +251,7 @@
     var valitudFotod = [];
     var salvestamine = false;
     var lidlProjektid = [];
+    var koikObjektid = [];
     function api(url, opts) {
       opts = opts || {};
       opts.headers = opts.headers || {};
@@ -298,6 +299,7 @@
       // Lae objektid
       var objektid = await api('/api/tood/objektid/' + ettevoteId);
       if (Array.isArray(objektid) && objektid.length) {
+        koikObjektid = objektid;
         var sel = document.getElementById('objekt');
         objektid.forEach(function(o) {
           var opt = document.createElement('option');
@@ -319,6 +321,22 @@
       // Lidl: lae projektide valik (fotode kaustastruktuuri jaoks)
       if (etteVoteTyyp === 'lidl') {
         await laadiLidlProjektid();
+        // Projekti valimisel tõstetakse selle projekti poed objekti valikus ette
+        document.getElementById('lidl-projekt-select').addEventListener('change', function() {
+          jarjestaObjektidProjektiJargi(this.value);
+        });
+        // Pealehe "Tulevased projektid" → poele vajutus: projekt ja pood on kohe valitud
+        var urlProjekt = params.get('projekt');
+        var urlObjekt = params.get('objekt');
+        if (urlProjekt) {
+          var lpSel = document.getElementById('lidl-projekt-select');
+          lpSel.value = urlProjekt;
+          if (lpSel.value === urlProjekt) await jarjestaObjektidProjektiJargi(urlProjekt);
+        }
+        if (urlObjekt) {
+          var oSel = document.getElementById('objekt');
+          oSel.value = urlObjekt;
+        }
       }
       // Lisakulu
       document.getElementById('lisakulu').addEventListener('input', function() {
@@ -376,6 +394,45 @@
       } catch(e) {
         console.error('Lidl projektide laadimine ebaõnnestus:', e);
       }
+    }
+    // Objekti valik projekti järgi: "📍 Selle projekti poed" (tegemata ees, tehtud järel)
+    // ja siis "Kõik poed". Kui projektil poode määratud pole, jääb tavaline nimekiri.
+    async function jarjestaObjektidProjektiJargi(projektId) {
+      var sel = document.getElementById('objekt');
+      if (!sel || !koikObjektid.length) return;
+      var valitud = sel.value;
+      var poed = [];
+      if (projektId) {
+        try {
+          var r = await api('/api/lidl-poed/projekt/' + encodeURIComponent(projektId) + '/poed');
+          poed = (r && r.ok && Array.isArray(r.poed)) ? r.poed : [];
+        } catch(e) { poed = []; }
+      }
+      sel.innerHTML = '<option value="">— Vali objekt —</option>';
+      function lisaOption(parent, o, tekst) {
+        var opt = document.createElement('option');
+        opt.value = o.id; opt.textContent = tekst || o.nimi;
+        parent.appendChild(opt);
+      }
+      if (!poed.length) {
+        koikObjektid.forEach(function(o) { lisaOption(sel, o); });
+      } else {
+        var projektiIdSet = {};
+        var tegemata = poed.filter(function(p) { return !p.tehtud; });
+        var tehtud = poed.filter(function(p) { return p.tehtud; });
+        var g1 = document.createElement('optgroup');
+        g1.label = '📍 Selle projekti poed (' + tegemata.length + ' tegemata)';
+        tegemata.concat(tehtud).forEach(function(p) {
+          projektiIdSet[p.objekt_id] = true;
+          lisaOption(g1, { id: p.objekt_id, nimi: p.objekt_nimi }, (p.tehtud ? '✓ ' : '') + p.objekt_nimi);
+        });
+        sel.appendChild(g1);
+        var g2 = document.createElement('optgroup');
+        g2.label = 'Kõik poed';
+        koikObjektid.forEach(function(o) { if (!projektiIdSet[o.id]) lisaOption(g2, o); });
+        if (g2.children.length) sel.appendChild(g2);
+      }
+      sel.value = valitud;
     }
     // ── FOTOD ────────────────────────────────────────────────
     function lisaFotod(files) {
@@ -515,6 +572,7 @@
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
         document.getElementById('kirjeldus-select').value = '';
         document.getElementById('lidl-projekt-select').value = '';
+        if (etteVoteTyyp === 'lidl') jarjestaObjektidProjektiJargi('');
         document.getElementById('kommentaar').value = '';
         var teadeTekst = '✅ Salvestatud! ' + r.tunnid + 'h';
         if (fotodKoopia.length) teadeTekst += ' · ' + fotodKoopia.length + ' pilti lisatud';
