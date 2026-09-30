@@ -366,7 +366,9 @@
       projektiInfoList = r.projektid;
       sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p, i) {
         var poode = parseInt(p.poode_arv, 10) || 0;
-        var pct = kokku ? Math.round(poode / kokku * 100) : 0;
+        // Kui admin on projektile konkreetsed poed määranud, arvestatakse kaetust ainult nende pealt
+        var pKokku = p.poode_kokku ? parseInt(p.poode_kokku, 10) : kokku;
+        var pct = pKokku ? Math.round(poode / pKokku * 100) : 0;
         var sildid = '';
         if (p.po_number) sildid += '<span class="info-silt po">PO: ' + p.po_number + '</span>';
         if (p.projekt_number) sildid += '<span class="info-silt prj">Projekt: ' + p.projekt_number + '</span>';
@@ -374,7 +376,7 @@
         return '<div class="kaart" onclick=\'avaProjektiPoed(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
           + '<div style="flex:1;min-width:0">'
           + '<div class="kaart-nimi">' + p.kirjeldus + '</div>'
-          + '<div class="kaart-meta">' + poode + '/' + kokku + ' poodi tehtud · ' + p.piltide_arv + ' pilti'
+          + '<div class="kaart-meta">' + poode + '/' + pKokku + ' poodi tehtud · ' + p.piltide_arv + ' pilti'
           + (p.viimane_kuupaev ? ' · viimati ' + formatKp(p.viimane_kuupaev) : '') + '</div>'
           + (sildid ? '<div class="info-sildid">' + sildid + '</div>' : '')
           + '<div class="kaetus-riba" style="margin-top:9px"><i style="width:' + pct + '%"></i></div>'
