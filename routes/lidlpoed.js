@@ -174,7 +174,12 @@ router.get('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
   const projektId = parseInt(req.params.projektId, 10);
   try {
     await tagaInit();
-    const projekt = await pool.query(`SELECT id, nimi, tahtaeg, markus FROM lidl_projektid WHERE id = $1`, [projektId]);
+    const projekt = await pool.query(
+      `SELECT lp.id, lp.nimi, lp.tahtaeg, lp.markus, lp.aktiivne,
+              (SELECT COUNT(*)::int FROM tookirjed t WHERE t.lidl_projekt_id = lp.id) AS kirjeid
+       FROM lidl_projektid lp WHERE lp.id = $1`,
+      [projektId]
+    );
     if (!projekt.rows.length) return res.json({ ok: false, veateade: 'Projekti ei leitud' });
     const koik = await pool.query(
       `SELECT o.id AS objekt_id, o.nimi AS objekt_nimi, o.pood_number
@@ -216,7 +221,7 @@ router.get('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
   }
 });
 
-// Salvesta projekti poodide nimekiri (asendab kogu valiku) + tähtaeg ja märkus
+// Salvesta kogu projekt: nimi, aktiivsus, tähtaeg, märkus, poed (asendab kogu valiku) ja töötajad
 router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
   const projektId = parseInt(req.params.projektId, 10);
   const ids = (Array.isArray(req.body.objekt_ids) ? req.body.objekt_ids : [])
@@ -225,11 +230,44 @@ router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
     .map(x => parseInt(x, 10)).filter(x => !isNaN(x));
   const tahtaeg = req.body.tahtaeg || null;
   const markus = (req.body.markus || '').trim() || null;
+  const uusNimi = typeof req.body.nimi === 'string' ? req.body.nimi.trim() : null;
+  const aktiivne = typeof req.body.aktiivne === 'boolean' ? req.body.aktiivne : null;
+  if (uusNimi !== null && !uusNimi) return res.json({ ok: false, veateade: 'Projekti nimi ei saa olla tühi' });
   try { await tagaInit(); } catch (e) { return res.status(500).json({ ok: false, veateade: 'Tabeli loomine ebaõnnestus: ' + e.message }); }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`UPDATE lidl_projektid SET tahtaeg = $1, markus = $2 WHERE id = $3`, [tahtaeg, markus, projektId]);
+    const vana = await client.query(`SELECT nimi FROM lidl_projektid WHERE id = $1 FOR UPDATE`, [projektId]);
+    if (!vana.rows.length) {
+      await client.query('ROLLBACK');
+      return res.json({ ok: false, veateade: 'Projekti ei leitud' });
+    }
+    const vanaNimi = vana.rows[0].nimi;
+    // Ümbernimetamine: Lidl Eesti vaates on PO/projektinumbrid ja Kristo kommentaarid seotud
+    // projekti NIMEGA — need liiguvad uue nime alla kaasa, et midagi ei kaoks.
+    if (uusNimi && uusNimi !== vanaNimi) {
+      const topelt = await client.query(`SELECT 1 FROM lidl_projektid WHERE nimi = $1 AND id <> $2`, [uusNimi, projektId]);
+      if (topelt.rows.length) {
+        await client.query('ROLLBACK');
+        return res.json({ ok: false, veateade: 'Selle nimega projekt on juba olemas' });
+      }
+      await client.query(`UPDATE lidl_projektid SET nimi = $1 WHERE id = $2`, [uusNimi, projektId]);
+      const info = await client.query(`SELECT to_regclass('lidl_projekti_info') AS t, to_regclass('kristo_kommentaarid') AS k`);
+      if (info.rows[0].t) {
+        await client.query(
+          `UPDATE lidl_projekti_info SET kirjeldus = $1
+           WHERE kirjeldus = $2 AND NOT EXISTS (SELECT 1 FROM lidl_projekti_info WHERE kirjeldus = $1)`,
+          [uusNimi, vanaNimi]
+        );
+      }
+      if (info.rows[0].k) {
+        await client.query(`UPDATE kristo_kommentaarid SET kirjeldus = $1 WHERE kirjeldus = $2`, [uusNimi, vanaNimi]);
+      }
+    }
+    await client.query(
+      `UPDATE lidl_projektid SET tahtaeg = $1, markus = $2, aktiivne = COALESCE($3, aktiivne) WHERE id = $4`,
+      [tahtaeg, markus, aktiivne, projektId]
+    );
     // Eemalda need, mida enam valitud pole (olemasolevate käsitsi staatus jääb alles)
     await client.query(
       `DELETE FROM lidl_projekt_poed WHERE projekt_id = $1 AND NOT (objekt_id = ANY($2::int[]))`,
@@ -257,6 +295,28 @@ router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
     res.status(500).json({ ok: false, veateade: 'Serveri viga: ' + err.message });
   } finally {
     client.release();
+  }
+});
+
+// Kustuta projekt — ainult siis, kui sellel pole ühtegi töökirjet (muidu kaoks fotode kaust
+// Lidl Eesti vaatest). Töökirjetega projekti saab ainult mitteaktiivseks muuta.
+router.delete('/admin/:projektId', noudaAdmin, async (req, res) => {
+  const projektId = parseInt(req.params.projektId, 10);
+  try {
+    await tagaInit();
+    const k = await pool.query(`SELECT COUNT(*)::int AS n FROM tookirjed WHERE lidl_projekt_id = $1`, [projektId]);
+    if (k.rows[0].n > 0) {
+      return res.json({
+        ok: false,
+        veateade: `Projektil on ${k.rows[0].n} töökirjet (koos fotodega), seda ei saa kustutada. Võta linnuke "Aktiivne" ära — siis kaob see töötajate valikust, aga ajalugu jääb alles.`
+      });
+    }
+    const r = await pool.query(`DELETE FROM lidl_projektid WHERE id = $1`, [projektId]);
+    if (!r.rowCount) return res.json({ ok: false, veateade: 'Projekti ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga: ' + err.message });
   }
 });
 
