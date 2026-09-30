@@ -126,10 +126,32 @@ router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
     const info = await pool.query('SELECT * FROM lidl_projekti_info');
     const infoMap = {};
     info.rows.forEach(r => { infoMap[r.kirjeldus] = r; });
+    // Projektid, millele admin on määranud konkreetsed poed (lidl_projekt_poed, vt routes/lidlpoed.js):
+    // nende kaetus arvutatakse ainult nende poodide pealt, mitte kõigi Lidli poodide pealt.
+    const maaratudMap = {};
+    try {
+      const m = await pool.query(
+        `SELECT lp.nimi,
+                COUNT(*)::int AS kokku,
+                COUNT(*) FILTER (WHERE EXISTS (
+                  SELECT 1 FROM tookirje_pildid p
+                  JOIN tookirjed t ON p.tookirje_id = t.id
+                  WHERE t.objekt_id = pp.objekt_id AND t.lidl_projekt_id = pp.projekt_id
+                ))::int AS tehtud
+         FROM lidl_projekt_poed pp
+         JOIN lidl_projektid lp ON lp.id = pp.projekt_id
+         GROUP BY lp.nimi`
+      );
+      m.rows.forEach(r => { maaratudMap[r.nimi] = r; });
+    } catch (e) { /* tabelit pole veel — kõik projektid kasutavad kõiki poode */ }
     const koik = piltidega.rows.concat(tyhjad).map(p => {
       const i = infoMap[p.kirjeldus] || {};
+      const m = maaratudMap[p.kirjeldus];
       return {
         ...p,
+        poode_arv: m ? m.tehtud : p.poode_arv,
+        poode_kokku: m ? m.kokku : null,
+        maaratud_poed: !!m,
         po_number: i.po_number || null,
         projekt_number: i.projekt_number || null,
         markus: i.markus || null,
@@ -151,6 +173,23 @@ router.get('/projekt-poed', noudaKristo, async (req, res) => {
   const { kirjeldus } = req.query;
   if (!kirjeldus) return res.json({ ok: false, veateade: 'Projekt määramata' });
   try {
+    // Kui admin on sellele projektile konkreetsed poed määranud (lidl_projekt_poed), näidatakse
+    // ainult neid. Muidu nagu varem — kõik aktiivsed Lidli poed.
+    let maaratud = false;
+    let poeFilter = '';
+    const params = [kirjeldus];
+    try {
+      const m = await pool.query(
+        `SELECT lp.id FROM lidl_projektid lp
+         WHERE lp.nimi = $1 AND EXISTS (SELECT 1 FROM lidl_projekt_poed pp WHERE pp.projekt_id = lp.id)`,
+        [kirjeldus]
+      );
+      if (m.rows.length) {
+        maaratud = true;
+        params.push(m.rows[0].id);
+        poeFilter = `AND o.id IN (SELECT objekt_id FROM lidl_projekt_poed WHERE projekt_id = $2)`;
+      }
+    } catch (e) { /* tabelit pole veel */ }
     // LEFT JOIN alampäringuga — nii jäävad alles ka poed, kus selle projekti pilte pole.
     const r = await pool.query(
       `SELECT o.id as objekt_id, o.nimi as objekt_nimi,
@@ -168,12 +207,12 @@ router.get('/projekt-poed', noudaKristo, async (req, res) => {
          WHERE ${KIRJELDUS_VOTI} = $1
          GROUP BY t.objekt_id
        ) x ON x.objekt_id = o.id
-       WHERE e.nimi = 'LIDL' AND o.aktiivne = true
+       WHERE e.nimi = 'LIDL' AND o.aktiivne = true ${poeFilter}
        ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
-      [kirjeldus]
+      params
     );
     const tehtud = r.rows.filter(x => x.piltide_arv > 0).length;
-    res.json({ ok: true, kirjeldus, poed: r.rows, tehtud, kokku: r.rows.length });
+    res.json({ ok: true, kirjeldus, poed: r.rows, tehtud, kokku: r.rows.length, maaratud_poed: maaratud });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
