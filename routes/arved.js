@@ -96,9 +96,104 @@ async function noudaArvedLubatud(req, res, next) {
 // nüüd arve_muujad tabelist, mitte kõvasti kodeeritud konstandist.
 const ROYAL_RG_KOOD = '16256983';
 
+// ── ARVE NUMERATSIOON MÜÜJA KAUPA ─────────────────────────────────────────
+// Igal müüja-ettevõttel on oma prefiks ja oma järjekorranumber:
+//   PREFIKS-AAKK-JRK, nt "RP-2610-014" = Royal Paigaldus, oktoober 2026, 14. arve.
+// AAKK tuleb arve kuupäevast. JRK jookseb müüja sees läbi kõigi kuude (ei alga igal kuul 1-st),
+// nii et number on alati unikaalne ja kasvab kronoloogiliselt.
+// Vanad arved (kujul PPKKAA+jrk, nt 300926003) jäävad muutmata.
+const FIKS_TUNNIHINNAD = { lidl: 27, cramo: 25 }; // €/h käibemaksuta, lisandub 24% KM
+
+let numbriSkeemValmis = null;
+function tagaNumbriSkeem() {
+  if (!numbriSkeemValmis) {
+    numbriSkeemValmis = (async () => {
+      await pool.query(`ALTER TABLE arve_muujad ADD COLUMN IF NOT EXISTS arve_prefiks VARCHAR(6)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS arve_muuja_loendur (
+          muuja_id INTEGER PRIMARY KEY REFERENCES arve_muujad(id) ON DELETE CASCADE,
+          jargmine_jrk INTEGER NOT NULL DEFAULT 1
+        )`);
+    })().catch(err => { numbriSkeemValmis = null; throw err; });
+  }
+  return numbriSkeemValmis;
+}
+tagaNumbriSkeem().catch(err => console.error('Arve numbri skeemi loomine ebaõnnestus:', err.message));
+
+// "Royal paigaldus OÜ" -> "RP", "Five Under Series" -> "FUS". Ettevõtlusvormid jäetakse välja.
+function tuletaPrefiks(nimi) {
+  const vormid = ['OU', 'OÜ', 'AS', 'MTU', 'MTÜ', 'UÜ', 'UU', 'FIE', 'TU', 'TÜ', 'SA'];
+  const sonad = String(nimi || '').toUpperCase()
+    .replace(/Õ/g, 'O').replace(/Ä/g, 'A').replace(/Ö/g, 'O').replace(/Ü/g, 'U').replace(/Š/g, 'S').replace(/Ž/g, 'Z')
+    .split(/[^A-Z0-9]+/).filter(s => s && !vormid.includes(s));
+  let p = sonad.map(s => s[0]).join('').slice(0, 4);
+  if (p.length < 2 && sonad[0]) p = sonad[0].slice(0, 3);
+  return p || 'AR';
+}
+function puhastaPrefiks(p) {
+  return String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+}
+// Tagastab müüja prefiksi; kui seda veel pole, tuletab nimest (unikaalsena) ja salvestab.
+async function muujaPrefiks(db, muujaId) {
+  const r = await db.query('SELECT id, ettevote_nimi, arve_prefiks FROM arve_muujad WHERE id=$1', [muujaId]);
+  if (!r.rows.length) throw new Error('Müüjat ei leitud');
+  if (r.rows[0].arve_prefiks) return r.rows[0].arve_prefiks;
+  const teised = await db.query('SELECT UPPER(arve_prefiks) AS p FROM arve_muujad WHERE id<>$1 AND arve_prefiks IS NOT NULL', [muujaId]);
+  const kasutusel = new Set(teised.rows.map(x => x.p));
+  const alus = tuletaPrefiks(r.rows[0].ettevote_nimi);
+  let p = alus, i = 2;
+  while (kasutusel.has(p)) p = (alus.slice(0, 4) + i++).slice(0, 5);
+  await db.query('UPDATE arve_muujad SET arve_prefiks=$1 WHERE id=$2', [p, muujaId]);
+  return p;
+}
+async function taidaPuuduvadPrefiksid() {
+  await tagaNumbriSkeem();
+  const r = await pool.query('SELECT id FROM arve_muujad WHERE arve_prefiks IS NULL ORDER BY vaikimisi DESC, id');
+  for (const row of r.rows) await muujaPrefiks(pool, row.id);
+}
+// Kontrollib käsitsi sisestatud prefiksit: 1–5 tähte/numbrit ja teiste müüjatega mitte kattuv.
+async function kontrolliPrefiks(prefiks, muujaId) {
+  const p = puhastaPrefiks(prefiks);
+  if (!p) return { p: null };
+  const r = await pool.query('SELECT 1 FROM arve_muujad WHERE UPPER(arve_prefiks)=$1 AND id<>$2', [p, muujaId || 0]);
+  if (r.rows.length) return { viga: `Prefiks "${p}" on juba teisel müüjal kasutusel` };
+  return { p };
+}
+function kuuVoti(kuupaev) {
+  const dt = kuupaev ? new Date(kuupaev) : new Date();
+  const d = isNaN(dt) ? new Date() : dt;
+  return String(d.getFullYear()).slice(-2) + String(d.getMonth() + 1).padStart(2, '0');
+}
+function koostaNumber(prefiks, kuupaev, jrk) {
+  return `${prefiks}-${kuuVoti(kuupaev)}-${String(jrk).padStart(3, '0')}`;
+}
+// Viitenumber tohib sisaldada ainult numbreid — võtame arve numbrist numbrid (nt RP-2610-014 -> 2610014 + kontrollnumber).
+function viitenumberNumbrist(number) {
+  const numbrid = String(number).replace(/\D/g, '');
+  return arveViitenumber(numbrid || '1');
+}
+// Vaatab järgmise numbri ilma loendurit suurendamata (eelvaade "Uus arve" aknas).
+async function vaataMuujaJargmineNumber(muujaId, kuupaev) {
+  await tagaNumbriSkeem();
+  const prefiks = await muujaPrefiks(pool, muujaId);
+  const r = await pool.query('SELECT jargmine_jrk FROM arve_muuja_loendur WHERE muuja_id=$1', [muujaId]);
+  const jrk = r.rows.length ? r.rows[0].jargmine_jrk : 1;
+  return koostaNumber(prefiks, kuupaev, jrk);
+}
+// Broneerib järgmise numbri transaktsiooni sees (rea lukustamisega, et kaks samaaegset arvet ei saaks sama numbrit).
+async function reserveeriMuujaNumber(client, muujaId, kuupaev) {
+  const prefiks = await muujaPrefiks(client, muujaId);
+  await client.query('INSERT INTO arve_muuja_loendur (muuja_id, jargmine_jrk) VALUES ($1, 1) ON CONFLICT (muuja_id) DO NOTHING', [muujaId]);
+  const r = await client.query('SELECT jargmine_jrk FROM arve_muuja_loendur WHERE muuja_id=$1 FOR UPDATE', [muujaId]);
+  const jrk = r.rows[0].jargmine_jrk;
+  await client.query('UPDATE arve_muuja_loendur SET jargmine_jrk=$1 WHERE muuja_id=$2', [jrk + 1, muujaId]);
+  return koostaNumber(prefiks, kuupaev, jrk);
+}
+
 // ── MÜÜJA-ETTEVÕTETE HALDUS (admin saab hallata mitut oma ettevõtet) ─────
 router.get('/muujad', noudaAdmin, async (req, res) => {
   try {
+    try { await taidaPuuduvadPrefiksid(); } catch (e) { console.error('Prefiksite täitmine:', e.message); }
     const r = await pool.query('SELECT * FROM arve_muujad ORDER BY vaikimisi DESC, ettevote_nimi');
     res.json({ ok: true, muujad: r.rows });
   } catch (err) {
@@ -106,29 +201,37 @@ router.get('/muujad', noudaAdmin, async (req, res) => {
   }
 });
 router.post('/muujad', noudaAdmin, async (req, res) => {
-  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane } = req.body;
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, arve_prefiks } = req.body;
   if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
   try {
+    await tagaNumbriSkeem();
+    const pk = await kontrolliPrefiks(arve_prefiks, 0);
+    if (pk.viga) return res.json({ ok: false, veateade: pk.viga });
     const juba = await pool.query('SELECT COUNT(*) FROM arve_muujad');
     const esimene = parseInt(juba.rows[0].count, 10) === 0;
     const r = await pool.query(
-      `INSERT INTO arve_muujad (ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, vaikimisi)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, esimene]
+      `INSERT INTO arve_muujad (ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, vaikimisi, arve_prefiks)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, esimene, pk.p]
     );
+    // Kui prefiksit ei sisestatud, tuletatakse see nimest automaatselt.
+    if (!pk.p) await muujaPrefiks(pool, r.rows[0].id);
     res.json({ ok: true, id: r.rows[0].id });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
 router.put('/muujad/:id', noudaAdmin, async (req, res) => {
-  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane } = req.body;
+  const { ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, swift, telefon, epost, km_kohuslane, arve_prefiks } = req.body;
   if (!ettevote_nimi || !ettevote_nimi.trim()) return res.json({ ok: false, veateade: 'Sisesta ettevõtte nimi' });
   try {
+    await tagaNumbriSkeem();
+    const pk = await kontrolliPrefiks(arve_prefiks, parseInt(req.params.id, 10));
+    if (pk.viga) return res.json({ ok: false, veateade: pk.viga });
     const r = await pool.query(
       `UPDATE arve_muujad SET ettevote_nimi=$1, aadress=$2, rg_kood=$3, kmkr=$4, pangakonto=$5, swift=$6,
-         telefon=$7, epost=$8, km_kohuslane=$9, uuendatud=NOW() WHERE id=$10`,
-      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, req.params.id]
+         telefon=$7, epost=$8, km_kohuslane=$9, uuendatud=NOW(), arve_prefiks=COALESCE($11, arve_prefiks) WHERE id=$10`,
+      [ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', swift || '', telefon || '', epost || '', km_kohuslane !== false, req.params.id, pk.p]
     );
     if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
     res.json({ ok: true });
@@ -213,33 +316,8 @@ function arveViitenumber(number) {
   return number + String(checksum);
 }
 
-// Arve number = kuupäevapõhine (PPKKAA + jrk-number selle päeva sees), nt 17.08.2026 esimene arve = "170826001".
-// Ei sõltu globaalsest järjekorrast — arveid võib lisada tagasiulatuvalt ega pea olema kronoloogilises numbrijärjekorras.
-function paevaVoti(kuupaev) {
-  const dt = new Date(kuupaev);
-  return String(dt.getDate()).padStart(2, '0') + String(dt.getMonth() + 1).padStart(2, '0') + String(dt.getFullYear()).slice(-2);
-}
-// Vaatab, milline number järgmisena antud kuupäeva jaoks väljastataks, ilma loendurit suurendamata.
-async function vaataJargmineNumber(kuupaev) {
-  const paev = paevaVoti(kuupaev);
-  const r = await pool.query('SELECT jargmine_jrk FROM arve_paeva_loendur WHERE paev=$1', [paev]);
-  const jrk = r.rows.length ? r.rows[0].jargmine_jrk : 1;
-  return paev + String(jrk).padStart(3, '0');
-}
-// Reserveerib järgmise numbri antud kuupäeva jaoks (kasutab transaktsiooni sees rea lukustamist).
-async function reserveeriJargmineNumber(client, kuupaev) {
-  const paev = paevaVoti(kuupaev);
-  const r = await client.query('SELECT jargmine_jrk FROM arve_paeva_loendur WHERE paev=$1 FOR UPDATE', [paev]);
-  let jrk;
-  if (r.rows.length) {
-    jrk = r.rows[0].jargmine_jrk;
-    await client.query('UPDATE arve_paeva_loendur SET jargmine_jrk=$1 WHERE paev=$2', [jrk + 1, paev]);
-  } else {
-    jrk = 1;
-    await client.query('INSERT INTO arve_paeva_loendur (paev, jargmine_jrk) VALUES ($1,2)', [paev]);
-  }
-  return paev + String(jrk).padStart(3, '0');
-}
+// Vanad arved kasutasid kuupäevapõhist numbrit (PPKKAA + jrk, nt "170826001") ja tabelit arve_paeva_loendur.
+// Uued arved kasutavad müüjapõhist numbrit (vt "ARVE NUMERATSIOON MÜÜJA KAUPA" ülal).
 
 function fmtKp(d) {
   const dt = new Date(d);
@@ -253,11 +331,16 @@ function fmtNum(n, kohti) {
 }
 function fmtEur(n) { return fmtNum(n, 2); }
 
-// ── JÄRGMINE ARVE NUMBER (alati tänase, arve GENEREERIMISE päeva järgi — mitte valitud arve kuupäeva järgi;
-// ainult vaatamiseks, ei broneeri) ──
+// ── JÄRGMINE ARVE NUMBER (valitud müüja + arve kuupäeva järgi; ainult vaatamiseks, ei broneeri) ──
 router.get('/jargmine-number', noudaAdmin, async (req, res) => {
   try {
-    const number = await vaataJargmineNumber(new Date());
+    let muujaId = parseInt(req.query.muuja_id, 10);
+    if (!muujaId) {
+      const v = await pool.query('SELECT id FROM arve_muujad ORDER BY vaikimisi DESC, id LIMIT 1');
+      if (!v.rows.length) return res.json({ ok: true, number: '' });
+      muujaId = v.rows[0].id;
+    }
+    const number = await vaataMuujaJargmineNumber(muujaId, req.query.kuupaev);
     res.json({ ok: true, number });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -306,8 +389,13 @@ router.delete('/valikud/:id', noudaAdmin, async (req, res) => {
 router.get('/autotaita', noudaAdmin, async (req, res) => {
   const { ettevote_id, algus, lopp, viis, esitus_hind } = req.query;
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
-  const hind = parseFloat(esitus_hind) || 0;
+  let hind = parseFloat(esitus_hind) || 0;
   try {
+    // Lidl ja Cramo tunnihind on fikseeritud (Lidl 27 €/h, Cramo 25 €/h, mõlemal + 24% KM) — ei sõltu sisestusest.
+    const eR = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
+    const tyyp = eR.rows.length ? eR.rows[0].tyyp : null;
+    if (FIKS_TUNNIHINNAD[tyyp]) hind = FIKS_TUNNIHINNAD[tyyp];
+    if (!hind) return res.json({ ok: false, veateade: 'Sisesta korrektne esitushind' });
       if (viis === 'objektid') {
       const r = await pool.query(
         `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
@@ -351,7 +439,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       const read = r.rows.filter(row => parseFloat(row.tunnid) > 0).map(row => {
         const kogus = parseFloat(row.tunnid);
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
-        return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: '', hind, summa: +(kogus * hind).toFixed(2) };
+        return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
       });
       return res.json({ ok: true, read });
     }
@@ -880,14 +968,14 @@ router.post('/', noudaAdmin, async (req, res) => {
 
     await client.query('BEGIN');
     const kp = kuupaev ? new Date(kuupaev) : new Date();
-    // Arve NUMBER lähtub genereerimise (tänase) päevast, mitte valitud "Arve kuupäev" väljast —
-    // nii saab arveid teha ka tagasiulatuva kuupäevaga ilma numbrijada segamata.
-    const number = await reserveeriJargmineNumber(client, new Date());
+    // Arve number: müüja prefiks + arve kuupäeva aasta/kuu + müüja oma järjekorranumber (nt RP-2610-014).
+    await tagaNumbriSkeem();
+    const number = await reserveeriMuujaNumber(client, valitudMuujaId, kp);
 
     const paevi = parseInt(maksetahtaeg_paevad, 10) || 14;
     const tahtaeg = new Date(kp);
     tahtaeg.setDate(tahtaeg.getDate() + paevi);
-    const viitenumber = arveViitenumber(number);
+    const viitenumber = viitenumberNumbrist(number);
 
     const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
     const kaibemaksProtsent = muujaKmKohuslane ? 24 : 0;
@@ -953,6 +1041,7 @@ router.post('/', noudaAdmin, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
+    if (err.code === '23505') return res.status(500).json({ ok: false, veateade: 'Selle numbriga arve on juba olemas — kontrolli müüja arve prefiksit' });
     res.status(500).json({ ok: false, veateade: err.message });
   } finally {
     client.release();
