@@ -26,6 +26,7 @@ async function laadiArved() {
   sel.innerHTML = '<option value="">— Vali klient —</option>' +
     `<optgroup label="Minu ettevõtted">${ettevotteOpts}</optgroup>` +
     (kliendiOpts ? `<optgroup label="Muud kliendid">${kliendiOpts}</optgroup>` : '');
+  avRenderAutotaitaNupud();
   const asSel = document.getElementById('as-ettevote');
   if (asSel) {
     asSel.innerHTML = '<option value="">— Muu / üldkulu —</option>' +
@@ -88,7 +89,7 @@ function avmRenderNimekiri() {
       ${m.logo_url ? `<img src="${m.logo_url}" style="width:44px;height:30px;object-fit:contain;background:var(--sisend-bg);border-radius:5px">` : ''}
       <div style="flex:1;min-width:140px">
         <div style="font-size:13px;font-weight:600">${m.ettevote_nimi}${m.vaikimisi ? ' <span style="font-size:10px;color:#4ade80">★ vaikimisi</span>' : ''}</div>
-        <div style="font-size:11px;color:var(--hall)">${m.km_kohuslane ? 'Käibemaksukohuslane (24%)' : 'Ei ole käibemaksukohuslane (0%)'}</div>
+        <div style="font-size:11px;color:var(--hall)">${m.km_kohuslane ? 'Käibemaksukohuslane (24%)' : 'Ei ole käibemaksukohuslane (0%)'}${m.arve_prefiks ? ` · Arve nr: <b style="color:var(--tekst2)">${m.arve_prefiks}-AAKK-001</b>` : ''}</div>
       </div>
       ${!m.vaikimisi ? `<button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmTeeVaikimisi(${m.id})">Tee vaikimisi</button>` : ''}
       <button type="button" class="nupp hall" style="padding:5px 10px;font-size:11px" onclick="avmMuudaMuuja(${m.id})">✏️</button>
@@ -110,6 +111,7 @@ function avmMuujaValitud() {
   const m = avmMuujad.find(x => x.id === id);
   avKmProtsent = (m && m.km_kohuslane) ? 24 : 0;
   avJoonistaRead();
+  avPreviewNumber();
 }
 function avmAvaKaartJaKeri() {
   avSuljeUusArveModal();
@@ -119,7 +121,7 @@ function avmAvaKaartJaKeri() {
 }
 function avmAvaVorm() {
   document.getElementById('avm-id').value = '';
-  ['avm-nimi', 'avm-aadress', 'avm-rgkood', 'avm-kmkr', 'avm-telefon', 'avm-epost', 'avm-swift', 'avm-pangakonto'].forEach(id => {
+  ['avm-nimi', 'avm-aadress', 'avm-rgkood', 'avm-kmkr', 'avm-telefon', 'avm-epost', 'avm-swift', 'avm-pangakonto', 'avm-prefiks'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('avm-km-kohuslane').checked = true;
@@ -142,6 +144,7 @@ function avmMuudaMuuja(id) {
   document.getElementById('avm-epost').value = m.epost || '';
   document.getElementById('avm-swift').value = m.swift || '';
   document.getElementById('avm-pangakonto').value = m.pangakonto || '';
+  document.getElementById('avm-prefiks').value = m.arve_prefiks || '';
   document.getElementById('avm-km-kohuslane').checked = m.km_kohuslane !== false;
   const logoPlokk = document.getElementById('avm-logo-plokk');
   logoPlokk.style.display = 'block';
@@ -164,6 +167,7 @@ async function avmSalvesta() {
     epost: document.getElementById('avm-epost').value.trim(),
     swift: document.getElementById('avm-swift').value.trim(),
     pangakonto: document.getElementById('avm-pangakonto').value.trim(),
+    arve_prefiks: document.getElementById('avm-prefiks').value.trim().toUpperCase(),
     km_kohuslane: document.getElementById('avm-km-kohuslane').checked
   };
   const r = id
@@ -278,9 +282,13 @@ async function avUuendaKmAnalyys() {
 }
 
 async function avPreviewNumber() {
-  const njr = await api('/api/arved/jargmine-number');
   const njrEl = document.getElementById('arve-jargmine-nr');
-  if (njrEl && njr.ok) njrEl.textContent = `järgmine number: ${njr.number}`;
+  const muujaEl = document.getElementById('av-muuja');
+  const kpEl = document.getElementById('av-kuupaev');
+  const muujaId = muujaEl ? muujaEl.value : '';
+  const kp = kpEl ? kpEl.value : '';
+  const njr = await api(`/api/arved/jargmine-number?muuja_id=${encodeURIComponent(muujaId)}&kuupaev=${encodeURIComponent(kp)}`);
+  if (njrEl && njr && njr.ok) njrEl.textContent = njr.number ? `järgmine number: ${njr.number}` : '';
 }
 
 let avPoList = [];
@@ -355,6 +363,7 @@ function avKlientValik() {
 }
 
 function avKlientMuutus() {
+  avRenderAutotaitaNupud();
   const valjadDiv = document.getElementById('av-ostja-valjad');
   const link = document.getElementById('av-uus-klient-link');
   const { tyyp, id } = avKlientValik();
@@ -396,6 +405,7 @@ function avKlientMuutus() {
 
 function avAvaUusKlient() {
   document.getElementById('av-klient').value = '';
+  avRenderAutotaitaNupud();
   document.getElementById('av-ostja-valjad').style.display = 'block';
   document.getElementById('av-uus-klient-link').style.display = 'none';
   document.getElementById('av-ostja-nimi').value = '';
@@ -456,6 +466,38 @@ function avJoonistaRead() {
   avUuendaKokkuvotted();
 }
 
+// Fikseeritud tunnihinnad (€/h käibemaksuta) — peavad klappima serveri FIKS_TUNNIHINNAD-ga routes/arved.js-is.
+const AV_FIKS_TUNNIHINNAD = { lidl: 27, cramo: 25 };
+
+function avValitudEttevote() {
+  const { tyyp, id } = avKlientValik();
+  if (tyyp !== 'ettevote') return null;
+  return kõikEttevotted.find(x => String(x.id) === String(id)) || null;
+}
+
+// Autotäitmise nupud sõltuvad valitud kliendist:
+//   Lidl  -> ainult "Lidl – poodide kaupa" (tunnid + km objekti/poe kaupa, 27 €/h)
+//   Cramo -> ainult "Cramo – töötajate kaupa" (tunnid töötaja kaupa, 25 €/h)
+//   muu minu ettevõte (nt Merekohvik) -> mõlemad üldised nupud, hind küsitakse
+function avRenderAutotaitaNupud() {
+  const koht = document.getElementById('av-autotaita-nupud');
+  if (!koht) return;
+  const nupp = (viis, tekst, varv) =>
+    `<button class="nupp hall" style="font-size:12px;padding:6px 12px${varv ? `;border:1px solid ${varv}` : ''}" onclick="avAutotaida('${viis}')">⚡ ${tekst}</button>`;
+  const e = avValitudEttevote();
+  if (!e) {
+    koht.innerHTML = '<span style="font-size:11px;color:var(--hall)">Autotäitmiseks vali klient „Minu ettevõtete" alt (nt Lidl või Cramo)</span>';
+    return;
+  }
+  if (e.tyyp === 'lidl') {
+    koht.innerHTML = nupp('objektid', `Lidl – täida poodide kaupa (${AV_FIKS_TUNNIHINNAD.lidl} €/h)`, '#eab308');
+  } else if (e.tyyp === 'cramo') {
+    koht.innerHTML = nupp('tootajad', `Cramo – täida töötajate kaupa (${AV_FIKS_TUNNIHINNAD.cramo} €/h)`, '#ef4444');
+  } else {
+    koht.innerHTML = nupp('objektid', 'Täida objektide kaupa') + nupp('tootajad', 'Täida töötajate kaupa');
+  }
+}
+
 async function avAutotaida(viis) {
   const { tyyp, id } = avKlientValik();
   const ettevoteId = tyyp === 'ettevote' ? id : null;
@@ -463,10 +505,14 @@ async function avAutotaida(viis) {
   const lopp = document.getElementById('av-lopp').value;
   if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Autotäitmine töötab ainult "Minu ettevõtete" klientidega (Lidl/Cramo/Muu), mitte kolmanda osapoolega.');
   if (!algus || !lopp) return naitaTeade('arve-teade', 'viga', 'Vali periood (algus ja lõpp)!');
-  const esitusHind = prompt('Esitushind (€/h, käibemaksuta) — see hind läheb arvele KLIENDILE, mitte töötaja tunnitasu:', '27');
-  if (esitusHind === null) return;
-  const esitus_hind = parseFloat(esitusHind) || 0;
-  if (!esitus_hind) return naitaTeade('arve-teade', 'viga', 'Sisesta korrektne esitushind');
+  const e = avValitudEttevote();
+  let esitus_hind = e ? AV_FIKS_TUNNIHINNAD[e.tyyp] : 0;
+  if (!esitus_hind) {
+    const esitusHind = prompt('Esitushind (€/h, käibemaksuta) — see hind läheb arvele KLIENDILE, mitte töötaja tunnitasu:', '27');
+    if (esitusHind === null) return;
+    esitus_hind = parseFloat(String(esitusHind).replace(',', '.')) || 0;
+    if (!esitus_hind) return naitaTeade('arve-teade', 'viga', 'Sisesta korrektne esitushind');
+  }
   const r = await api(`/api/arved/autotaita?ettevote_id=${ettevoteId}&algus=${algus}&lopp=${lopp}&viis=${viis}&esitus_hind=${esitus_hind}`);
   if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Autotäitmine ebaõnnestus');
   if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
