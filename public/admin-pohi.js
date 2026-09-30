@@ -146,7 +146,7 @@ async function lpLaadi() {
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--hall);cursor:pointer">
         <input type="checkbox" ${p.aktiivne ? 'checked' : ''} onchange="lpToggleAktiivne(${p.id}, this.checked)"> aktiivne
       </label>
-      <button type="button" class="nupp hall" style="padding:4px 10px;font-size:11px" onclick="lpMuudaNimi(${p.id}, '${p.nimi.replace(/'/g, "\\'")}')">✏️</button>
+      <button type="button" class="nupp hall" style="padding:4px 10px;font-size:11px" onclick="lppAva(${p.id})">✏️ Muuda</button>
     </div>`;
   }).join('');
   await lpLaadiVanad();
@@ -159,6 +159,7 @@ async function lpLaadi() {
 let lppProjektId = null;
 let lppPoed = [];
 let lppTootajad = [];
+let lppKirjeid = 0;
 function lppModal() {
   let m = document.getElementById('lppModal');
   if (m) return m;
@@ -167,8 +168,16 @@ function lppModal() {
   m.id = 'lppModal';
   m.innerHTML = `
     <div class="tootaja-modal-sisu" style="max-width:640px">
-      <div class="tm-hdr"><span id="lpp-pealkiri">🏪 Projekti poed</span><span class="tm-sulge" onclick="lppSulge()">✕</span></div>
+      <div class="tm-hdr"><span id="lpp-pealkiri">✏️ Muuda projekti</span><span class="tm-sulge" onclick="lppSulge()">✕</span></div>
       <div style="padding:14px 16px">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Projekti nimi</label><input type="text" id="lpp-nimi"></div>
+          <div class="vorm-grupp"><label>Staatus</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tekst);cursor:pointer;padding-top:8px">
+              <input type="checkbox" id="lpp-aktiivne" style="width:auto;margin:0"> Aktiivne (töötajad näevad ja saavad valida)
+            </label>
+          </div>
+        </div>
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Tähtaeg (vabatahtlik)</label><input type="date" id="lpp-tahtaeg"></div>
           <div class="vorm-grupp"><label>Märkus töötajale (vabatahtlik)</label><input type="text" id="lpp-markus" placeholder="nt. võti poejuhatajalt, töö enne 8:00..."></div>
@@ -195,9 +204,10 @@ function lppModal() {
         </div>
         <div id="lpp-nimekiri" style="max-height:48vh;overflow-y:auto;border:1px solid var(--piir);border-radius:8px"></div>
         <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
-          <button type="button" class="nupp kull" onclick="lppSalvesta()">💾 Salvesta poed</button>
-          <button type="button" class="nupp hall" onclick="lppValiKoik(false)">Tühjenda valik</button>
+          <button type="button" class="nupp kull" onclick="lppSalvesta()">💾 Salvesta</button>
+          <button type="button" class="nupp hall" onclick="lppValiKoik(false)">Tühjenda poodide valik</button>
           <span id="lpp-teade" style="font-size:12px"></span>
+          <button type="button" class="nupp punane" style="margin-left:auto" onclick="lppKustuta()">🗑️ Kustuta projekt</button>
         </div>
       </div>
     </div>`;
@@ -218,7 +228,10 @@ async function lppAva(projektId) {
     document.getElementById('lpp-nimekiri').innerHTML = `<div style="padding:16px;text-align:center;color:var(--punane)">${(r && r.veateade) || 'Laadimine ebaõnnestus'}</div>`;
     return;
   }
-  document.getElementById('lpp-pealkiri').textContent = '🏪 ' + r.projekt.nimi + ' — poed';
+  document.getElementById('lpp-pealkiri').textContent = '✏️ ' + r.projekt.nimi;
+  document.getElementById('lpp-nimi').value = r.projekt.nimi || '';
+  document.getElementById('lpp-aktiivne').checked = r.projekt.aktiivne !== false;
+  lppKirjeid = r.projekt.kirjeid || 0;
   document.getElementById('lpp-tahtaeg').value = r.projekt.tahtaeg ? String(r.projekt.tahtaeg).split('T')[0] : '';
   document.getElementById('lpp-markus').value = r.projekt.markus || '';
   lppPoed = r.poed;
@@ -335,6 +348,18 @@ async function lppStaatus(i, kasitsi) {
   lppJoonista();
   lpLaadi();
 }
+async function lppKustuta() {
+  const nimi = document.getElementById('lpp-nimi').value;
+  if (lppKirjeid > 0) {
+    alert(`Projektil "${nimi}" on ${lppKirjeid} töökirjet (koos fotodega), seda ei saa kustutada.\n\nVõta linnuke "Aktiivne" ära ja salvesta — siis kaob projekt töötajate valikust, aga ajalugu ja fotod jäävad alles.`);
+    return;
+  }
+  if (!confirm(`Kustutada projekt "${nimi}" koos poodide ja töötajate valikuga? Seda ei saa tagasi võtta.`)) return;
+  const r = await api(`/api/lidl-poed/admin/${lppProjektId}`, { method: 'DELETE' });
+  if (!r || !r.ok) { alert((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
+  lppSulge();
+  lpLaadi();
+}
 async function lppSalvesta() {
   const teade = document.getElementById('lpp-teade');
   const objekt_ids = lppPoed.filter(p => p.valitud).map(p => p.objekt_id);
@@ -345,6 +370,8 @@ async function lppSalvesta() {
     body: JSON.stringify({
       objekt_ids,
       worker_ids: lppTootajad.filter(w => w.valitud).map(w => w.id),
+      nimi: document.getElementById('lpp-nimi').value,
+      aktiivne: document.getElementById('lpp-aktiivne').checked,
       tahtaeg: document.getElementById('lpp-tahtaeg').value || null,
       markus: document.getElementById('lpp-markus').value || ''
     })
