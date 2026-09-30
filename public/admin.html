@@ -1029,6 +1029,11 @@
             <div class="vorm-grupp"><label>SWIFT</label><input id="avm-swift"></div>
           </div>
           <div class="vorm-grupp"><label>IBAN (pangakonto)</label><input id="avm-pangakonto" placeholder="EE..."></div>
+          <div class="vorm-grupp">
+            <label>Arve numbri prefiks</label>
+            <input id="avm-prefiks" maxlength="5" placeholder="nt RP (tühjaks jättes tuletatakse nimest)" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+            <div style="font-size:11px;color:var(--hall);margin-top:4px">Arve number tuleb kujul <b>PREFIKS-AAKK-JRK</b>, nt RP-2610-014. Iga müüja numbrid jooksevad eraldi.</div>
+          </div>
           <div class="vorm-grupp" style="display:flex;align-items:center;gap:8px">
             <input type="checkbox" id="avm-km-kohuslane" checked style="width:auto">
             <label for="avm-km-kohuslane" style="font-size:13px;color:var(--tekst2)">Käibemaksukohuslane — selle ettevõtte arvetele lisandub alati 24% käibemaks (kui märkimata, alati 0%)</label>
@@ -1246,9 +1251,7 @@
             <input type="date" id="av-algus" style="width:auto">
             <span style="color:var(--hall)">—</span>
             <input type="date" id="av-lopp" style="width:auto">
-            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('koond')">⚡ Täida tundide+km järgi</button>
-            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('tootajad')">⚡ Täida töötajate kaupa</button>
-            <button class="nupp hall" style="font-size:12px;padding:6px 12px" onclick="avAutotaida('objektid')">⚡ Täida objektide (poodide) kaupa</button>
+            <span id="av-autotaita-nupud" style="display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center"></span>
           </div>
         </div>
 
