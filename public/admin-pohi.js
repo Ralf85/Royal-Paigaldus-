@@ -117,23 +117,216 @@ let lpProjektid = [];
 async function lpLaadi() {
   const div = document.getElementById('lp-nimekiri');
   div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
-  const r = await api('/api/kristo/admin/projektid');
+  const [r, kv] = await Promise.all([
+    api('/api/kristo/admin/projektid'),
+    api('/api/lidl-poed/admin/kokkuvote')
+  ]);
   lpProjektid = (r && r.ok && Array.isArray(r.projektid)) ? r.projektid : [];
+  const kokkuvote = (kv && kv.ok && kv.kokkuvote) ? kv.kokkuvote : {};
   if (!lpProjektid.length) {
     div.innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Projekte pole veel lisatud</div>';
     await lpLaadiVanad();
     return;
   }
-  div.innerHTML = lpProjektid.map(p => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--piir)">
-      <span style="flex:1;font-size:13px;${p.aktiivne ? '' : 'color:var(--hall);text-decoration:line-through'}">${p.nimi}</span>
+  div.innerHTML = lpProjektid.map(p => {
+    const k = kokkuvote[p.id] || { kokku: 0, tehtud: 0 };
+    const poeSilt = k.kokku
+      ? `🏪 ${k.tehtud}/${k.kokku} poodi`
+      : '🏪 Määra poed';
+    const tahtaeg = k.tahtaeg ? ` · tähtaeg ${formatKp(k.tahtaeg)}` : '';
+    const valmis = k.kokku && k.tehtud >= k.kokku;
+    return `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--piir);flex-wrap:wrap">
+      <div style="flex:1;min-width:160px">
+        <div style="font-size:13px;${p.aktiivne ? '' : 'color:var(--hall);text-decoration:line-through'}">${escapeHtmlXs(p.nimi)}</div>
+        ${k.kokku ? `<div style="font-size:11px;color:${valmis ? 'var(--roheline)' : 'var(--hall)'}">${valmis ? '✓ kõik poed tehtud' : (k.kokku - k.tehtud) + ' poodi veel tegemata'}${tahtaeg}</div>` : ''}
+      </div>
+      <button type="button" class="nupp ${k.kokku ? 'outline' : 'kull'}" style="padding:4px 10px;font-size:11px" onclick="lppAva(${p.id})">${poeSilt}</button>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--hall);cursor:pointer">
         <input type="checkbox" ${p.aktiivne ? 'checked' : ''} onchange="lpToggleAktiivne(${p.id}, this.checked)"> aktiivne
       </label>
       <button type="button" class="nupp hall" style="padding:4px 10px;font-size:11px" onclick="lpMuudaNimi(${p.id}, '${p.nimi.replace(/'/g, "\\'")}')">✏️</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
   await lpLaadiVanad();
+}
+
+// ── Lidl projekti poed ("Tulevased projektid" töötaja pealehel) ──────────────
+// Admin valib, millistes poodides projekt tuleb teha. Töötaja näeb neid pealehel,
+// Lidl Eesti fotovaade näitab projekti all ainult neid poode. Pood muutub automaatselt
+// "tehtuks", kui töötaja lisab sellele projektile + poele töökirje; käsitsi saab üle kirjutada.
+let lppProjektId = null;
+let lppPoed = [];
+function lppModal() {
+  let m = document.getElementById('lppModal');
+  if (m) return m;
+  m = document.createElement('div');
+  m.className = 'tootaja-modal-overlay';
+  m.id = 'lppModal';
+  m.innerHTML = `
+    <div class="tootaja-modal-sisu" style="max-width:640px">
+      <div class="tm-hdr"><span id="lpp-pealkiri">🏪 Projekti poed</span><span class="tm-sulge" onclick="lppSulge()">✕</span></div>
+      <div style="padding:14px 16px">
+        <div class="vorm-rida col2">
+          <div class="vorm-grupp"><label>Tähtaeg (vabatahtlik)</label><input type="date" id="lpp-tahtaeg"></div>
+          <div class="vorm-grupp"><label>Märkus töötajale (vabatahtlik)</label><input type="text" id="lpp-markus" placeholder="nt. võti poejuhatajalt, töö enne 8:00..."></div>
+        </div>
+        <div class="vorm-grupp">
+          <label>Kleebi poodide nimekiri (numbrid)</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="lpp-kleebi" placeholder="nt. 623, 604 512 / 518..." style="flex:1">
+            <button type="button" class="nupp outline" style="padding:6px 12px;font-size:12px" onclick="lppKleebi()">Märgi</button>
+          </div>
+          <div id="lpp-kleebi-teade" style="font-size:11px;color:var(--hall);margin-top:4px"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:10px 0 8px;flex-wrap:wrap">
+          <input type="text" id="lpp-otsi" placeholder="🔍 Otsi poodi..." oninput="lppJoonista()" style="flex:1;min-width:140px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tekst2);cursor:pointer">
+            <input type="checkbox" id="lpp-ainult-valitud" onchange="lppJoonista()" style="width:auto"> ainult valitud
+          </label>
+          <span id="lpp-arv" style="font-size:12px;color:var(--hall)"></span>
+        </div>
+        <div id="lpp-nimekiri" style="max-height:48vh;overflow-y:auto;border:1px solid var(--piir);border-radius:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
+          <button type="button" class="nupp kull" onclick="lppSalvesta()">💾 Salvesta poed</button>
+          <button type="button" class="nupp hall" onclick="lppValiKoik(false)">Tühjenda valik</button>
+          <span id="lpp-teade" style="font-size:12px"></span>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  return m;
+}
+async function lppAva(projektId) {
+  lppProjektId = projektId;
+  const m = lppModal();
+  m.classList.add('avatud');
+  document.getElementById('lpp-nimekiri').innerHTML = '<div style="padding:16px;text-align:center;color:var(--hall)">Laadimine...</div>';
+  document.getElementById('lpp-teade').textContent = '';
+  document.getElementById('lpp-kleebi-teade').textContent = '';
+  document.getElementById('lpp-kleebi').value = '';
+  document.getElementById('lpp-otsi').value = '';
+  const r = await api(`/api/lidl-poed/admin/${projektId}/poed`);
+  if (!r || !r.ok) {
+    document.getElementById('lpp-nimekiri').innerHTML = `<div style="padding:16px;text-align:center;color:var(--punane)">${(r && r.veateade) || 'Laadimine ebaõnnestus'}</div>`;
+    return;
+  }
+  document.getElementById('lpp-pealkiri').textContent = '🏪 ' + r.projekt.nimi + ' — poed';
+  document.getElementById('lpp-tahtaeg').value = r.projekt.tahtaeg ? String(r.projekt.tahtaeg).split('T')[0] : '';
+  document.getElementById('lpp-markus').value = r.projekt.markus || '';
+  lppPoed = r.poed;
+  // Kui midagi on juba valitud, näita vaikimisi ainult valitud poode
+  document.getElementById('lpp-ainult-valitud').checked = lppPoed.some(p => p.valitud);
+  lppJoonista();
+}
+function lppSulge() {
+  const m = document.getElementById('lppModal');
+  if (m) m.classList.remove('avatud');
+}
+function lppPoeNumber(p) {
+  if (p.pood_number) return String(p.pood_number).trim();
+  const x = String(p.objekt_nimi || '').match(/^\s*(\d+)/);
+  return x ? x[1] : '';
+}
+function lppJoonista() {
+  const otsi = (document.getElementById('lpp-otsi').value || '').toLowerCase().trim();
+  const ainultValitud = document.getElementById('lpp-ainult-valitud').checked;
+  const valitudArv = lppPoed.filter(p => p.valitud).length;
+  document.getElementById('lpp-arv').textContent = `${valitudArv} valitud / ${lppPoed.length} poodi`;
+  const list = lppPoed
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => (!ainultValitud || p.valitud) && (!otsi || String(p.objekt_nimi).toLowerCase().includes(otsi)));
+  const div = document.getElementById('lpp-nimekiri');
+  if (!list.length) {
+    div.innerHTML = `<div style="padding:16px;text-align:center;color:var(--hall);font-size:12px">${ainultValitud ? 'Ühtegi poodi pole veel valitud — kleebi nimekiri ülal või eemalda linnuke "ainult valitud"' : 'Ühtegi poodi ei leitud'}</div>`;
+    return;
+  }
+  div.innerHTML = list.map(({ p, i }) => {
+    let staatus = '';
+    if (p.valitud) {
+      const kasitsi = p.kasitsi_tehtud === true ? ' (käsitsi)' : p.kasitsi_tehtud === false ? ' (käsitsi)' : '';
+      staatus = p.tehtud
+        ? `<span style="font-size:11px;color:var(--roheline);white-space:nowrap">✓ tehtud${kasitsi}${p.viimane_kuupaev ? ' · ' + formatKp(p.viimane_kuupaev) : ''}</span>`
+        : `<span style="font-size:11px;color:var(--oranz);white-space:nowrap">⏳ tegemata${kasitsi}</span>`;
+      const jargmine = p.tehtud ? 'false' : 'true';
+      staatus += ` <button type="button" class="nupp hall" style="padding:3px 8px;font-size:10px" title="Muuda staatust käsitsi" onclick="lppStaatus(${i}, ${jargmine})">${p.tehtud ? '↺ tegemata' : '✓ tehtud'}</button>`;
+      if (p.kasitsi_tehtud !== null && p.kasitsi_tehtud !== undefined) {
+        staatus += ` <button type="button" class="nupp hall" style="padding:3px 8px;font-size:10px" title="Tagasi automaatseks (töökirjete järgi)" onclick="lppStaatus(${i}, null)">auto</button>`;
+      }
+    }
+    return `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--piir3);cursor:pointer;${p.valitud ? 'background:var(--bg3)' : ''}">
+        <input type="checkbox" ${p.valitud ? 'checked' : ''} onchange="lppToggle(${i}, this.checked)" style="width:auto;flex-shrink:0">
+        <span style="flex:1;font-size:13px;color:var(--tekst)">${escapeHtmlXs(p.objekt_nimi)}</span>
+        <span onclick="event.preventDefault()" style="display:flex;gap:4px;align-items:center">${staatus}</span>
+      </label>`;
+  }).join('');
+}
+function lppToggle(i, valitud) {
+  if (!lppPoed[i]) return;
+  lppPoed[i].valitud = valitud;
+  lppJoonista();
+}
+function lppValiKoik(valitud) {
+  if (!valitud && !confirm('Eemaldada kõik poed sellest projektist? (Muudatus jõustub "Salvesta" vajutamisel)')) return;
+  lppPoed.forEach(p => { p.valitud = valitud; });
+  lppJoonista();
+}
+// Kleebitud tekstist leitakse kõik numbrid ja märgitakse vastavad poed (poe number või nime algus)
+function lppKleebi() {
+  const tekst = document.getElementById('lpp-kleebi').value || '';
+  const numbrid = (tekst.match(/\d+/g) || []).map(n => String(parseInt(n, 10)));
+  const teade = document.getElementById('lpp-kleebi-teade');
+  if (!numbrid.length) { teade.textContent = 'Numbreid ei leitud'; return; }
+  const leitud = [], puudu = [];
+  numbrid.forEach(n => {
+    const p = lppPoed.find(x => String(parseInt(lppPoeNumber(x), 10)) === n);
+    if (p) { p.valitud = true; leitud.push(n); }
+    else puudu.push(n);
+  });
+  teade.innerHTML = `✓ Märgitud ${leitud.length} poodi` + (puudu.length ? ` · <span style="color:var(--punane)">ei leitud: ${puudu.join(', ')}</span> (lisa need enne Objektide alla)` : '');
+  document.getElementById('lpp-ainult-valitud').checked = true;
+  lppJoonista();
+}
+async function lppStaatus(i, kasitsi) {
+  const p = lppPoed[i];
+  if (!p) return;
+  const r = await api(`/api/lidl-poed/admin/${lppProjektId}/staatus/${p.objekt_id}`, {
+    method: 'PUT', body: JSON.stringify({ kasitsi })
+  });
+  if (!r || !r.ok) {
+    alert((r && r.veateade) || 'Salvesta enne poodide valik, siis saad staatust muuta');
+    return;
+  }
+  p.kasitsi_tehtud = kasitsi;
+  p.tehtud = kasitsi === null ? (p.kirjeid > 0) : kasitsi;
+  lppJoonista();
+  lpLaadi();
+}
+async function lppSalvesta() {
+  const teade = document.getElementById('lpp-teade');
+  const objekt_ids = lppPoed.filter(p => p.valitud).map(p => p.objekt_id);
+  teade.style.color = 'var(--hall)';
+  teade.textContent = 'Salvestab...';
+  const r = await api(`/api/lidl-poed/admin/${lppProjektId}/poed`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      objekt_ids,
+      tahtaeg: document.getElementById('lpp-tahtaeg').value || null,
+      markus: document.getElementById('lpp-markus').value || ''
+    })
+  });
+  if (!r || !r.ok) {
+    teade.style.color = 'var(--punane)';
+    teade.textContent = (r && r.veateade) || 'Salvestamine ebaõnnestus';
+    return;
+  }
+  teade.style.color = 'var(--roheline)';
+  teade.textContent = `✓ Salvestatud (${objekt_ids.length} poodi)`;
+  await lppAva(lppProjektId);
+  document.getElementById('lpp-teade').style.color = 'var(--roheline)';
+  document.getElementById('lpp-teade').textContent = `✓ Salvestatud (${objekt_ids.length} poodi)`;
+  lpLaadi();
 }
 async function lpLisaProjekt() {
   const input = document.getElementById('lp-uus-nimi');
