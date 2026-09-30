@@ -428,3 +428,108 @@
 .dash-grid > * { min-width: 0; }
 #kokkuvote-tootajad-kaardid { min-width: 0; max-width: 100%; }
 .tj-foto-eemalda { white-space: nowrap; }
+
+/* ── KÜLGMENÜÜ 2.0 ────────────────────────────────────────────────────
+   Kuldne "Royal" joon: aktiivne menüüpunkt saab vasakule kuldse rööpa ja
+   kerge kuldse tausta (varem sinine plokk). Ettevõtete märgid on toonitud
+   monogrammid, alammenüüd on puujoonega seotud. Kõik värvid tulevad
+   teemamuutujatest, nii töötab hele ja tume teema. */
+.sidebar {
+  --sb-kuld: #D4B25A;
+  --sb-kuld-tekst: #E7CB7E;
+  --sb-kuld-pesu: rgba(212,178,90,0.10);
+  --sb-kuld-joon: rgba(212,178,90,0.22);
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgba(212,178,90,0.07), transparent 60%),
+    var(--sidebar-bg);
+}
+body.teema-valge .sidebar {
+  --sb-kuld: #B08A2E;
+  --sb-kuld-tekst: #7A5D14;
+  --sb-kuld-pesu: rgba(176,138,46,0.12);
+  --sb-kuld-joon: rgba(176,138,46,0.28);
+}
+.sidebar-brand { padding: 20px 18px 18px; border-bottom: 1px solid var(--sb-kuld-joon); flex-direction: column; align-items: flex-start; gap: 6px; }
+.sidebar-brand-sub { text-transform: none; letter-spacing: 0.2px; font-size: 11px; font-weight: 600; color: var(--hall); }
+
+.sidebar .tabid { gap: 1px; padding: 8px 10px 14px; }
+
+/* Rühmade pealkirjad: väike tekst + peen kuldne joon lõpuni */
+.sidebar .sidebar-nav-label {
+  text-transform: none; letter-spacing: 0.2px; font-size: 11px; font-weight: 700;
+  color: var(--hall); padding: 16px 8px 6px; align-items: center; gap: 10px;
+}
+.sidebar .sidebar-nav-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--sb-kuld-joon), transparent); }
+.sidebar .sidebar-nav-label[style*="margin-top"] { margin-top: 6px !important; }
+
+/* Menüüpunktid */
+.sidebar .tab,
+.sidebar .sidebar-projektid-toggle {
+  position: relative; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 500;
+  color: var(--tekst3); transition: background 0.15s, color 0.15s;
+}
+.sidebar .tab:hover:not(.ak),
+.sidebar .sidebar-projektid-toggle:hover { background: var(--bg3); color: var(--tekst); }
+.sidebar .sb-ic { width: 17px; height: 17px; margin-right: 11px; opacity: 0.75; transition: opacity 0.15s, color 0.15s; }
+.sidebar .tab:hover .sb-ic,
+.sidebar .sidebar-projektid-toggle:hover .sb-ic { opacity: 1; }
+
+/* Aktiivne: kuldne rööbas + kuldne pesu (sinise ploki asemel) */
+.sidebar .tab.ak { background: var(--sb-kuld-pesu); color: var(--sb-kuld-tekst); font-weight: 700; }
+.sidebar .tab.ak::before {
+  content: ''; position: absolute; left: -10px; top: 7px; bottom: 7px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--sb-kuld); box-shadow: 0 0 10px var(--sb-kuld);
+}
+.sidebar .tab.ak .sb-ic { opacity: 1; color: var(--sb-kuld); }
+
+/* Ettevõtte monogrammid: toonitud taust, värviline täht, peen rõngas */
+.sidebar .ettevote-avatar {
+  --c: #8E96A3;
+  width: 26px; height: 26px; border-radius: 8px; margin-right: 11px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  color: color-mix(in srgb, var(--c) 78%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 38%, transparent);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+body.teema-valge .sidebar .ettevote-avatar { color: color-mix(in srgb, var(--c) 80%, black); }
+.sidebar .tab:hover .ettevote-avatar,
+.sidebar .sidebar-projektid-toggle:hover .ettevote-avatar,
+.sidebar .sidebar-grupp:has(.sidebar-projektid-sisu.avatud) .ettevote-avatar {
+  background: color-mix(in srgb, var(--c) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.sidebar .tab.ak .ettevote-avatar { box-shadow: inset 0 0 0 1px var(--sb-kuld); }
+
+/* Avatud rühm: pealkiri jääb esile */
+.sidebar .sidebar-grupp { margin-top: 0; }
+.sidebar .sidebar-grupp:has(.sidebar-projektid-sisu.avatud) > .sidebar-projektid-toggle { color: var(--tekst); }
+
+/* Nool: joonistatud chevron ▾ tähemärgi asemel */
+.sidebar .sidebar-projektid-chevron {
+  display: inline-block; font-size: 0; width: 7px; height: 7px; margin-right: 4px;
+  border-right: 1.5px solid var(--hall); border-bottom: 1.5px solid var(--hall);
+  transform: rotate(45deg) translateY(-2px); transition: transform 0.2s, border-color 0.15s; opacity: 0.8;
+}
+.sidebar .sidebar-projektid-chevron.avatud { transform: rotate(-135deg) translate(-2px, 0); border-color: var(--sb-kuld); opacity: 1; }
+
+/* Alammenüü: puujoon, mis seob alamlehed ettevõttega */
+.sidebar .sidebar-projektid-sisu { padding-left: 0; margin: 2px 0 6px 22px; border-left: 1px solid var(--piir); gap: 1px; }
+.sidebar .sidebar-projektid-sisu .tab { padding: 6px 10px 6px 16px; font-size: 13px; border-radius: 0 7px 7px 0; }
+.sidebar .sidebar-projektid-sisu .tab::after {
+  content: ''; position: absolute; left: 0; top: 50%; width: 9px; height: 1px; background: var(--piir);
+}
+.sidebar .sidebar-projektid-sisu .tab.ak::before { left: -2px; top: 5px; bottom: 5px; }
+.sidebar .sidebar-projektid-sisu .tab.ak::after { background: var(--sb-kuld); }
+
+/* Klaviatuuriga liikumine: nähtav fookus */
+.sidebar .tab:focus-visible,
+.sidebar .sidebar-projektid-toggle:focus-visible { outline: 2px solid var(--sb-kuld); outline-offset: -2px; }
+
+/* Jalus */
+.sidebar-footer { border-top: 1px solid var(--sb-kuld-joon); }
+.sidebar .sidebar-tagline-card { border: 1px solid var(--sb-kuld-joon); background: var(--sb-kuld-pesu); }
+.sidebar .sidebar-tagline-title { color: var(--sb-kuld-tekst); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .tab, .sidebar .sidebar-projektid-toggle, .sidebar .sidebar-projektid-chevron, .sidebar .ettevote-avatar { transition: none; }
+}
