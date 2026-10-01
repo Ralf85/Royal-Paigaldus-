@@ -714,5 +714,18 @@
 
     init();
   </script>
+<script>
+  // Android Chrome/Brave: kellaaja/kuupäeva valija avaneb väljale vajutades (mitte ainult ikoonile)
+  (function() {
+    document.addEventListener("click", function(e) {
+      var el = e.target;
+      if (!el || el.tagName !== "INPUT") return;
+      if (el.type !== "time" && el.type !== "date") return;
+      if (typeof el.showPicker !== "function") return;
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
+      try { el.showPicker(); } catch (err) {}
+    });
+  })();
+</script>
 </body>
 </html>
