@@ -38,6 +38,9 @@
     .vorm-grupp input, .vorm-grupp select, .vorm-grupp textarea { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
     .vorm-grupp input:focus, .vorm-grupp select:focus { outline: none; border-color: #c9a84c; }
     .vorm-grupp select option { background: #0d0f13; }
+    /* Kella- ja kuupäevaväljad: tume skeem, et Androidi kellaikoon oleks nähtav ja kogu väli avaks pickeri */
+    .vorm-grupp input[type=time], .vorm-grupp input[type=date] { color-scheme: dark; cursor: pointer; min-height: 40px; }
+    .vorm-grupp input[type=time]::-webkit-calendar-picker-indicator, .vorm-grupp input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.85; cursor: pointer; }
     /* Kirjelduse valik */
     .kirjeldus-valik { display: flex; flex-direction: column; gap: 6px; }
     .kirjeldus-select { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
@@ -773,6 +776,19 @@
     document.getElementById('muutaModal').addEventListener('click', function(e) {
       if (e.target === this) sulgeModal();
     });
+    // Android Chrome/Brave: uuemates versioonides avaneb kellaaja valija ainult ikoonile vajutades.
+    // Kutsume showPicker() välja vajutusel, et ALGUS/LÕPP väljale vajutades avaneks valija alati.
+    (function() {
+      function avaPicker(e) {
+        var el = e.target;
+        if (!el || el.tagName !== "INPUT") return;
+        if (el.type !== "time" && el.type !== "date") return;
+        if (typeof el.showPicker !== "function") return;
+        if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return; // iOS töötab juba õigesti
+        try { el.showPicker(); } catch (err) { /* vanemad brauserid / iOS – jätame vaikimisi käitumise */ }
+      }
+      document.addEventListener("click", avaPicker);
+    })();
     init();
   </script>
 </body>
