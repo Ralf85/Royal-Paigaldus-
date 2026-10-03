@@ -87,6 +87,16 @@ async function api(url, opts = {}) {
   }
   const token = r.headers.get('x-session-token');
   if (token) { TOKEN = token; localStorage.setItem('adminToken', token); }
+  // Admini sessioon on aegunud (kehtib 14 päeva) või puudub: varem jäi leht lahti ja kõik nimekirjad
+  // (müüjad, kliendid, arved) olid lihtsalt tühjad, nagu oleks andmed kadunud. Nüüd suuname sisselogimisele.
+  if (r.status === 401) {
+    if (!window.__adminSessioonAegunud) {
+      window.__adminSessioonAegunud = true;
+      localStorage.removeItem('adminToken');
+      window.location = '/admin-login?aegunud=1';
+    }
+    return { ok: false, veateade: 'Sessioon on aegunud. Palun logi uuesti sisse.' };
+  }
   try {
     return await r.json();
   } catch (parseErr) {
