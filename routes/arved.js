@@ -926,7 +926,8 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
 });
 
 // ── ÜKS ARVE (koos ridadega) ───────────────────────────────────────────
-router.get('/:id', noudaAdmin, async (req, res) => {
+// Ainult numbriline id — muidu püüdis see marsruut kinni ka '/sisse-muujad' ja vastas veaga 500.
+router.get('/:id(\\d+)', noudaAdmin, async (req, res) => {
   try {
     const a = await pool.query(
       `SELECT a.*, e.nimi as ettevote_nimi FROM arved a LEFT JOIN ettevotted e ON a.ettevote_id = e.id WHERE a.id=$1`,

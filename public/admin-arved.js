@@ -544,10 +544,12 @@ async function avSalvestaArve() {
     lopp: document.getElementById('av-lopp').value || null,
     read: kehtivadRead
   };
+  // Uus vaheleht avatakse KOHE (enne serveri vastust) — Safari blokeerib akna, mis avatakse alles pärast ootamist.
+  const pdfAken = avAvaTyhiAken();
   const r = await api('/api/arved', { method: 'POST', body: JSON.stringify(body) });
-  if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
+  if (!r.ok) { if (pdfAken) pdfAken.close(); return naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus'); }
   naitaTeade('arve-teade', 'ok', `✅ Arve nr ${r.number} loodud!`);
-  window.open(`/api/arved/${r.id}/pdf?_token=${TOKEN}`, '_blank');
+  avAvaArvePdf(r.id, 'vaata', pdfAken, r.number);
   avRead = [];
   avLisaRida();
   document.getElementById('av-po').value = '';
@@ -605,6 +607,48 @@ function avFiltreeritudArved() {
   if (algus) arved = arved.filter(a => String(a.kuupaev).slice(0, 10) >= algus);
   if (lopp) arved = arved.filter(a => String(a.kuupaev).slice(0, 10) <= lopp);
   return arved;
+}
+
+// ── ARVE PDF AVAMINE / ALLALAADIMINE ──────────────────────────────────────
+// PDF küsitakse serverist sisselogimise päisega (mitte lingiga, mille sees on admini võti) ja
+// näidatakse brauseris. Nii ei sõltu avamine uue vahelehe lingist ega hüpikakende blokeerijast
+// ning arve linki edasi saates ei lähe kaasa admini ligipääs.
+function avAvaTyhiAken() {
+  let aken = null;
+  try { aken = window.open('', '_blank'); } catch (e) { aken = null; }
+  if (aken) {
+    try { aken.document.write('<title>Arve</title><p style="font-family:sans-serif;padding:24px;color:#555">Laadin arvet…</p>'); } catch (e) {}
+  }
+  return aken;
+}
+function avLaadiFailAlla(url, failiNimi) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = failiNimi;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+async function avAvaArvePdf(id, viis, aken, number) {
+  if (viis === 'vaata' && aken === undefined) aken = avAvaTyhiAken();
+  const arve = avArvedList.find(x => x.id === id);
+  const nr = number || (arve && arve.number) || id;
+  const failiNimi = `Arve ${String(nr).replace(/[\\/:*?"<>|]/g, '-')}.pdf`;
+  try {
+    const r = await fetch(`/api/arved/${id}/pdf`, { headers: { 'x-session-token': TOKEN } });
+    if (!r.ok) {
+      const tekst = r.status === 401 ? 'Sessioon on aegunud. Palun logi uuesti sisse.' : (await r.text()).slice(0, 200);
+      throw new Error(tekst || `HTTP ${r.status}`);
+    }
+    const blob = new Blob([await r.blob()], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    if (viis === 'vaata' && aken && !aken.closed) aken.location.href = url;
+    else avLaadiFailAlla(url, failiNimi); // allalaadimine, või kui brauser uut vahelehte ei lubanud
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  } catch (err) {
+    if (aken && !aken.closed) aken.close();
+    alert('Arve PDF-i ei õnnestunud avada: ' + err.message);
+  }
 }
 
 function avVaataArve(id, valitud) {
@@ -686,8 +730,8 @@ function avJoonistaArvedTabel() {
         <td style="display:flex;gap:6px">
           ${a.fail_url
             ? `<a href="${avFailUrl(a.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
-            : `<a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`}
-          <a href="/api/arved/${a.id}/pdf?_token=${TOKEN}" target="_blank" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></a>
+            : `<button type="button" onclick="avAvaArvePdf(${a.id}, 'vaata')" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`}
+          <button type="button" onclick="avAvaArvePdf(${a.id}, 'laadi')" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></button>
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
       </tr>`;
