@@ -987,6 +987,13 @@ function renderKokkuvoteTable() {
     return true;
   });
 
+  // Järjestus võla järgi: kellel on kõige rohkem saada, see on esimesena.
+  // Võrdse saldo korral nime järgi (tähestikuliselt).
+  filtreeritud.sort((x, y) => {
+    const vahe = (parseFloat(y.saadaVeel) || 0) - (parseFloat(x.saadaVeel) || 0);
+    return vahe !== 0 ? vahe : String(x.nimi).localeCompare(String(y.nimi), "et");
+  });
+
   const kokkuLeheküljed = Math.max(1, Math.ceil(filtreeritud.length / DASH_LEHE_SUURUS));
   if (dashLehekülg > kokkuLeheküljed) dashLehekülg = kokkuLeheküljed;
   const lehelised = filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
