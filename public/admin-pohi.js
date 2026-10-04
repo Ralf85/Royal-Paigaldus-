@@ -987,11 +987,17 @@ function renderKokkuvoteTable() {
     return true;
   });
 
-  // Järjestus võla järgi: kellel on kõige rohkem saada, see on esimesena.
-  // Võrdse saldo korral nime järgi (tähestikuliselt).
+  // Järjestus: 1) kellel on saada (suurim võlg ees), 2) ettemaksuga (suurim ettemaks ees),
+  // 3) nullsaldoga töötajad tähestiku järjekorras.
+  const dashSaldo = w => { const v = parseFloat(w.saadaVeel) || 0; return Math.abs(v) < 0.005 ? 0 : v; };
+  const dashGrupp = v => v > 0 ? 0 : v < 0 ? 1 : 2;
   filtreeritud.sort((x, y) => {
-    const vahe = (parseFloat(y.saadaVeel) || 0) - (parseFloat(x.saadaVeel) || 0);
-    return vahe !== 0 ? vahe : String(x.nimi).localeCompare(String(y.nimi), "et");
+    const sx = dashSaldo(x), sy = dashSaldo(y);
+    const gx = dashGrupp(sx), gy = dashGrupp(sy);
+    if (gx !== gy) return gx - gy;
+    if (gx === 0 && sx !== sy) return sy - sx;
+    if (gx === 1 && sx !== sy) return sx - sy;
+    return String(x.nimi).localeCompare(String(y.nimi), "et");
   });
 
   const kokkuLeheküljed = Math.max(1, Math.ceil(filtreeritud.length / DASH_LEHE_SUURUS));
