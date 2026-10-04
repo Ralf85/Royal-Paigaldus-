@@ -533,3 +533,32 @@ body.teema-valge .sidebar .ettevote-avatar { color: color-mix(in srgb, var(--c) 
 @media (prefers-reduced-motion: reduce) {
   .sidebar .tab, .sidebar .sidebar-projektid-toggle, .sidebar .sidebar-projektid-chevron, .sidebar .ettevote-avatar { transition: none; }
 }
+
+    /* ── Ettevõtted (tab13) ── */
+    .et-filtri-riba { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .et-filtri-riba select { width: auto; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--sisend-piir); background: var(--sisend-bg); color: var(--tekst); font-size: 13px; font-family: inherit; }
+    .et-filtri-vihje { font-size: 12px; color: var(--hall); margin-left: 4px; }
+    .et-kaardid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .et-kaart { text-align: left; font-family: inherit; cursor: pointer; background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); padding: 16px 18px; color: var(--tekst); transition: border-color .15s, transform .15s; }
+    .et-kaart:hover { border-color: var(--kuld); transform: translateY(-1px); }
+    .et-kaart.aktiivne { border-color: var(--kuld); box-shadow: inset 3px 0 0 var(--kuld); }
+    .et-kaart-pea { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+    .et-kaart-nimi { font-size: 15px; font-weight: 700; }
+    .et-kaart-read > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; }
+    .et-kaart-read span { color: var(--hall); }
+    .et-kaart-read b { font-weight: 700; white-space: nowrap; }
+    .et-kaart-km { border-top: 0.5px solid var(--piir); margin-top: 6px; padding-top: 9px !important; }
+    .et-kaart-jalus { font-size: 11px; font-weight: 700; color: var(--kuld); margin-top: 10px; }
+    .et-tyhi { padding: 32px; text-align: center; color: var(--hall); font-size: 13px; }
+    .et-tyhi-vaike { padding: 14px; background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); }
+    .et-detail { scroll-margin-top: 70px; }
+    .et-detail-pea { margin: 6px 0 4px; }
+    .et-detail-nimi { font-size: 20px; font-weight: 700; color: var(--tekst); }
+    .et-detail-sub { font-size: 12px; color: var(--hall); margin-top: 2px; }
+    .et-ala-pealkiri { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--hall); margin: 20px 0 8px; }
+    .et-stat-rida { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .et-tabel-umbris { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: var(--radius-kaart); overflow-x: auto; }
+    .et-tabel-umbris td, .et-tabel-umbris th { white-space: nowrap; }
+    .et-rida-valitud td { background: rgba(200,163,71,.10); }
+    .et-rida-tyhi td { color: var(--hall); }
+    .et-markus { font-size: 12px; color: var(--hall); line-height: 1.5; margin: 16px 0 8px; padding: 10px 12px; background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 8px; }

@@ -108,7 +108,7 @@ async function api(url, opts = {}) {
 
 const tabid = document.querySelectorAll('.tab');
 const sektsioonid = document.querySelectorAll('.sektsioon');
-const TAB_PEALKIRJAD = ['Kokkuvõte','Maksed','Töötajad','Objektid','Tulevased tööd','Fotod','Logi','Raportid','Graafik','Projektid','','X-seeria','Arved'];
+const TAB_PEALKIRJAD = ['Kokkuvõte','Maksed','Töötajad','Objektid','Tulevased tööd','Fotod','Logi','Raportid','Graafik','Projektid','','X-seeria','Arved','Ettevõtted'];
 const ETTEVOTE_GRUPP_ID = { CRAMO: 'grupp-cramo', LIDL: 'grupp-lidl', MUU: 'grupp-muu', MEREKOHVIK: 'grupp-merekohvik' };
 const ESITUSHIND_ETTEVOTE = { CRAMO: 25, LIDL: 27 };
 let avEttevoteAktiivneNimi = null;
@@ -878,6 +878,7 @@ function avatTab(i, ettevoteFilter) {
   if(i===10) laadiEttevoteLeht(filter);
   if(i===11) xsLaadiTab();
   if(i===12) laadiArved();
+  if(i===13) laadiEttevotted();
 }
 
 async function init() {
