@@ -528,6 +528,45 @@ function eemaldaSet(btn) {
 }
 
 function leiaNadal(nadalId, ryhmId) { return ((grupiAndmed[ryhmId] || {}).nadalad || []).find(function(x) { return x.id === nadalId; }); }
+// ── LEHESISESED KINNITUSED ─────────────────────────────────────────────
+// Brauseri enda confirm()/alert() aknad ei avane igas brauseris (osa Safari seadeid ja
+// rakenduse-vaated suruvad need vaikides maha — siis nupp "ei teinud midagi").
+// Seepärast küsime kinnitust lehe sees.
+function avaDialoog(tekst, kysimus) {
+  return new Promise(function(lahenda) {
+    var kate = document.createElement('div');
+    kate.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px';
+    var kast = document.createElement('div');
+    kast.setAttribute('role', 'dialog');
+    kast.setAttribute('aria-modal', 'true');
+    kast.style.cssText = 'background:var(--bg2);border:1px solid var(--piir);border-radius:14px;padding:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)';
+    var p = document.createElement('div');
+    p.style.cssText = 'font-size:14px;line-height:1.5;color:var(--tekst);white-space:pre-wrap;margin-bottom:16px';
+    p.textContent = tekst;
+    var nupud = document.createElement('div');
+    nupud.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    function sulge(v) { document.removeEventListener('keydown', klahv); kate.remove(); lahenda(v); }
+    function klahv(e) { if (e.key === 'Escape') sulge(false); }
+    if (kysimus) {
+      var ei = document.createElement('button');
+      ei.className = 'nupp hall'; ei.textContent = 'Katkesta';
+      ei.onclick = function() { sulge(false); };
+      nupud.appendChild(ei);
+    }
+    var jah = document.createElement('button');
+    jah.className = 'nupp'; jah.textContent = kysimus ? 'Jah, kinnita' : 'OK';
+    jah.onclick = function() { sulge(true); };
+    nupud.appendChild(jah);
+    kast.appendChild(p); kast.appendChild(nupud); kate.appendChild(kast);
+    kate.addEventListener('click', function(e) { if (e.target === kate) sulge(false); });
+    document.addEventListener('keydown', klahv);
+    document.body.appendChild(kate);
+    jah.focus();
+  });
+}
+function kysi(tekst) { return avaDialoog(tekst, true); }
+function teata(tekst) { return avaDialoog(tekst, false); }
+
 function naitaTeade(id, tekst, ok) { var el = document.getElementById(id); if (el) { el.className = 'teade ' + (ok ? 'ok' : 'viga'); el.textContent = tekst; } }
 
 async function salvestaSeaded(nadalId, ryhmId) {
@@ -550,7 +589,7 @@ async function salvestaSeaded(nadalId, ryhmId) {
 
 async function kinnita(kohaId, kinnitatud, ryhmId) {
   var r = await api('/api/padel/admin/kohad/' + kohaId + '/kinnitatud', { method: 'PUT', body: JSON.stringify({ kinnitatud: kinnitatud }) });
-  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  if (!r.ok) return teata(r.veateade || 'Ei õnnestunud');
   await laadiGrupp(ryhmId); laadiMaksed();
 }
 async function kinnitaKoik(nadalId, ryhmId) {
@@ -577,12 +616,12 @@ async function lisaMangija(nadalId, ryhmId) {
   await laadiGrupp(ryhmId); laadiMaksed();
 }
 async function eemaldaKoht(kohaId, ryhmId) {
-  if (!confirm('Eemaldada see mängija trennilt? Trenni tasu talle siis arvele ei lähe.')) return;
+  if (!await kysi('Eemaldada see mängija trennilt? Trenni tasu talle siis arvele ei lähe.')) return;
   await api('/api/padel/kohad/' + kohaId, { method: 'DELETE' });
   await laadiGrupp(ryhmId); laadiMaksed();
 }
 async function kustutaTrenn(nadalId, ryhmId) {
-  if (!confirm('Kustutada see trenn jäädavalt (koos tulemuste ja osalustega)?')) return;
+  if (!await kysi('Kustutada see trenn jäädavalt (koos tulemuste ja osalustega)?')) return;
   await api('/api/padel/admin/nadalad/' + nadalId, { method: 'DELETE' });
   delete lahtisedTrennid[nadalId];
   await laadiGrupp(ryhmId); laadiMaksed();
@@ -722,17 +761,17 @@ async function laadiMaksja(workerId) {
 }
 
 async function paneTasuArvele(arv) {
-  if (!confirm('Panna trennitasu arvele ' + arv + ' trennikohale?\n\nNeed on möödunud trennid, kus mängija oli Paar 1 või Paar 2 koosseisus, aga tasu polnud arvel. Nad märgitakse ka kinnitatuks.')) return;
+  if (!await kysi('Panna trennitasu arvele ' + arv + ' trennikohale?\n\nNeed on möödunud trennid, kus mängija oli Paar 1 või Paar 2 koosseisus, aga tasu polnud arvel. Nad märgitakse ka kinnitatuks.')) return;
   var r = await api('/api/padel/admin/pane-tasu-arvele', { method: 'POST' });
-  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  if (!r.ok) return teata(r.veateade || 'Ei õnnestunud');
   await laadiMaksed();
   laadiKoikTrennid();
-  alert('✓ Tasu pandi arvele ' + r.parandati + ' trennikohale.');
+  teata('✓ Tasu pandi arvele ' + r.parandati + ' trennikohale.');
 }
 
 async function markiKandis(kohtId, workerId) {
   var r = await api('/api/padel/admin/kohad/' + kohtId + '/kandis', { method: 'POST', body: JSON.stringify({ kuupaev: tanaVoti() }) });
-  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  if (!r.ok) return teata(r.veateade || 'Ei õnnestunud');
   lahtineMaksja = workerId;
   await laadiMaksed();
   laadiKoikTrennid();
@@ -741,7 +780,7 @@ async function markiKoikKandis(workerId) {
   var r = await api('/api/padel/admin/mangija/' + workerId);
   var maksmata = ((r && r.trennid) || []).filter(function(t) { return t.staatus === 'maksmata'; });
   if (!maksmata.length) return;
-  if (!confirm('Märkida kõik ' + maksmata.length + ' trenni makstuks (täna)?')) return;
+  if (!await kysi('Märkida kõik ' + maksmata.length + ' trenni makstuks (täna)?')) return;
   for (var i = 0; i < maksmata.length; i++) {
     await api('/api/padel/admin/kohad/' + maksmata[i].koht_id + '/kandis', { method: 'POST', body: JSON.stringify({ kuupaev: tanaVoti() }) });
   }
@@ -749,7 +788,7 @@ async function markiKoikKandis(workerId) {
   await laadiMaksed();
 }
 async function tyhistaKandis(makseId, workerId) {
-  if (!confirm('Võtta "kandis" märge tagasi? (Makse kustutatakse logist.)')) return;
+  if (!await kysi('Võtta "kandis" märge tagasi? (Makse kustutatakse logist.)')) return;
   await api('/api/padel/admin/maksed/' + makseId, { method: 'DELETE' });
   lahtineMaksja = workerId;
   await laadiMaksed();
@@ -759,12 +798,12 @@ async function lisaMakse(workerId) {
   var kuupaev = document.getElementById('makse-kp-' + workerId).value;
   var kommentaar = document.getElementById('makse-kommentaar-' + workerId).value;
   var r = await api('/api/padel/admin/maksed', { method: 'POST', body: JSON.stringify({ worker_id: workerId, summa: summa, kuupaev: kuupaev, kommentaar: kommentaar }) });
-  if (!r.ok) return alert(r.veateade || 'Ei õnnestunud');
+  if (!r.ok) return teata(r.veateade || 'Ei õnnestunud');
   lahtineMaksja = workerId;
   await laadiMaksed();
 }
 async function kustutaMakse(id, workerId) {
-  if (!confirm('Kustutada see makse?')) return;
+  if (!await kysi('Kustutada see makse?')) return;
   await api('/api/padel/admin/maksed/' + id, { method: 'DELETE' });
   lahtineMaksja = workerId;
   await laadiMaksed();
@@ -835,11 +874,11 @@ async function lisaLiige(ryhmId) {
   var workerId = document.getElementById('lisa-sel-' + ryhmId).value;
   if (!workerId) return;
   var r = await api('/api/padel/admin/ryhmad/' + ryhmId + '/liikmed', { method: 'POST', body: JSON.stringify({ worker_id: workerId }) });
-  if (!r.ok) return alert(r.veateade || 'Viga');
+  if (!r.ok) return teata(r.veateade || 'Viga');
   await laadiKoikTrennid(); laadiMaksed();
 }
 async function eemaldaLiige(liigeId) {
-  if (!confirm('Eemaldada see liige grupist?')) return;
+  if (!await kysi('Eemaldada see liige grupist?')) return;
   await api('/api/padel/admin/liikmed/' + liigeId, { method: 'DELETE' });
   await laadiKoikTrennid(); laadiMaksed();
 }
