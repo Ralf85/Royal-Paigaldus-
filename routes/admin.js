@@ -158,8 +158,9 @@ router.put('/tootajad/:id/arhiveeri', noudaAdmin, async (req, res) => {
       await pool.query('UPDATE workers SET arhiveeritud=true, aktiivne=false WHERE id=$1', [req.params.id]);
       await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
     } else {
-      // Taastamisel jätame sisselogimise teadlikult väljalülitatuks — admin lülitab käsitsi sisse, kui vaja
-      await pool.query('UPDATE workers SET arhiveeritud=false WHERE id=$1', [req.params.id]);
+      // Taastamisel muutub töötaja kohe aktiivseks (ilmub tavalisse nimekirja ja saab sisse logida).
+      // Varem jäi ta mitteaktiivseks ja "kadus": arhiivist läinud, aga aktiivsete all teda polnud.
+      await pool.query('UPDATE workers SET arhiveeritud=false, aktiivne=true WHERE id=$1', [req.params.id]);
     }
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,

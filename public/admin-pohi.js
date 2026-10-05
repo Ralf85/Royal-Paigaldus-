@@ -1740,7 +1740,7 @@ function tjRenderArhiiv() {
 }
 
 async function tjTaastaTootaja(id) {
-  if (!await kysi('Taastad selle töötaja aktiivsete töötajate nimekirja? Sisselogimine (aktiivne) jääb teadlikult välja lülitatuks, kuni lülitad selle eraldi sisse.')) return;
+  if (!await kysi('Taastad selle töötaja aktiivsete töötajate nimekirja?\n\nTa saab oma PIN-koodiga kohe uuesti sisse logida.')) return;
   await api(`/api/admin/tootajad/${id}/arhiveeri`, { method: 'PUT', body: JSON.stringify({ arhiveeritud: false }) });
   await laadiTootajad();
 }
@@ -1865,40 +1865,62 @@ function tjRenderDetailTabSisu(w, we) {
   return `<div id="tj-ajalugu-sisu"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>`;
 }
 
-let tjMoodulidCache = null;
+// Töötaja ligipääsud lisamoodulitele ühes kohas. Iga rida lülitab sama ligipääsu, mida saab muuta ka
+// vastava mooduli enda lehel (X-seeria, Padel, Arved jne) — eraldi õiguste süsteemi siin ei ole.
+// Varem küsis see vaheleht serverist aadresse, mida polnud olemas, ja jäi tühjaks.
+const TJ_MOODULID = [
+  { kood: 'xseeria',  nimi: 'X-seeria',                          grupp: 'Projektid', api: '/api/xseeria/admin/lubatud' },
+  { kood: 'edgf',     nimi: 'EDGF kulud',                        grupp: 'Projektid', api: '/api/edgf/admin/lubatud' },
+  { kood: 're',       nimi: 'Rally Estonia kulud',               grupp: 'Projektid', api: '/api/re/admin/lubatud' },
+  { kood: 'arved',    nimi: 'Arved (raamatupidaja vaade)',       grupp: 'Arved',     api: '/api/arved/admin/lubatud' },
+  { kood: 'omaarved', nimi: 'Minu arved (oma ettevõtte arved)',  grupp: 'Arved',     api: '/api/omaarved/admin/lubatud' },
+  { kood: 'padel',    nimi: 'Padel',                             grupp: 'Vaba aeg',  api: '/api/padel/admin/lubatud' }
+];
 async function tjLaadiMoodulid(workerId) {
   const div = document.getElementById('tj-moodulid-sisu');
   if (!div) return;
-  if (!tjMoodulidCache) {
-    const r = await api('/api/admin/moodulid');
-    tjMoodulidCache = Array.isArray(r) ? r : [];
-  }
-  const oigusedR = await api('/api/admin/tootaja-oigused/' + workerId);
-  const oigused = {};
-  (Array.isArray(oigusedR) ? oigusedR : []).forEach(o => { oigused[o.moodul_kood] = o.tase; });
-  if (!tjMoodulidCache.length) {
-    div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Ühtegi moodulit pole veel loodud</div>';
-    return;
-  }
+  // Iga mooduli ligipääsunimekiri + projektide nimekiri korraga
+  const [vastused, projR] = await Promise.all([
+    Promise.all(TJ_MOODULID.map(m => api(m.api))),
+    api('/api/projektid/admin/projektid')
+  ]);
+  const read = TJ_MOODULID.map((m, i) => {
+    const nimekiri = Array.isArray(vastused[i]) ? vastused[i] : null;
+    const mina = nimekiri ? nimekiri.find(w => w.id === workerId) : null;
+    return { ...m, viga: !nimekiri, lubatud: !!(mina && mina.lubatud) };
+  });
+  const projektid = (projR && Array.isArray(projR.projektid)) ? projR.projektid.filter(p => p.aktiivne !== false) : [];
+  const projLubatud = await Promise.all(projektid.map(p => api(`/api/projektid/admin/${p.id}/lubatud`)));
+  projektid.forEach((p, i) => {
+    const nimekiri = Array.isArray(projLubatud[i]) ? projLubatud[i] : null;
+    const mina = nimekiri ? nimekiri.find(w => w.id === workerId) : null;
+    read.push({ kood: 'projekt-' + p.id, nimi: `${p.ikoon || '📁'} ${p.nimi}`, grupp: 'Kuluprojektid', api: `/api/projektid/admin/${p.id}/lubatud`, viga: !nimekiri, lubatud: !!(mina && mina.lubatud) });
+  });
+  if (document.getElementById('tj-moodulid-sisu') !== div) return; // vahepeal valiti teine töötaja/vaheleht
+  tjMoodulidRead = read;
   const grupid = {};
-  tjMoodulidCache.forEach(m => { (grupid[m.grupp || 'muu'] = grupid[m.grupp || 'muu'] || []).push(m); });
+  read.forEach((m, i) => { (grupid[m.grupp] = grupid[m.grupp] || []).push({ ...m, idx: i }); });
   div.innerHTML = Object.entries(grupid).map(([grupp, moodulid]) => `
-    <div class="tj-sektsioon-pealkiri">${grupp.toUpperCase()}</div>
+    <div class="tj-sektsioon-pealkiri">${tmEsc(grupp)}</div>
     ${moodulid.map(m => `
       <div class="tj-ligipaas-rida">
-        <span>${m.nimi}</span>
-        <select onchange="tjMuudaMooduliOigus(${workerId}, '${m.kood}', this.value)" style="width:auto">
-          <option value="" ${!oigused[m.kood] ? 'selected' : ''}>Pole ligipääsu</option>
-          <option value="vaata" ${oigused[m.kood]==='vaata' ? 'selected' : ''}>Ainult vaata</option>
-          <option value="muuda" ${oigused[m.kood]==='muuda' ? 'selected' : ''}>Vaata + Muuda</option>
-        </select>
+        <span>${tmEsc(m.nimi)}${m.viga ? ' <span style="font-size:11px;color:var(--punane)">(ei saanud laadida)</span>' : ''}</span>
+        <label class="toggle-switch"><input type="checkbox" ${m.lubatud ? 'checked' : ''} ${m.viga ? 'disabled' : ''} onchange="tjMuudaMooduliOigus(${workerId}, ${m.idx}, this)"><span class="toggle-slider"></span></label>
       </div>
     `).join('')}
-  `).join('');
+  `).join('') + '<div style="font-size:11px;color:var(--hall);padding:10px 0 0">Muudatus salvestub kohe. Ligipääs tähendab, et töötaja näeb seda moodulit oma vaates.</div>';
 }
+let tjMoodulidRead = [];
 
-async function tjMuudaMooduliOigus(workerId, mooduliKood, tase) {
-  await api('/api/admin/tootaja-oigused', { method: 'POST', body: JSON.stringify({ worker_id: workerId, moodul_kood: mooduliKood, tase: tase || null }) });
+async function tjMuudaMooduliOigus(workerId, idx, lyliti) {
+  const m = tjMoodulidRead[idx];
+  if (!m) return;
+  const lubatud = lyliti.checked;
+  const r = await api(`${m.api}/${workerId}`, { method: 'POST', body: JSON.stringify({ lubatud }) });
+  if (!r || r.ok === false) {
+    lyliti.checked = !lubatud; // salvestamine ebaõnnestus -> lüliti tagasi
+    teata('Ligipääsu muutmine ebaõnnestus' + (r && r.veateade ? ': ' + r.veateade : ''));
+  }
 }
 
 async function tjLaadiAjalugu(workerId) {

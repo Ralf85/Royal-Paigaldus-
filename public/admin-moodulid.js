@@ -4,11 +4,12 @@ let pkAktiivneId = null;
 let pkKoikProjektid = [];
 
 async function pkLaadiTab() {
-  const r = await api('/api/projektid/admin/nimekiri');
-  pkKoikProjektid = Array.isArray(r) ? r : [];
+  // Server vastab kujul { ok, projektid: [...] } (varem küsis liides aadressi, mida serveris pole).
+  const r = await api('/api/projektid/admin/projektid');
+  pkKoikProjektid = (r && Array.isArray(r.projektid)) ? r.projektid : (Array.isArray(r) ? r : []);
   const div = document.getElementById('pk-valik');
   div.innerHTML = pkKoikProjektid.map(p => `
-    <button class="nupp ${pkAktiivneId===p.id?'kull':'hall'}" onclick="pkValiProjekt(${p.id})">${p.ikoon||'📁'} ${p.nimi}</button>
+    <button class="nupp ${pkAktiivneId===p.id?'kull':'hall'}" onclick="pkValiProjekt(${p.id})">${tmEsc(p.ikoon||'📁')} ${tmEsc(p.nimi)}</button>
   `).join('');
   if (pkAktiivneId && pkKoikProjektid.some(p=>p.id===pkAktiivneId)) {
     document.getElementById('pk-sisu').style.display = 'block';
@@ -30,7 +31,7 @@ async function pkLooProjekt() {
   const ikoon = document.getElementById('pk-uus-ikoon').value.trim() || '📁';
   const varv = document.getElementById('pk-uus-varv').value;
   if (!nimi) return naitaTeade('pk-uus-teade','viga','Sisesta projekti nimi');
-  const r = await api('/api/projektid/admin/nimekiri', { method:'POST', body: JSON.stringify({ nimi, ikoon, varv }) });
+  const r = await api('/api/projektid/admin/projektid', { method:'POST', body: JSON.stringify({ nimi, ikoon, varv }) });
   if (r && r.ok) {
     naitaTeade('pk-uus-teade','ok','✅ Loodud!');
     document.getElementById('pk-uus-nimi').value='';
@@ -100,7 +101,7 @@ async function pkLaadiKuludReal(query) {
   const kokku = list.reduce((s,k)=>s+parseFloat(k.summa||0),0);
   div.innerHTML = `<div style="padding:10px 18px;font-size:12px;color:var(--hall)">Kokku: <b style="color:var(--tekst)">${kokku.toFixed(2)} €</b> (${list.length} kirjet)</div>
     <table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Kirjeldus</th><th style="text-align:right">Summa</th></tr></thead><tbody>` +
-    list.map(k => `<tr><td>${formatKp(k.kuupaev)}</td><td>${tmEsc(k.worker_nimi||'—')}</td><td>${tmEsc(k.kirjeldus||'—')}</td><td style="text-align:right">${parseFloat(k.summa).toFixed(2)} €</td></tr>`).join('') +
+    list.map(k => `<tr><td>${formatKp(k.kuupaev)}</td><td>${tmEsc(k.worker_nimi||'—')}</td><td>${tmEsc(k.selgitus||k.kirjeldus||'—')}${k.foto_url ? ` <a href="#" onclick="ftAvaPilt('${tmEsc(k.foto_url)}');return false;" title="Vaata tšekki" style="text-decoration:none">📎</a>` : ''}</td><td style="text-align:right">${parseFloat(k.summa).toFixed(2)} €</td></tr>`).join('') +
     '</tbody></table>';
 }
 
@@ -249,15 +250,121 @@ function escapeHtmlXs(s) {
 }
 
 // ── FOTOD ────────────────────────────────────────────────────────
+// Kaks vaadet: "Viimased" (tööd koos piltidega, uuemad ees) ja "Objektide kaupa" (objekt -> kõik pildid + ZIP).
+// Kasutab serveri aadresse /api/pildid/admin/... (varem küsis leht aadressi, mida serveris polnud).
+let ftVaade = 'viimased';
+let ftEttevoteId = '';
+let ftObjekt = null;
+
+// Cloudinary pisipilt (kiirem laadimine); muu aadressi puhul jääb pilt muutmata.
+function ftPisipilt(url, laius) {
+  return String(url || '').replace('/image/upload/', `/image/upload/c_fill,w_${laius || 320},h_${Math.round((laius || 320) * 0.72)},q_auto,f_auto/`);
+}
+function ftKuupaev(kp) {
+  const d = new Date(kp);
+  return isNaN(d) ? '' : `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+}
+function ftAvaPilt(url) {
+  const kate = document.createElement('div');
+  kate.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = 'Foto';
+  img.style.cssText = 'max-width:100%;max-height:100%;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,0.6)';
+  kate.appendChild(img);
+  const sulge = () => { document.removeEventListener('keydown', klahv, true); kate.remove(); };
+  const klahv = (e) => { if (e.key === 'Escape') sulge(); };
+  kate.addEventListener('click', sulge);
+  document.addEventListener('keydown', klahv, true);
+  document.body.appendChild(kate);
+}
+function ftPildiRuut(url, alltekst) {
+  return `<button type="button" onclick="ftAvaPilt('${tmEsc(url)}')" style="border:none;padding:0;border-radius:8px;overflow:hidden;background:var(--bg3);cursor:zoom-in;text-align:left">
+    <img src="${tmEsc(ftPisipilt(url))}" loading="lazy" alt="Foto" style="width:100%;height:110px;object-fit:cover;display:block">
+    ${alltekst ? `<div style="padding:5px 8px;font-size:10px;color:var(--hall);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${alltekst}</div>` : ''}
+  </button>`;
+}
+
 async function laadiFotod() {
   const div = document.getElementById('fotodSisu');
+  if (!div) return;
   div.innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
-  const r = await api('/api/fotod/admin/nimekiri');
+  const ettevotted = await api('/api/pildid/admin/ettevotted-kokkuvote');
+  const eList = (Array.isArray(ettevotted) ? ettevotted : []).filter(e => parseInt(e.piltide_arv, 10) > 0);
+  const kokku = eList.reduce((s, e) => s + (parseInt(e.piltide_arv, 10) || 0), 0);
+  if (!kokku) {
+    div.innerHTML = '<div style="color:var(--hall);font-size:13px;text-align:center;padding:24px">Fotosid pole veel üles laetud</div>';
+    return;
+  }
+  const chip = (id, tekst) => `<button type="button" class="nupp ${String(ftEttevoteId) === String(id) ? 'kull' : 'hall'}" style="font-size:12px;padding:6px 12px" onclick="ftValiEttevote('${id}')">${tekst}</button>`;
+  const vaateNupp = (v, tekst) => `<button type="button" class="nupp ${ftVaade === v ? 'kull' : 'outline'}" style="font-size:12px;padding:6px 12px" onclick="ftValiVaade('${v}')">${tekst}</button>`;
+  div.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      ${chip('', `Kõik (${kokku})`)}
+      ${eList.map(e => chip(e.id, `${tmEsc(e.nimi)} (${e.piltide_arv})`)).join('')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      ${vaateNupp('viimased', '🕒 Viimased tööd')}
+      ${vaateNupp('objektid', '🏬 Objektide kaupa')}
+    </div>
+    <div id="ft-keha"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>`;
+  if (ftVaade === 'objektid') await (ftObjekt ? ftNaitaObjekt(ftObjekt.id, ftObjekt.nimi) : ftLaadiObjektid());
+  else await ftLaadiViimased();
+}
+function ftValiEttevote(id) { ftEttevoteId = id; ftObjekt = null; laadiFotod(); }
+function ftValiVaade(v) { ftVaade = v; ftObjekt = null; laadiFotod(); }
+
+async function ftLaadiViimased() {
+  const keha = document.getElementById('ft-keha');
+  const r = await api('/api/pildid/admin/kronoloogia?limit=60' + (ftEttevoteId ? `&ettevote_id=${ftEttevoteId}` : ''));
   const list = Array.isArray(r) ? r : [];
-  if (!list.length) { div.innerHTML = '<div style="color:var(--hall);font-size:13px;text-align:center;padding:24px">Fotosid pole veel üles laetud</div>'; return; }
-  div.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">` +
-    list.map(f => `<div style="border-radius:8px;overflow:hidden;background:var(--bg3)"><img src="${f.url}" style="width:100%;height:110px;object-fit:cover;display:block"><div style="padding:6px 8px;font-size:10px;color:var(--hall)">${f.objekt_nimi||''}</div></div>`).join('') +
-    '</div>';
+  if (!list.length) { keha.innerHTML = '<div style="color:var(--hall);font-size:13px;text-align:center;padding:24px">Selle valikuga fotosid ei leitud</div>'; return; }
+  keha.innerHTML = list.map(t => {
+    const pildid = Array.isArray(t.pildid) ? t.pildid.filter(p => p && p.url) : [];
+    return `<div style="padding:12px 0;border-top:0.5px solid var(--piir2)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;margin-bottom:8px">
+        <b style="font-size:13px">${tmEsc(t.objekt_nimi || '—')}</b>
+        <span style="font-size:12px;color:var(--hall)">${tmEsc(t.ettevote_nimi || '')} · ${ftKuupaev(t.kuupaev)} · ${tmEsc(t.worker_nimi || '')} · ${pildid.length} fotot</span>
+      </div>
+      ${t.kommentaar ? `<div style="font-size:12px;color:var(--tekst3);margin-bottom:8px">${tmEsc(t.kommentaar)}</div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">${pildid.map(p => ftPildiRuut(p.url, '')).join('')}</div>
+    </div>`;
+  }).join('') + (list.length >= 60 ? '<div style="font-size:11px;color:var(--hall);padding:10px 0">Näidatud on 60 viimast tööd. Vanemad leiad vaatest „Objektide kaupa".</div>' : '');
+}
+
+async function ftLaadiObjektid() {
+  const keha = document.getElementById('ft-keha');
+  const r = await api('/api/pildid/admin/objektid' + (ftEttevoteId ? `?ettevote_id=${ftEttevoteId}` : ''));
+  const list = Array.isArray(r) ? r : [];
+  if (!list.length) { keha.innerHTML = '<div style="color:var(--hall);font-size:13px;text-align:center;padding:24px">Selle valikuga fotosid ei leitud</div>'; return; }
+  ftObjektid = list;
+  keha.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">` + list.map((o, i) => `
+    <button type="button" class="nupp hall" style="text-align:left;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center" onclick="ftNaitaObjektIdx(${i})">
+      <span><span style="display:block;font-weight:700;color:var(--tekst)">${tmEsc(o.nimi)}</span><span style="font-size:11px">${tmEsc(o.ettevote_nimi || '')}</span></span>
+      <span style="font-size:12px;white-space:nowrap">📷 ${o.piltide_arv}</span>
+    </button>`).join('') + '</div>';
+}
+let ftObjektid = [];
+function ftNaitaObjektIdx(i) { const o = ftObjektid[i]; if (o) ftNaitaObjekt(o.id, o.nimi); }
+
+async function ftNaitaObjekt(objektId, nimi) {
+  ftObjekt = { id: objektId, nimi };
+  const keha = document.getElementById('ft-keha');
+  keha.innerHTML = '<div style="color:var(--hall);font-size:13px">Laadimine...</div>';
+  const r = await api('/api/pildid/admin/objekt/' + objektId);
+  const list = Array.isArray(r) ? r : [];
+  keha.innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <button type="button" class="nupp outline" style="font-size:12px;padding:6px 12px" onclick="ftObjekt=null;ftLaadiObjektid()">‹ Tagasi objektide juurde</button>
+      <b style="font-size:14px">${tmEsc(nimi || '')}</b>
+      <span style="font-size:12px;color:var(--hall)">${list.length} fotot</span>
+      ${list.length ? `<button type="button" class="nupp kull" style="font-size:12px;padding:6px 12px;margin-left:auto" onclick="ftLaadiZip(${objektId})">⬇️ Laadi kõik alla (ZIP)</button>` : ''}
+    </div>` + (list.length
+      ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">${list.map(p => ftPildiRuut(p.url, `${ftKuupaev(p.kuupaev)} · ${tmEsc(p.worker_nimi || '')}`)).join('')}</div>`
+      : '<div style="color:var(--hall);font-size:13px;text-align:center;padding:24px">Sellel objektil fotosid pole</div>');
+}
+function ftLaadiZip(objektId) {
+  laadiFailServerist('/api/pildid/admin/zip/' + objektId, 'pildid.zip', { teade: '⏳ Pakin fotosid ZIP-i — suurema hulga puhul võib see võtta aega…' });
 }
 
 function välju() {
