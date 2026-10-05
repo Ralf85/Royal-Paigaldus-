@@ -58,6 +58,33 @@ async function noudaPadelLigipaas(req, res, next) {
   }
 }
 
+// ── GRUPI LIIKMELISUSE KONTROLL ───────────────────────────────────────────
+// Padeli ligipääsust üksi ei piisa: mängija tohib näha ja muuta ainult NENDE gruppide trenne,
+// kuhu ta ise kuulub (uksekood, kellaaeg, paarid, tulemused, sõnumid). Oma grupi sees jääb
+// kõigile liikmetele endine vabadus. Admin pääseb igale poole.
+// allikas: 'ryhm' (:id on grupi id), 'nadal' (:id on trenni id) või 'koht' (:id on trennikoha id).
+function noudaRyhmaLiige(allikas) {
+  const paring = {
+    ryhm: 'SELECT $1::int AS ryhm_id',
+    nadal: 'SELECT ryhm_id FROM padel_nadalad WHERE id=$1::int',
+    koht: 'SELECT pn.ryhm_id FROM padel_kohad pk JOIN padel_nadalad pn ON pn.id = pk.nadal_id WHERE pk.id=$1::int'
+  }[allikas];
+  return async (req, res, next) => {
+    if (req.session && req.session.isAdmin) return next();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ ok: false, veateade: 'Vale päring' });
+    try {
+      const r = await pool.query(paring, [id]);
+      if (!r.rows.length) return res.json({ ok: false, veateade: 'Ei leitud' });
+      const liige = await pool.query('SELECT 1 FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id=$2', [r.rows[0].ryhm_id, req.session.workerId]);
+      if (!liige.rows.length) return res.status(403).json({ ok: false, veateade: 'Sa pole selle grupi liige' });
+      next();
+    } catch (err) {
+      res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+    }
+  };
+}
+
 // Kas mul on ligipääs Padel moodulile? (kasutab liides, et otsustada, kas lehte üldse näidata)
 router.get('/kontroll', noudaSisslogimist, async (req, res) => {
   try {
@@ -166,8 +193,11 @@ router.delete('/admin/liikmed/:id', noudaAdmin, async (req, res) => {
 router.post('/liikmed/:id/foto', noudaPadelLigipaas, upload.single('foto'), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Pilti ei leitud' });
   try {
-    const vana = await pool.query('SELECT foto_public_id FROM padel_liikmed WHERE id=$1', [req.params.id]);
+    const vana = await pool.query('SELECT foto_public_id, worker_id FROM padel_liikmed WHERE id=$1', [req.params.id]);
     if (!vana.rows.length) return res.json({ ok: false, veateade: 'Liiget ei leitud' });
+    if (!req.session.isAdmin && vana.rows[0].worker_id !== req.session.workerId) {
+      return res.status(403).json({ ok: false, veateade: 'Pilti saab muuta ainult mängija ise' });
+    }
     if (vana.rows[0].foto_public_id) {
       try { await getCloudinary().uploader.destroy(vana.rows[0].foto_public_id); } catch (e) {}
     }
@@ -298,7 +328,7 @@ router.get('/minu', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Kogu grupi vaade: liikmed, edetabel, viimased nädalad
-router.get('/ryhm/:id', noudaPadelLigipaas, async (req, res) => {
+router.get('/ryhm/:id', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   try {
     const ryhmR = await pool.query('SELECT * FROM padel_ryhmad WHERE id=$1', [req.params.id]);
     if (!ryhmR.rows.length) return res.json({ ok: false, veateade: 'Gruppi ei leitud' });
@@ -398,7 +428,7 @@ router.post('/admin/ryhmad/:id/genereeri-nadalad', noudaAdmin, async (req, res) 
   }
 });
 
-router.post('/ryhm/:id/nadal', noudaPadelLigipaas, async (req, res) => {
+router.post('/ryhm/:id/nadal', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   const { kuupaev } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev puudub' });
   try {
@@ -411,7 +441,7 @@ router.post('/ryhm/:id/nadal', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Märgi osalus/mitteosalus + asendaja ühe koha kohta
-router.put('/kohad/:id/osalus', noudaPadelLigipaas, async (req, res) => {
+router.put('/kohad/:id/osalus', noudaPadelLigipaas, noudaRyhmaLiige('koht'), async (req, res) => {
   const { osaleb, asendaja_nimi } = req.body;
   try {
     const ryhmHinnaR = await pool.query(
@@ -437,7 +467,7 @@ router.put('/kohad/:id/osalus', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Varem kasutatud asendajate nimed selle grupi jaoks (rippmenüü täitmiseks)
-router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, async (req, res) => {
+router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   try {
     const r = await pool.query('SELECT nimi FROM padel_asendajad WHERE ryhm_id=$1 ORDER BY nimi', [req.params.id]);
     res.json({ ok: true, nimed: r.rows.map(x => x.nimi) });
@@ -450,7 +480,7 @@ router.get('/ryhm/:id/asendajad', noudaPadelLigipaas, async (req, res) => {
 // registreerunud) — asendajate asemel mängib nüüd alati päris inimene otse enda nime all.
 // Esimesed 4 registreerujat saavad automaatselt paari, ülejäänud lähevad ootele ("paar" = NULL),
 // aga paare saab hiljem alati vabalt ümber tõsta (vt /kohad/:id/paar).
-router.post('/nadalad/:id/registreeru', noudaPadelLigipaas, async (req, res) => {
+router.post('/nadalad/:id/registreeru', noudaPadelLigipaas, noudaRyhmaLiige('nadal'), async (req, res) => {
   try {
     const nadalR = await pool.query(
       `SELECT pn.ryhm_id, r.hind FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id WHERE pn.id=$1`,
@@ -490,7 +520,7 @@ router.post('/nadalad/:id/registreeru', noudaPadelLigipaas, async (req, res) => 
 // Lisa KONKREETNE inimene KONKREETSESSE paari-kohta (Playtomicu-laadne "+ Lisa mängija").
 // Kui lisad iseennast, on koht kohe kinnitatud. Kui lisad kellegi TEISE, jääb koht
 // "ootab kinnitust" olekusse, kuni see inimene ise kinnitab (vt /kohad/:id/kinnita).
-router.post('/nadalad/:id/lisa', noudaPadelLigipaas, async (req, res) => {
+router.post('/nadalad/:id/lisa', noudaPadelLigipaas, noudaRyhmaLiige('nadal'), async (req, res) => {
   const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
   const liigeId = parseInt(req.body.liige_id, 10);
   if (!paar || !liigeId) return res.json({ ok: false, veateade: 'Vale päring' });
@@ -521,7 +551,7 @@ router.post('/nadalad/:id/lisa', noudaPadelLigipaas, async (req, res) => {
 
 // Kinnita ENDA koht, kui keegi teine sind trennile lisas. Ainult see inimene ise (või admin)
 // saab oma kohta kinnitada — see on päris kinnitus, mitte lihtsalt kellegi teise vajutus.
-router.put('/kohad/:id/kinnita', noudaPadelLigipaas, async (req, res) => {
+router.put('/kohad/:id/kinnita', noudaPadelLigipaas, noudaRyhmaLiige('koht'), async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT pl.worker_id FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id WHERE pk.id=$1`,
@@ -540,7 +570,7 @@ router.put('/kohad/:id/kinnita', noudaPadelLigipaas, async (req, res) => {
 
 // Paari vaba muutmine — täielik vabadus panna keegi Paar 1 / Paar 2 / Ootele, ükskõik millal
 // (enne trenni või kohapeal), niikaua kui tulemust pole veel sisestatud.
-router.put('/kohad/:id/paar', noudaPadelLigipaas, async (req, res) => {
+router.put('/kohad/:id/paar', noudaPadelLigipaas, noudaRyhmaLiige('koht'), async (req, res) => {
   const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
   try {
     await pool.query('UPDATE padel_kohad SET paar=$1 WHERE id=$2', [paar, req.params.id]);
@@ -552,7 +582,7 @@ router.put('/kohad/:id/paar', noudaPadelLigipaas, async (req, res) => {
 
 // Eemalda kellegi registreering sellelt trennilt täielikult (nt kui keegi loobus ja teine peab
 // tema asemel sisse kirjutama, vms erandjuhtum).
-router.delete('/kohad/:id', noudaPadelLigipaas, async (req, res) => {
+router.delete('/kohad/:id', noudaPadelLigipaas, noudaRyhmaLiige('koht'), async (req, res) => {
   try {
     await pool.query('DELETE FROM padel_kohad WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
@@ -563,7 +593,7 @@ router.delete('/kohad/:id', noudaPadelLigipaas, async (req, res) => {
 
 // Sisesta/muuda nädala setid (kehtib kohe, ei vaja kinnitust). Asendab kõik setid korraga.
 // Playtomicust saadud uksekood selle trenni jaoks (4 kohta, kõik grupi liikmed näevad/saavad muuta)
-router.put('/nadalad/:id/uksekood', noudaPadelLigipaas, async (req, res) => {
+router.put('/nadalad/:id/uksekood', noudaPadelLigipaas, noudaRyhmaLiige('nadal'), async (req, res) => {
   const kood = (req.body.kood || '').trim();
   if (kood && !/^[0-9]{1,4}$/.test(kood)) return res.json({ ok: false, veateade: 'Uksekood peab olema kuni 4 numbrit' });
   try {
@@ -576,7 +606,7 @@ router.put('/nadalad/:id/uksekood', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Selle konkreetse trenni algusaeg (kui erineb grupi vaikimisi kellaajast)
-router.put('/nadalad/:id/kellaaeg', noudaPadelLigipaas, async (req, res) => {
+router.put('/nadalad/:id/kellaaeg', noudaPadelLigipaas, noudaRyhmaLiige('nadal'), async (req, res) => {
   const kellaaeg = (req.body.kellaaeg || '').trim();
   if (kellaaeg && !/^([01]\d|2[0-3]):[0-5]\d$/.test(kellaaeg)) return res.json({ ok: false, veateade: 'Vale kellaaja formaat (nt 18:30)' });
   try {
@@ -587,7 +617,7 @@ router.put('/nadalad/:id/kellaaeg', noudaPadelLigipaas, async (req, res) => {
   }
 });
 
-router.put('/nadalad/:id/setid', noudaPadelLigipaas, async (req, res) => {
+router.put('/nadalad/:id/setid', noudaPadelLigipaas, noudaRyhmaLiige('nadal'), async (req, res) => {
   const { setid } = req.body;
   if (!Array.isArray(setid) || !setid.length) return res.json({ ok: false, veateade: 'Lisa vähemalt üks geimi tulemus' });
   const puhtad = [];
@@ -1003,7 +1033,7 @@ router.get('/statistika', noudaPadelLigipaas, async (req, res) => {
 });
 
 // Saada kõigile grupi liikmetele meeldetuletus (push) — admin või liige ise
-router.post('/ryhm/:id/meeldetuletus', noudaPadelLigipaas, async (req, res) => {
+router.post('/ryhm/:id/meeldetuletus', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   try {
     const ryhmR = await pool.query('SELECT nimi FROM padel_ryhmad WHERE id=$1', [req.params.id]);
     const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
@@ -1019,7 +1049,7 @@ router.post('/ryhm/:id/meeldetuletus', noudaPadelLigipaas, async (req, res) => {
 
 // Vabas vormis sõnum grupikaaslas(t)ele (nt "maksa võlg ära", "palju õnne võidu puhul!") —
 // iga Padel-liige tohib saata, mitte ainult admin. Saab valida kogu grupile või ühele liikmele.
-router.post('/ryhm/:id/sonum', noudaPadelLigipaas, async (req, res) => {
+router.post('/ryhm/:id/sonum', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   const { pealkiri, sonum, liige_id } = req.body;
   if (!pealkiri || !sonum) return res.json({ ok: false, veateade: 'Kirjuta pealkiri ja sõnum' });
   try {
