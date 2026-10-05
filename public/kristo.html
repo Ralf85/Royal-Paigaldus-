@@ -116,6 +116,7 @@
       </div>
     </div>
   </div>
+  <script src="/failid.js"></script>
   <script>
     var TOKEN = localStorage.getItem('workerToken') || '';
     var tase = 1;
@@ -240,8 +241,8 @@
 
     async function laadiZip() {
       if (!valitudObjekt) return;
-      var url = '/api/kristo/zip/' + valitudObjekt.id + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus || '') + '&_token=' + encodeURIComponent(TOKEN);
-      window.open(url, '_blank');
+      var url = '/api/kristo/zip/' + valitudObjekt.id + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus || '');
+      await rpLaeFail(url, TOKEN, 'pildid.zip');
     }
 
     // ── Kommentaarid ───────────────────────────────────────────

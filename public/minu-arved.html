@@ -169,6 +169,7 @@
 
   </div>
 
+<script src="/failid.js"></script>
 <script>
 var TOKEN = localStorage.getItem('workerToken') || '';
 if (!TOKEN) window.location.replace('/');
@@ -412,8 +413,8 @@ async function salvestaArve() {
   if (!r.ok) { teade.className = 'teade viga'; teade.textContent = 'Viga: ' + (r.veateade || 'salvestamine ebaõnnestus'); return; }
   teade.className = 'teade ok';
   teade.innerHTML = '✅ Arve nr ' + r.number + ' loodud — '
-    + '<a class="laadi" href="/api/omaarved/' + r.id + '/pdf?_token=' + TOKEN + '" target="_blank">ava PDF</a>'
-    + ' · <a class="laadi" href="/api/omaarved/' + r.id + '/pdf?laadi=1&_token=' + TOKEN + '">laadi alla</a>'
+    + '<a class="laadi" href="#" onclick="rpLaeFail(\'/api/omaarved/' + r.id + '/pdf\', TOKEN, \'Arve.pdf\', { ava: true });return false;">ava PDF</a>'
+    + ' · <a class="laadi" href="#" onclick="rpLaeFail(\'/api/omaarved/' + r.id + '/pdf?laadi=1\', TOKEN, \'Arve.pdf\');return false;">laadi alla</a>'
     + ' · <a class="laadi" href="#" onclick="saadaEmail(' + r.id + ',\'' + (document.getElementById('s-epost').value.trim() || '').replace(/'/g,"\\'") + '\');return false;">📧 saada e-mailiga</a>';
   document.getElementById('read-body').innerHTML = '';
   lisaRida();
@@ -454,7 +455,7 @@ async function laadiAjalugu() {
         '<td>' + a.saaja_nimi + '</td>' +
         '<td style="text-align:right;font-weight:600">' + fmtEur(a.kokku) + '</td>' +
         '<td><span class="staatus" style="' + (a.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (a.staatus === 'makstud' ? '✅ Makstud' : '⏳ Maksmata') + '</span></td>' +
-        '<td><a class="laadi" href="/api/omaarved/' + a.id + '/pdf?_token=' + TOKEN + '" target="_blank">📄 Ava</a> · <a class="laadi" href="/api/omaarved/' + a.id + '/pdf?laadi=1&_token=' + TOKEN + '">⬇️ Laadi</a> · <a class="laadi" href="#" onclick="saadaEmail(' + a.id + ',' + (a.saaja_epost ? "'" + a.saaja_epost.replace(/'/g,"\\'") + "'" : 'null') + ');return false;">📧 Saada</a></td></tr>';
+        '<td><a class="laadi" href="#" onclick="rpLaeFail(\'/api/omaarved/' + a.id + '/pdf\', TOKEN, \'Arve.pdf\', { ava: true });return false;">📄 Ava</a> · <a class="laadi" href="#" onclick="rpLaeFail(\'/api/omaarved/' + a.id + '/pdf?laadi=1\', TOKEN, \'Arve.pdf\');return false;">⬇️ Laadi</a> · <a class="laadi" href="#" onclick="saadaEmail(' + a.id + ',' + (a.saaja_epost ? "'" + a.saaja_epost.replace(/'/g,"\\'") + "'" : 'null') + ');return false;">📧 Saada</a></td></tr>';
     }).join('') + '</tbody></table>';
 }
 function valiArve(id, checked) {
@@ -475,7 +476,7 @@ function valiKoik(checked) {
 function laadiValitudZip() {
   var ids = Object.keys(valitud);
   if (!ids.length) return;
-  window.open('/api/omaarved/zip?ids=' + ids.join(',') + '&_token=' + TOKEN, '_blank');
+  rpLaeFail('/api/omaarved/zip?ids=' + ids.join(','), TOKEN, 'Minu_arved.zip');
 }
 
 init();

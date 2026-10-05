@@ -855,6 +855,39 @@ async function initDB() {
       );
     `);
 
+    // ── TABELID JA VEERUD, MIS OLID SENI AINULT PÄRIS ANDMEBAASIS (kunagi käsitsi loodud) ──
+    // Kood kasutab neid, aga siin neid ei loodud — tühja andmebaasi peal (nt varukoopiast taastamisel)
+    // andsid raportid ja kokkuvõte seetõttu vea. Olemasolevas andmebaasis ei muuda need käsud midagi.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS re_kulud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE,
+        kuupaev DATE NOT NULL,
+        summa DECIMAL(10,2) NOT NULL,
+        selgitus TEXT NOT NULL,
+        foto_url TEXT,
+        foto_public_id TEXT,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS re_lubatud (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE CASCADE UNIQUE
+      );
+      CREATE TABLE IF NOT EXISTS kristo_kommentaarid (
+        id SERIAL PRIMARY KEY,
+        objekt_id INTEGER REFERENCES objektid(id) ON DELETE CASCADE,
+        kirjeldus TEXT,
+        tekst TEXT NOT NULL,
+        loetud BOOLEAN DEFAULT false,
+        lahendatud BOOLEAN DEFAULT false,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS muu_tunnitasu DECIMAL(10,2);`);
+    await client.query(`ALTER TABLE maksed ADD COLUMN IF NOT EXISTS ettevote_id INTEGER REFERENCES ettevotted(id);`);
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id);`);
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS viide_tyyp VARCHAR(20) DEFAULT 'po';`);
+
     // ── SISSELOGIMISE KAITSE (valed PIN-katsed IP kaupa, vt loginkaitse.js) ──
     await client.query(`
       CREATE TABLE IF NOT EXISTS login_katsed (

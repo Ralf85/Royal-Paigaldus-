@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const archiver = require('archiver');
+const { looZip, lisaUrl, lopetaZip, kpNimeks } = require('../zipabi');
 const https = require('https');
 const http = require('http');
 
@@ -200,18 +201,13 @@ router.get('/admin/zip/:objektId', noudaAdmin, async (req, res) => {
     const objektNimi = pildid.rows[0].objekt_nimi.replace(/[^a-zA-Z0-9]/g, '_');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${objektNimi}_pildid.zip"`);
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
+    const { archive, olek } = looZip(res);
     for (const pilt of pildid.rows) {
-      const kuupaev = String(pilt.kuupaev).split('T')[0];
-      const fileName = `${kuupaev}_${pilt.worker_nimi}_${pilt.nimi || 'pilt.jpg'}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
-      await new Promise((resolve, reject) => {
-        const url = new URL(pilt.url);
-        const proto = url.protocol === 'https:' ? https : http;
-        proto.get(pilt.url, (imgRes) => { archive.append(imgRes, { name: fileName }); imgRes.on('end', resolve); imgRes.on('error', reject); }).on('error', reject);
-      });
+      if (olek.katkenud) break;
+      const fileName = `${kpNimeks(pilt.kuupaev)}_${pilt.worker_nimi}_${pilt.nimi || 'pilt.jpg'}`;
+      await lisaUrl(archive, olek, pilt.url, fileName);
     }
-    archive.finalize();
+    await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });

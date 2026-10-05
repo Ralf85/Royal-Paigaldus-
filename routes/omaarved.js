@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const PDFDocument = require('pdfkit');
 const archiver = require('archiver');
+const { looZip, lopetaZip, zipNimi, kpNimeks, laadiPuhver } = require('../zipabi');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const https = require('https');
@@ -30,15 +31,7 @@ const uploadLogo = multer({
 });
 // Kasutame arve PDF genereerimisel logo joonistamiseks — pdfkit vajab Bufferit, mitte URL-i.
 function fetchImageBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https:') ? https : http;
-    proto.get(url, r => {
-      const chunks = [];
-      r.on('data', c => chunks.push(c));
-      r.on('end', () => resolve(Buffer.concat(chunks)));
-      r.on('error', reject);
-    }).on('error', reject);
-  });
+  return laadiPuhver(url, 10000); // ooteajaga — kinni jäänud logo ei jäta PDF-i lõputult ootama
 }
 
 // ── TÖÖTAJA ISIKLIK ARVETE MOODUL ────────────────────────────────────────
@@ -517,8 +510,7 @@ router.get('/zip', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="Minu_arved.zip"`);
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
+    const { archive, olek } = looZip(res);
     // Valitud arved võivad olla eri müüja-ettevõtete nimel — laadi iga müüja andmed/logo ainult
     // korra ja pane vahemällu, et sama ettevõtte pilti mitu korda uuesti alla ei laetaks.
     const muujaCache = {};
@@ -532,14 +524,14 @@ router.get('/zip', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
       }
       const { muuja, logoBuf } = muujaCache[arve.muuja_id];
       if (!muuja) continue;
-      const kuupaev = String(arve.kuupaev).split('T')[0];
-      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.saaja_nimi || 'saaja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
+      const kuupaev = kpNimeks(arve.kuupaev);
+      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.saaja_nimi || 'saaja')}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-_.]/g, '_');
       const readR = await pool.query('SELECT * FROM omaarve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
       arve.viitenumber = arveViitenumber(arve.number);
       const doc = renderOmaArvePdf(muuja, arve, readR.rows, logoBuf);
-      archive.append(doc, { name: `${nimiAlus}.pdf` });
+      archive.append(doc, { name: zipNimi(olek, `${nimiAlus}.pdf`) });
     }
-    archive.finalize();
+    await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });

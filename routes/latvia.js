@@ -6,6 +6,7 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const { looZip, lisaUrl, lopetaZip, kpNimeks } = require('../zipabi');
 const https = require('https');
 const http = require('http');
 
@@ -552,24 +553,15 @@ router.get('/gallery/zip/:storeId', noudaLvLigipaas, async (req, res) => {
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${storeName}_photos.zip"`);
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
+    const { archive, olek } = looZip(res);
     let nr = 0;
     for (const photo of photos.rows) {
       nr++;
-      const date = String(photo.work_date).split('T')[0];
-      const fileName = `${date}_${nr}_${photo.file_name || 'photo.jpg'}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
-      await new Promise((resolve, reject) => {
-        const u = new URL(photo.url);
-        const proto = u.protocol === 'https:' ? https : http;
-        proto.get(photo.url, (imgRes) => {
-          archive.append(imgRes, { name: fileName });
-          imgRes.on('end', resolve);
-          imgRes.on('error', reject);
-        }).on('error', reject);
-      });
+      if (olek.katkenud) break;
+      const fileName = `${kpNimeks(photo.work_date)}_${nr}_${photo.file_name || 'photo.jpg'}`;
+      await lisaUrl(archive, olek, photo.url, fileName);
     }
-    archive.finalize();
+    await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: err.message });

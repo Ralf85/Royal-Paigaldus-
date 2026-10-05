@@ -249,7 +249,7 @@ function kuvaKalender(andmed, aasta, kuu) {
   let algusNadala = esimene.getDay();
   algusNadala = algusNadala === 0 ? 6 : algusNadala - 1; // E=0
   
-  const tana = new Date().toISOString().split('T')[0];
+  const tana = kpISO(new Date());
   
   let html = `
     <div class="kalender-paev-label">E</div>

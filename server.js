@@ -42,7 +42,9 @@ const PORT = process.env.PORT || 8080;
 const ADMIN_SESSIOON_PAEVI = 14;
 const WORKER_SESSIOON_PAEVI = 180;
 const GRAAFIK_ADMIN_SESSIOON_PAEVI = 30;
-app.use(express.json());
+// Vaikimisi piir on 100 KB — suurem Exceli raport (sajad read saadetakse ühe päringuna) ei mahtunud ära
+// ja raport andis vea. 5 MB on piisav varu.
+app.use(express.json({ limit: '5mb' }));
 function puhastaTekst(obj, sygavus) {
   if (sygavus > 6) return;
   for (const voti of Object.keys(obj)) {
@@ -156,9 +158,12 @@ app.use('/api', (req, res) => {
 // Ühine veakäsitleja — siia jõuavad kõik marsruutides püüdmata vead (vt "KOKKUJOOKSMISE KAITSE" ülal).
 app.use((err, req, res, next) => {
   const failiViga = err && (err.name === 'MulterError' || /Ainult pildid|Ainult/.test(err.message || ''));
-  if (!failiViga) console.error(`❌ Viga: ${req.method} ${req.originalUrl} —`, err && err.stack ? err.stack : err);
+  const kliendiViga = err && (err.type === 'entity.too.large' || err.type === 'entity.parse.failed');
+  if (!failiViga && !kliendiViga) console.error(`❌ Viga: ${req.method} ${req.originalUrl} —`, err && err.stack ? err.stack : err);
   // Vastus juba pooleli (nt ZIP-i allalaadimine) -> katkestame ühenduse, uut vastust saata ei saa.
   if (res.headersSent) { try { res.destroy(); } catch (e) {} return; }
+  if (err && err.type === 'entity.too.large') return res.status(413).json({ ok: false, veateade: 'Päring on liiga suur — vali lühem periood' });
+  if (err && err.type === 'entity.parse.failed') return res.status(400).json({ ok: false, veateade: 'Vigane päring' });
   if (failiViga) {
     const tekst = err.code === 'LIMIT_FILE_SIZE' ? 'Fail on liiga suur' : (err.message || 'Faili üleslaadimine ebaõnnestus');
     return res.status(400).json({ ok: false, veateade: tekst });

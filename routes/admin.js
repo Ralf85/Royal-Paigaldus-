@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { Parser } = require('json2csv');
+const { csvFail, csvArv, csvKuupaev, onKuupaev, loeAastaKuu, failiPais } = require('../csvabi');
 const { saadaTeavitus } = require('./push');
 const { Resend } = require('resend');
 const cloudinary = require('cloudinary').v2;
@@ -721,7 +722,10 @@ router.get('/tootaja-kuu', noudaAdmin, async (req, res) => {
 // ── CSV RAPORT ────────────────────────────────────────────────────
 
 router.get('/raport-csv', noudaAdmin, async (req, res) => {
-  const { aasta, kuu } = req.query;
+  const ak = loeAastaKuu(req.query.aasta, req.query.kuu);
+  if (!ak) return res.status(400).json({ ok: false, veateade: 'Vali korrektne aasta ja kuu' });
+  const { aasta, kuu } = ak;
+  try {
 
   // Tookirjed
   const r = await pool.query(
@@ -758,47 +762,41 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
     [aasta, kuu]
   );
 
-  const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
+  const PAIS = ['tootaja','ettevote','objekt','kuupaev','algus','lopp','tunnid','tunnitasu','summa','km','km_raha','lisakulu','lisakulu_selgitus','kommentaar'];
 
   const tookirjeRead = r.rows.map(k => [
     k.tootaja, k.ettevote, k.objekt, k.kuupaev, k.algus, k.lopp,
-    String(parseFloat(k.tunnid)).replace('.', ','),
-    String(parseFloat(k.tunnitasu)).replace('.', ','),
-    String(parseFloat(k.summa)).replace('.', ','),
-    String(parseFloat(k.km)).replace('.', ','),
-    String(parseFloat(k.km_raha)).replace('.', ','),
-    String(parseFloat(k.lisakulu_summa)).replace('.', ','),
+    csvArv(k.tunnid), csvArv(k.tunnitasu), csvArv(k.summa), csvArv(k.km), csvArv(k.km_raha), csvArv(k.lisakulu_summa),
     k.lisakulu_selgitus || '',
     k.kommentaar || ''
-  ].join(';'));
+  ]);
 
   // EDGF read — summa läheb "lisakulu" veergu
   const edgfRead = edgf.rows.map(e => [
     e.tootaja, 'EDGF 2026', '', e.kuupaev, '', '',
     '0', '0', '0', '0', '0',
-    String(parseFloat(e.summa)).replace('.', ','),
+    csvArv(e.summa),
     e.selgitus || '',
     ''
-  ].join(';'));
-
-  const koikRead = [...tookirjeRead, ...edgfRead];
-
-  if (!koikRead.length) {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.send('﻿' + header + '\r\n');
-    return;
-  }
+  ]);
 
   const kuu2 = `${aasta}-${String(kuu).padStart(2,'0')}`;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="raport-${kuu2}.csv"`);
-  res.send('﻿' + header + '\r\n' + koikRead.join('\r\n'));
+  res.send(csvFail([PAIS, ...tookirjeRead, ...edgfRead]));
+  } catch (err) {
+    console.error('raport-csv viga:', err);
+    res.status(500).json({ ok: false, veateade: 'Raporti koostamine ebaõnnestus' });
+  }
 });
 
 
 router.post('/raport-excel', noudaAdmin, async (req, res) => {
-  const { andmed, tyyp, algus, lopp, esitus_hind } = req.body;
-  if (!andmed || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
+  const { andmed, algus, lopp } = req.body;
+  if (!Array.isArray(andmed) || !andmed.length) return res.status(400).json({ ok: false, veateade: 'Andmed puuduvad' });
+  // Puuduv tüüp või hind ei tohi raportit katki teha (varem tekkis viga, kui ettevõttel tüüp puudus).
+  const tyyp = String(req.body.tyyp || 'muu').toLowerCase();
+  const esitus_hind = parseFloat(req.body.esitus_hind) || 0;
 
   try {
     const ExcelJS = require('exceljs');
@@ -1101,8 +1099,10 @@ async function laeTootajaAndmed(worker_id, algus, lopp) {
 router.get('/tootaja-raport-excel', noudaAdmin, async (req, res) => {
   const { worker_id, algus, lopp } = req.query;
   if (!worker_id || !algus || !lopp) {
-    return res.status(400).json({ ok: false, veateade: 'worker_id, algus ja lopp on kohustuslikud' });
+    return res.status(400).json({ ok: false, veateade: 'Vali töötaja ja periood' });
   }
+  const perioodiViga = kontrolliRaportiPerioodi(req.query);
+  if (perioodiViga) return res.status(400).json({ ok: false, veateade: perioodiViga });
   try {
     const ExcelJS = require('exceljs');
 
@@ -1258,7 +1258,7 @@ router.get('/tootaja-raport-excel', noudaAdmin, async (req, res) => {
 
     const failiNimi = `tootaja_raport_${worker.nimi.replace(/\s+/g, '_')}_${algus}_${lopp}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
+    res.setHeader('Content-Disposition', failiPais(failiNimi));
     await wb.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -1472,8 +1472,10 @@ function lisaTootajaKoondLeht(wb, d, algus, lopp, kasutatudNimed) {
 router.get('/koik-tootajad-raport-excel', noudaAdmin, async (req, res) => {
   const { algus, lopp } = req.query;
   if (!algus || !lopp) {
-    return res.status(400).json({ ok: false, veateade: 'algus ja lopp on kohustuslikud' });
+    return res.status(400).json({ ok: false, veateade: 'Vali periood' });
   }
+  const perioodiViga = kontrolliRaportiPerioodi(req.query);
+  if (perioodiViga) return res.status(400).json({ ok: false, veateade: perioodiViga });
   try {
     const ExcelJS = require('exceljs');
     const workersRes = await pool.query('SELECT * FROM workers WHERE aktiivne=true ORDER BY nimi');
@@ -1510,12 +1512,25 @@ router.get('/audit-log', noudaAdmin, async (req, res) => {
     `SELECT a.*, w.nimi as worker_nimi
      FROM audit_log a
      LEFT JOIN workers w ON a.worker_id=w.id
-     ORDER BY a.loodud DESC`
+     ORDER BY a.loodud DESC
+     LIMIT 3000`
   );
   res.json(r.rows);
 });
 
 // ── FILTER RAPORT ─────────────────────────────────────────────────
+
+// Raporti perioodi kontroll: vigane kuupäev või ID andis varem andmebaasi vea (HTTP 500).
+function kontrolliRaportiPerioodi(q) {
+  if (q.algus && !onKuupaev(q.algus)) return 'Alguskuupäev on vigane';
+  if (q.lopp && !onKuupaev(q.lopp)) return 'Lõppkuupäev on vigane';
+  if (q.algus && q.lopp && q.algus > q.lopp) return 'Alguskuupäev peab olema enne lõppkuupäeva';
+  for (const voti of ['ettevote_id', 'objekt_id', 'worker_id']) {
+    if (q[voti] && !/^\d+$/.test(String(q[voti]))) return 'Vigane päring';
+  }
+  if (q.workers && !/^\d+(,\d+)*$/.test(String(q.workers))) return 'Vigane töötajate valik';
+  return null;
+}
 
 async function filterPäring(req) {
   const { ettevote_id, objekt_id, algus, lopp, workers } = req.query;
@@ -1550,6 +1565,8 @@ async function filterPäring(req) {
 }
 
 router.get('/raport-filter', noudaAdmin, async (req, res) => {
+  const viga = kontrolliRaportiPerioodi(req.query);
+  if (viga) return res.status(400).json({ ok: false, veateade: viga });
   try {
     const rows = await filterPäring(req);
     res.json(rows);
@@ -1559,44 +1576,45 @@ router.get('/raport-filter', noudaAdmin, async (req, res) => {
 });
 
 router.get('/raport-filter-csv', noudaAdmin, async (req, res) => {
+  const viga = kontrolliRaportiPerioodi(req.query);
+  if (viga) return res.status(400).json({ ok: false, veateade: viga });
   try {
     const rows = await filterPäring(req);
     const { algus, lopp } = req.query;
 
-    const header = 'tootaja;ettevote;objekt;kuupaev;algus;lopp;tunnid;tunnitasu;summa;km;km_raha;lisakulu;lisakulu_selgitus;kommentaar';
+    const PAIS = ['tootaja','ettevote','objekt','kuupaev','algus','lopp','tunnid','tunnitasu','summa','km','km_raha','lisakulu','lisakulu_selgitus','kommentaar'];
 
     let kokku_tunnid = 0, kokku_summa = 0, kokku_km = 0, kokku_lisakulu = 0;
     const dataRows = rows.map(k => {
-      const tunnid = parseFloat(k.tunnid);
-      const tunnitasu = parseFloat(k.tunnitasu||0);
+      const tunnid = parseFloat(k.tunnid) || 0;
+      const tunnitasu = parseFloat(k.tunnitasu || 0) || 0;
       const summa = tunnid * tunnitasu;
-      const km_raha = parseFloat(k.km_raha||0);
-      const lisakulu = parseFloat(k.lisakulu_summa||0);
+      const km_raha = parseFloat(k.km_raha || 0) || 0;
+      const lisakulu = parseFloat(k.lisakulu_summa || 0) || 0;
       kokku_tunnid += tunnid; kokku_summa += summa; kokku_km += km_raha; kokku_lisakulu += lisakulu;
       const kp = new Date(k.kuupaev);
       return [
         k.worker_nimi, k.ettevote_nimi, k.objekt_nimi,
         `${kp.getDate()}.${kp.getMonth()+1}.${kp.getFullYear()}`,
         k.algus?.slice(0,5)||'', k.lopp?.slice(0,5)||'',
-        String(tunnid).replace('.', ','),
-        String(tunnitasu).replace('.', ','),
-        String(summa.toFixed(2)).replace('.', ','),
-        String(parseFloat(k.kilomeetrid||0)).replace('.', ','),
-        String(km_raha.toFixed(2)).replace('.', ','),
-        String(lisakulu.toFixed(2)).replace('.', ','),
+        csvArv(tunnid), csvArv(tunnitasu), csvArv(summa, 2),
+        csvArv(k.kilomeetrid || 0), csvArv(km_raha, 2), csvArv(lisakulu, 2),
         k.lisakulu_selgitus||'',
         k.kommentaar||''
-      ].join(';');
+      ];
     });
 
+    // Kokkuvõtterida: summad on samades veergudes, kus vastavad üksikread (tunnid, summa, km_raha, lisakulu);
+    // kogusumma (töö + km + lisakulu) on viimases veerus.
     const kogusumma = kokku_summa + kokku_km + kokku_lisakulu;
-    dataRows.push(`KOKKU;;;;;;;${String(kokku_tunnid.toFixed(1)).replace('.', ',')};;${String(kokku_summa.toFixed(2)).replace('.', ',')};;${String(kokku_km.toFixed(2)).replace('.', ',')};;${String(kokku_lisakulu.toFixed(2)).replace('.', ',')};;Kogusumma: ${String(kogusumma.toFixed(2)).replace('.', ',')}`);
+    dataRows.push(['KOKKU', '', '', '', '', '', csvArv(kokku_tunnid, 1), '', csvArv(kokku_summa, 2), '', csvArv(kokku_km, 2), csvArv(kokku_lisakulu, 2), 'KÕIK KOKKU', csvArv(kogusumma, 2)]);
 
     const failiNimi = `raport_${algus||''}${lopp?'_'+lopp:''}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${failiNimi}"`);
-    res.send('﻿' + header + '\r\n' + dataRows.join('\r\n'));
+    res.send(csvFail([PAIS, ...dataRows]));
   } catch (err) {
-    res.status(500).json({ ok: false, veateade: err.message });
+    console.error('raport-filter-csv viga:', err);
+    res.status(500).json({ ok: false, veateade: 'Raporti koostamine ebaõnnestus' });
   }
 });

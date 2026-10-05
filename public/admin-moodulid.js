@@ -108,7 +108,7 @@ function pkLaadiCSV(e) {
   e.preventDefault();
   const kuu = document.getElementById('pk-filter-kuu').value;
   const aasta = document.getElementById('pk-filter-aasta').value;
-  window.location = `/api/projektid/admin/${pkAktiivneId}/kulud-csv?kuu=${kuu}&aasta=${aasta}&_token=${TOKEN}`;
+  laadiFailServerist(`/api/projektid/admin/${pkAktiivneId}/csv?kuu=${kuu}&aasta=${aasta}`, 'projekti_kulud.csv', { teade: '⏳ Koostan CSV faili…' });
 }
 
 // ── RAPORT TAB ─────────────────────────────────────────────────
@@ -154,7 +154,7 @@ function r_koguFiltrid() {
   } else {
     const kuu = document.getElementById('r-kuu').value, aasta = document.getElementById('r-aasta').value;
     algus = `${aasta}-${String(kuu).padStart(2,'0')}-01`;
-    lopp = new Date(aasta, kuu, 0).toISOString().split('T')[0];
+    lopp = kpISO(new Date(aasta, kuu, 0));
   }
   const objektId = document.getElementById('r-objekt').value;
   return { ettevote_id, workerIds, algus, lopp, objektId };
@@ -184,10 +184,10 @@ async function laadiRaportEelvaade() {
 function laadiRaportCSV() {
   const { ettevote_id, workerIds, algus, lopp, objektId } = r_koguFiltrid();
   if (!ettevote_id) { alert('Vali ettevõte'); return; }
-  let url = `/api/admin/raport-filter-csv?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
+  let url = `/api/admin/raport-filter-csv?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}`;
   if (objektId) url += `&objekt_id=${objektId}`;
   if (workerIds.length) url += `&workers=${workerIds.join(',')}`;
-  window.location = url;
+  laadiFailServerist(url, `raport_${algus}_${lopp}.csv`, { teade: '⏳ Koostan CSV raportit…' });
 }
 
 async function laadiRaportExcel() {
@@ -203,23 +203,13 @@ async function laadiRaportExcel() {
   if (objektId) url += `&objekt_id=${objektId}`;
   if (workerIds.length) url += `&workers=${workerIds.join(',')}`;
   const rows = await api(url);
-  console.log('raport-filter excel vastus:', rows);
-  let andmed = (Array.isArray(rows) ? rows : []).map(r => ({ ...r, kommentaar: r.lidl_projekt_nimi || r.kommentaar || '' }));
+  if (!Array.isArray(rows)) { teadeEl.style.display = 'block'; teadeEl.textContent = (rows && rows.veateade) || 'Andmete laadimine ebaõnnestus'; return; }
+  let andmed = rows.map(r => ({ ...r, kommentaar: r.lidl_projekt_nimi || r.kommentaar || '' }));
   if (!andmed.length) { teadeEl.style.display = 'block'; teadeEl.textContent = 'Andmeid ei leitud'; return; }
   teadeEl.style.display = 'none';
-  const resp = await fetch('/api/admin/raport-excel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
-    body: JSON.stringify({ andmed, tyyp, algus, lopp, esitus_hind })
+  await laadiFailServerist('/api/admin/raport-excel', `${tyyp}_raport_${algus}_${lopp}.xlsx`, {
+    method: 'POST', body: { andmed, tyyp, algus, lopp, esitus_hind }, teade: '⏳ Koostan Exceli raportit…'
   });
-  if (!resp.ok) { const j = await resp.json().catch(()=>({})); alert(j.veateade || 'Exceli genereerimine ebaõnnestus'); return; }
-  const blob = await resp.blob();
-  const blobUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = blobUrl;
-  a.download = `${tyyp}_raport_${algus}_${lopp}.xlsx`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(blobUrl);
 }
 
 // ── AUDIT LOGI ─────────────────────────────────────────────────

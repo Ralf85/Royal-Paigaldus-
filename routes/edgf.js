@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { csvFail, csvArv, csvKuupaev, loeAastaKuu } = require('../csvabi');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 
@@ -169,7 +170,12 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
 // ── ADMIN ────────────────────────────────────────────────────────
 
 router.get('/admin/kulud', noudaAdmin, async (req, res) => {
-  const { aasta, kuu } = req.query;
+  let { aasta, kuu } = req.query;
+  if (aasta || kuu) {
+    const ak = loeAastaKuu(aasta, kuu);
+    if (!ak) return res.status(400).json({ ok: false, veateade: 'Vali korrektne aasta ja kuu' });
+    aasta = ak.aasta; kuu = ak.kuu;
+  }
   try {
     let query = `SELECT e.*, w.nimi as worker_nimi
                  FROM edgf_kulud e
@@ -188,7 +194,12 @@ router.get('/admin/kulud', noudaAdmin, async (req, res) => {
 });
 
 router.get('/admin/csv', noudaAdmin, async (req, res) => {
-  const { aasta, kuu } = req.query;
+  let { aasta, kuu } = req.query;
+  if (aasta || kuu) {
+    const ak = loeAastaKuu(aasta, kuu);
+    if (!ak) return res.status(400).json({ ok: false, veateade: 'Vali korrektne aasta ja kuu' });
+    aasta = ak.aasta; kuu = ak.kuu;
+  }
   try {
     let query = `SELECT e.kuupaev, w.nimi as worker_nimi, e.summa, e.selgitus, e.foto_url
                  FROM edgf_kulud e
@@ -203,14 +214,15 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
     const kuuNimi = aasta && kuu ? `${aasta}_${String(kuu).padStart(2,'0')}` : 'koik';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="edgf2026_kulud_${kuuNimi}.csv"`);
-    let csv = '\uFEFF';
-    csv += 'Kuupäev,Töötaja,Summa,Selgitus,Foto\n';
-    r.rows.forEach(row => {
-      const kp = String(row.kuupaev).split('T')[0];
-      const foto = row.foto_url || '';
-      csv += `"${kp}","${row.worker_nimi}","${parseFloat(row.summa).toFixed(2)}","${row.selgitus}","${foto}"\n`;
+    // Semikoolon + BOM + jutumärgid (vt csvabi.js) — varem oli eraldajaks koma ja Eesti Excel pani kõik ühte veergu.
+    let kokku = 0;
+    const read = r.rows.map(row => {
+      const summa = parseFloat(row.summa) || 0;
+      kokku += summa;
+      return [csvKuupaev(row.kuupaev), row.worker_nimi, csvArv(summa, 2), row.selgitus || '', row.foto_url || ''];
     });
-    res.send(csv);
+    read.push(['KOKKU', '', csvArv(kokku, 2), '', '']);
+    res.send(csvFail([['Kuupäev', 'Töötaja', 'Summa (EUR)', 'Selgitus', 'Foto link'], ...read]));
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }

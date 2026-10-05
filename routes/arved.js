@@ -5,6 +5,7 @@ const PDFDocument = require('pdfkit');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const archiver = require('archiver');
+const { looZip, lisaUrl, lopetaZip, zipNimi, kpNimeks, laadiPuhver } = require('../zipabi');
 const https = require('https');
 const http = require('http');
 
@@ -18,15 +19,7 @@ function getCloudinary() {
 }
 // Müüja-ettevõtte üleslaetud logo (Cloudinary URL) toomiseks Bufferiks — pdfkit vajab Bufferit, mitte URL-i.
 function fetchImageBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https:') ? https : http;
-    proto.get(url, r => {
-      const chunks = [];
-      r.on('data', c => chunks.push(c));
-      r.on('end', () => resolve(Buffer.concat(chunks)));
-      r.on('error', reject);
-    }).on('error', reject);
-  });
+  return laadiPuhver(url, 10000); // ooteajaga — kinni jäänud logo ei jäta PDF-i lõputult ootama
 }
 const uploadLogo = multer({
   storage: multer.memoryStorage(),
@@ -626,19 +619,15 @@ router.get('/sisse/zip', noudaArvedLubatud, async (req, res) => {
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud kirjetel pole faile' });
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_sisse_arved.zip"`);
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
+    const { archive, olek } = looZip(res);
     for (const rida of r.rows) {
-      const kuupaev = String(rida.kuupaev).split('T')[0];
+      if (olek.katkenud) break;
+      const kuupaev = kpNimeks(rida.kuupaev);
       const laiend = (rida.fail_url.match(/\.(\w+)(\?|$)/) || [,'jpg'])[1];
-      const nimi = `${kuupaev}_${(rida.ettevote_nimi || 'muu')}_${rida.id}.${laiend}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
-      await new Promise((resolve, reject) => {
-        const url = new URL(rida.fail_url);
-        const proto = url.protocol === 'https:' ? https : http;
-        proto.get(rida.fail_url, imgRes => { archive.append(imgRes, { name: nimi }); imgRes.on('end', resolve); imgRes.on('error', reject); }).on('error', reject);
-      });
+      const nimi = `${kuupaev}_${(rida.ettevote_nimi || 'muu')}_${rida.id}.${laiend}`;
+      await lisaUrl(archive, olek, rida.fail_url, nimi);
     }
-    archive.finalize();
+    await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
@@ -887,22 +876,18 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
     if (!r.rows.length) return res.status(404).json({ ok: false, veateade: 'Valitud arveid ei leitud' });
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_arved.zip"`);
-    const archive = archiver('zip', { zlib: { level: 6 } });
-    archive.pipe(res);
+    const { archive, olek } = looZip(res);
     // Valitud arved võivad olla eri müüja-ettevõtete nimel — laadi iga müüja andmed/logo ainult
     // korra ja pane vahemällu, et sama ettevõtte pilti mitu korda uuesti alla ei laetaks.
     const muujaCache = {};
     for (const arve of r.rows) {
-      const kuupaev = String(arve.kuupaev).split('T')[0];
-      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`.replace(/[^a-zA-Z0-9-_.]/g, '_');
+      if (olek.katkenud) break;
+      const kuupaev = kpNimeks(arve.kuupaev);
+      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-_.]/g, '_');
       if (arve.fail_url) {
         // Üleslaaditud/tagantjärele lisatud arve — tõmba originaalfail
         const laiend = (arve.fail_url.match(/\.(\w+)(\?|$)/) || [, 'pdf'])[1];
-        await new Promise((resolve, reject) => {
-          const url = new URL(arve.fail_url);
-          const proto = url.protocol === 'https:' ? https : http;
-          proto.get(arve.fail_url, fileRes => { archive.append(fileRes, { name: `${nimiAlus}.${laiend}` }); fileRes.on('end', resolve); fileRes.on('error', reject); }).on('error', reject);
-        });
+        await lisaUrl(archive, olek, arve.fail_url, `${nimiAlus}.${laiend}`);
       } else {
         // Süsteemis loodud arve — genereeri PDF samast mootorist, mida kasutab üksiku arve vaade
         if (!muujaCache[arve.muuja_id]) {
@@ -916,10 +901,10 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
         if (!muuja) continue;
         const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
         const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
-        archive.append(doc, { name: `${nimiAlus}.pdf` });
+        archive.append(doc, { name: zipNimi(olek, `${nimiAlus}.pdf`) });
       }
     }
-    archive.finalize();
+    await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
@@ -1464,7 +1449,7 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     // mitme erineva ettevõtte (mitte ainult Royal Paigalduse) alt ja vana kõvakodeeritud nimi eksitas.
     const failiNimi = String(arve.number).replace(/[\\/:*?"<>|]/g, '-');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${failiNimi}.pdf"`);
+    res.setHeader('Content-Disposition', require('../csvabi').failiPais(`${failiNimi}.pdf`, 'inline'));
     doc.pipe(res);
 } catch (err) {
     console.error(err);

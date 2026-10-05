@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { csvFail, csvArv, csvKuupaev, loeAastaKuu } = require('../csvabi');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 
@@ -156,7 +157,12 @@ router.delete('/:id', noudaSisslogimist, async (req, res) => {
 // ── ADMIN ────────────────────────────────────────────────────────
 
 router.get('/admin/kulud', noudaAdmin, async (req, res) => {
-  const { aasta, kuu } = req.query;
+  let { aasta, kuu } = req.query;
+  if (aasta || kuu) {
+    const ak = loeAastaKuu(aasta, kuu);
+    if (!ak) return res.status(400).json({ ok: false, veateade: 'Vali korrektne aasta ja kuu' });
+    aasta = ak.aasta; kuu = ak.kuu;
+  }
   try {
     let query = `SELECT e.*, w.nimi as worker_nimi
                  FROM re_kulud e
@@ -175,7 +181,12 @@ router.get('/admin/kulud', noudaAdmin, async (req, res) => {
 });
 
 router.get('/admin/csv', noudaAdmin, async (req, res) => {
-  const { aasta, kuu } = req.query;
+  let { aasta, kuu } = req.query;
+  if (aasta || kuu) {
+    const ak = loeAastaKuu(aasta, kuu);
+    if (!ak) return res.status(400).json({ ok: false, veateade: 'Vali korrektne aasta ja kuu' });
+    aasta = ak.aasta; kuu = ak.kuu;
+  }
   try {
     let query = `SELECT e.kuupaev, w.nimi as worker_nimi, e.summa, e.selgitus, e.foto_url
                  FROM re_kulud e
@@ -190,32 +201,24 @@ router.get('/admin/csv', noudaAdmin, async (req, res) => {
     const kuuNimi = aasta && kuu ? `${aasta}_${String(kuu).padStart(2,'0')}` : 'koik';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rally_estonia_kulud_${kuuNimi}.csv"`);
-    let csv = '\uFEFF';
-    // Detailne nimekiri
-    csv += 'Kuupaev;Tootaja;Summa (EUR);Selgitus;Foto link\r\n';
     let kokku = 0;
     const tootajaKulud = {};
+    const read = [['Kuupäev', 'Töötaja', 'Summa (EUR)', 'Selgitus', 'Foto link']];
     r.rows.forEach(row => {
-      const d = new Date(row.kuupaev);
-      const kp = `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`;
-      const summa = parseFloat(row.summa);
+      const summa = parseFloat(row.summa) || 0;
       kokku += summa;
-      if (!tootajaKulud[row.worker_nimi]) tootajaKulud[row.worker_nimi] = 0;
-      tootajaKulud[row.worker_nimi] += summa;
-      const foto = row.foto_url || '';
-      const selgitus = (row.selgitus || '').replace(/;/g, ',');
-      csv += `${kp};${row.worker_nimi};${summa.toFixed(2).replace('.',',')};${selgitus};${foto}\r\n`;
+      tootajaKulud[row.worker_nimi] = (tootajaKulud[row.worker_nimi] || 0) + summa;
+      read.push([csvKuupaev(row.kuupaev), row.worker_nimi, csvArv(summa, 2), row.selgitus || '', row.foto_url || '']);
     });
-    // Tühirida
-    csv += '\r\n';
-    // Kokkuvõte
-    csv += 'KOKKUVOTE;;;;;;\r\n';
-    csv += 'Tootaja;Kulud kokku;;;;\r\n';
-    Object.entries(tootajaKulud).sort((a,b) => b[1]-a[1]).forEach(([nimi, summa]) => {
-      csv += `${nimi};${summa.toFixed(2).replace('.',',')};;;;\r\n`;
+    // Tühi rida ja kokkuvõte töötajate kaupa (kõik read 5 veeruga, et tabel jääks ühtlane)
+    read.push(['', '', '', '', '']);
+    read.push(['KOKKUVÕTE', '', '', '', '']);
+    read.push(['Töötaja', '', 'Kulud kokku', '', '']);
+    Object.entries(tootajaKulud).sort((a, b) => b[1] - a[1]).forEach(([nimi, summa]) => {
+      read.push([nimi, '', csvArv(summa, 2), '', '']);
     });
-    csv += `KOKKU KÕIK;${kokku.toFixed(2).replace('.',',')};;;;\r\n`;
-    res.send(csv);
+    read.push(['KOKKU KÕIK', '', csvArv(kokku, 2), '', '']);
+    res.send(csvFail(read));
   } catch (err) {
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }

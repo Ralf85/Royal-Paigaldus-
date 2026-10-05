@@ -245,6 +245,7 @@
   <img id="lightboxImg" src="" alt="">
 </div>
 
+<script src="/failid.js"></script>
 <script>
 // ── Token: Läti admin logib siin lehel oma PIN-iga (lvAdminToken). Kui lehe avab Royal Paigalduse
 // peaadmin, kasutame tema olemasolevat adminToken'it ja näitame lisaks "Latvia admins" paneeli.
@@ -424,7 +425,7 @@ async function openProjectStorePhotos(storeId, number, name) {
   if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
   if (!r.photos.length) { body.innerHTML = '<div class="empty">No photos.</div>'; return; }
   body.innerHTML =
-    `<div style="margin-bottom:12px"><a class="btn small" href="/api/latvia/gallery/zip/${storeId}?project_id=${pProject.id}&_token=${encodeURIComponent(token)}" style="text-decoration:none">⬇ Download these photos (ZIP)</a></div>` +
+    `<div style="margin-bottom:12px"><a class="btn small" href="#" onclick="rpLaeFail('/api/latvia/gallery/zip/${storeId}?project_id=${pProject.id}', token, 'photos.zip', { inglise: true });return false;" style="text-decoration:none">⬇ Download these photos (ZIP)</a></div>` +
     '<div class="photo-grid">' + r.photos.map(p => `
       <div class="photo-item">
         <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
@@ -468,7 +469,7 @@ async function openGalleryProjects(storeId, number, name) {
   const r = await api('/gallery/store/' + storeId + '/projects');
   if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
   body.innerHTML =
-    `<div style="margin-bottom:12px"><a class="btn small" href="/api/latvia/gallery/zip/${storeId}?_token=${encodeURIComponent(token)}" style="text-decoration:none">⬇ Download all photos (ZIP)</a></div>` +
+    `<div style="margin-bottom:12px"><a class="btn small" href="#" onclick="rpLaeFail('/api/latvia/gallery/zip/${storeId}', token, 'photos.zip', { inglise: true });return false;" style="text-decoration:none">⬇ Download all photos (ZIP)</a></div>` +
     '<div class="grid-cards">' + r.projects.map(p => `
       <div class="store-card proj" onclick="openGalleryPhotos(${p.project_id}, '${esc(p.project_name).replace(/'/g, "\\'")}')">
         <div class="store-top">
@@ -492,7 +493,7 @@ async function openGalleryPhotos(projectId, projectName) {
   if (!r.ok) { body.innerHTML = '<div class="empty">' + esc(r.error || 'Error') + '</div>'; return; }
   if (!r.photos.length) { body.innerHTML = '<div class="empty">No photos.</div>'; return; }
   body.innerHTML =
-    `<div style="margin-bottom:12px"><a class="btn small" href="/api/latvia/gallery/zip/${gStore.id}?project_id=${projectId}&_token=${encodeURIComponent(token)}" style="text-decoration:none">⬇ Download this project (ZIP)</a></div>` +
+    `<div style="margin-bottom:12px"><a class="btn small" href="#" onclick="rpLaeFail('/api/latvia/gallery/zip/${gStore.id}?project_id=${projectId}', token, 'photos.zip', { inglise: true });return false;" style="text-decoration:none">⬇ Download this project (ZIP)</a></div>` +
     '<div class="photo-grid">' + r.photos.map(p => `
       <div class="photo-item">
         <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">

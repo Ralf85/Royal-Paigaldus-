@@ -41,13 +41,13 @@ async function laadiArved() {
   const kmLoppEl = document.getElementById('km-lopp');
   if (kmAlgusEl && !kmAlgusEl.value) {
     const t = new Date();
-    kmAlgusEl.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
-    kmLoppEl.value = new Date(t.getFullYear(), t.getMonth() + 1, 0).toISOString().split('T')[0];
+    kmAlgusEl.value = kpISO(new Date(t.getFullYear(), t.getMonth(), 1));
+    kmLoppEl.value = kpISO(new Date(t.getFullYear(), t.getMonth() + 1, 0));
   }
   const kpEl = document.getElementById('av-kuupaev');
-  if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
+  if (kpEl && !kpEl.value) kpEl.value = kpISO(new Date());
   const asKpEl = document.getElementById('as-kuupaev');
-  if (asKpEl && !asKpEl.value) asKpEl.value = new Date().toISOString().split('T')[0];
+  if (asKpEl && !asKpEl.value) asKpEl.value = kpISO(new Date());
 
   const kuuSel = document.getElementById('av-kuu-valik');
   const aastaSel = document.getElementById('av-aasta-valik');
@@ -234,8 +234,8 @@ function avKmAnalyysKaesolevKuu() {
   const t = new Date();
   const algus = new Date(t.getFullYear(), t.getMonth(), 1);
   const lopp = new Date(t.getFullYear(), t.getMonth() + 1, 0);
-  document.getElementById('km-algus').value = algus.toISOString().split('T')[0];
-  document.getElementById('km-lopp').value = lopp.toISOString().split('T')[0];
+  document.getElementById('km-algus').value = kpISO(algus);
+  document.getElementById('km-lopp').value = kpISO(lopp);
   avUuendaKmAnalyys();
 }
 function avVahemikuFiltreeri(list, kpVali, algus, lopp) {
@@ -675,15 +675,7 @@ function avUuendaArvedZipNupp() {
 // ZIP küsitakse sisselogimise päisega ja laaditakse alla failina (mitte uue vahelehe lingiga,
 // mille brauser võib blokeerida ja mille sees oleks admini võti).
 async function avLaadiZipFail(url, failiNimi) {
-  try {
-    const r = await fetch(url, { headers: { 'x-session-token': TOKEN } });
-    if (!r.ok) throw new Error(r.status === 401 ? 'Sessioon on aegunud. Palun logi uuesti sisse.' : ((await r.text()).slice(0, 200) || `HTTP ${r.status}`));
-    const blobUrl = URL.createObjectURL(await r.blob());
-    avLaadiFailAlla(blobUrl, failiNimi);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
-  } catch (err) {
-    teata('ZIP-i allalaadimine ebaõnnestus: ' + err.message);
-  }
+  return laadiFailServerist(url, failiNimi, { teade: '⏳ Pakin arveid ZIP-i…' });
 }
 async function avLaadiArvedZip() {
   if (!avArvedValitud.size) return;
@@ -771,7 +763,7 @@ function avToggleLaadiVorm() {
   vorm.style.display = nahtaval ? 'none' : 'block';
   if (!nahtaval) {
     const kpEl = document.getElementById('al-kuupaev');
-    if (kpEl && !kpEl.value) kpEl.value = new Date().toISOString().split('T')[0];
+    if (kpEl && !kpEl.value) kpEl.value = kpISO(new Date());
   }
 }
 
@@ -1191,7 +1183,7 @@ async function avMaaraValitudMuuja() {
 
 function avLaadiValitudZip() {
   if (!avSisseValitud.size) return;
-  window.open(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}&_token=${TOKEN}`, '_blank');
+  laadiFailServerist(`/api/arved/sisse/zip?ids=${[...avSisseValitud].join(',')}`, 'ostuarved.zip', { teade: '⏳ Pakin faile ZIP-i…' });
 }
 
 async function avKustutaValitudSisse() {
@@ -1224,7 +1216,7 @@ function avTuhistaSisseMuutmine() {
   document.getElementById('as-salvesta-nupp').textContent = '💾 Salvesta';
   document.getElementById('av-sisse-dropzone-tekst').textContent = '📎 Lohista siia pilt või PDF, või kliki valimiseks';
   document.getElementById('av-sisse-fail').value = '';
-  document.getElementById('as-kuupaev').value = new Date().toISOString().split('T')[0];
+  document.getElementById('as-kuupaev').value = kpISO(new Date());
   document.getElementById('as-tahtaeg').value = '';
   document.getElementById('as-kirjeldus').value = '';
   document.getElementById('as-summa').value = '';

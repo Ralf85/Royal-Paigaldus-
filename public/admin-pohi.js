@@ -64,6 +64,80 @@ function teata(tekst) { return avaDialoog(tekst, 'teade'); }
 function kysiTeksti(tekst, vaikimisi) { return avaDialoog(tekst, 'tekst', vaikimisi); }
 window.alert = teata;
 
+// Kuupäev kujul AAAA-KK-PP KOHALIKU aja järgi. Varem kasutati toISOString(), mis arvestab UTC aega:
+// Eesti ajavööndis nihkus kuu esimene päev eelmise kuu viimaseks ja kuu viimane päev jäi raportist välja.
+function kpISO(d) {
+  const kp = d instanceof Date ? d : new Date(d);
+  return `${kp.getFullYear()}-${String(kp.getMonth() + 1).padStart(2, '0')}-${String(kp.getDate()).padStart(2, '0')}`;
+}
+
+// ── FAILIDE ALLALAADIMINE (raportid, CSV, Excel, ZIP) ────────────────────────
+// Fail küsitakse serverist sisselogimise päisega ja salvestatakse brauseri kaudu. Varem avati link,
+// mille sees oli admini võti; vea korral nägi kasutaja siis tühja lehte või toorest veateksti.
+// Nüüd näidatakse koostamise ajal teadet ja vea korral selget põhjust.
+function naitaLaadimist(tekst) {
+  let el = document.getElementById('faili-laadimine');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'faili-laadimine';
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--bg2);color:var(--tekst);border:0.5px solid var(--piir);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;z-index:99999;box-shadow:0 10px 30px rgba(0,0,0,0.35)';
+    document.body.appendChild(el);
+  }
+  el.textContent = tekst;
+  el.style.display = 'block';
+}
+function peidaLaadimine() {
+  const el = document.getElementById('faili-laadimine');
+  if (el) el.style.display = 'none';
+}
+function salvestaBlob(blob, failiNimi) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = failiNimi;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Safari vajab linki veel hetke pärast klõpsu — kohe tühistades jäi allalaadimine vahel pooleli.
+  setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+}
+function failiNimiVastusest(resp, vaikimisi) {
+  const cd = resp.headers.get('content-disposition') || '';
+  const m = /(?:^|;)\s*filename="?([^";]+)"?/i.exec(cd) || /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  if (!m) return vaikimisi;
+  try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+}
+// Laadib faili alla. opts: { method, body (objekt -> JSON), teade (tekst koostamise ajaks) }.
+// Tagastab true, kui fail salvestati.
+async function laadiFailServerist(url, vaikimisiNimi, opts = {}) {
+  if (window.__failLaadimisel) return false; // topeltklõps ei käivita sama raportit kaks korda
+  window.__failLaadimisel = true;
+  naitaLaadimist(opts.teade || '⏳ Koostan faili…');
+  try {
+    const paised = { 'x-session-token': TOKEN };
+    const seaded = { method: opts.method || 'GET', headers: paised };
+    if (opts.body !== undefined) { paised['Content-Type'] = 'application/json'; seaded.body = JSON.stringify(opts.body); }
+    const resp = await fetch(url, seaded);
+    if (!resp.ok) {
+      let pohjus = '';
+      try { const j = await resp.clone().json(); pohjus = j.veateade || j.viga || j.error || ''; } catch (e) {}
+      if (resp.status === 401) pohjus = 'Sessioon on aegunud. Palun logi uuesti sisse.';
+      throw new Error(pohjus || `Serveri viga (HTTP ${resp.status})`);
+    }
+    const blob = await resp.blob();
+    if (!blob.size) throw new Error('Server tagastas tühja faili');
+    salvestaBlob(blob, failiNimiVastusest(resp, vaikimisiNimi));
+    return true;
+  } catch (err) {
+    teata('Faili ei õnnestunud alla laadida.\n\n' + (err && err.message ? err.message : 'Tundmatu viga'));
+    return false;
+  } finally {
+    window.__failLaadimisel = false;
+    peidaLaadimine();
+  }
+}
+
 // ── TÖÖTAJATE VÄRVID (konsistentne värv iga töötaja jaoks, kasutusel graafikus + Kokkuvõttes) ──
 const TOOTAJA_VARVID = ['#f97316','#22c55e','#3b82f6','#ec4899','#eab308','#14b8a6','#f43f5e','#a855f7','#06b6d4','#84cc16','#fb7185','#38bdf8'];
 function tootajaVarv(id) {
@@ -746,8 +820,8 @@ async function laadiEttevoteLeht(nimi) {
       } else {
         algusD = new Date(2020, 0, 1);
       }
-      const algus = algusD.toISOString().split('T')[0];
-      const lopp = new Date().toISOString().split('T')[0];
+      const algus = kpISO(algusD);
+      const lopp = kpISO(new Date());
       const rows = await api(`/api/admin/raport-filter?ettevote_id=${e.id}&algus=${algus}&lopp=${lopp}`);
       const rowList = Array.isArray(rows) ? rows : [];
       const tunnid = rowList.reduce((s, r) => s + (parseFloat(r.tunnid) || 0), 0);
@@ -775,7 +849,7 @@ async function laadiEttevoteLeht(nimi) {
       }
       const tulemused = await Promise.all(kuud.map(k => {
         const algus = `${k.aasta}-${String(k.kuu).padStart(2, '0')}-01`;
-        const lopp = new Date(k.aasta, k.kuu, 0).toISOString().split('T')[0];
+        const lopp = kpISO(new Date(k.aasta, k.kuu, 0));
         return api(`/api/admin/raport-filter?ettevote_id=${e.id}&algus=${algus}&lopp=${lopp}`);
       }));
       let html = '<table><thead><tr><th>Kuu</th><th style="text-align:right">Tunnid</th>' + (esitusHind ? '<th style="text-align:right">Summa (km-ga, tuleb arveks)</th>' : '') + '</tr></thead><tbody>';
@@ -939,7 +1013,7 @@ function avatTab(i, ettevoteFilter) {
     laadiMerekohvikTootajad().then(() => laadiAdminGraafik());
     const t = new Date();
     const el = document.getElementById('g-lisa-kuupaev');
-    if (el) el.value = t.toISOString().split('T')[0];
+    if (el) el.value = kpISO(t);
   }
   if(i===9) pkLaadiTab();
   if(i===10) laadiEttevoteLeht(filter);
@@ -956,9 +1030,9 @@ async function init() {
   KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; kvKuu.appendChild(o); });
   const kvAasta = document.getElementById('kv-aasta');
   for(let y=t.getFullYear(); y>=t.getFullYear()-2; y--) { const o = document.createElement('option'); o.value=y; o.textContent=y; kvAasta.appendChild(o); }
-  document.getElementById('makse-kuupaev').value = t.toISOString().split('T')[0];
-  document.getElementById('tt-kuupaev').value = t.toISOString().split('T')[0];
-  document.getElementById('g-admin-paev').value = t.toISOString().split('T')[0];
+  document.getElementById('makse-kuupaev').value = kpISO(t);
+  document.getElementById('tt-kuupaev').value = kpISO(t);
+  document.getElementById('g-admin-paev').value = kpISO(t);
   const gKuu = document.getElementById('g-admin-kuu');
   const gAasta = document.getElementById('g-admin-aasta');
   if (gKuu) { KUUD.forEach((k,i) => { const o = document.createElement('option'); o.value=i+1; o.textContent=k; if(i===t.getMonth()) o.selected=true; gKuu.appendChild(o); }); }
@@ -969,8 +1043,8 @@ async function init() {
   const trAlgus = document.getElementById('tr-algus');
   const trLopp = document.getElementById('tr-lopp');
   if (trAlgus && trLopp) {
-    trAlgus.value = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().split('T')[0];
-    trLopp.value = t.toISOString().split('T')[0];
+    trAlgus.value = kpISO(new Date(t.getFullYear(), t.getMonth(), 1));
+    trLopp.value = kpISO(t);
   }
   laadiKokkuvote();
   kkUuendaArv();
@@ -992,7 +1066,7 @@ function laadiTootajaRaportExcel() {
   const lopp = document.getElementById('tr-lopp').value;
   if (!workerId || !algus || !lopp) { alert('Vali töötaja ja periood'); return; }
   if (algus > lopp) { alert('Alguskuupäev peab olema enne lõppkuupäeva'); return; }
-  window.location = `/api/admin/tootaja-raport-excel?worker_id=${workerId}&algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
+  laadiFailServerist(`/api/admin/tootaja-raport-excel?worker_id=${workerId}&algus=${algus}&lopp=${lopp}`, `tootaja_raport_${algus}_${lopp}.xlsx`, { teade: '⏳ Koostan töötaja raportit…' });
 }
 
 function laadiKoikTootajadRaportExcel() {
@@ -1000,7 +1074,7 @@ function laadiKoikTootajadRaportExcel() {
   const lopp = document.getElementById('tr-lopp').value;
   if (!algus || !lopp) { alert('Vali periood'); return; }
   if (algus > lopp) { alert('Alguskuupäev peab olema enne lõppkuupäeva'); return; }
-  window.location = `/api/admin/koik-tootajad-raport-excel?algus=${algus}&lopp=${lopp}&_token=${TOKEN}`;
+  laadiFailServerist(`/api/admin/koik-tootajad-raport-excel?algus=${algus}&lopp=${lopp}`, `koik_tootajad_raport_${algus}_${lopp}.xlsx`, { teade: '⏳ Koostan kõigi töötajate raportit — see võib võtta veidi aega…' });
 }
 
 let dashViimatiLaaditud = [];
@@ -1494,7 +1568,7 @@ function laadiCSV(e) {
   e.preventDefault();
   const kuu = document.getElementById('kv-kuu').value;
   const aasta = document.getElementById('kv-aasta').value;
-  window.location=`/api/admin/raport-csv?aasta=${aasta}&kuu=${kuu}&_token=${TOKEN}`;
+  laadiFailServerist(`/api/admin/raport-csv?aasta=${aasta}&kuu=${kuu}`, `raport-${aasta}-${String(kuu).padStart(2,'0')}.csv`, { teade: '⏳ Koostan CSV raportit…' });
 }
 
 // ── TÖÖTAJAD (master-detail) ────────────────────────────────────
