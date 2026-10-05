@@ -737,7 +737,7 @@ function avJoonistaArvedTabel() {
           ? `<span style="color:${vc};font-size:12px;font-weight:600">${a.muuja_nimi}</span>`
           : `<select onchange="avMuudaArveMuuja(${a.id}, this.value)" style="font-size:11px;padding:3px 6px;width:auto;border-color:#f87171"><option value="">⚠️ Vali müüja</option>${avmMuujad.map(m => `<option value="${m.id}">${m.ettevote_nimi}</option>`).join('')}</select>`}
         </td>
-        <td>${a.ostja_nimi}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${a.ettevote_nimi})</span>` : ''}</td>
+        <td>${tmEsc(a.ostja_nimi)}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${tmEsc(a.ettevote_nimi)})</span>` : ''}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
         <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
         <td style="display:flex;gap:6px">
@@ -1120,7 +1120,7 @@ function avJoonistaSisseTabel() {
         <td>${s.tahtaeg ? formatKp(s.tahtaeg) : '<span style="color:var(--hall)">—</span>'}</td>
         <td><select onchange="avMuudaSisseMuuja(${s.id}, this.value)" style="font-size:12px;padding:4px 6px;width:auto;border-left:3px solid ${vc}">${muujaValikudBase.map(m => `<option value="${m.id}" ${String(m.id) === String(s.muuja_id||'') ? 'selected' : ''}>${m.ettevote_nimi}</option>`).join('')}</select></td>
         <td>${s.ettevote_nimi || '<span style="color:var(--hall)">—</span>'}</td>
-        <td>${s.kirjeldus || ''}</td>
+        <td>${tmEsc(s.kirjeldus || '')}</td>
         <td style="text-align:right">${avFmtEur(kmta)}</td>
         <td style="text-align:right">${avFmtEur(s.kaibemaks)}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
@@ -1295,7 +1295,7 @@ async function laadiArvedLigipaas() {
   if (!Array.isArray(r) || !r.length) { div.innerHTML = '<span style="color:var(--hall);font-size:12px">Töötajaid ei leitud.</span>'; return; }
   div.innerHTML = r.map(w => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--piir2)">
-      <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'}">${w.lubatud ? '👤' : '·'} ${w.nimi}</span>
+      <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'}">${w.lubatud ? '👤' : '·'} ${tmEsc(w.nimi)}</span>
       <label class="toggle-switch">
         <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleLigipaas(${w.id}, this.checked)">
         <span class="toggle-slider"></span>
@@ -1321,7 +1321,7 @@ async function laadiOaArvedLigipaas() {
   div.innerHTML = r.map(w => `
     <div style="padding:9px 0;border-bottom:0.5px solid var(--piir2)">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'};flex:1">${w.lubatud ? '🧾' : '·'} ${w.nimi}</span>
+        <span style="font-size:13px;color:${w.lubatud ? 'var(--tekst)' : 'var(--hall)'};flex:1">${w.lubatud ? '🧾' : '·'} ${tmEsc(w.nimi)}</span>
         <label class="toggle-switch">
           <input type="checkbox" ${w.lubatud ? 'checked' : ''} onchange="avToggleOaLigipaas(${w.id}, this.checked)">
           <span class="toggle-slider"></span>

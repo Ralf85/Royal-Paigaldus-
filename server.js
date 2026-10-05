@@ -43,6 +43,14 @@ const ADMIN_SESSIOON_PAEVI = 14;
 const WORKER_SESSIOON_PAEVI = 180;
 const GRAAFIK_ADMIN_SESSIOON_PAEVI = 30;
 app.use(express.json());
+function puhastaTekst(obj, sygavus) {
+  if (sygavus > 6) return;
+  for (const voti of Object.keys(obj)) {
+    const v = obj[voti];
+    if (typeof v === 'string') { if (/[<>]/.test(v)) obj[voti] = v.replace(/</g, '‹').replace(/>/g, '›'); }
+    else if (v && typeof v === 'object') puhastaTekst(v, sygavus + 1);
+  }
+}
 app.use(express.urlencoded({ extended: true }));
 app.use(async (req, res, next) => {
   const token = req.headers['x-session-token'] || req.query._token;
@@ -56,8 +64,10 @@ app.use(async (req, res, next) => {
         SELECT 'admin' AS tyyp, NULL::int AS worker_id, NULL::varchar AS worker_nimi, NULL::varchar AS nimi
         FROM admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${ADMIN_SESSIOON_PAEVI} days'
         UNION ALL
-        SELECT 'worker' AS tyyp, worker_id, worker_nimi, NULL::varchar AS nimi
-        FROM worker_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'
+        SELECT 'worker' AS tyyp, ws.worker_id, ws.worker_nimi, NULL::varchar AS nimi
+        FROM worker_sessions ws
+        JOIN workers w ON w.id = ws.worker_id AND w.aktiivne = true  -- deaktiveeritud töötaja sessioon ei kehti
+        WHERE ws.token=$1 AND ws.loodud > NOW() - INTERVAL '${WORKER_SESSIOON_PAEVI} days'
         UNION ALL
         SELECT 'graafik' AS tyyp, NULL::int AS worker_id, NULL::varchar AS worker_nimi, nimi
         FROM graafik_admin_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${GRAAFIK_ADMIN_SESSIOON_PAEVI} days'
@@ -91,6 +101,11 @@ app.use(async (req, res, next) => {
     }
     return t;
   };
+  // Mitte-admini saadetud tekstist (kommentaarid, märkused, nimed) eemaldatakse < ja > märgid.
+  // Need tekstid kuvatakse hiljem admin-paneelis; nii ei saa keegi sinna HTML-i ega skripti sokutada.
+  if (!req.session.isAdmin && req.body && typeof req.body === 'object' && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    puhastaTekst(req.body, 0);
+  }
   next();
 });
 app.use(express.static(path.join(__dirname, 'public')));

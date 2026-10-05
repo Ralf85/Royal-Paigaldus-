@@ -855,6 +855,18 @@ async function initDB() {
       );
     `);
 
+    // ── SISSELOGIMISE KAITSE (valed PIN-katsed IP kaupa, vt loginkaitse.js) ──
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS login_katsed (
+        id SERIAL PRIMARY KEY,
+        ip VARCHAR(64) NOT NULL,
+        tyyp VARCHAR(20) NOT NULL,
+        aeg TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS login_katsed_ip_idx ON login_katsed (ip, tyyp, aeg);`);
+    await client.query(`DELETE FROM login_katsed WHERE aeg < NOW() - INTERVAL '1 day';`);
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();

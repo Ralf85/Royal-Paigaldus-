@@ -80,8 +80,17 @@ router.post('/lisa', noudaSisslogimist, upload.array('pildid', 12), async (req, 
 
 // Töökirje pildid
 router.get('/tookirje/:tookirjeId', async (req, res) => {
-  const r = await pool.query('SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud', [req.params.tookirjeId]);
-  res.json(r.rows);
+  // Fotod ainult sisseloginud kasutajale (varem sai neid numbreid proovides vaadata igaüks internetist)
+  if (!req.session || (!req.session.isAdmin && !req.session.workerId)) return res.status(401).json([]);
+  const id = parseInt(req.params.tookirjeId, 10);
+  if (!Number.isInteger(id)) return res.json([]);
+  try {
+    const r = await pool.query('SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud', [id]);
+    res.json(r.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
 });
 
 // Kustuta pilt

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { lukusMinuteid, margiVale, margiOige } = require('../loginkaitse');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const crypto = require('crypto');
@@ -184,8 +185,14 @@ router.post('/admin-login', async (req, res) => {
   const { pin } = req.body;
   if (!pin) return res.json({ ok: false, error: 'Enter your PIN' });
   try {
-    const r = await pool.query('SELECT * FROM lv_admins WHERE pin=$1 AND active=true', [pin]);
-    if (!r.rows.length) return res.json({ ok: false, error: 'Wrong PIN' });
+    const lukus = await lukusMinuteid(req, 'latvia');
+    if (lukus) return res.json({ ok: false, error: `Too many wrong attempts. Try again in ${lukus} minutes.` });
+    const r = await pool.query('SELECT * FROM lv_admins WHERE pin=$1 AND active=true', [String(pin)]);
+    if (!r.rows.length) {
+      await margiVale(req, 'latvia');
+      return res.json({ ok: false, error: 'Wrong PIN' });
+    }
+    await margiOige(req, 'latvia');
     const admin = r.rows[0];
     const token = crypto.randomBytes(32).toString('hex');
     await pool.query(

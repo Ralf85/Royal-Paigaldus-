@@ -1,16 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { kliendiIp, lukusMinuteid, margiVale, margiOige, lukuTeade, valeTeade, turvalineVordlus } = require('../loginkaitse');
 
 router.post('/login', async (req, res) => {
   const { pin } = req.body;
   try {
+    const lukus = await lukusMinuteid(req, 'tootaja');
+    if (lukus) return res.json({ ok: false, veateade: lukuTeade(lukus), lukus: true });
+    if (typeof pin !== 'string' || !pin.trim()) return res.json({ ok: false, veateade: 'Sisesta PIN-kood' });
     const result = await pool.query(
       'SELECT * FROM workers WHERE pin = $1 AND aktiivne = true', [pin]
     );
     if (result.rows.length === 0) {
-      return res.json({ ok: false, veateade: 'Vale PIN-kood' });
+      const alles = await margiVale(req, 'tootaja');
+      return res.json({ ok: false, veateade: valeTeade('Vale PIN-kood', alles) });
     }
+    await margiOige(req, 'tootaja');
     const worker = result.rows[0];
     const token = await req.saveSession({ workerId: worker.id, workerNimi: worker.nimi });
     await pool.query(
@@ -26,23 +32,38 @@ router.post('/login', async (req, res) => {
 
 router.post('/admin-login', async (req, res) => {
   const { pin } = req.body;
-  if (pin === process.env.ADMIN_PIN) {
-    const token = await req.saveSession({ isAdmin: true });
-    res.json({ ok: true, token });
-  } else {
-    res.json({ ok: false, veateade: 'Vale admin PIN' });
+  try {
+    const lukus = await lukusMinuteid(req, 'admin');
+    if (lukus) return res.json({ ok: false, veateade: lukuTeade(lukus), lukus: true });
+    // NB: kui ADMIN_PIN keskkonnamuutuja puudub, ei tohi keegi sisse saada (varem pääses tühja PIN-iga).
+    if (turvalineVordlus(pin, process.env.ADMIN_PIN)) {
+      await margiOige(req, 'admin');
+      const token = await req.saveSession({ isAdmin: true });
+      return res.json({ ok: true, token });
+    }
+    const alles = await margiVale(req, 'admin');
+    console.warn(`⚠️ Vale admin PIN (IP ${kliendiIp(req)})`);
+    res.json({ ok: false, veateade: valeTeade('Vale admin PIN', alles) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
 
 router.post('/graafik-admin-login', async (req, res) => {
   const { pin } = req.body;
   try {
+    const lukus = await lukusMinuteid(req, 'graafik');
+    if (lukus) return res.json({ ok: false, veateade: lukuTeade(lukus), lukus: true });
+    if (typeof pin !== 'string' || !pin.trim()) return res.json({ ok: false, veateade: 'Sisesta PIN-kood' });
     const r = await pool.query(
       'SELECT * FROM graafik_adminid WHERE pin = $1 AND aktiivne = true', [pin]
     );
     if (r.rows.length === 0) {
-      return res.json({ ok: false, veateade: 'Vale PIN-kood' });
+      const alles = await margiVale(req, 'graafik');
+      return res.json({ ok: false, veateade: valeTeade('Vale PIN-kood', alles) });
     }
+    await margiOige(req, 'graafik');
     const ga = r.rows[0];
     const token = await req.saveSession({ isGraafikAdmin: true, graafikAdminNimi: ga.nimi });
     res.json({ ok: true, nimi: ga.nimi, token });

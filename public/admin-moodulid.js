@@ -75,7 +75,7 @@ async function pkLaadiLubatud() {
   (Array.isArray(lubatud)?lubatud:[]).forEach(w => lubMap[w.id]=!!w.lubatud);
   div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w => `
     <div class="ettevote-rida">
-      <div class="ettevote-rida-vasak"><span class="ettevote-nimi">${w.nimi}</span></div>
+      <div class="ettevote-rida-vasak"><span class="ettevote-nimi">${tmEsc(w.nimi)}</span></div>
       <label class="toggle-switch"><input type="checkbox" ${lubMap[w.id]?'checked':''} onchange="pkToggleLubatud(${w.id}, this.checked)"><span class="toggle-slider"></span></label>
     </div>`).join('');
 }
@@ -100,7 +100,7 @@ async function pkLaadiKuludReal(query) {
   const kokku = list.reduce((s,k)=>s+parseFloat(k.summa||0),0);
   div.innerHTML = `<div style="padding:10px 18px;font-size:12px;color:var(--hall)">Kokku: <b style="color:var(--tekst)">${kokku.toFixed(2)} €</b> (${list.length} kirjet)</div>
     <table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Kirjeldus</th><th style="text-align:right">Summa</th></tr></thead><tbody>` +
-    list.map(k => `<tr><td>${formatKp(k.kuupaev)}</td><td>${k.worker_nimi||'—'}</td><td>${k.kirjeldus||'—'}</td><td style="text-align:right">${parseFloat(k.summa).toFixed(2)} €</td></tr>`).join('') +
+    list.map(k => `<tr><td>${formatKp(k.kuupaev)}</td><td>${tmEsc(k.worker_nimi||'—')}</td><td>${tmEsc(k.kirjeldus||'—')}</td><td style="text-align:right">${parseFloat(k.summa).toFixed(2)} €</td></tr>`).join('') +
     '</tbody></table>';
 }
 
@@ -139,7 +139,7 @@ async function laadiRaportWorkers(ettevoteId) {
   (Array.isArray(objektid)?objektid:[]).forEach(()=>{});
   const workers = await api('/api/admin/tootajad');
   const div = document.getElementById('r-workers');
-  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="r-worker-cb" style="width:auto" checked> ${w.nimi}</label>`).join('');
+  div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="r-worker-cb" style="width:auto" checked> ${tmEsc(w.nimi)}</label>`).join('');
 }
 
 function r_koguFiltrid() {
@@ -177,7 +177,7 @@ async function laadiRaportEelvaade() {
   const tunnid = list.reduce((s,r)=>s+parseFloat(r.tunnid||0),0);
   document.getElementById('r-eelvaade').innerHTML = `<div style="padding:10px 18px;font-size:12px;color:var(--hall)">Kokku: <b style="color:var(--tekst)">${tunnid.toFixed(1)}h</b> (${list.length} kirjet)</div>
     <table><thead><tr><th>Kuupäev</th><th>Töötaja</th><th>Objekt</th><th>Algus</th><th>Lõpp</th><th style="text-align:right">Tunnid</th><th>Kirjeldus</th></tr></thead><tbody>` +
-    list.map(r=>`<tr><td>${formatKp(r.kuupaev)}</td><td>${r.worker_nimi}</td><td>${r.objekt_nimi||'—'}</td><td>${(r.algus||'').slice(0,5)}</td><td>${(r.lopp||'').slice(0,5)}</td><td style="text-align:right">${parseFloat(r.tunnid).toFixed(1)}</td><td style="color:var(--hall);font-size:12px">${r.lidl_projekt_nimi || r.kommentaar || '—'}</td></tr>`).join('') +
+    list.map(r=>`<tr><td>${formatKp(r.kuupaev)}</td><td>${tmEsc(r.worker_nimi)}</td><td>${tmEsc(r.objekt_nimi||'—')}</td><td>${(r.algus||'').slice(0,5)}</td><td>${(r.lopp||'').slice(0,5)}</td><td style="text-align:right">${parseFloat(r.tunnid).toFixed(1)}</td><td style="color:var(--hall);font-size:12px">${tmEsc(r.lidl_projekt_nimi || r.kommentaar || '—')}</td></tr>`).join('') +
     '</tbody></table>';
 }
 
@@ -844,7 +844,7 @@ async function xsLaadiLubatud() {
   if (!Array.isArray(r)) { div.innerHTML = '<div style="color:var(--hall)">Viga laadimisel</div>'; return; }
   div.innerHTML = r.map(w => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--piir3)">
-      <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${w.nimi}</span>
+      <span style="font-size:13px;color:${w.lubatud?'var(--tekst)':'var(--hall)'}">${w.lubatud?'👷':'·'} ${tmEsc(w.nimi)}</span>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
         <span style="color:${w.lubatud?'#4ade80':'var(--hall)'}">${w.lubatud ? 'Lubatud ✓' : 'Keelatud'}</span>
         <input type="checkbox" ${w.lubatud?'checked':''} onchange="xsToggleLubatud(${w.id}, this.checked)" style="width:auto;accent-color:#38bdf8">
@@ -867,7 +867,7 @@ async function xsLaadiTootajaValikud() {
   const d = await api('/api/xseeria/admin/lubatud');
   xsTootajad = Array.isArray(d) ? d.filter(w => w.lubatud) : [];
   const sel = document.getElementById('xs-ul-vastutaja');
-  sel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+  sel.innerHTML = '<option value="">— Vastutaja pole —</option>' + xsTootajad.map(w => `<option value="${w.id}">${tmEsc(w.nimi)}</option>`).join('');
 }
 
 let xsMuudetavUlesanneId = null;
@@ -1083,7 +1083,7 @@ async function xsLaadiSponsoriStaatusTabel() {
       <td><input type="text" id="xs-sp-markused-${s.sponsor_id}" value="${escapeHtmlXs(s.markused || '')}" placeholder="nt too bännerid kontorist" style="font-size:12px;min-width:140px"></td>
       <td><select id="xs-sp-vastutaja-${s.sponsor_id}" style="width:auto;font-size:12px">
         <option value="">— Vastutaja pole —</option>
-        ${xsTootajad.map(w => `<option value="${w.id}" ${s.vastutaja_id===w.id?'selected':''}>${w.nimi}</option>`).join('')}
+        ${xsTootajad.map(w => `<option value="${w.id}" ${s.vastutaja_id===w.id?'selected':''}>${tmEsc(w.nimi)}</option>`).join('')}
       </select></td>
       <td><button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick="xsUuendaSponsorStaatus(${s.sponsor_id})">💾 Salvesta</button></td>
     </tr>`).join('') + '</tbody></table>';
@@ -1194,7 +1194,7 @@ async function xsLaadiKulud() {
         <td style="font-weight:600">${xsFmtEur(k.kokku)}</td>
         <td><input type="checkbox" ${k.makstud ? 'checked' : ''} onchange="xsLulitaKuluMakstud(${k.id}, this.checked)" style="width:auto;accent-color:#16a34a;cursor:pointer"></td>
         <td style="white-space:nowrap">
-          <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaKuluEdit(${JSON.stringify(k).replace(/'/g, "&apos;")})'>✎</button>
+          <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaKuluEdit(${tmEsc(JSON.stringify(k))})'>✎</button>
           <button class="nupp punane" onclick="xsKustutaKulu(${k.id})">🗑</button>
         </td>
       </tr>`).join('') + '</tbody></table>'

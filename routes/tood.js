@@ -38,6 +38,8 @@ router.get('/lidl-projektid', noudaSisslogimist, async (req, res) => {
 
 // Objektid ettevõtte järgi
 router.get('/objektid/:ettevoteId', async (req, res) => {
+  // Ainult sisseloginud kasutajale (varem oli avalik)
+  if (!req.session || (!req.session.isAdmin && !req.session.workerId)) return res.status(401).json([]);
   try {
     const r = await pool.query(
       `SELECT * FROM objektid WHERE ettevote_id = $1 AND aktiivne = true ORDER BY nimi`,

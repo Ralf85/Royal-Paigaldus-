@@ -120,7 +120,13 @@ router.post('/tootajad', noudaAdmin, async (req, res) => {
 router.put('/tootajad/:id', noudaAdmin, async (req, res) => {
   const { nimi, pin, aktiivne, email } = req.body;
   try {
+    const enne = await pool.query('SELECT pin, aktiivne FROM workers WHERE id=$1', [req.params.id]);
     await pool.query('UPDATE workers SET nimi=$1, pin=$2, aktiivne=$3, email=$4 WHERE id=$5', [nimi, pin, aktiivne, email || null, req.params.id]);
+    // Deaktiveerimisel või PIN-i vahetamisel lõpetame töötaja kõik sisselogimised — muidu pääseks ta
+    // (või lekkinud PIN-i kasutaja) vana sisselogimisega edasi kuni 180 päeva.
+    if (enne.rows.length && (aktiivne === false || String(enne.rows[0].pin) !== String(pin))) {
+      await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -231,6 +237,8 @@ router.get('/ettevotted', noudaAdmin, async (req, res) => {
 // ── OBJEKTID ──────────────────────────────────────────────────────
 
 router.get('/objektid', async (req, res) => {
+  // Objektide/klientide nimekiri ainult sisseloginud kasutajale (varem oli avalik)
+  if (!req.session || (!req.session.isAdmin && !req.session.workerId)) return res.status(401).json([]);
   try {
     const { ettevote_id } = req.query;
     let q = `SELECT o.*, e.nimi as ettevote_nimi FROM objektid o

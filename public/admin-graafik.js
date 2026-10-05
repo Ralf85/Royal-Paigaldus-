@@ -122,7 +122,7 @@ function kuvaLohistatavadTootajad() {
       ondragstart="algaLohistamine(event, ${w.id}, '${w.nimi.replace(/'/g, "\\'")}')">
       <div class="tootaja-kaart-avatar" style="background:${tootajaVarv(w.id)}">${w.nimi[0]}</div>
       <div style="min-width:0">
-        <div class="tootaja-kaart-nimi">${w.nimi}</div>
+        <div class="tootaja-kaart-nimi">${tmEsc(w.nimi)}</div>
         <div class="tootaja-kaart-tunnid">${info.tunnid > 0 ? info.tunnid.toFixed(1) + 'h · ' + info.vahetused + ' vahetust' : 'pole planeeritud'}</div>
       </div>
     </div>`;
@@ -218,13 +218,13 @@ async function laadiAdminGraafik() {
   // Uuenda töötaja select nimekirjavaates
   const sel = document.getElementById('g-lisa-worker');
   if (sel && merekohvikTootajad.length) {
-    sel.innerHTML = merekohvikTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+    sel.innerHTML = merekohvikTootajad.map(w => `<option value="${w.id}">${tmEsc(w.nimi)}</option>`).join('');
   }
   
   // Uuenda muuda vahetus modal töötajad
   const mv2 = document.getElementById('mv2-worker');
   if (mv2 && merekohvikTootajad.length) {
-    mv2.innerHTML = merekohvikTootajad.map(w => `<option value="${w.id}">${w.nimi}</option>`).join('');
+    mv2.innerHTML = merekohvikTootajad.map(w => `<option value="${w.id}">${tmEsc(w.nimi)}</option>`).join('');
   }
 }
 
@@ -282,8 +282,8 @@ function kuvaKalender(andmed, aasta, kuu) {
     const vahetusedHtml = vahetused.map(v => {
       const vc = tootajaVarv(v.worker_id), vcRgb = tootajaVarvRgb(v.worker_id);
       return `
-      <div class="rakk-vahetus" style="background:rgba(${vcRgb},0.18);border-color:rgba(${vcRgb},0.45);color:${vc}" onclick="avaaMuudaVahetus2(${v.id}, ${v.worker_id}, '${v.algus.slice(0,5)}', '${v.lopp.slice(0,5)}', '${(v['märkus']||'').replace(/'/g,"\\'")}')">
-        <span class="rakk-vahetus-nimi">${v.worker_nimi.split(' ')[0]}</span>
+      <div class="rakk-vahetus" style="background:rgba(${vcRgb},0.18);border-color:rgba(${vcRgb},0.45);color:${vc}" onclick="avaaMuudaVahetus2(${v.id}, ${v.worker_id}, '${v.algus.slice(0,5)}', '${v.lopp.slice(0,5)}', ${tmEsc(JSON.stringify(v['märkus']||''))})">
+        <span class="rakk-vahetus-nimi">${tmEsc(v.worker_nimi.split(' ')[0])}</span>
         <span class="rakk-vahetus-aeg" style="color:rgba(${vcRgb},0.8)">${v.algus.slice(0,5)}–${v.lopp.slice(0,5)}</span>
         <span class="rakk-vahetus-kustuta" onclick="event.stopPropagation();kustutaVahetus2(${v.id})">✕</span>
       </div>
@@ -327,7 +327,7 @@ function kuvaKokkuvote(andmed) {
 
   grid.innerHTML = sorted.map(w => `
     <div class="kokkuvote-kaart" style="border-left:3px solid ${tootajaVarv(w.id)}">
-      <div class="kokkuvote-nimi">${w.nimi}</div>
+      <div class="kokkuvote-nimi">${tmEsc(w.nimi)}</div>
       <div class="kokkuvote-tunnid" style="color:${tootajaVarv(w.id)}">${w.tunnid.toFixed(1)}h</div>
       <div class="kokkuvote-vahetused">${w.vahetused} vahetust</div>
     </div>
@@ -361,8 +361,8 @@ function kuvaNimekirja(andmed) {
       ${vahetusedKuupaev.length ? vahetusedKuupaev.map(v=>`
         <div style="display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px">
           <span style="color:var(--hall);min-width:90px">${v.algus.slice(0,5)}–${v.lopp.slice(0,5)}</span>
-          <span style="color:var(--tekst2);font-weight:600">${v.worker_nimi}</span>
-          <button onclick='avaaMuudaVahetus2(${v.id}, ${v.worker_id}, "${v.algus.slice(0,5)}", "${v.lopp.slice(0,5)}", "${(v["märkus"]||"").replace(/"/g,"&quot;")}")' style="background:none;border:none;color:#5b9cf6;cursor:pointer">✏️</button>
+          <span style="color:var(--tekst2);font-weight:600">${tmEsc(v.worker_nimi)}</span>
+          <button onclick='avaaMuudaVahetus2(${v.id}, ${v.worker_id}, "${v.algus.slice(0,5)}", "${v.lopp.slice(0,5)}", ${tmEsc(JSON.stringify(v["märkus"]||""))})' style="background:none;border:none;color:#5b9cf6;cursor:pointer">✏️</button>
           <button onclick="kustutaVahetus2(${v.id})" style="background:none;border:none;color:var(--hall);cursor:pointer">🗑</button>
         </div>`).join('') : '<div style="font-size:12px;color:#333">Vahetusi pole</div>'}
     </div>`;
