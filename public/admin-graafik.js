@@ -402,7 +402,7 @@ async function salvestaMuudaVahetus2() {
 }
 
 async function kustutaVahetus2(id) {
-  if (!confirm('Kustutad selle vahetuse?')) return;
+  if (!await kysi('Kustutad selle vahetuse?')) return;
   await api(`/api/graafik/admin/${id}`, { method: 'DELETE' });
   await laadiAdminGraafik();
 }

@@ -5,6 +5,65 @@ let kõikEttevotted = [];
 let TOKEN = localStorage.getItem('adminToken') || '';
 setInterval(() => { TOKEN = localStorage.getItem('adminToken') || TOKEN; }, 30000);
 
+// ── LEHESISESED DIALOOGID (kinnitus, teade, tekstiküsimus) ──────────────────
+// Brauseri enda confirm()/alert()/prompt() aknad ei avane igas brauseris ega rakenduse-vaates —
+// siis katkes tegevus vaikides ja nupp "ei teinud midagi" (nt Taasta, Kustuta, Arhiveeri).
+// Seepärast küsitakse kõik kinnitused lehe sees. alert() on suunatud samasse aknasse.
+function avaDialoog(tekst, tyyp, vaikimisi) {
+  return new Promise(lahenda => {
+    const kate = document.createElement('div');
+    kate.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    const kast = document.createElement('div');
+    kast.setAttribute('role', 'dialog');
+    kast.setAttribute('aria-modal', 'true');
+    kast.style.cssText = 'background:var(--bg2);border:0.5px solid var(--piir);border-radius:12px;padding:20px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)';
+    const p = document.createElement('div');
+    p.style.cssText = 'font-size:14px;line-height:1.5;color:var(--tekst);white-space:pre-wrap;margin-bottom:16px';
+    p.textContent = String(tekst == null ? '' : tekst);
+    kast.appendChild(p);
+    let sisend = null;
+    if (tyyp === 'tekst') {
+      sisend = document.createElement('input');
+      sisend.type = 'text';
+      sisend.value = vaikimisi == null ? '' : String(vaikimisi);
+      sisend.style.cssText = 'width:100%;margin-bottom:16px';
+      kast.appendChild(sisend);
+    }
+    const nupud = document.createElement('div');
+    nupud.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    const katkestus = tyyp === 'tekst' ? null : false;
+    const kinnitus = () => (tyyp === 'tekst' ? sisend.value : true);
+    function sulge(v) { document.removeEventListener('keydown', klahv, true); kate.remove(); lahenda(v); }
+    function klahv(e) {
+      if (e.key === 'Escape') { e.stopPropagation(); sulge(katkestus); }
+      else if (e.key === 'Enter' && tyyp === 'tekst') { e.preventDefault(); sulge(kinnitus()); }
+    }
+    if (tyyp !== 'teade') {
+      const ei = document.createElement('button');
+      ei.type = 'button'; ei.className = 'nupp hall'; ei.textContent = 'Katkesta';
+      ei.onclick = () => sulge(katkestus);
+      nupud.appendChild(ei);
+    }
+    const jah = document.createElement('button');
+    jah.type = 'button'; jah.className = 'nupp kull';
+    jah.textContent = tyyp === 'kysimus' ? 'Jah, kinnita' : 'OK';
+    jah.onclick = () => sulge(kinnitus());
+    nupud.appendChild(jah);
+    kast.appendChild(nupud);
+    kate.appendChild(kast);
+    kate.addEventListener('click', e => { if (e.target === kate) sulge(katkestus); });
+    document.addEventListener('keydown', klahv, true);
+    document.body.appendChild(kate);
+    (sisend || jah).focus();
+    if (sisend) sisend.select();
+  });
+}
+function kysi(tekst) { return avaDialoog(tekst, 'kysimus'); }
+function teata(tekst) { return avaDialoog(tekst, 'teade'); }
+// Tagastab sisestatud teksti või null, kui katkestati (nagu brauseri prompt()).
+function kysiTeksti(tekst, vaikimisi) { return avaDialoog(tekst, 'tekst', vaikimisi); }
+window.alert = teata;
+
 // ── TÖÖTAJATE VÄRVID (konsistentne värv iga töötaja jaoks, kasutusel graafikus + Kokkuvõttes) ──
 const TOOTAJA_VARVID = ['#f97316','#22c55e','#3b82f6','#ec4899','#eab308','#14b8a6','#f43f5e','#a855f7','#06b6d4','#84cc16','#fb7185','#38bdf8'];
 function tootajaVarv(id) {
@@ -322,8 +381,8 @@ function lppToggle(i, valitud) {
   lppPoed[i].valitud = valitud;
   lppJoonista();
 }
-function lppValiKoik(valitud) {
-  if (!valitud && !confirm('Eemaldada kõik poed sellest projektist? (Muudatus jõustub "Salvesta" vajutamisel)')) return;
+async function lppValiKoik(valitud) {
+  if (!valitud && !await kysi('Eemaldada kõik poed sellest projektist? (Muudatus jõustub "Salvesta" vajutamisel)')) return;
   lppPoed.forEach(p => { p.valitud = valitud; });
   lppJoonista();
 }
@@ -364,7 +423,7 @@ async function lppKustuta() {
     alert(`Projektil "${nimi}" on ${lppKirjeid} töökirjet (koos fotodega), seda ei saa kustutada.\n\nVõta linnuke "Aktiivne" ära ja salvesta — siis kaob projekt töötajate valikust, aga ajalugu ja fotod jäävad alles.`);
     return;
   }
-  if (!confirm(`Kustutada projekt "${nimi}" koos poodide ja töötajate valikuga? Seda ei saa tagasi võtta.`)) return;
+  if (!await kysi(`Kustutada projekt "${nimi}" koos poodide ja töötajate valikuga? Seda ei saa tagasi võtta.`)) return;
   const r = await api(`/api/lidl-poed/admin/${lppProjektId}`, { method: 'DELETE' });
   if (!r || !r.ok) { alert((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
   lppSulge();
@@ -411,7 +470,7 @@ async function lpToggleAktiivne(id, aktiivne) {
   await lpLaadi();
 }
 async function lpMuudaNimi(id, vanaNimi) {
-  const uus = prompt('Uus nimi:', vanaNimi);
+  const uus = await kysiTeksti('Uus nimi:', vanaNimi);
   if (!uus || !uus.trim() || uus.trim() === vanaNimi) return;
   const r = await api(`/api/kristo/admin/projektid/${id}`, { method: 'PUT', body: JSON.stringify({ nimi: uus.trim() }) });
   if (r && r.ok) await lpLaadi();
@@ -491,7 +550,7 @@ async function lpMaaraValitud() {
   if (!projektId) { alert('Vali enne projekt, kuhu valitud read koondada'); return; }
   const valitud = [...document.querySelectorAll('.lp-vana-cb:checked')].map(cb => lpVanad[parseInt(cb.value, 10)]).filter(Boolean);
   if (!valitud.length) { alert('Vali vähemalt üks rida'); return; }
-  if (!confirm(`Koondad ${valitud.length} kirjeldust ühe projekti alla? Seda ei saa tagasi võtta.`)) return;
+  if (!await kysi(`Koondad ${valitud.length} kirjeldust ühe projekti alla? Seda ei saa tagasi võtta.`)) return;
   let kokku = 0, vigu = 0;
   for (let n = 0; n < valitud.length; n++) {
     if (teade) teade.textContent = `Määran ${n + 1}/${valitud.length}...`;
@@ -537,7 +596,7 @@ async function kkMargiLahendatuks(id) {
   await kkLaadi();
 }
 async function kkKustuta(id) {
-  if (!confirm('Kustutada see kommentaar?')) return;
+  if (!await kysi('Kustutada see kommentaar?')) return;
   await api(`/api/kristo/admin/kommentaarid/${id}`, { method: 'DELETE' });
   await kkLaadi();
 }
@@ -1176,7 +1235,7 @@ async function tjLaeFoto(workerId, input) {
   if (dashViimatiLaaditud && dashViimatiLaaditud.length) { kuvaTootajaKaardid(dashViimatiLaaditud); renderKokkuvoteTable(); }
 }
 async function tjEemaldaFoto(workerId) {
-  if (!confirm('Eemaldada selle töötaja pilt?')) return;
+  if (!await kysi('Eemaldada selle töötaja pilt?')) return;
   const r = await api(`/api/admin/tootajad/${workerId}/foto`, { method: 'DELETE' });
   if (!r || !r.ok) { alert('Pildi eemaldamine ebaõnnestus: ' + ((r && r.veateade) || '')); return; }
   await laadiTootajaFotod(true);
@@ -1599,7 +1658,7 @@ function tjRenderArhiiv() {
 }
 
 async function tjTaastaTootaja(id) {
-  if (!confirm('Taastad selle töötaja aktiivsete töötajate nimekirja? Sisselogimine (aktiivne) jääb teadlikult välja lülitatuks, kuni lülitad selle eraldi sisse.')) return;
+  if (!await kysi('Taastad selle töötaja aktiivsete töötajate nimekirja? Sisselogimine (aktiivne) jääb teadlikult välja lülitatuks, kuni lülitad selle eraldi sisse.')) return;
   await api(`/api/admin/tootajad/${id}/arhiveeri`, { method: 'PUT', body: JSON.stringify({ arhiveeritud: false }) });
   await laadiTootajad();
 }
@@ -1812,7 +1871,7 @@ async function tjLylitaAktiivsus() {
   const w = tjKoikTootajad.find(x => x.id === id);
   if (!w) return;
   const uusAktiivne = !w.aktiivne;
-  if (!uusAktiivne && !confirm(`Deaktiveerida töötaja "${w.nimi}"?\n\nTa ei saa enam sisse logida, aga kõik andmed säilivad.`)) return;
+  if (!uusAktiivne && !await kysi(`Deaktiveerida töötaja "${w.nimi}"?\n\nTa ei saa enam sisse logida, aga kõik andmed säilivad.`)) return;
   await api(`/api/admin/tootajad/${id}`, { method:'PUT', body: JSON.stringify({ nimi: w.nimi, pin: w.pin, aktiivne: uusAktiivne, email: w.email||'' }) });
   await laadiTootajad();
 }
@@ -1821,7 +1880,7 @@ async function tjKustutaTootaja() {
   const id = tjValitudId;
   const w = tjKoikTootajad.find(x => x.id === id);
   if (!w) return;
-  if (!confirm(`Kustutad töötaja "${w.nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed!\n\nSee on pöördumatu!`)) return;
+  if (!await kysi(`Kustutad töötaja "${w.nimi}"?\n\nSEE KUSTUTAB KA kõik tema töökirjed!\n\nSee on pöördumatu!`)) return;
   const r = await api(`/api/admin/tootajad/${id}`, { method:'DELETE' });
   if (!r || !r.ok) { alert((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
   tjValitudId = null;
@@ -1832,7 +1891,7 @@ async function tjArhiveeriTootaja() {
   const id = tjValitudId;
   const w = tjKoikTootajad.find(x => x.id === id);
   if (!w) return;
-  if (!confirm(`Arhiveerida töötaja "${w.nimi}"?\n\nTa kaob peamisest töötajate nimekirjast "Arhiveeritud" alla ega saa enam sisse logida. Kõik andmed (töökirjed, maksed, ajalugu) säilivad ja saab hiljem taastada.`)) return;
+  if (!await kysi(`Arhiveerida töötaja "${w.nimi}"?\n\nTa kaob peamisest töötajate nimekirjast "Arhiveeritud" alla ega saa enam sisse logida. Kõik andmed (töökirjed, maksed, ajalugu) säilivad ja saab hiljem taastada.`)) return;
   await api(`/api/admin/tootajad/${id}/arhiveeri`, { method: 'PUT', body: JSON.stringify({ arhiveeritud: true }) });
   await laadiTootajad();
 }
@@ -2121,7 +2180,7 @@ async function mkSalvestaMuudetud() {
 }
 
 async function kustutaMakse(id) {
-  if(!confirm('Tühistad selle makse? Seda ei saa hiljem taastada.')) return;
+  if(!await kysi('Tühistad selle makse? Seda ei saa hiljem taastada.')) return;
   await api(`/api/admin/maksed/${id}`,{method:'DELETE'});
   mkKvSaldodCache=null;
   laadiMaksed();
@@ -2236,14 +2295,14 @@ async function markEmailSaadetud(idsStr) {
 async function kustutaValitudTulevased() {
   const valitud=[...document.querySelectorAll('.tt-rida-cb:checked')];
   if(!valitud.length) return alert('Vali vähemalt üks rida');
-  if(!confirm(`Kustutad ${valitud.length} töö(d)?`)) return;
+  if(!await kysi(`Kustutad ${valitud.length} töö(d)?`)) return;
   const kõikIds=valitud.flatMap(cb=>cb.dataset.ids.split(','));
   await Promise.all(kõikIds.map(id=>api(`/api/tood/tulevased/${id}`,{method:'DELETE'})));
   laadiTulevasteToodTabel(ttAktiivneFilter);
 }
 
 async function kustutaTulevaneToo(idsStr) {
-  if(!confirm('Kustutad selle töö?')) return;
+  if(!await kysi('Kustutad selle töö?')) return;
   const ids=idsStr.split(',');
   await Promise.all(ids.map(id=>api(`/api/tood/tulevased/${id}`,{method:'DELETE'})));
   laadiTulevasteToodTabel(ttAktiivneFilter);
@@ -2315,7 +2374,7 @@ async function salvestaMuutaKirje() {
 }
 
 async function adminKustutaKirje(id) {
-  if(!confirm('Kustuta see töökirje?')) return;
+  if(!await kysi('Kustuta see töökirje?')) return;
   await api(`/api/admin/kirjed/${id}`,{method:'DELETE'});
   laadiKokkuvote();
 }

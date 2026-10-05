@@ -182,7 +182,7 @@ async function avmTeeVaikimisi(id) {
   await avmLaadiMuujad();
 }
 async function avmKustuta(id) {
-  if (!confirm('Kustutada see ettevõte?')) return;
+  if (!await kysi('Kustutada see ettevõte?')) return;
   const r = await api('/api/arved/muujad/' + id, { method: 'DELETE' });
   if (!r.ok) return alert('Viga: ' + (r.veateade || 'kustutamine ebaõnnestus'));
   await avmLaadiMuujad();
@@ -326,7 +326,7 @@ async function avSalvestaPoValik() {
   const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
   if (!ettevoteId) return naitaTeade('arve-teade', 'viga', `Vali enne klient (ettevõte) — ${siltNimi}d salvestuvad ettevõtte kaupa.`);
   if (!vaartus) return naitaTeade('arve-teade', 'viga', `${siltNimi} on tühi.`);
-  const silt = (prompt('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
+  const silt = (await kysiTeksti('Kellele see ' + siltNimi + ' kuulub? (nt Indrek) — jäta tühjaks kui pole vaja') || '').trim();
   const r = await api('/api/arved/valikud', { method: 'POST', body: JSON.stringify({ ettevote_id: ettevoteId, tyyp, vaartus, silt }) });
   if (r.ok) { await avLaadiPoValikud(ettevoteId); naitaTeade('arve-teade', 'ok', `✅ ${siltNimi} salvestatud valikusse.`); }
   else naitaTeade('arve-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
@@ -508,7 +508,7 @@ async function avAutotaida(viis) {
   const e = avValitudEttevote();
   let esitus_hind = e ? AV_FIKS_TUNNIHINNAD[e.tyyp] : 0;
   if (!esitus_hind) {
-    const esitusHind = prompt('Esitushind (€/h, käibemaksuta) — see hind läheb arvele KLIENDILE, mitte töötaja tunnitasu:', '27');
+    const esitusHind = await kysiTeksti('Esitushind (€/h, käibemaksuta) — see hind läheb arvele KLIENDILE, mitte töötaja tunnitasu:', '27');
     if (esitusHind === null) return;
     esitus_hind = parseFloat(String(esitusHind).replace(',', '.')) || 0;
     if (!esitus_hind) return naitaTeade('arve-teade', 'viga', 'Sisesta korrektne esitushind');
@@ -647,7 +647,7 @@ async function avAvaArvePdf(id, viis, aken, number) {
     setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
   } catch (err) {
     if (aken && !aken.closed) aken.close();
-    alert('Arve PDF-i ei õnnestunud avada: ' + err.message);
+    teata('Arve PDF-i ei õnnestunud avada: ' + err.message);
   }
 }
 
@@ -672,14 +672,27 @@ function avUuendaArvedZipNupp() {
   nupp.style.display = avArvedValitud.size ? 'inline-block' : 'none';
   nupp.textContent = `⬇️ Laadi valitud alla (${avArvedValitud.size} ZIP-ina)`;
 }
-function avLaadiArvedZip() {
-  if (!avArvedValitud.size) return;
-  window.open(`/api/arved/zip?ids=${[...avArvedValitud].join(',')}&_token=${TOKEN}`, '_blank');
+// ZIP küsitakse sisselogimise päisega ja laaditakse alla failina (mitte uue vahelehe lingiga,
+// mille brauser võib blokeerida ja mille sees oleks admini võti).
+async function avLaadiZipFail(url, failiNimi) {
+  try {
+    const r = await fetch(url, { headers: { 'x-session-token': TOKEN } });
+    if (!r.ok) throw new Error(r.status === 401 ? 'Sessioon on aegunud. Palun logi uuesti sisse.' : ((await r.text()).slice(0, 200) || `HTTP ${r.status}`));
+    const blobUrl = URL.createObjectURL(await r.blob());
+    avLaadiFailAlla(blobUrl, failiNimi);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  } catch (err) {
+    teata('ZIP-i allalaadimine ebaõnnestus: ' + err.message);
+  }
 }
-function avLaadiKoikArvedZip() {
+async function avLaadiArvedZip() {
+  if (!avArvedValitud.size) return;
+  await avLaadiZipFail(`/api/arved/zip?ids=${[...avArvedValitud].join(',')}`, 'arved.zip');
+}
+async function avLaadiKoikArvedZip() {
   if (!avArvedList.length) return;
-  if (!confirm(`Laadid alla KÕIK ${avArvedList.length} arvet (filtreid eirates) ühe ZIP-ina. Jätkata?`)) return;
-  window.open(`/api/arved/zip?ids=${avArvedList.map(a => a.id).join(',')}&_token=${TOKEN}`, '_blank');
+  if (!await kysi(`Laadid alla KÕIK ${avArvedList.length} arvet (filtreid eirates) ühe ZIP-ina. Jätkata?`)) return;
+  await avLaadiZipFail(`/api/arved/zip?ids=${avArvedList.map(a => a.id).join(',')}`, 'arved.zip');
 }
 
 function avFiltreeriStaatus(s) {
@@ -745,7 +758,7 @@ async function avMuudaStaatus(id, uusStaatus) {
 }
 
 async function avKustutaArve(id) {
-  if (!confirm('Kustutad selle arve jäädavalt?')) return;
+  if (!await kysi('Kustutad selle arve jäädavalt?')) return;
   await api(`/api/arved/${id}`, { method: 'DELETE' });
   await laadiArvedTabel();
 }
@@ -1167,7 +1180,7 @@ async function avMaaraValitudMuuja() {
   if (!muujaId) { alert('Vali enne ettevõte, kelle alla need kulud lähevad'); return; }
   if (!avSisseValitud.size) return;
   const nimi = (avmMuujad.find(m => String(m.id) === String(muujaId)) || {}).ettevote_nimi || '';
-  if (!confirm(`Määrad ${avSisseValitud.size} kirjet ettevõtte "${nimi}" alla?`)) return;
+  if (!await kysi(`Määrad ${avSisseValitud.size} kirjet ettevõtte "${nimi}" alla?`)) return;
   const r = await api('/api/arved/sisse/muuja-hulgi', {
     method: 'PUT',
     body: JSON.stringify({ ids: [...avSisseValitud], muuja_id: muujaId })
@@ -1183,7 +1196,7 @@ function avLaadiValitudZip() {
 
 async function avKustutaValitudSisse() {
   if (!avSisseValitud.size) return;
-  if (!confirm(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
+  if (!await kysi(`Kustutad ${avSisseValitud.size} valitud kirjet jäädavalt?`)) return;
   await api(`/api/arved/sisse?ids=${[...avSisseValitud].join(',')}`, { method: 'DELETE' });
   await laadiSisseTabel();
 }
@@ -1254,7 +1267,7 @@ async function avMuudaSisseStaatus(id, uusStaatus) {
 }
 
 async function avKustutaSisse(id) {
-  if (!confirm('Kustutad selle kirje jäädavalt?')) return;
+  if (!await kysi('Kustutad selle kirje jäädavalt?')) return;
   await api(`/api/arved/sisse/${id}`, { method: 'DELETE' });
   await laadiSisseTabel();
 }

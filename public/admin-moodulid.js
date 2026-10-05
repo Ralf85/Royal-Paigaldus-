@@ -196,7 +196,7 @@ async function laadiRaportExcel() {
   if (!ettevote_id) { alert('Vali ettevõte'); return; }
   const opt = document.getElementById('r-ettevote').options[document.getElementById('r-ettevote').selectedIndex];
   const tyyp = opt ? opt.dataset.tyyp : 'muu';
-  const esitusHind = prompt('Esitushind (€/h, käibemaksuta) selle raporti jaoks:', '25');
+  const esitusHind = await kysiTeksti('Esitushind (€/h, käibemaksuta) selle raporti jaoks:', '25');
   if (esitusHind === null) return;
   const esitus_hind = parseFloat(esitusHind) || 0;
   let url = `/api/admin/raport-filter?ettevote_id=${ettevote_id}&algus=${algus}&lopp=${lopp}&_=${Date.now()}`;
@@ -466,7 +466,7 @@ async function xsSalvestaEvent() {
 async function xsKustutaEvent() {
   if (!xsAktiivneEventId) return;
   const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
-  if (!confirm(`Kustutada võistlus "${ev ? ev.nimi : ''}" koos KÕIGI selle parkide ja korvidega? Seda ei saa tagasi võtta.`)) return;
+  if (!await kysi(`Kustutada võistlus "${ev ? ev.nimi : ''}" koos KÕIGI selle parkide ja korvidega? Seda ei saa tagasi võtta.`)) return;
   await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'DELETE' });
   xsAktiivneEventId = null;
   await xsLaadiEvents();
@@ -610,7 +610,7 @@ async function xsLaadiAsukohad() {
 }
 
 async function xsKustutaAsukoht(id) {
-  if (!confirm('Kustutada see park koos kõigi korvidega?')) return;
+  if (!await kysi('Kustutada see park koos kõigi korvidega?')) return;
   await api('/api/xseeria/admin/asukohad/' + id, { method: 'DELETE' });
   if (xsMuudetavAsukohtId === id) xsTyhistaParkEdit();
   await xsLaadiAsukohad();
@@ -694,7 +694,7 @@ async function xsKustutaFotoSlot(index) {
   }
 
   if (s.olemasolevUrl) {
-    if (!confirm(`Kustutada raja nr ${s.number} pilt?`)) return;
+    if (!await kysi(`Kustutada raja nr ${s.number} pilt?`)) return;
     const r = await api('/api/xseeria/korvid/' + s.korvId + '/rajakaart', { method: 'DELETE' });
     if (!r.ok) { alert('Kustutamine ebaõnnestus: ' + (r.veateade || 'tundmatu viga')); return; }
     s.olemasolevUrl = null;
@@ -901,7 +901,7 @@ async function xsToggleUlesanne(id) {
 }
 
 async function xsKustutaUlesanne(id) {
-  if (!confirm('Kustutada see ülesanne?')) return;
+  if (!await kysi('Kustutada see ülesanne?')) return;
   await api('/api/xseeria/admin/ulesanded/' + id, { method: 'DELETE' });
   if (xsMuudetavUlesanneId === id) xsTyhistaUlesandeEdit();
   await xsLaadiUlesanded();
@@ -1036,7 +1036,7 @@ async function xsLisaTegevus() {
 }
 
 async function xsKustutaTegevus(id) {
-  if (!confirm('Kustutada see tegevus?')) return;
+  if (!await kysi('Kustutada see tegevus?')) return;
   await api('/api/xseeria/admin/tegevused/' + id, { method: 'DELETE' });
   if (xsMuudetavTegevusId === id) xsTyhistaTegevuseEdit();
   await xsLaadiTegevused();
@@ -1148,7 +1148,7 @@ async function xsLisaSponsor() {
 }
 
 async function xsKustutaSponsor(sponsorId, nimi) {
-  if (!confirm(`Kustutada sponsor "${nimi}" TÄIELIKULT üldnimekirjast (kõigi võistluste alt)?`)) return;
+  if (!await kysi(`Kustutada sponsor "${nimi}" TÄIELIKULT üldnimekirjast (kõigi võistluste alt)?`)) return;
   await api('/api/xseeria/admin/sponsorid/' + sponsorId, { method: 'DELETE' });
   if (xsMuudetavSponsorId === sponsorId) xsTyhistaSponsorEdit();
   await xsLaadiSponsoridUldnimekiri();
@@ -1271,7 +1271,7 @@ async function xsLisaKulu() {
 }
 
 async function xsKustutaKulu(id) {
-  if (!confirm('Kustutada see kulurida?')) return;
+  if (!await kysi('Kustutada see kulurida?')) return;
   await api('/api/xseeria/admin/kulud/' + id, { method: 'DELETE' });
   if (xsMuudetavKuluId === id) xsTyhistaKuluEdit();
   await xsLaadiKulud();

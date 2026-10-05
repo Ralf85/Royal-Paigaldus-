@@ -109,7 +109,7 @@
   };
 
   window.mkKustuta = async function (id) {
-    if (!confirm('Kustutad selle märkme jäädavalt?')) return;
+    if (!await kysi('Kustutad selle märkme jäädavalt?')) return;
     await api('/api/markmed/' + id, { method: 'DELETE' });
     mkAvatudId = null;
     await mkLaadi();
