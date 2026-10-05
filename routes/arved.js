@@ -561,7 +561,8 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
 });
 
 // ── SISSE MUUTMINE (nt kui AI luges valesti) — valikuline faili asendamine ──
-router.put('/sisse/:id', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+// Ainult numbriline id — muidu püüdis see marsruut kinni ka '/sisse/muuja-hulgi' (hulgi määramine ei töötanud).
+router.put('/sisse/:id(\\d+)', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks } = req.body;
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   try {

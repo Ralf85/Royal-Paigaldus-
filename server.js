@@ -7,6 +7,33 @@ const crypto = require('crypto');
 if (!globalThis.crypto) globalThis.crypto = crypto.webcrypto;
 const { initDB, pool } = require('./db');
 const app = express();
+
+// ── KOKKUJOOKSMISE KAITSE ────────────────────────────────────────────────
+// Express 4 ei püüa async-funktsioonide vigu: üks andmebaasi viga ühes marsruudis sulges varem
+// KOGU serveri (kõik kasutajad väljas, kuni Railway selle uuesti käivitas). See lõik suunab iga
+// sellise vea allpool olevasse ühisesse veakäsitlejasse — päring saab vastuseks 500, server jääb tööle.
+try {
+  const Layer = require('express/lib/router/layer');
+  Layer.prototype.handle_request = function handle(req, res, next) {
+    const fn = this.handle;
+    if (fn.length > 3) return next(); // veakäsitleja (4 argumenti) — tavapäringus jäetakse vahele
+    try {
+      const tulemus = fn(req, res, next);
+      if (tulemus && typeof tulemus.catch === 'function') tulemus.catch(next);
+    } catch (err) {
+      next(err);
+    }
+  };
+} catch (e) {
+  console.error('Async-vigade kaitset ei saanud paigaldada:', e.message);
+}
+// Viimane turvavõrk: logime vea, aga ei lase ühel real kogu rakendust sulgeda.
+process.on('unhandledRejection', (pohjus) => {
+  console.error('⚠️ Püüdmata viga (unhandledRejection):', pohjus && pohjus.stack ? pohjus.stack : pohjus);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Püüdmata viga (uncaughtException):', err && err.stack ? err.stack : err);
+});
 // Railway tõlgib liikluse HTTPS -> HTTP oma serverisse; see seadistus laseb Expressil
 // õigesti tuvastada, et algne päring OLI HTTPS (vajalik nt WebAuthn/Face ID turvakontrolliks).
 app.set('trust proxy', true);
@@ -107,6 +134,22 @@ app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public'
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
 app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));
 app.get('/padel-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel-admin.html')));
+// Tundmatu API aadress -> selge JSON-vastus (mitte HTML-leht, mida liides ei oska lugeda)
+app.use('/api', (req, res) => {
+  res.status(404).json({ ok: false, veateade: 'Sellist API aadressi ei ole' });
+});
+// Ühine veakäsitleja — siia jõuavad kõik marsruutides püüdmata vead (vt "KOKKUJOOKSMISE KAITSE" ülal).
+app.use((err, req, res, next) => {
+  const failiViga = err && (err.name === 'MulterError' || /Ainult pildid|Ainult/.test(err.message || ''));
+  if (!failiViga) console.error(`❌ Viga: ${req.method} ${req.originalUrl} —`, err && err.stack ? err.stack : err);
+  // Vastus juba pooleli (nt ZIP-i allalaadimine) -> katkestame ühenduse, uut vastust saata ei saa.
+  if (res.headersSent) { try { res.destroy(); } catch (e) {} return; }
+  if (failiViga) {
+    const tekst = err.code === 'LIMIT_FILE_SIZE' ? 'Fail on liiga suur' : (err.message || 'Faili üleslaadimine ebaõnnestus');
+    return res.status(400).json({ ok: false, veateade: tekst });
+  }
+  res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+});
 initDB().then(async () => {
   // Kustutame käivitumisel aegunud sessioonid, et tabelid ei kasvaks lõputult
   try {
@@ -116,5 +159,13 @@ initDB().then(async () => {
   } catch (e) {
     console.error('Vananenud sessioonide koristus ebaõnnestus:', e.message);
   }
-  app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
+  // Kui porti ei saa avada, pole mõtet "poolikult" tööle jääda — väljume, Railway käivitab uuesti.
+  server.on('error', (err) => {
+    console.error('❌ Serveri käivitamine ebaõnnestus:', err.message);
+    process.exit(1);
+  });
+}).catch((err) => {
+  console.error('❌ Andmebaasi ettevalmistus ebaõnnestus — server ei käivitu:', err && err.stack ? err.stack : err);
+  process.exit(1);
 });

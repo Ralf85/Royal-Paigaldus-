@@ -1,7 +1,16 @@
 const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Ajapiirangud: ilma nendeta võis üks kinni jäänud päring panna kõik teised lõputult ootama.
+  connectionTimeoutMillis: 10000,              // vaba ühendust oodatakse kuni 10 s, siis tuleb viga
+  statement_timeout: 60000,                    // üks päring võib kesta kuni 60 s
+  idle_in_transaction_session_timeout: 60000   // pooleli jäänud transaktsioon katkestatakse 60 s järel
+});
+// Kui Postgres katkestab ooteloleva ühenduse (nt andmebaasi taaskäivitus), annab pg sellest teada
+// 'error' sündmusega — ilma kuulajata sulgus kogu server. Nüüd logime ja pool loob uue ühenduse.
+pool.on('error', (err) => {
+  console.error('⚠️ Andmebaasi ühenduse viga (pool):', err.message);
 });
 
 async function initDB() {
@@ -530,8 +539,6 @@ async function initDB() {
     // viga arve salvestamisel. Laiendame, et see enam terve arve loomist ei blokeeriks.
     await client.query(`ALTER TABLE arved ALTER COLUMN ostja_rg_kood TYPE VARCHAR(200);`);
     await client.query(`ALTER TABLE arved ALTER COLUMN ostja_kmkr TYPE VARCHAR(200);`);
-    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN rg_kood TYPE VARCHAR(200);`);
-    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN kmkr TYPE VARCHAR(200);`);
     // Kolmandad osapooled (ostjad, kes pole Lidl/Cramo/Merekohvik/Muu) — kord käsitsi sisestatud, jäävad meelde,
     // et Klient rippmenüüst saaks nad tulevikus kiirelt uuesti valida.
     await client.query(`
@@ -546,6 +553,9 @@ async function initDB() {
         loodud TIMESTAMP DEFAULT NOW()
       );
     `);
+    // NB: need peavad olema PÄRAST tabeli loomist — muidu ei käivitu rakendus tühja andmebaasi peal.
+    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN rg_kood TYPE VARCHAR(200);`);
+    await client.query(`ALTER TABLE arve_kliendid ALTER COLUMN kmkr TYPE VARCHAR(200);`);
     // Lidl ja Cramo arve baasandmed (registrikoodid/aadressid varasematelt arvetelt) — täidame ainult siis,
     // kui pole veel käsitsi/administ seadistatud (ei kirjuta hiljem tehtud muudatusi üle).
     await client.query(`
