@@ -6,6 +6,7 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const archiver = require('archiver');
 const { looZip, lisaUrl, lopetaZip, zipNimi, kpNimeks, laadiPuhver } = require('../zipabi');
+const { aiFailid, loeDokument, arv, puhasKuupaev } = require('../ailugeja');
 const https = require('https');
 const http = require('http');
 
@@ -636,69 +637,38 @@ router.get('/sisse/zip', noudaArvedLubatud, async (req, res) => {
 
 // ── AI ARVE LUGEJA (Claude vision — loeb pildilt/PDF-ilt ettevõtte/summa/käibemaksu/kuupäeva) ──
 // Ainult eelvaade — ei salvesta midagi, admin vaatab tulemuse üle ja vajutab ise "Salvesta".
-router.post('/sisse/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+router.post('/sisse/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
-  }
   try {
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const base64 = req.file.buffer.toString('base64');
-    const sisuBlokk = isPdf
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
-    const juhis = `Sa vaatad ühte OSTUARVET või kuluchekki. See dokument on väljastatud MEIE ettevõttele "Royal Paigaldus OÜ" (registrikood 16256983) — MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
+    const juhis = `Sa vaatad ühte OSTUARVET või kulutšekki. See dokument on väljastatud MEIE ettevõttele "Royal Paigaldus OÜ" (registrikood 16256983) — MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
 Loe dokumendilt välja MÜÜJA andmed — see on teine osapool, kellele me maksame (tavaliselt dokumendi ülaosas logo juures, või väljadel "Müüja", "Väljastaja", "Saatja", "Teenusepakkuja", või kelle pangakontole makse tehakse). ÄRA KUNAGI kirjuta väljale "ettevote" sõnu "Royal Paigaldus" — see oleme meie ise, ostja, mitte müüja!
-Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI Royal Paigaldus)", "summa": <lõppsumma käibemaksuga, number>, "kaibemaks": <käibemaksu summa eurodes, number; kui pole otse kirjas aga on % ja summa km-ta, arvuta see>, "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)"}
-Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi ja summa/kaibemaks jaoks 0.`;
-    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
-      })
-    });
-    const data = await apiResp.json();
-    if (!apiResp.ok) {
-      console.error('Anthropic API viga:', data);
-      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
-    }
-    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
-    let väljad;
-    try {
-      const vaste = tekst.match(/\{[\s\S]*\}/);
-      väljad = JSON.parse(vaste ? vaste[0] : tekst);
-    } catch (e) {
-      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
-    }
+Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
+"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI Royal Paigaldus)", "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)" ning allpool kirjeldatud summaväljad.
+Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
+    const t = await loeDokument(req, juhis, { summad: true });
+    if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+    const väljad = t.valjad;
     // Turvavõrk: kui AI eksis ja tagastas meie enda ettevõtte nime (ostja, mitte müüja), tühjenda see väli —
     // parem tühi väli, mida käsitsi täita, kui vale/eksitav "müüja" nimi.
-    if (väljad.ettevote && /royal[\s-]*paigaldus/i.test(väljad.ettevote)) {
-      väljad.ettevote = '';
-    }
+    if (väljad.ettevote && /royal[\s-]*paigaldus/i.test(väljad.ettevote)) väljad.ettevote = '';
     // Proovi meie oma ettevõtete nimekirjast (Cramo/Lidl/Merekohvik/Muu) sobivat automaatselt valida,
     // kui loetud müüja nimi sisaldab mõnda meie ettevõtte lühinime (nt "Cramo Estonia AS" → CRAMO).
     let ettevoteId = null;
     if (väljad.ettevote) {
-      const en = String(väljad.ettevote).toUpperCase();
+      const nimi = String(väljad.ettevote).toUpperCase();
       const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
-      const leitud = kandidaadid.rows.find(e => en.includes((e.nimi || '').toUpperCase()));
+      const leitud = kandidaadid.rows.find(e => e.nimi && nimi.includes(e.nimi.toUpperCase()));
       if (leitud) ettevoteId = leitud.id;
     }
     res.json({
       ok: true,
       ettevote: väljad.ettevote || '',
-      summa: parseFloat(väljad.summa) || 0,
-      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
-      kuupaev: väljad.kuupaev || '',
-      tahtaeg: väljad.tahtaeg || '',
+      summa: t.summad.kokku,
+      summa_km_ta: t.summad.summa_km_ta,
+      kaibemaks: t.summad.kaibemaks,
+      km_kontroll: t.summad.km_kontroll,
+      kuupaev: puhasKuupaev(väljad.kuupaev),
+      tahtaeg: puhasKuupaev(väljad.tahtaeg),
       ettevote_id: ettevoteId
     });
   } catch (err) {
@@ -709,73 +679,41 @@ Kui mõnda välja ei leia, kasuta ettevote/kuupaev/tahtaeg jaoks tühja stringi 
 
 // ── ÜHINE ÜLESLAADIMINE: AI tuvastab ise, kas dokument on VÄLJAMINEV (meie väljastatud arve,
 // Royal Paigaldus on müüja) või SISSETULEV (meie ostetud kaup/teenus, Royal Paigaldus on ostja) ──
-router.post('/loe-suund', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+router.post('/loe-suund', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
-  }
   try {
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const base64 = req.file.buffer.toString('base64');
-    const sisuBlokk = isPdf
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
-    const juhis = `Sa vaatad üht arvet, tšekki või kuluchekki, mis puudutab ettevõtet "Royal Paigaldus OÜ" (registrikood 16256983).
+    const juhis = `Sa vaatad üht arvet, tšekki või kulutšekki, mis puudutab ettevõtet "Royal Paigaldus OÜ" (registrikood 16256983).
 Esimene ja kõige tähtsam samm: tuvasta, KUMB POOL Royal Paigaldus OÜ sellel dokumendil on:
 - Kui Royal Paigaldus OÜ ise VÄLJASTAS/ESITAS selle arve kellelegi teisele (Royal Paigaldus on MÜÜJA) → "suund"="valja".
-- Kui dokument on väljastatud Royal Paigaldusele mõne TEISE ettevõtte poolt, st Royal Paigaldus OSTIS/MAKSIS (Royal Paigaldus on OSTJA) → "suund"="sisse".
+- Kui dokument on väljastatud Royal Paigaldusele mõne TEISE ettevõtte poolt, st Royal Paigaldus OSTIS/MAKSIS (Royal Paigaldus on OSTJA) → "suund"="sisse". Tavaline poetšekk on alati "sisse".
 Seejärel:
 - kui suund="valja": väljale "vastaspool" kirjuta OSTJA (kliendi) nimi, kellele arve esitati; proovi lugeda ka arve number väljale "number".
 - kui suund="sisse": väljale "vastaspool" kirjuta MÜÜJA nimi, kellelt me ostsime. ÄRA KUNAGI kirjuta väljale "vastaspool" sõnu "Royal Paigaldus" — see oleme meie ise!
-Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)", "summa_km_ta": <summa käibemaksuta, number>, "kaibemaks": <käibemaksu summa eurodes, number>, "kokku": <lõppsumma käibemaksuga, number>}
-Kui mõnda välja ei leia, kasuta tekstiväljade jaoks tühja stringi ja summaväljade jaoks 0.`;
-    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
-      })
-    });
-    const data = await apiResp.json();
-    if (!apiResp.ok) {
-      console.error('Anthropic API viga:', data);
-      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
-    }
-    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
-    let väljad;
-    try {
-      const vaste = tekst.match(/\{[\s\S]*\}/);
-      väljad = JSON.parse(vaste ? vaste[0] : tekst);
-    } catch (e) {
-      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
-    }
-    if (väljad.vastaspool && /royal[\s-]*paigaldus/i.test(väljad.vastaspool)) {
-      väljad.vastaspool = '';
-    }
+Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
+"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)" ning allpool kirjeldatud summaväljad.
+Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
+    const t = await loeDokument(req, juhis, { summad: true });
+    if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+    const väljad = t.valjad;
+    if (väljad.vastaspool && /royal[\s-]*paigaldus/i.test(väljad.vastaspool)) väljad.vastaspool = '';
     let ettevoteId = null;
     if (väljad.vastaspool) {
-      const vn = String(väljad.vastaspool).toUpperCase();
+      const nimi = String(väljad.vastaspool).toUpperCase();
       const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
-      const leitud = kandidaadid.rows.find(e => vn.includes((e.nimi || '').toUpperCase()));
+      const leitud = kandidaadid.rows.find(e => e.nimi && nimi.includes(e.nimi.toUpperCase()));
       if (leitud) ettevoteId = leitud.id;
     }
     res.json({
       ok: true,
       suund: väljad.suund === 'valja' ? 'valja' : 'sisse',
       vastaspool: väljad.vastaspool || '',
-      number: väljad.number || '',
-      kuupaev: väljad.kuupaev || '',
-      tahtaeg: väljad.tahtaeg || '',
-      summa_km_ta: parseFloat(väljad.summa_km_ta) || 0,
-      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
-      kokku: parseFloat(väljad.kokku) || 0,
+      number: väljad.number ? String(väljad.number) : '',
+      kuupaev: puhasKuupaev(väljad.kuupaev),
+      tahtaeg: puhasKuupaev(väljad.tahtaeg),
+      summa_km_ta: t.summad.summa_km_ta,
+      kaibemaks: t.summad.kaibemaks,
+      kokku: t.summad.kokku,
+      km_kontroll: t.summad.km_kontroll,
       ettevote_id: ettevoteId
     });
   } catch (err) {
@@ -1037,63 +975,33 @@ router.post('/', noudaAdmin, async (req, res) => {
 
 // ── VANADE ARVETE ÜLESLAADIMINE (tagantjärele, nt raamatupidamise ajaloo jaoks) ──
 // AI loeb faili ja proovib täita numbri, ostja, kuupäevad ja summad — kasutaja vaatab üle ja salvestab.
-router.post('/laadi/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+router.post('/laadi/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
-  }
   try {
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const base64 = req.file.buffer.toString('base64');
-    const sisuBlokk = isPdf
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
     const juhis = `Sa vaatad ühte MEIE ENDA väljastatud MÜÜGIARVET. Sellel dokumendil on müüja/väljastaja "Royal Paigaldus OÜ" (registrikood 16256983) — see oleme meie. Loe välja OSTJA ehk kliendi andmed (kellele arve on esitatud) ja arve enda andmed.
-Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"number": "arve number dokumendil (nt 170826003 vms), tühi string kui pole", "ostja_nimi": "ostja/kliendi ettevõtte nimi", "kuupaev": "YYYY-MM-DD (arve väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas)", "summa_km_ta": <summa käibemaksuta, number>, "kaibemaks": <käibemaksu summa eurodes, number>, "kokku": <arve lõppsumma käibemaksuga, number>}
-Kui mõnda välja ei leia, kasuta tekstiväljade jaoks tühja stringi ja summaväljade jaoks 0.`;
-    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
-      })
-    });
-    const data = await apiResp.json();
-    if (!apiResp.ok) {
-      console.error('Anthropic API viga:', data);
-      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
-    }
-    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
-    let väljad;
-    try {
-      const vaste = tekst.match(/\{[\s\S]*\}/);
-      väljad = JSON.parse(vaste ? vaste[0] : tekst);
-    } catch (e) {
-      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
-    }
+Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
+"number": "arve number dokumendil (nt 170826003 vms), tühi string kui pole", "ostja_nimi": "ostja/kliendi ettevõtte nimi", "kuupaev": "YYYY-MM-DD (arve väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas)" ning allpool kirjeldatud summaväljad.
+Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
+    const t = await loeDokument(req, juhis, { summad: true });
+    if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+    const väljad = t.valjad;
     let ettevoteId = null;
     if (väljad.ostja_nimi) {
-      const on = String(väljad.ostja_nimi).toUpperCase();
+      const nimi = String(väljad.ostja_nimi).toUpperCase();
       const kandidaadid = await pool.query('SELECT id, nimi FROM ettevotted');
-      const leitud = kandidaadid.rows.find(e => on.includes((e.nimi || '').toUpperCase()));
+      const leitud = kandidaadid.rows.find(e => e.nimi && nimi.includes(e.nimi.toUpperCase()));
       if (leitud) ettevoteId = leitud.id;
     }
     res.json({
       ok: true,
-      number: väljad.number || '',
+      number: väljad.number ? String(väljad.number) : '',
       ostja_nimi: väljad.ostja_nimi || '',
-      kuupaev: väljad.kuupaev || '',
-      tahtaeg: väljad.tahtaeg || '',
-      summa_km_ta: parseFloat(väljad.summa_km_ta) || 0,
-      kaibemaks: parseFloat(väljad.kaibemaks) || 0,
-      kokku: parseFloat(väljad.kokku) || 0,
+      kuupaev: puhasKuupaev(väljad.kuupaev),
+      tahtaeg: puhasKuupaev(väljad.tahtaeg),
+      summa_km_ta: t.summad.summa_km_ta,
+      kaibemaks: t.summad.kaibemaks,
+      kokku: t.summad.kokku,
+      km_kontroll: t.summad.km_kontroll,
       ettevote_id: ettevoteId
     });
   } catch (err) {
@@ -1146,53 +1054,22 @@ router.post('/laadi', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
 // Loeb sealt AI-ga kaks eraldi fakti (käive brutos + SumUp teenustasu) ja lubab admin need
 // enne salvestamist üle vaadata, seejärel luuakse KORRAGA kaks kirjet: käive (Väljaminevad,
 // ostja=MEREKOHVIK) ja teenustasu (Sisse, kulu) — ilma milleta üksik-arve AI-lugeja need segi ajaks.
-router.post('/sumup/loe', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
+router.post('/sumup/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
-  }
   try {
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const base64 = req.file.buffer.toString('base64');
-    const sisuBlokk = isPdf
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
     const juhis = `Sa vaatad SumUp väljamaksete (Payout Report) aruannet. See EI OLE tavaline arve, vaid kokkuvõte kaardimüügist ja väljamaksetest ühe perioodi kohta.
 Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
 {"periood_algus": "YYYY-MM-DD (aruande perioodi algus)", "periood_lopp": "YYYY-MM-DD (aruande perioodi lõpp)", "kaive_bruto": <number, väli "SumUp processed card payments" / "Total of all gross card payments" — kogu kaardimüük enne tasusid>, "tasud": <number, väli "SumUp processing fees" — kogu SumUp teenustasu perioodi eest>}
-Kui mõnda välja ei leia, kasuta kuupäevade jaoks tühja stringi ja numbrite jaoks 0.`;
-    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
-      })
-    });
-    const data = await apiResp.json();
-    if (!apiResp.ok) {
-      console.error('Anthropic API viga:', data);
-      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
-    }
-    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
-    let väljad;
-    try {
-      const vaste = tekst.match(/\{[\s\S]*\}/);
-      väljad = JSON.parse(vaste ? vaste[0] : tekst);
-    } catch (e) {
-      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
-    }
+Kirjuta numbrid dokumendilt täpselt maha, ära arvuta ise. Kui mõnda välja ei leia, kasuta kuupäevade jaoks tühja stringi ja numbrite jaoks 0.`;
+    const t = await loeDokument(req, juhis, { maxTokens: 400 });
+    if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+    const väljad = t.valjad;
     res.json({
       ok: true,
-      periood_algus: väljad.periood_algus || '',
-      periood_lopp: väljad.periood_lopp || '',
-      kaive_bruto: parseFloat(väljad.kaive_bruto) || 0,
-      tasud: parseFloat(väljad.tasud) || 0
+      periood_algus: puhasKuupaev(väljad.periood_algus),
+      periood_lopp: puhasKuupaev(väljad.periood_lopp),
+      kaive_bruto: Math.abs(arv(väljad.kaive_bruto)),
+      tasud: Math.abs(arv(väljad.tasud))
     });
   } catch (err) {
     console.error(err);

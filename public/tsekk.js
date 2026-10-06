@@ -47,19 +47,30 @@
     }
 
     tsTeade('🤖 Loen tšekki...', '#a78bfa');
-    var fd = new FormData();
-    fd.append('fail', f);
-    var r = await api('/api/arved/sisse/loe', { method: 'POST', body: fd });
+    // Eelmise tšeki numbrid ei tohi uue tšeki vormi jääda.
+    ['ts-summa', 'ts-kaibemaks', 'ts-kirjeldus'].forEach(function (id) { document.getElementById(id).value = ''; });
+    if (window.rpAiKmTeade) window.rpAiKmTeade('ts-teade', null);
+    var r = null;
+    try {
+      var fd = window.rpAiVorm ? await window.rpAiVorm(f) : new FormData();
+      if (!window.rpAiVorm) fd.append('fail', f);
+      r = await api('/api/arved/sisse/loe', { method: 'POST', body: fd });
+    } catch (e) { r = null; }
+    if (tsFail !== f) return; // vahepeal valiti juba teine pilt
     document.getElementById('ts-vorm').style.display = 'block';
-    document.getElementById('ts-kuupaev').value = (r && r.kuupaev) || new Date().toISOString().split('T')[0];
+    var tana = new Date();
+    var tanaTekst = tana.getFullYear() + '-' + String(tana.getMonth() + 1).padStart(2, '0') + '-' + String(tana.getDate()).padStart(2, '0');
+    document.getElementById('ts-kuupaev').value = (r && r.kuupaev) || tanaTekst;
     if (r && r.ok) {
       if (r.summa) document.getElementById('ts-summa').value = r.summa;
-      if (r.kaibemaks) document.getElementById('ts-kaibemaks').value = r.kaibemaks;
+      if (r.summa) document.getElementById('ts-kaibemaks').value = r.kaibemaks || 0;
       if (r.ettevote) document.getElementById('ts-kirjeldus').value = r.ettevote;
       if (r.ettevote_id) document.getElementById('ts-ettevote').value = r.ettevote_id;
-      tsTeade('✓ Kontrolli üle ja salvesta', '#4ade80');
+      var kahtlane = r.km_kontroll && r.km_kontroll.olek === 'kontrolli';
+      tsTeade(kahtlane ? 'Kontrolli summad üle enne salvestamist' : '✓ Loetud — vaata üle ja salvesta', kahtlane ? '#fb923c' : '#4ade80');
+      if (window.rpAiKmTeade) window.rpAiKmTeade('ts-teade', r);
     } else {
-      tsTeade('AI ei lugenud — täida käsitsi', '#fb923c');
+      tsTeade((r && r.veateade) || 'AI ei lugenud — täida käsitsi', '#fb923c');
     }
   };
 

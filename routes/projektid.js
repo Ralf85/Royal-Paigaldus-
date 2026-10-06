@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { csvFail, csvArv, csvKuupaev, loeAastaKuu } = require('../csvabi');
+const { aiFailid, loeDokument, arv, puhasKuupaev } = require('../ailugeja');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 
@@ -129,54 +130,22 @@ router.get('/:projektId/minu', noudaSisslogimist, async (req, res) => {
 });
 
 // AI loeb tšeki/arve pildilt kuupäeva, summa ja selgituse (müüja nime) automaatselt
-router.post('/:projektId/loe', noudaSisslogimist, upload.single('fail'), async (req, res) => {
+router.post('/:projektId/loe', noudaSisslogimist, aiFailid(upload), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.json({ ok: false, veateade: 'AI lugemine pole seadistatud (ANTHROPIC_API_KEY puudub Railway keskkonnamuutujates).' });
-  }
   try {
     if (!(await omabLigipaasu(req.params.projektId, req.session.workerId))) {
       return res.status(403).json({ ok: false, veateade: 'Ligipääs puudub' });
     }
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const base64 = req.file.buffer.toString('base64');
-    const sisuBlokk = isPdf
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-      : { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } };
-    const juhis = `Sa vaatad ühte kuluchekki või arvet. Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
-{"kuupaev": "YYYY-MM-DD (tšeki/arve kuupäev)", "summa": <lõppsumma eurodes, number>, "selgitus": "lühike kirjeldus, mis on ostetud ja kust (nt 'Kütus - Circle K' või 'Toidukaubad - Rimi')"}
-Kui mõnda välja ei leia, kasuta kuupaeva/selgituse jaoks tühja stringi ja summa jaoks 0.`;
-    const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: [sisuBlokk, { type: 'text', text: juhis }] }]
-      })
-    });
-    const data = await apiResp.json();
-    if (!apiResp.ok) {
-      console.error('Anthropic API viga:', data);
-      return res.json({ ok: false, veateade: (data.error && data.error.message) || 'AI lugemine ebaõnnestus' });
-    }
-    const tekst = (data.content && data.content[0] && data.content[0].text) || '';
-    let väljad;
-    try {
-      const vaste = tekst.match(/\{[\s\S]*\}/);
-      väljad = JSON.parse(vaste ? vaste[0] : tekst);
-    } catch (e) {
-      return res.json({ ok: false, veateade: 'AI vastust ei õnnestunud lugeda' });
-    }
+    const juhis = `Sa vaatad ühte kulutšekki või arvet. Vasta AINULT JSON-objektiga, ilma muu tekstita, koodiplokkideta:
+{"kuupaev": "YYYY-MM-DD (tšeki/arve kuupäev)", "summa": <lõppsumma eurodes KOOS käibemaksuga — see, mis tegelikult maksti (rida "Kokku", "Tasuda", "Maksta"), number>, "selgitus": "lühike kirjeldus, mis on ostetud ja kust (nt 'Kütus - Circle K' või 'Toidukaubad - Rimi')"}
+Kirjuta summa dokumendilt täpselt maha, loe iga number märk-märgilt, ära arvuta ise. Kui mõnda välja ei leia, kasuta kuupaeva/selgituse jaoks tühja stringi ja summa jaoks 0.`;
+    const t = await loeDokument(req, juhis, { maxTokens: 400 });
+    if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
     res.json({
       ok: true,
-      kuupaev: väljad.kuupaev || '',
-      summa: parseFloat(väljad.summa) || 0,
-      selgitus: väljad.selgitus || ''
+      kuupaev: puhasKuupaev(t.valjad.kuupaev),
+      summa: Math.round(arv(t.valjad.summa) * 100) / 100,
+      selgitus: t.valjad.selgitus ? String(t.valjad.selgitus).slice(0, 200) : ''
     });
   } catch (err) {
     console.error(err);

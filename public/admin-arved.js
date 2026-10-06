@@ -798,8 +798,7 @@ function avSumupValiFail(file) {
 
 async function avLoeSumupFail(file) {
   naitaTeade('su-loe-teade', 'ok', '🤖 Loen SumUp aruannet...');
-  const fd = new FormData();
-  fd.append('fail', file);
+  const fd = await rpAiVorm(file);
   const r = await api('/api/arved/sumup/loe', { method: 'POST', body: fd });
   if (!r.ok) { naitaTeade('su-loe-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); document.getElementById('av-sumup-tulemus').style.display = 'block'; return; }
   if (r.periood_algus) document.getElementById('su-algus').value = r.periood_algus;
@@ -882,8 +881,8 @@ function avLaadiValiFail(file) {
 
 async function avLoeLaadiFail(file) {
   naitaTeade('al-teade', 'ok', '🤖 Loen arvet...');
-  const fd = new FormData();
-  fd.append('fail', file);
+  rpAiKmTeade('al-teade', null);
+  const fd = await rpAiVorm(file);
   const r = await api('/api/arved/laadi/loe', { method: 'POST', body: fd });
   if (!r.ok) { naitaTeade('al-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
   if (r.number) document.getElementById('al-number').value = r.number;
@@ -891,10 +890,11 @@ async function avLoeLaadiFail(file) {
   if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
   if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
   if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
-  if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+  if (r.kokku) document.getElementById('al-kaibemaks').value = r.kaibemaks || 0;
   if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
   if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
   naitaTeade('al-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle (eriti arve number!) ja vajuta Salvesta!');
+  rpAiKmTeade('al-teade', r);
 }
 
 async function avSalvestaLaadi() {
@@ -920,6 +920,7 @@ async function avSalvestaLaadi() {
   document.getElementById('av-laadi-fail').value = '';
   document.getElementById('av-laadi-dropzone-tekst').textContent = '📎 Lohista siia vana arve (pilt või PDF), või kliki valimiseks';
   ['al-number','al-tahtaeg','al-ostja','al-summa-km-ta','al-kaibemaks','al-kokku'].forEach(id => document.getElementById(id).value = '');
+  if (window.rpAiKmTeade) rpAiKmTeade('al-teade', null);
   document.getElementById('al-ettevote').value = '';
   document.getElementById('al-staatus').value = 'maksmata';
   avToggleLaadiVorm();
@@ -967,8 +968,7 @@ function avAvatudNaita(kehaId, noolId) {
 async function avKiirValiFail(file) {
   document.getElementById('av-kiir-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — tuvastan...`;
   naitaTeade('av-kiir-teade', 'ok', '🤖 Loen faili ja tuvastan, kas see on sisse- või väljaminev...');
-  const fd = new FormData();
-  fd.append('fail', file);
+  const fd = await rpAiVorm(file);
   const r = await api('/api/arved/loe-suund', { method: 'POST', body: fd });
   document.getElementById('av-kiir-dropzone-tekst').textContent = '📎 Lohista siia arve või tšekk (pilt või PDF), või kliki valimiseks — ei pea ise valima, kas Sisse või Välja';
   document.getElementById('av-kiir-fail').value = '';
@@ -983,9 +983,10 @@ async function avKiirValiFail(file) {
     if (r.kuupaev) document.getElementById('al-kuupaev').value = r.kuupaev;
     if (r.tahtaeg) document.getElementById('al-tahtaeg').value = r.tahtaeg;
     if (r.summa_km_ta) document.getElementById('al-summa-km-ta').value = r.summa_km_ta;
-    if (r.kaibemaks) document.getElementById('al-kaibemaks').value = r.kaibemaks;
+    if (r.kokku) document.getElementById('al-kaibemaks').value = r.kaibemaks || 0;
     if (r.kokku) document.getElementById('al-kokku').value = r.kokku;
     if (r.ettevote_id) document.getElementById('al-ettevote').value = r.ettevote_id;
+    rpAiKmTeade('al-teade', r);
     avLaadiFail = file;
     document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
     document.getElementById('av-laadi-vorm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -995,9 +996,10 @@ async function avKiirValiFail(file) {
     if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
     if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
     if (r.kokku) document.getElementById('as-summa').value = r.kokku;
-    if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+    if (r.kokku) document.getElementById('as-kaibemaks').value = r.kaibemaks || 0;
     if (r.vastaspool) document.getElementById('as-kirjeldus').value = r.vastaspool;
     if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+    rpAiKmTeade('as-teade', r);
     avSisseFail = file;
     document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
   }
@@ -1029,17 +1031,18 @@ function avSisseValiFail(file) {
 
 async function avLoeSisseFail(file) {
   naitaTeade('as-teade', 'ok', '🤖 Loen arvet...');
-  const fd = new FormData();
-  fd.append('fail', file);
+  rpAiKmTeade('as-teade', null);
+  const fd = await rpAiVorm(file);
   const r = await api('/api/arved/sisse/loe', { method: 'POST', body: fd });
   if (!r.ok) { naitaTeade('as-teade', 'viga', r.veateade || 'AI lugemine ebaõnnestus — täida käsitsi.'); return; }
   if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
   if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
   if (r.summa) document.getElementById('as-summa').value = r.summa;
-  if (r.kaibemaks) document.getElementById('as-kaibemaks').value = r.kaibemaks;
+  if (r.summa) document.getElementById('as-kaibemaks').value = r.kaibemaks || 0;
   if (r.ettevote) document.getElementById('as-kirjeldus').value = r.ettevote;
   if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
   naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle ja vajuta Salvesta!');
+  rpAiKmTeade('as-teade', r);
 }
 
 let avSisseMuudaId = null;
@@ -1206,6 +1209,7 @@ function avMuudaSisse(id) {
   document.getElementById('as-kirjeldus').value = s.kirjeldus || '';
   document.getElementById('as-summa').value = s.summa;
   document.getElementById('as-kaibemaks').value = s.kaibemaks;
+  if (window.rpAiKmTeade) rpAiKmTeade('as-teade', null);
 }
 
 function avTuhistaSisseMuutmine() {
@@ -1221,6 +1225,7 @@ function avTuhistaSisseMuutmine() {
   document.getElementById('as-kirjeldus').value = '';
   document.getElementById('as-summa').value = '';
   document.getElementById('as-kaibemaks').value = '';
+  if (window.rpAiKmTeade) rpAiKmTeade('as-teade', null);
   document.getElementById('as-ettevote').value = '';
 }
 

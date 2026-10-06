@@ -546,6 +546,7 @@
     </div>
   </div>
 
+  <script src="/aipilt.js"></script>
   <script>
     var KUUD = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
     var KUUD_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1044,8 +1045,9 @@
       if (!aktiivneProjekt) return;
       var teade = document.getElementById('projekt-ai-teade');
       teade.style.display = 'block'; teade.style.color = '#8b5cf6'; teade.textContent = '🤖 Loen tšekki...';
-      var fd = new FormData(); fd.append('fail', file);
-      var r = await fetch('/api/projektid/' + aktiivneProjekt.id + '/loe', {method:'POST', headers:{'x-session-token':TOKEN}, body:fd}).then(function(res){return res.json();});
+      var fd;
+      if (window.rpAiVorm) fd = await window.rpAiVorm(file); else { fd = new FormData(); fd.append('fail', file); }
+      var r = await fetch('/api/projektid/' + aktiivneProjekt.id + '/loe', {method:'POST', headers:{'x-session-token':TOKEN}, body:fd}).then(function(res){return res.json();}).catch(function(){return {ok:false, veateade:'Ühendus katkes — täida käsitsi'};});
       if (r.ok) {
         if (r.kuupaev) document.getElementById('projekt-kuupaev').value = r.kuupaev;
         if (r.summa) { document.getElementById('projekt-summa').value = r.summa; document.getElementById('projekt-summa-tekst').textContent = parseFloat(r.summa).toFixed(2) + ' €'; document.getElementById('projekt-summa-tekst').style.color = 'var(--text)'; }
