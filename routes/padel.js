@@ -35,6 +35,18 @@ function fotoSql(alias) {
     (SELECT af.foto_url FROM tootaja_admin_fotod af WHERE af.worker_id = ${alias}.worker_id LIMIT 1))`;
 }
 
+// ── KÜLALISMÄNGIJAD (ilma kontota) ────────────────────────────────────────
+// Külaline = inimene, kellel pole rakenduses kontot (nt ühekordne asendaja). Admin paneb kirja
+// ainult nime (padel_kylalised). Grupis on ta padel_liikmed real, kus worker_id on NULL ja
+// kylaline_id täidetud. Et maksed/statistika saaksid kõiki mängijaid ühtemoodi käsitleda, on
+// igal mängijal "mängija id": kontoga mängijal = worker_id (positiivne), külalisel = -kylaline_id
+// (negatiivne). Liides saab selle endiselt välja "worker_id" all.
+function midSql(alias) { return `COALESCE(${alias}.worker_id, -${alias}.kylaline_id)`; }
+const MAKSE_MID = 'COALESCE(worker_id, -kylaline_id)';
+function puhastaNimi(nimi) {
+  return String(nimi == null ? '' : nimi).replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+
 function noudaAdmin(req, res, next) {
   if (!req.session || !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Admin õigused puuduvad' });
   next();
@@ -279,6 +291,131 @@ router.post('/admin/nadalad/:id/lisa', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── ADMIN: KÜLALISED (mängijad ilma kontota) ───────────────────────────
+// Leiab külalise nime järgi (suur/väiketäht ei loe) või loob uue.
+async function leiaVoiLooKylaline(nimi) {
+  const olemas = await pool.query('SELECT id, nimi FROM padel_kylalised WHERE LOWER(nimi)=LOWER($1)', [nimi]);
+  if (olemas.rows.length) return olemas.rows[0];
+  const uus = await pool.query(
+    `INSERT INTO padel_kylalised (nimi) VALUES ($1)
+     ON CONFLICT (LOWER(nimi)) DO UPDATE SET nimi = padel_kylalised.nimi
+     RETURNING id, nimi`,
+    [nimi]
+  );
+  return uus.rows[0];
+}
+
+// Kõik külalised + mitmes trennis nad kirjas on (admini nimekiri ja "Lisa mängija" valik)
+router.get('/admin/kylalised', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT ky.id, ky.nimi,
+              (SELECT COUNT(*) FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id WHERE pl.kylaline_id = ky.id)::int AS trenne,
+              (SELECT COUNT(*) FROM padel_maksed pm WHERE pm.kylaline_id = ky.id)::int AS makseid
+       FROM padel_kylalised ky ORDER BY ky.nimi`
+    );
+    res.json({ ok: true, kylalised: r.rows });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+router.post('/admin/kylalised', noudaAdmin, async (req, res) => {
+  const nimi = puhastaNimi(req.body.nimi);
+  if (nimi.length < 2) return res.json({ ok: false, veateade: 'Sisesta külalise nimi' });
+  try {
+    const olemas = await pool.query('SELECT 1 FROM padel_kylalised WHERE LOWER(nimi)=LOWER($1)', [nimi]);
+    if (olemas.rows.length) return res.json({ ok: false, veateade: 'Sellise nimega külaline on juba nimekirjas' });
+    const k = await leiaVoiLooKylaline(nimi);
+    res.json({ ok: true, kylaline: k });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+router.put('/admin/kylalised/:id', noudaAdmin, async (req, res) => {
+  const nimi = puhastaNimi(req.body.nimi);
+  if (nimi.length < 2) return res.json({ ok: false, veateade: 'Sisesta külalise nimi' });
+  try {
+    const r = await pool.query('UPDATE padel_kylalised SET nimi=$1 WHERE id=$2 RETURNING id', [nimi, req.params.id]);
+    if (!r.rows.length) return res.json({ ok: false, veateade: 'Külalist ei leitud' });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23505') return res.json({ ok: false, veateade: 'Sellise nimega külaline on juba nimekirjas' });
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+// Kustutab külalise täielikult — koos tema trennikohtade ja maksetega (CASCADE).
+router.delete('/admin/kylalised/:id', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM padel_kylalised WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// Admin lisab trennile KÜLALISE: kas olemasoleva (kylaline_id) või uue (nimi). Koht on kohe
+// kinnitatud ja trennitasu läheb talle arvele nagu igale teisele mängijale.
+router.post('/admin/nadalad/:id/lisa-kylaline', noudaAdmin, async (req, res) => {
+  const paar = req.body.paar === 1 || req.body.paar === 2 ? req.body.paar : null;
+  const kylalineId = parseInt(req.body.kylaline_id, 10);
+  const nimi = puhastaNimi(req.body.nimi);
+  if (!kylalineId && nimi.length < 2) return res.json({ ok: false, veateade: 'Sisesta külalise nimi' });
+  try {
+    const nadalR = await pool.query(
+      `SELECT pn.ryhm_id, r.hind FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id WHERE pn.id=$1`,
+      [req.params.id]
+    );
+    if (!nadalR.rows.length) return res.json({ ok: false, veateade: 'Trenni ei leitud' });
+    const { ryhm_id, hind } = nadalR.rows[0];
+
+    // Kõigepealt ainult OTSIME (midagi ei loo), et täis paari korral ei jääks tühja külalist maha.
+    let kylaline = null;
+    if (kylalineId) {
+      const k = await pool.query('SELECT id, nimi FROM padel_kylalised WHERE id=$1', [kylalineId]);
+      if (!k.rows.length) return res.json({ ok: false, veateade: 'Külalist ei leitud' });
+      kylaline = k.rows[0];
+    } else {
+      const k = await pool.query('SELECT id, nimi FROM padel_kylalised WHERE LOWER(nimi)=LOWER($1)', [nimi]);
+      if (k.rows.length) kylaline = k.rows[0];
+    }
+    let liigeId = null;
+    if (kylaline) {
+      const l = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1 AND kylaline_id=$2', [ryhm_id, kylaline.id]);
+      if (l.rows.length) liigeId = l.rows[0].id;
+    }
+
+    if (paar) {
+      const kohtiR = await pool.query(
+        'SELECT COUNT(*) c FROM padel_kohad WHERE nadal_id=$1 AND paar=$2 AND liige_id IS DISTINCT FROM $3',
+        [req.params.id, paar, liigeId]
+      );
+      if (parseInt(kohtiR.rows[0].c, 10) >= 2) return res.json({ ok: false, veateade: `Paar ${paar} on juba täis` });
+    }
+
+    if (!kylaline) kylaline = await leiaVoiLooKylaline(nimi);
+    // Külalise "liikmerida" selles grupis (luuakse esimesel korral)
+    if (!liigeId) {
+      await pool.query(
+        `INSERT INTO padel_liikmed (ryhm_id, kylaline_id, jrk_nr)
+         VALUES ($1,$2,(SELECT COALESCE(MAX(jrk_nr),-1)+1 FROM padel_liikmed WHERE ryhm_id=$1))
+         ON CONFLICT DO NOTHING`,
+        [ryhm_id, kylaline.id]
+      );
+      const l = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1 AND kylaline_id=$2', [ryhm_id, kylaline.id]);
+      liigeId = l.rows[0].id;
+    }
+
+    await pool.query(
+      `INSERT INTO padel_kohad (nadal_id, liige_id, paar, osaleb, kinnitatud, summa) VALUES ($1,$2,$3,true,true,$4)
+       ON CONFLICT (nadal_id, liige_id) DO UPDATE SET paar=$3, osaleb=true, kinnitatud=true`,
+      [req.params.id, liigeId, paar, hind]
+    );
+    res.json({ ok: true, kylaline });
+  } catch (err) {
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 // Admin kinnitab (või võtab kinnituse maha) ühe mängija koha trennil
 router.put('/admin/kohad/:id/kinnitatud', noudaAdmin, async (req, res) => {
   try {
@@ -362,10 +499,20 @@ router.get('/ryhm/:id', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req,
        GROUP BY pk.liige_id`,
       [req.params.id]
     );
-    const edetabel = liikmedR.rows.map(l => {
+    // Külalised (ilma kontota): edetabelis ainult need, kes on selles grupis päriselt trennis kirjas.
+    // "liikmed" nimekirja (mängijate valik, sõnumid) nad EI lähe — sinna jäävad ainult kontoga mängijad.
+    const kylalisedR = await pool.query(
+      `SELECT pl.id, ky.nimi
+       FROM padel_liikmed pl JOIN padel_kylalised ky ON ky.id = pl.kylaline_id
+       WHERE pl.ryhm_id=$1 AND EXISTS (SELECT 1 FROM padel_kohad pk WHERE pk.liige_id = pl.id)
+       ORDER BY ky.nimi`,
+      [req.params.id]
+    );
+    const edetabeliRead = liikmedR.rows.concat(kylalisedR.rows.map(k => ({ id: k.id, nimi: k.nimi, foto_url: null, kylaline: true })));
+    const edetabel = edetabeliRead.map(l => {
       const rida = edetabelR.rows.find(e => e.liige_id === l.id);
       return {
-        liige_id: l.id, nimi: l.nimi, foto_url: l.foto_url,
+        liige_id: l.id, nimi: l.nimi, foto_url: l.foto_url, kylaline: !!l.kylaline,
         punktid: rida ? parseInt(rida.punktid, 10) : 0,
         geimid: rida ? parseInt(rida.geimid_kokku, 10) : 0,
         mange: rida ? parseInt(rida.mange, 10) : 0
@@ -374,9 +521,11 @@ router.get('/ryhm/:id', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req,
 
     const nadaladR = await pool.query(
       `SELECT pn.*,
-              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'worker_id', pl2.worker_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'nimi', w.nimi, 'foto_url', ${fotoSql('pl2')}, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
-                FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id JOIN workers w ON w.id = pl2.worker_id
-                WHERE pk.nadal_id = pn.id) AS kohad,
+              (SELECT json_agg(json_build_object('liige_id', pk.liige_id, 'worker_id', pl2.worker_id, 'paar', pk.paar, 'osaleb', pk.osaleb, 'kinnitatud', pk.kinnitatud, 'nimi', COALESCE(w.nimi, ky.nimi), 'kylaline', (pl2.kylaline_id IS NOT NULL), 'foto_url', ${fotoSql('pl2')}, 'id', pk.id, 'makstud', pk.makstud, 'summa', pk.summa))
+                FROM padel_kohad pk JOIN padel_liikmed pl2 ON pl2.id = pk.liige_id
+                LEFT JOIN workers w ON w.id = pl2.worker_id
+                LEFT JOIN padel_kylalised ky ON ky.id = pl2.kylaline_id
+                WHERE pk.nadal_id = pn.id AND (w.id IS NOT NULL OR ky.id IS NOT NULL)) AS kohad,
               (SELECT json_agg(json_build_object('jrk_nr', ps.jrk_nr, 'paar1_geimid', ps.paar1_geimid, 'paar2_geimid', ps.paar2_geimid) ORDER BY ps.jrk_nr)
                 FROM padel_setid ps WHERE ps.nadal_id = pn.id) AS setid
        FROM padel_nadalad pn WHERE pn.ryhm_id=$1 ORDER BY pn.kuupaev DESC LIMIT 60`,
@@ -394,7 +543,7 @@ async function looNadalKuiPuudub(ryhmId, kuupaev) {
   const olemasR = await pool.query('SELECT id FROM padel_nadalad WHERE ryhm_id=$1 AND kuupaev=$2', [ryhmId, kuupaev]);
   if (olemasR.rows.length) return { nadal_id: olemasR.rows[0].id, uus: false };
 
-  const liikmedR = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1', [ryhmId]);
+  const liikmedR = await pool.query('SELECT id FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id IS NOT NULL', [ryhmId]);
   if (liikmedR.rows.length < 2) return { veateade: 'Grupis peab olema vähemalt 2 liiget, et nädalat luua' };
 
   const ryhmR = await pool.query('SELECT vaikimisi_kellaaeg FROM padel_ryhmad WHERE id=$1', [ryhmId]);
@@ -677,31 +826,37 @@ router.get('/admin/saldod', noudaAdmin, async (req, res) => {
   try {
     const r = await pool.query(
       `WITH mangijad AS (
-         SELECT DISTINCT pl.worker_id, w.nimi
+         SELECT DISTINCT pl.worker_id, w.nimi, false AS kylaline
          FROM padel_liikmed pl JOIN workers w ON w.id = pl.worker_id
+         UNION
+         -- Külalised (ilma kontota): ainult need, kellel on mõni trenn või makse kirjas
+         SELECT -ky.id AS worker_id, ky.nimi, true AS kylaline
+         FROM padel_kylalised ky
+         WHERE EXISTS (SELECT 1 FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id WHERE pl.kylaline_id = ky.id)
+            OR EXISTS (SELECT 1 FROM padel_maksed pm WHERE pm.kylaline_id = ky.id)
        ),
        volad AS (
-         SELECT pl.worker_id, COALESCE(SUM(pk.summa), 0) AS volg
+         SELECT ${midSql('pl')} AS worker_id, COALESCE(SUM(pk.summa), 0) AS volg
          FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
          WHERE pk.osaleb = true AND pk.kinnitatud = true AND pk.makstud = false AND pk.summa IS NOT NULL
-         GROUP BY pl.worker_id
+         GROUP BY 1
        ),
        maksed AS (
-         SELECT worker_id, COALESCE(SUM(summa), 0) AS makstud
-         FROM padel_maksed GROUP BY worker_id
+         SELECT ${MAKSE_MID} AS worker_id, COALESCE(SUM(summa), 0) AS makstud
+         FROM padel_maksed GROUP BY 1
        ),
        tasuta AS (
          -- Möödunud trennid, kus mängija OLI PAARIS (mängis), aga tasu pole arvel
          -- (kinnitamata või hind puudub — vana süsteemi automaatselt loodud kohad)
-         SELECT pl.worker_id, COUNT(*) AS arv
+         SELECT ${midSql('pl')} AS worker_id, COUNT(*) AS arv
          FROM padel_kohad pk
          JOIN padel_liikmed pl ON pl.id = pk.liige_id
          JOIN padel_nadalad pn ON pn.id = pk.nadal_id
          WHERE pn.kuupaev < CURRENT_DATE AND pk.osaleb = true AND pk.makstud = false
            AND pk.paar IN (1,2) AND (pk.kinnitatud = false OR pk.summa IS NULL)
-         GROUP BY pl.worker_id
+         GROUP BY 1
        )
-       SELECT m.worker_id, m.nimi,
+       SELECT m.worker_id, m.nimi, m.kylaline,
               COALESCE(v.volg, 0) AS volg,
               COALESCE(mk.makstud, 0) AS makstud,
               COALESCE(v.volg, 0) - COALESCE(mk.makstud, 0) AS saldo,
@@ -740,7 +895,7 @@ router.post('/admin/pane-tasu-arvele', noudaAdmin, async (req, res) => {
 // Ühe mängija makseajalugu (admin vaade)
 router.get('/admin/maksed/:workerId', noudaAdmin, async (req, res) => {
   try {
-    const r = await pool.query('SELECT * FROM padel_maksed WHERE worker_id=$1 ORDER BY kuupaev DESC, id DESC', [req.params.workerId]);
+    const r = await pool.query(`SELECT * FROM padel_maksed WHERE ${MAKSE_MID}=$1 ORDER BY kuupaev DESC, id DESC`, [parseInt(req.params.workerId, 10)]);
     res.json({ ok: true, maksed: r.rows });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
@@ -751,11 +906,12 @@ router.get('/admin/maksed/:workerId', noudaAdmin, async (req, res) => {
 router.post('/admin/maksed', noudaAdmin, async (req, res) => {
   const { worker_id, summa, kuupaev, kommentaar } = req.body;
   const summaNum = parseFloat(summa);
-  if (!worker_id || !Number.isFinite(summaNum) || summaNum <= 0) return res.json({ ok: false, veateade: 'Sisesta töötaja ja positiivne summa' });
+  const mid = parseInt(worker_id, 10);   // positiivne = kontoga mängija, negatiivne = külaline
+  if (!mid || !Number.isFinite(summaNum) || summaNum <= 0) return res.json({ ok: false, veateade: 'Sisesta töötaja ja positiivne summa' });
   try {
     await pool.query(
-      'INSERT INTO padel_maksed (worker_id, summa, kuupaev, kommentaar) VALUES ($1,$2,$3,$4)',
-      [worker_id, summaNum, kuupaev || new Date(), kommentaar || null]
+      'INSERT INTO padel_maksed (worker_id, kylaline_id, summa, kuupaev, kommentaar) VALUES ($1,$2,$3,$4,$5)',
+      [mid > 0 ? mid : null, mid < 0 ? -mid : null, summaNum, kuupaev || new Date(), kommentaar || null]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -787,13 +943,13 @@ async function mangijaUlevaade(workerId) {
        JOIN padel_liikmed pl ON pl.id = pk.liige_id
        JOIN padel_nadalad pn ON pn.id = pk.nadal_id
        JOIN padel_ryhmad r ON r.id = pn.ryhm_id
-       WHERE pl.worker_id = $1 AND pk.osaleb = true
+       WHERE ${midSql('pl')} = $1 AND pk.osaleb = true
        ORDER BY pn.kuupaev ASC, pk.id ASC`,
       [workerId]
     );
     const maksedR = await pool.query(
       `SELECT id, summa::numeric AS summa, to_char(kuupaev,'YYYY-MM-DD') AS kuupaev, kommentaar, koht_id, loodud
-       FROM padel_maksed WHERE worker_id=$1 ORDER BY kuupaev DESC, id DESC`,
+       FROM padel_maksed WHERE ${MAKSE_MID}=$1 ORDER BY kuupaev DESC, id DESC`,
       [workerId]
     );
     const maksed = maksedR.rows.map(m => ({ ...m, summa: parseFloat(m.summa) || 0 }));
@@ -837,7 +993,7 @@ router.post('/admin/kohad/:id/kandis', noudaAdmin, async (req, res) => {
   try {
     await maksedVeergValmis;
     const kohtR = await pool.query(
-      `SELECT pk.id, COALESCE(pk.summa, r.hind) AS summa, pl.worker_id, to_char(pn.kuupaev,'DD.MM.YYYY') AS kp, r.nimi AS ryhm_nimi
+      `SELECT pk.id, COALESCE(pk.summa, r.hind) AS summa, pl.worker_id, pl.kylaline_id, to_char(pn.kuupaev,'DD.MM.YYYY') AS kp, r.nimi AS ryhm_nimi
        FROM padel_kohad pk
        JOIN padel_liikmed pl ON pl.id = pk.liige_id
        JOIN padel_nadalad pn ON pn.id = pk.nadal_id
@@ -852,8 +1008,8 @@ router.post('/admin/kohad/:id/kandis', noudaAdmin, async (req, res) => {
     const kuupaev = /^\d{4}-\d{2}-\d{2}$/.test(req.body.kuupaev || '') ? req.body.kuupaev : new Date().toISOString().slice(0, 10);
     await pool.query('UPDATE padel_kohad SET kinnitatud=true, summa=COALESCE(summa,$2) WHERE id=$1', [k.id, k.summa]);
     const r = await pool.query(
-      'INSERT INTO padel_maksed (worker_id, summa, kuupaev, kommentaar, koht_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [k.worker_id, k.summa, kuupaev, `Trenn ${k.kp} (${k.ryhm_nimi})`, k.id]
+      'INSERT INTO padel_maksed (worker_id, kylaline_id, summa, kuupaev, kommentaar, koht_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [k.worker_id, k.worker_id ? null : k.kylaline_id, k.summa, kuupaev, `Trenn ${k.kp} (${k.ryhm_nimi})`, k.id]
     );
     res.json({ ok: true, makse_id: r.rows[0].id });
   } catch (err) {
@@ -866,9 +1022,14 @@ router.get('/admin/maksed-logi', noudaAdmin, async (req, res) => {
   try {
     await maksedVeergValmis;
     const r = await pool.query(
-      `SELECT m.id, m.worker_id, w.nimi, m.summa::numeric AS summa, to_char(m.kuupaev,'YYYY-MM-DD') AS kuupaev,
+      `SELECT m.id, COALESCE(m.worker_id, -m.kylaline_id) AS worker_id, COALESCE(w.nimi, ky.nimi) AS nimi,
+              (m.kylaline_id IS NOT NULL AND m.worker_id IS NULL) AS kylaline,
+              m.summa::numeric AS summa, to_char(m.kuupaev,'YYYY-MM-DD') AS kuupaev,
               m.kommentaar, m.koht_id, m.loodud
-       FROM padel_maksed m JOIN workers w ON w.id = m.worker_id
+       FROM padel_maksed m
+       LEFT JOIN workers w ON w.id = m.worker_id
+       LEFT JOIN padel_kylalised ky ON ky.id = m.kylaline_id
+       WHERE w.id IS NOT NULL OR ky.id IS NOT NULL
        ORDER BY m.loodud DESC NULLS LAST, m.id DESC
        LIMIT 100`
     );
@@ -901,9 +1062,11 @@ router.get('/statistika', noudaPadelLigipaas, async (req, res) => {
     const mangudR = await pool.query(
       `SELECT pn.id, to_char(pn.kuupaev,'YYYY-MM-DD') AS kuupaev, r.nimi AS ryhm_nimi,
               (SELECT json_agg(json_build_object('g1', ps.paar1_geimid, 'g2', ps.paar2_geimid) ORDER BY ps.jrk_nr) FROM padel_setid ps WHERE ps.nadal_id = pn.id) AS setid,
-              (SELECT json_agg(json_build_object('worker_id', pl.worker_id, 'nimi', w.nimi, 'paar', pk.paar, 'foto_url', ${fotoSql('pl')}))
-                 FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id JOIN workers w ON w.id = pl.worker_id
-                 WHERE pk.nadal_id = pn.id AND pk.paar IN (1,2)) AS mangijad
+              (SELECT json_agg(json_build_object('worker_id', ${midSql('pl')}, 'nimi', COALESCE(w.nimi, ky.nimi), 'kylaline', (pl.kylaline_id IS NOT NULL), 'paar', pk.paar, 'foto_url', ${fotoSql('pl')}))
+                 FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
+                 LEFT JOIN workers w ON w.id = pl.worker_id
+                 LEFT JOIN padel_kylalised ky ON ky.id = pl.kylaline_id
+                 WHERE pk.nadal_id = pn.id AND pk.paar IN (1,2) AND (w.id IS NOT NULL OR ky.id IS NOT NULL)) AS mangijad
        FROM padel_nadalad pn JOIN padel_ryhmad r ON r.id = pn.ryhm_id
        WHERE pn.ryhm_id = ANY($1::int[]) AND EXISTS (SELECT 1 FROM padel_setid ps WHERE ps.nadal_id = pn.id)
        ORDER BY pn.kuupaev ASC, pn.id ASC`,
@@ -916,7 +1079,7 @@ router.get('/statistika', noudaPadelLigipaas, async (req, res) => {
       const mj = m.mangijad || [];
       const p1 = mj.filter(x => x.paar === 1), p2 = mj.filter(x => x.paar === 2);
       if (p1.length !== 2 || p2.length !== 2) return;
-      mj.forEach(x => { inimesed[x.worker_id] = { worker_id: x.worker_id, nimi: x.nimi, foto_url: x.foto_url }; });
+      mj.forEach(x => { inimesed[x.worker_id] = { worker_id: x.worker_id, nimi: x.nimi, foto_url: x.foto_url, kylaline: !!x.kylaline }; });
       const setid = m.setid || [];
       const g1 = setid.reduce((t, x) => t + x.g1, 0), g2 = setid.reduce((t, x) => t + x.g2, 0);
       mangud.push({ id: m.id, kuupaev: m.kuupaev, ryhm: m.ryhm_nimi, p1: p1.map(x => x.worker_id), p2: p2.map(x => x.worker_id), g1, g2, setid });
@@ -1036,7 +1199,7 @@ router.get('/statistika', noudaPadelLigipaas, async (req, res) => {
 router.post('/ryhm/:id/meeldetuletus', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), async (req, res) => {
   try {
     const ryhmR = await pool.query('SELECT nimi FROM padel_ryhmad WHERE id=$1', [req.params.id]);
-    const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
+    const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id IS NOT NULL', [req.params.id]);
     if (!ryhmR.rows.length) return res.json({ ok: false, veateade: 'Gruppi ei leitud' });
     for (const l of liikmedR.rows) {
       saadaTeavitus(l.worker_id, '🎾 Padel', `Kas tuled täna trenni? (${ryhmR.rows[0].nimi})`, '/padel');
@@ -1055,11 +1218,11 @@ router.post('/ryhm/:id/sonum', noudaPadelLigipaas, noudaRyhmaLiige('ryhm'), asyn
   try {
     let saajad;
     if (liige_id) {
-      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE id=$1 AND ryhm_id=$2', [liige_id, req.params.id]);
+      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE id=$1 AND ryhm_id=$2 AND worker_id IS NOT NULL', [liige_id, req.params.id]);
       if (!r.rows.length) return res.json({ ok: false, veateade: 'Liiget ei leitud' });
       saajad = r.rows;
     } else {
-      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [req.params.id]);
+      const r = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id IS NOT NULL', [req.params.id]);
       saajad = r.rows;
     }
     for (const s of saajad) {
@@ -1083,7 +1246,7 @@ async function kontrolliAutomaatseidMeeldetuletusi() {
        WHERE pn.kuupaev = CURRENT_DATE AND pn.meeldetuletus_saadetud = false AND r.aktiivne = true`
     );
     for (const nadal of tanaR.rows) {
-      const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1', [nadal.ryhm_id]);
+      const liikmedR = await pool.query('SELECT worker_id FROM padel_liikmed WHERE ryhm_id=$1 AND worker_id IS NOT NULL', [nadal.ryhm_id]);
       for (const l of liikmedR.rows) {
         saadaTeavitus(l.worker_id, '🎾 Padel', `Täna on trenn (${nadal.ryhm_nimi})! Kas tuled?`, '/padel');
       }
@@ -1115,7 +1278,7 @@ async function kontrolliUksekoodiTeavitusi() {
       const liikmedR = await pool.query(
         `SELECT pl.worker_id
          FROM padel_kohad pk JOIN padel_liikmed pl ON pl.id = pk.liige_id
-         WHERE pk.nadal_id=$1 AND pk.osaleb=true AND pk.kinnitatud=true`,
+         WHERE pk.nadal_id=$1 AND pk.osaleb=true AND pk.kinnitatud=true AND pl.worker_id IS NOT NULL`,
         [nadal.id]
       );
       for (const l of liikmedR.rows) {

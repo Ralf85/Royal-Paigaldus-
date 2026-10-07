@@ -364,6 +364,11 @@ async function laadiRyhmSisu(ryhmId) {
   await taidaRyhmSisu(ryhmId, r);
 }
 
+// Külaline = mängija ilma kontota (admin on ta nime järgi trennile lisanud)
+function kylSilt(onKylaline) {
+  return onKylaline ? ' <span title="Mängija ilma kontota" style="font-size:10px;font-weight:600;color:#60a5fa;background:rgba(96,165,250,0.14);border-radius:5px;padding:1px 5px;white-space:nowrap">külaline</span>' : '';
+}
+
 async function taidaRyhmSisu(ryhmId, r) {
   var div = document.getElementById('ryhm-sisu-' + ryhmId);
   if (!r.ok) { div.innerHTML = '<div class="tyhi">Viga: ' + (r.veateade || '') + '</div>'; return; }
@@ -371,7 +376,7 @@ async function taidaRyhmSisu(ryhmId, r) {
 var edetabelHtml = '<table><thead><tr><th>#</th><th>Mängija</th><th style="text-align:right">Punktid</th><th style="text-align:right">Geimid</th><th style="text-align:right">Trenne</th></tr></thead><tbody>'
     + r.edetabel.map(function(e, i) {
       var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1) + '.';
-      return '<tr><td>' + medal + '</td><td>' + avatarHtml(e.foto_url, e.nimi, 24) + e.nimi + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
+      return '<tr><td>' + medal + '</td><td>' + avatarHtml(e.foto_url, e.nimi, 24) + e.nimi + kylSilt(e.kylaline) + '</td><td style="text-align:right;font-weight:700;color:var(--groen)">' + e.punktid + '</td><td style="text-align:right">' + e.geimid + '</td><td style="text-align:right;color:var(--text3)">' + e.mange + '</td></tr>';
     }).join('') + '</tbody></table>';
 
   var tanaISOval = tanaISO();
@@ -446,7 +451,7 @@ async function naitaNadal(ryhmId, nadalId) {
     if (!k.kinnitatud) {
       return '<div class="pesa pesa-ootel">'
         + avatarHtml(k.foto_url, k.nimi, 40)
-        + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + '</div>'
+        + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + kylSilt(k.kylaline) + '</div>'
         + '<div style="color:#fbbf24;font-size:11px;margin:2px 0 6px">⏳ ootab kinnitust</div>'
         + (minaOlen
           ? '<div style="display:flex;gap:4px"><button class="nupp pisike" style="background:var(--groen);color:#052e16;padding:4px 8px;font-size:11px" onclick="kinnitaKoht(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">✅ Kinnita</button>'
@@ -456,7 +461,7 @@ async function naitaNadal(ryhmId, nadalId) {
     }
     return '<div class="pesa pesa-taidetud">'
       + avatarHtml(k.foto_url, k.nimi, 40)
-      + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + (minaOlen ? ' <span style="color:var(--groen);font-weight:400">(sina)</span>' : '') + '</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:4px">' + k.nimi + kylSilt(k.kylaline) + (minaOlen ? ' <span style="color:var(--groen);font-weight:400">(sina)</span>' : '') + '</div>'
       + '<div style="color:var(--groen);font-size:11px;margin:2px 0 6px">✅ kinnitatud</div>'
       + '<button class="nupp hall pisike" style="padding:4px 8px;font-size:11px" onclick="eemaldaRegistreering(' + k.id + ', ' + ryhmId + ', ' + nadalId + ')">✕ Eemalda</button>'
       + '</div>';

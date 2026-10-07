@@ -101,7 +101,11 @@
   .kinnita-nupp:hover { background: rgba(251,191,36,0.2); }
   .kinnitatud-silt { background: var(--roheline-bg); color: var(--roheline); border: 1px solid transparent; border-radius: 7px; padding: 5px 8px; font-size: 12px; font-weight: 700; cursor: pointer; width: 100%; }
   .kinnitatud-silt:hover { border-color: rgba(74,222,128,0.35); }
+  .kyl-silt { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; margin-left: 6px; border-radius: 5px; background: rgba(96,165,250,0.14); color: #60a5fa; vertical-align: middle; }
   .lisa-rida { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .lisa-rida input.kyl-nimi { flex: 1; min-width: 150px; }
+  .kyl-rida { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--piir); font-size: 13px; }
+  .kyl-rida:last-child { border-bottom: none; }
   .lisa-rida select:first-child { flex: 1; min-width: 150px; }
   @media (max-width: 600px) { .lisa-rida .nupp { flex: 1; } }
   .keha-jalus { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--piir); flex-wrap: wrap; }
@@ -224,6 +228,16 @@
   <!-- ── GRUPID ── -->
   <div class="leht" id="leht-grupid">
     <div id="grupidSisu"><div class="tyhi">Laadimine...</div></div>
+    <div class="sektsioon-pealkiri"><span>Külalised — mängijad ilma kontota</span><span id="kylalisteArv"></span></div>
+    <div class="plokk"><div class="plokk-sisu">
+      <div class="vihje" style="margin-bottom:10px">Ühekordne asendaja vms, kellele pole mõtet kontot teha. Pane kirja ainult nimi — trennile lisad ta vahelehel <b>Trennid</b> → „+ Lisa mängija“ (sealt saab ka kohe uue külalise kirja panna). Külaline on teistele mängijatele näha, läheb edetabelisse ja statistikasse ning tema trennitasu vahelehele <b>Maksed</b>.</div>
+      <div id="kylalisedSisu"><div class="vihje">Laadimine...</div></div>
+      <div class="rida-flex" style="margin-top:10px">
+        <input id="uus-kylaline" placeholder="Külalise nimi (nt Mart Tamm)" maxlength="100" style="flex:1;min-width:150px" onkeydown="if(event.key==='Enter')lisaKylaline()">
+        <button class="nupp" onclick="lisaKylaline()">Lisa külaline</button>
+      </div>
+      <div id="kylaline-teade" class="teade"></div>
+    </div></div>
     <div class="sektsioon-pealkiri"><span>Uus grupp</span></div>
     <div class="plokk"><div class="plokk-sisu">
       <div class="rida-flex">
@@ -271,6 +285,7 @@ function eesnimi(nimi) { return String(nimi || '').split(' ')[0]; }
 var ryhmad = [];            // /admin/ryhmad
 var grupiAndmed = {};       // ryhmId -> /ryhm/:id vastus (liikmed, nadalad)
 var koikTootajad = [];      // /admin/lubatud
+var kylalised = [];         // /admin/kylalised — mängijad ilma kontota
 var grupiFilter = 'koik';
 var lahtisedTrennid = {};   // nadalId -> true
 var esimeneRender = true;
@@ -288,6 +303,7 @@ async function init() {
   var algus = (location.hash || '').replace('#', '');
   naitaLehte(['trennid','maksed','grupid','ligipaas'].indexOf(algus) >= 0 ? algus : 'trennid');
   await laadiTootajad();
+  await laadiKylalised();
   await Promise.all([laadiKoikTrennid(), laadiMaksed()]);
 }
 
@@ -296,6 +312,13 @@ async function laadiTootajad() {
   koikTootajad = Array.isArray(r) ? r : [];
   renderLigipaas();
 }
+
+async function laadiKylalised() {
+  var r = await api('/api/padel/admin/kylalised');
+  kylalised = (r && r.ok && r.kylalised) ? r.kylalised : [];
+  renderKylalised();
+}
+function kylSilt(onKylaline) { return onKylaline ? '<span class="kyl-silt" title="Mängija ilma kontota">külaline</span>' : ''; }
 
 // ═══════════════════════════════════════════════════════════════════
 //  TRENNID
@@ -454,7 +477,7 @@ function trenniKeha(n, ryhmId, moodas) {
         var pv = k.paar === 1 ? '1' : k.paar === 2 ? '2' : '';
         var tasuArvel = k.kinnitatud && k.osaleb !== false;
         return '<div class="mangija">'
-          + '<span class="nimi" title="' + esc(k.nimi) + '">' + esc(k.nimi) + '</span>'
+          + '<span class="nimi" title="' + esc(k.nimi) + (k.kylaline ? ' (külaline, ilma kontota)' : '') + '">' + esc(k.nimi) + kylSilt(k.kylaline) + '</span>'
           + '<span class="paar"><select onchange="muudaPaar(' + k.id + ',this.value,' + n.id + ',' + ryhmId + ')">'
           +   '<option value="1"' + (pv === '1' ? ' selected' : '') + '>Paar 1</option>'
           +   '<option value="2"' + (pv === '2' ? ' selected' : '') + '>Paar 2</option>'
@@ -476,13 +499,20 @@ function trenniKeha(n, ryhmId, moodas) {
   var vabad = ((andmed && andmed.liikmed) || []).filter(function(l) { return registreeritud.indexOf(l.id) === -1; });
   var p1 = s.kohad.filter(function(k) { return k.paar === 1; }).length, p2 = s.kohad.filter(function(k) { return k.paar === 2; }).length;
   var vaikePaar = p1 < 2 ? '1' : (p2 < 2 ? '2' : '');
-  if (vabad.length) {
-    html += '<div class="lisa-rida">'
-      + '<select id="lisa-liige-' + n.id + '"><option value="">+ Lisa mängija…</option>' + vabad.map(function(l) { return '<option value="' + l.id + '">' + esc(l.nimi) + '</option>'; }).join('') + '</select>'
-      + '<select id="lisa-paar-' + n.id + '" style="width:100px"><option value="1"' + (vaikePaar === '1' ? ' selected' : '') + '>Paar 1</option><option value="2"' + (vaikePaar === '2' ? ' selected' : '') + '>Paar 2</option><option value=""' + (vaikePaar === '' ? ' selected' : '') + '>Ootel</option></select>'
-      + '<button class="nupp pisike" onclick="lisaMangija(' + n.id + ',' + ryhmId + ')">Lisa + kinnita</button>'
-      + '</div>';
-  }
+  // Külalised (ilma kontota), kes pole veel sellel trennil kirjas
+  var trenniNimed = s.kohad.filter(function(k) { return k.kylaline; }).map(function(k) { return String(k.nimi).toLowerCase(); });
+  var vabadKylalised = kylalised.filter(function(k) { return trenniNimed.indexOf(String(k.nimi).toLowerCase()) === -1; });
+  html += '<div class="lisa-rida">'
+    + '<select id="lisa-liige-' + n.id + '" onchange="lisaValikMuutus(' + n.id + ')"><option value="">+ Lisa mängija…</option>'
+    + (vabad.length ? '<optgroup label="Grupi liikmed">' + vabad.map(function(l) { return '<option value="l:' + l.id + '">' + esc(l.nimi) + '</option>'; }).join('') + '</optgroup>' : '')
+    + '<optgroup label="Külalised (ilma kontota)">'
+    +   vabadKylalised.map(function(k) { return '<option value="k:' + k.id + '">' + esc(k.nimi) + '</option>'; }).join('')
+    +   '<option value="uus">＋ Uus külaline (kirjuta nimi)…</option>'
+    + '</optgroup></select>'
+    + '<input class="kyl-nimi" id="lisa-nimi-' + n.id + '" placeholder="Külalise nimi" maxlength="100" style="display:none" onkeydown="if(event.key===\'Enter\')lisaMangija(' + n.id + ',' + ryhmId + ')">'
+    + '<select id="lisa-paar-' + n.id + '" style="width:100px"><option value="1"' + (vaikePaar === '1' ? ' selected' : '') + '>Paar 1</option><option value="2"' + (vaikePaar === '2' ? ' selected' : '') + '>Paar 2</option><option value=""' + (vaikePaar === '' ? ' selected' : '') + '>Ootel</option></select>'
+    + '<button class="nupp pisike" onclick="lisaMangija(' + n.id + ',' + ryhmId + ')">Lisa + kinnita</button>'
+    + '</div>';
   html += '<div id="trenn-teade-' + n.id + '" class="teade"></div>';
 
   // Tulemus (möödunud trennil või kui juba sees)
@@ -564,6 +594,39 @@ function avaDialoog(tekst, kysimus) {
     jah.focus();
   });
 }
+// Sama lehesisene aken, aga tekstilahtriga (tagastab sisestatud teksti või null, kui katkestati)
+function kysiTeksti(tekst, vaikimisi) {
+  return new Promise(function(lahenda) {
+    var kate = document.createElement('div');
+    kate.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px';
+    var kast = document.createElement('div');
+    kast.setAttribute('role', 'dialog');
+    kast.setAttribute('aria-modal', 'true');
+    kast.style.cssText = 'background:var(--bg2);border:1px solid var(--piir);border-radius:14px;padding:20px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)';
+    var p = document.createElement('div');
+    p.style.cssText = 'font-size:14px;line-height:1.5;color:var(--tekst);margin-bottom:10px';
+    p.textContent = tekst;
+    var vali = document.createElement('input');
+    vali.type = 'text'; vali.maxLength = 100; vali.value = vaikimisi || '';
+    vali.style.cssText = 'width:100%;margin-bottom:16px;font-size:15px;padding:10px';
+    var nupud = document.createElement('div');
+    nupud.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    function sulge(v) { document.removeEventListener('keydown', klahv); kate.remove(); lahenda(v); }
+    function klahv(e) { if (e.key === 'Escape') sulge(null); if (e.key === 'Enter') sulge(vali.value.trim()); }
+    var ei = document.createElement('button');
+    ei.className = 'nupp hall'; ei.textContent = 'Katkesta';
+    ei.onclick = function() { sulge(null); };
+    var jah = document.createElement('button');
+    jah.className = 'nupp'; jah.textContent = 'Salvesta';
+    jah.onclick = function() { sulge(vali.value.trim()); };
+    nupud.appendChild(ei); nupud.appendChild(jah);
+    kast.appendChild(p); kast.appendChild(vali); kast.appendChild(nupud); kate.appendChild(kast);
+    kate.addEventListener('click', function(e) { if (e.target === kate) sulge(null); });
+    document.addEventListener('keydown', klahv);
+    document.body.appendChild(kate);
+    vali.focus(); vali.select();
+  });
+}
 function kysi(tekst) { return avaDialoog(tekst, true); }
 function teata(tekst) { return avaDialoog(tekst, false); }
 
@@ -607,18 +670,40 @@ async function muudaPaar(kohaId, v, nadalId, ryhmId) {
   if (!r.ok) return naitaTeade('trenn-teade-' + nadalId, r.veateade || 'Ei õnnestunud', false);
   await laadiGrupp(ryhmId);
 }
+// "＋ Uus külaline" valimisel tuleb nähtavale nime lahter
+function lisaValikMuutus(nadalId) {
+  var uus = document.getElementById('lisa-liige-' + nadalId).value === 'uus';
+  var vali = document.getElementById('lisa-nimi-' + nadalId);
+  vali.style.display = uus ? '' : 'none';
+  if (uus) vali.focus();
+}
 async function lisaMangija(nadalId, ryhmId) {
-  var liige = document.getElementById('lisa-liige-' + nadalId).value;
+  var valik = document.getElementById('lisa-liige-' + nadalId).value;
   var pv = document.getElementById('lisa-paar-' + nadalId).value;
-  if (!liige) return naitaTeade('trenn-teade-' + nadalId, 'Vali mängija', false);
-  var r = await api('/api/padel/admin/nadalad/' + nadalId + '/lisa', { method: 'POST', body: JSON.stringify({ liige_id: parseInt(liige, 10), paar: pv ? parseInt(pv, 10) : null }) });
+  var paar = pv ? parseInt(pv, 10) : null;
+  if (!valik) return naitaTeade('trenn-teade-' + nadalId, 'Vali mängija', false);
+  var r;
+  if (valik === 'uus' || valik.indexOf('k:') === 0) {
+    // Külaline (ilma kontota): olemasolev nimekirjast või uus nimi
+    var keha = { paar: paar };
+    if (valik === 'uus') {
+      keha.nimi = document.getElementById('lisa-nimi-' + nadalId).value.trim();
+      if (keha.nimi.length < 2) return naitaTeade('trenn-teade-' + nadalId, 'Kirjuta külalise nimi', false);
+    } else {
+      keha.kylaline_id = parseInt(valik.slice(2), 10);
+    }
+    r = await api('/api/padel/admin/nadalad/' + nadalId + '/lisa-kylaline', { method: 'POST', body: JSON.stringify(keha) });
+  } else {
+    r = await api('/api/padel/admin/nadalad/' + nadalId + '/lisa', { method: 'POST', body: JSON.stringify({ liige_id: parseInt(valik.slice(2), 10), paar: paar }) });
+  }
   if (!r.ok) return naitaTeade('trenn-teade-' + nadalId, r.veateade || 'Lisamine ebaõnnestus', false);
+  await laadiKylalised();
   await laadiGrupp(ryhmId); laadiMaksed();
 }
 async function eemaldaKoht(kohaId, ryhmId) {
   if (!await kysi('Eemaldada see mängija trennilt? Trenni tasu talle siis arvele ei lähe.')) return;
   await api('/api/padel/kohad/' + kohaId, { method: 'DELETE' });
-  await laadiGrupp(ryhmId); laadiMaksed();
+  await laadiGrupp(ryhmId); laadiMaksed(); laadiKylalised();
 }
 async function kustutaTrenn(nadalId, ryhmId) {
   if (!await kysi('Kustutada see trenn jäädavalt (koos tulemuste ja osalustega)?')) return;
@@ -691,7 +776,7 @@ async function laadiMaksed() {
       : (volgKokku > 0 || makstud > 0 ? 'Makstud ✓' : 'Võlga pole'));
     if (tasuta) tekst += ' <span class="silt ootab" title="Mängis, aga tasu pole arvel">⚠ ' + tasuta + ' tasuta</span>';
     return '<div class="makse-mangija' + (lahtineMaksja === m.worker_id ? ' lahti' : '') + '" id="maksja-' + m.worker_id + '">'
-      + '<div class="makse-pais" onclick="lylitaMaksja(' + m.worker_id + ')"><span style="font-weight:600">' + esc(m.nimi) + '</span><span style="font-weight:700;color:' + varv + '">' + tekst + '</span></div>'
+      + '<div class="makse-pais" onclick="lylitaMaksja(' + m.worker_id + ')"><span style="font-weight:600">' + esc(m.nimi) + kylSilt(m.kylaline) + '</span><span style="font-weight:700;color:' + varv + '">' + tekst + '</span></div>'
       + '<div class="makse-keha" id="maksja-keha-' + m.worker_id + '"></div>'
       + '</div>';
   }).join('');
@@ -816,7 +901,7 @@ async function laadiMakseLogi() {
   document.getElementById('logiArv').textContent = r.maksed.length + (r.maksed.length >= 100 ? '+ ' : ' ') + 'kannet';
   div.innerHTML = r.maksed.map(function(m) {
     return '<div class="logi-rida">'
-      + '<span><b>' + esc(m.nimi) + '</b> kandis ' + fmtKp(m.kuupaev + 'T12:00:00') + '</span>'
+      + '<span><b>' + esc(m.nimi) + '</b>' + kylSilt(m.kylaline) + ' kandis ' + fmtKp(m.kuupaev + 'T12:00:00') + '</span>'
       + '<b style="color:var(--roheline)">+' + fmtEur(m.summa) + '</b>'
       + '<span class="alam">' + (m.kommentaar ? esc(m.kommentaar) + ' · ' : '') + (m.loodud ? 'märgitud ' + esc(fmtAeg(m.loodud)) : '') + '</span>'
       + '</div>';
@@ -858,6 +943,58 @@ function renderGrupid() {
       + '<div class="vali-rida"><span>Vanad asendajad</span><div><button class="nupp tekst" style="padding-left:0" onclick="vaataAsendajaMakseid(' + g.id + ')">Näita asendajate makseid</button><div id="asend-maksed-' + g.id + '"></div></div></div>'
       + '</div></div>';
   }).join('');
+}
+
+// ── KÜLALISED (mängijad ilma kontota) ──────────────────────────────────
+function renderKylalised() {
+  var div = document.getElementById('kylalisedSisu');
+  if (!div) return;
+  document.getElementById('kylalisteArv').textContent = kylalised.length ? kylalised.length + ' tk' : '';
+  if (!kylalised.length) { div.innerHTML = '<div class="vihje">Külalisi pole veel lisatud.</div>'; return; }
+  div.innerHTML = kylalised.map(function(k) {
+    return '<div class="kyl-rida">'
+      + '<span><b>' + esc(k.nimi) + '</b> <span class="vihje">· ' + (k.trenne ? k.trenne + (k.trenne === 1 ? ' trenn' : ' trenni') : 'pole veel trennis käinud') + '</span></span>'
+      + '<span class="rida-flex" style="gap:2px;flex-wrap:nowrap">'
+      +   '<button class="nupp tekst pisike" onclick="nimetaKylaline(' + k.id + ')">Muuda nime</button>'
+      +   '<button class="nupp kustuta" title="Kustuta külaline" onclick="kustutaKylaline(' + k.id + ')">✕</button>'
+      + '</span></div>';
+  }).join('');
+}
+async function lisaKylaline() {
+  var vali = document.getElementById('uus-kylaline');
+  var nimi = vali.value.trim();
+  if (nimi.length < 2) return naitaTeade('kylaline-teade', 'Sisesta külalise nimi', false);
+  var r = await api('/api/padel/admin/kylalised', { method: 'POST', body: JSON.stringify({ nimi: nimi }) });
+  if (!r.ok) return naitaTeade('kylaline-teade', r.veateade || 'Lisamine ebaõnnestus', false);
+  vali.value = '';
+  await laadiKylalised();
+  renderTrennid();
+  naitaTeade('kylaline-teade', '✓ ' + r.kylaline.nimi + ' lisatud — nüüd saad ta trennile panna vahelehel Trennid', true);
+}
+async function nimetaKylaline(id) {
+  var k = kylalised.find(function(x) { return x.id === id; });
+  if (!k) return;
+  var nimi = await kysiTeksti('Külalise nimi:', k.nimi);
+  if (nimi === null || nimi === k.nimi) return;
+  if (nimi.length < 2) return naitaTeade('kylaline-teade', 'Nimi on liiga lühike', false);
+  var r = await api('/api/padel/admin/kylalised/' + id, { method: 'PUT', body: JSON.stringify({ nimi: nimi }) });
+  if (!r.ok) return naitaTeade('kylaline-teade', r.veateade || 'Muutmine ebaõnnestus', false);
+  await laadiKylalised();
+  await laadiKoikTrennid(); laadiMaksed();
+  naitaTeade('kylaline-teade', '✓ Nimi muudetud', true);
+}
+async function kustutaKylaline(id) {
+  var k = kylalised.find(function(x) { return x.id === id; });
+  if (!k) return;
+  var ajalugu = (k.trenne || 0) + (k.makseid || 0);
+  var tekst = ajalugu
+    ? 'Kustutada külaline ' + k.nimi + '?\n\nTa on kirjas ' + (k.trenne || 0) + ' trennis' + (k.makseid ? ' ja tal on ' + k.makseid + ' makset' : '') + '. Kustutamisel kaovad need jäädavalt — ka edetabelist, statistikast ja maksetest.'
+    : 'Kustutada külaline ' + k.nimi + '?';
+  if (!await kysi(tekst)) return;
+  var r = await api('/api/padel/admin/kylalised/' + id, { method: 'DELETE' });
+  if (!r.ok) return naitaTeade('kylaline-teade', r.veateade || 'Kustutamine ebaõnnestus', false);
+  await laadiKylalised();
+  await laadiKoikTrennid(); laadiMaksed();
 }
 
 async function looRyhm() {

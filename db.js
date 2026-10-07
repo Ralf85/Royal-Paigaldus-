@@ -782,6 +782,21 @@ async function initDB() {
     await client.query(`ALTER TABLE padel_ryhmad ADD COLUMN IF NOT EXISTS vaikimisi_kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS kellaaeg TIME;`);
     await client.query(`ALTER TABLE padel_nadalad ADD COLUMN IF NOT EXISTS uksekoodi_teavitus_saadetud BOOLEAN NOT NULL DEFAULT false;`);
+    // Külalismängijad (okt 2026): ühekordne asendaja vms, kellel POLE rakenduses kontot.
+    // Admin paneb kirja ainult nime. Külaline on grupis "liige" ilma worker_id-ta
+    // (padel_liikmed.kylaline_id), nii et ta läheb trenni, edetabelisse, statistikasse ja maksetesse
+    // täpselt nagu kontoga mängija — ainult sisse logida ta ei saa.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS padel_kylalised (
+        id SERIAL PRIMARY KEY,
+        nimi VARCHAR(100) NOT NULL,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS padel_kylalised_nimi_uniq ON padel_kylalised (LOWER(nimi));`);
+    await client.query(`ALTER TABLE padel_liikmed ADD COLUMN IF NOT EXISTS kylaline_id INTEGER REFERENCES padel_kylalised(id) ON DELETE CASCADE;`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS padel_liikmed_ryhm_kylaline_uniq ON padel_liikmed (ryhm_id, kylaline_id) WHERE kylaline_id IS NOT NULL;`);
+    await client.query(`ALTER TABLE padel_maksed ADD COLUMN IF NOT EXISTS kylaline_id INTEGER REFERENCES padel_kylalised(id) ON DELETE CASCADE;`);
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS kreedit_algne_arve_id INTEGER REFERENCES arved(id) ON DELETE SET NULL;`);
     await client.query(`ALTER TABLE objektid ADD COLUMN IF NOT EXISTS pood_number VARCHAR(20);`);
 
