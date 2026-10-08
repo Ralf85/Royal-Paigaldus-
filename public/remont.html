@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koduremont</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#0d0f13">
+  <meta name="robots" content="noindex">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #0d0f13; color: #e2e8f0; -webkit-text-size-adjust: 100%; }
+  header { background: #13161c; border-bottom: 0.5px solid rgba(255,255,255,0.07); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  header h1 { font-size: 17px; font-weight: 800; letter-spacing: 0.2px; }
+  header h1 span { color: #c9a84c; }
+  .alapealkiri { font-size: 12px; color: #8b93a1; margin-top: 2px; }
+  .nupud { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn { background: #1e2128; border: 0.5px solid #2b3039; color: #cbd2dc; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; font-family: inherit; text-decoration: none; display: inline-block; }
+  .btn:hover { border-color: #3a4150; }
+  .btn.kuld { background: #c9a84c; border-color: #c9a84c; color: #14110a; font-weight: 700; }
+  .btn.kuld:hover { background: #d8b95e; }
+  .btn.punane { background: #2a1010; border-color: #5a1a1a; color: #f87171; }
+  .btn.vaike { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; }
+  .eelvaate-riba { background: #3b2f0b; color: #fcd34d; font-size: 13px; padding: 9px 16px; text-align: center; }
+
+  /* Saldo */
+  .saldo { background: linear-gradient(150deg, #1d1a10 0%, #13161c 70%); border: 0.5px solid rgba(201,168,76,0.35); border-radius: 14px; padding: 20px; margin-bottom: 12px; }
+  .saldo-silt { font-size: 12px; color: #a99a6e; text-transform: uppercase; letter-spacing: 0.8px; }
+  .saldo-summa { font-size: 34px; font-weight: 800; margin-top: 4px; color: #f3e3b0; }
+  .saldo-summa.null { color: #86efac; }
+  .saldo-all { font-size: 12px; color: #8b93a1; margin-top: 6px; line-height: 1.5; }
+  .hoiatus { background: #3b2f0b; border: 0.5px solid #7a5d0f; color: #fcd34d; border-radius: 10px; padding: 10px 13px; font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
+  .statid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px; }
+  .stat-silt { font-size: 10px; color: #7c8494; text-transform: uppercase; letter-spacing: 0.7px; }
+  .stat-arv { font-size: 17px; font-weight: 700; margin-top: 4px; }
+  .stat-all { font-size: 11px; color: #7c8494; margin-top: 3px; }
+  @media (max-width: 520px) { .statid { grid-template-columns: 1fr; } .saldo-summa { font-size: 30px; } }
+
+  .kaart { background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .kaart-hdr { padding: 12px 15px; border-bottom: 0.5px solid rgba(255,255,255,0.06); font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .kaart-sisu { padding: 14px 15px; }
+  .arve-rida { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 13px; color: #b6bdc9; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
+  .arve-rida:last-child { border-bottom: none; }
+  .arve-rida b { color: #e2e8f0; white-space: nowrap; }
+  .arve-rida.kokku { font-size: 15px; font-weight: 700; color: #f3e3b0; border-top: 1px solid rgba(201,168,76,0.3); margin-top: 4px; padding-top: 11px; }
+  .arve-rida.kokku b { color: #f3e3b0; }
+
+  .tabid { display: flex; gap: 2px; margin-bottom: 12px; overflow-x: auto; border-bottom: 0.5px solid rgba(255,255,255,0.07); }
+  .tab { background: none; border: none; border-bottom: 2px solid transparent; color: #7c8494; font-size: 14px; font-weight: 600; padding: 10px 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .tab.aktiivne { color: #e2e8f0; border-bottom-color: #c9a84c; }
+  .paneel { display: none; }
+  .paneel.aktiivne { display: block; }
+  .tyhi { padding: 30px 18px; text-align: center; color: #5b6472; font-size: 13px; line-height: 1.5; }
+  .vihje { font-size: 12px; color: #7c8494; line-height: 1.5; margin-bottom: 12px; }
+
+  /* Kirjed */
+  .kirje { padding: 13px 15px; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
+  .kirje:last-child { border-bottom: none; }
+  .kirje-ylal { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .kirje-pealkiri { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .kirje-meta { font-size: 12px; color: #7c8494; margin-top: 3px; line-height: 1.45; }
+  .kirje-tekst { font-size: 13px; color: #b6bdc9; margin-top: 6px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  .kirje-summa { text-align: right; white-space: nowrap; }
+  .kirje-summa .suur { font-size: 15px; font-weight: 700; color: #f3e3b0; }
+  .kirje-summa .vaikekiri { font-size: 11px; color: #7c8494; margin-top: 2px; }
+  .riba { height: 6px; border-radius: 4px; background: #2b3039; overflow: hidden; margin-top: 9px; display: flex; }
+  .riba i { display: block; height: 100%; background: #c9a84c; }
+  .riba-silt { display: flex; justify-content: space-between; font-size: 11px; color: #8b93a1; margin-top: 4px; gap: 10px; }
+  .riba-silt .n { color: #d8b95e; }
+  .pisipildid { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
+  .pisipildid img { width: 58px; height: 58px; object-fit: cover; border-radius: 7px; cursor: pointer; background: #171b22; }
+  .mark { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #1e2128; color: #8b93a1; margin-left: 4px; vertical-align: middle; }
+  .mark.kollane { background: #3b2f0b; color: #fcd34d; }
+  .mark.punane { background: #2a1010; color: #f87171; }
+  .kirje-nupud { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .paev { padding: 8px 15px; font-size: 11px; font-weight: 700; color: #7c8494; text-transform: uppercase; letter-spacing: 0.6px; background: #101318; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
+
+  /* Vormid */
+  input, select, textarea { background: #0d0f13; border: 0.5px solid #2b3039; border-radius: 8px; padding: 10px 11px; color: #e2e8f0; font-size: 16px; font-family: inherit; width: 100%; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: #c9a84c; }
+  label.silt { display: block; font-size: 11px; color: #7c8494; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 5px; }
+  .vali { margin-bottom: 13px; }
+  .kaks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .valik { display: flex; gap: 6px; }
+  .valik button { flex: 1; background: #0d0f13; border: 0.5px solid #2b3039; color: #8b93a1; border-radius: 8px; padding: 10px 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .valik button.sees { background: rgba(201,168,76,0.16); border-color: #c9a84c; color: #f3e3b0; }
+  .arvutus { background: #101318; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #b6bdc9; margin-bottom: 13px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .arvutus b { color: #f3e3b0; }
+  .teade { display: none; border-radius: 8px; padding: 9px 13px; font-size: 13px; margin-bottom: 12px; }
+  .teade.viga { display: block; background: #7f1d1d; color: #fca5a5; }
+  .teade.korras { display: block; background: #14532d; color: #86efac; }
+
+  .modaal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 50; align-items: flex-start; justify-content: center; padding: 20px 12px; overflow-y: auto; }
+  .modaal.avatud { display: flex; }
+  .modaal-sisu { background: #13161c; border: 0.5px solid rgba(255,255,255,0.1); border-radius: 14px; width: 100%; max-width: 460px; }
+  .modaal-hdr { padding: 14px 16px; border-bottom: 0.5px solid rgba(255,255,255,0.07); font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .modaal-hdr span.x { cursor: pointer; color: #7c8494; font-size: 18px; padding: 0 4px; }
+  .modaal-keha { padding: 16px; }
+
+  .login { max-width: 320px; margin: 80px auto; text-align: center; padding: 0 16px; }
+  .login h2 { font-size: 20px; margin-bottom: 6px; }
+  .login h2 span { color: #c9a84c; }
+  .login p { font-size: 13px; color: #7c8494; margin-bottom: 18px; line-height: 1.5; }
+  .pin { text-align: center; font-size: 22px; letter-spacing: 8px; padding: 14px; margin-bottom: 12px; }
+
+  #suurpilt { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.94); z-index: 99; align-items: center; justify-content: center; padding: 16px; }
+  #suurpilt img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+  #suurpilt button { position: absolute; top: 14px; right: 14px; width: 42px; height: 42px; border: none; border-radius: 50%; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="loginVaade" style="display:none">
+  <div class="login">
+    <h2>Kodu<span>remont</span></h2>
+    <p>Sisesta PIN-kood, et näha tehtud töid, materjale ja arveldust.</p>
+    <div id="loginTeade" class="teade"></div>
+    <input type="password" inputmode="numeric" autocomplete="off" id="pinSisend" class="pin" placeholder="••••">
+    <button class="btn kuld" style="width:100%;padding:13px;font-size:15px" onclick="logiSisse()">Logi sisse</button>
+  </div>
+</div>
+
+<div id="appVaade" style="display:none">
+  <div id="eelvaateRiba" class="eelvaate-riba" style="display:none">
+    👁 Nii näeb seda lehte naaber — muuta siin midagi ei saa.
+    <button class="btn vaike" style="margin-left:8px" onclick="lylitaEelvaade()">Tagasi haldusesse</button>
+  </div>
+  <header>
+    <div>
+      <h1 id="pealkiri">Koduremont</h1>
+      <div class="alapealkiri" id="alapealkiri"></div>
+    </div>
+    <div class="nupud" id="paiseNupud"></div>
+  </header>
+
+  <main>
+    <div id="ylevaade"></div>
+
+    <div class="tabid" id="tabid"></div>
+
+    <div class="paneel" id="paneel-tood"></div>
+    <div class="paneel" id="paneel-kulud"></div>
+    <div class="paneel" id="paneel-maksed"></div>
+    <div class="paneel" id="paneel-osad"></div>
+    <div class="paneel" id="paneel-seaded"></div>
+  </main>
+</div>
+
+<!-- Töökirje jaotus -->
+<div class="modaal" id="tooModaal">
+  <div class="modaal-sisu">
+    <div class="modaal-hdr"><span>Töökirje jaotus</span><span class="x" onclick="sulge('tooModaal')">✕</span></div>
+    <div class="modaal-keha">
+      <div id="tooInfo" class="vihje"></div>
+      <div id="tooTeade" class="teade"></div>
+      <div class="vali">
+        <label class="silt">Tööosa</label>
+        <select id="tooOsa" onchange="tooArvuta()"></select>
+      </div>
+      <div class="vali">
+        <label class="silt" id="tooProtsentSilt">Naabri osa % (ainult sellel kirjel)</label>
+        <input type="text" inputmode="decimal" id="tooProtsent" placeholder="tühi = tööosa jaotuse järgi" oninput="tooArvuta()">
+      </div>
+      <div class="arvutus" id="tooArvutus"></div>
+      <button class="btn kuld" style="width:100%;padding:12px" id="tooSalvesta" onclick="salvestaToo()">Salvesta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Materjal / tšekk -->
+<div class="modaal" id="kuluModaal">
+  <div class="modaal-sisu">
+    <div class="modaal-hdr"><span id="kuluPealkiri">Lisa tšekk</span><span class="x" onclick="sulge('kuluModaal')">✕</span></div>
+    <div class="modaal-keha">
+      <div id="kuluTeade" class="teade"></div>
+      <div class="kaks">
+        <div class="vali"><label class="silt">Kuupäev</label><input type="date" id="kuluKuupaev"></div>
+        <div class="vali"><label class="silt">Summa (€)</label><input type="text" inputmode="decimal" id="kuluSumma" placeholder="0,00" oninput="kuluArvuta()"></div>
+      </div>
+      <div class="vali"><label class="silt">Mis osteti ja kust</label><input type="text" id="kuluKirjeldus" placeholder="nt Bauhof — aiapostid ja betoon"></div>
+      <div class="vali">
+        <label class="silt">Kes maksis</label>
+        <div class="valik" id="kuluMaksja"></div>
+      </div>
+      <div class="vali">
+        <label class="silt">Tööosa (täidab jaotuse ette)</label>
+        <select id="kuluOsa" onchange="kuluOsaValitud()"></select>
+      </div>
+      <div class="vali">
+        <label class="silt">Kuidas jagada</label>
+        <div class="valik">
+          <button type="button" id="kuluJaotusProtsent" onclick="kuluJaotus('protsent')">Protsendiga</button>
+          <button type="button" id="kuluJaotusSumma" onclick="kuluJaotus('summa')">Summaga</button>
+        </div>
+      </div>
+      <div class="vali" id="kuluProtsentVali">
+        <label class="silt" id="kuluProtsentSilt">Naabri osa %</label>
+        <input type="text" inputmode="decimal" id="kuluProtsent" placeholder="50" oninput="kuluArvuta()">
+      </div>
+      <div class="vali" id="kuluNaabriSummaVali" style="display:none">
+        <label class="silt" id="kuluNaabriSummaSilt">Naabri osa (€)</label>
+        <input type="text" inputmode="decimal" id="kuluNaabriSumma" placeholder="0,00" oninput="kuluArvuta()">
+      </div>
+      <div class="arvutus" id="kuluArvutus"></div>
+      <div class="vali">
+        <label class="silt">Tšeki foto</label>
+        <input type="file" id="kuluFoto" accept="image/*">
+        <div class="vihje" id="kuluFotoVihje" style="margin:6px 0 0"></div>
+      </div>
+      <button class="btn kuld" style="width:100%;padding:12px" id="kuluSalvesta" onclick="salvestaKulu()">Salvesta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Makse -->
+<div class="modaal" id="makseModaal">
+  <div class="modaal-sisu">
+    <div class="modaal-hdr"><span>Lisa makse</span><span class="x" onclick="sulge('makseModaal')">✕</span></div>
+    <div class="modaal-keha">
+      <div id="makseTeade" class="teade"></div>
+      <div class="vali">
+        <label class="silt">Kes maksis kellele</label>
+        <div class="valik" id="makseSuund"></div>
+      </div>
+      <div class="kaks">
+        <div class="vali"><label class="silt">Kuupäev</label><input type="date" id="makseKuupaev"></div>
+        <div class="vali"><label class="silt">Summa (€)</label><input type="text" inputmode="decimal" id="makseSumma" placeholder="0,00"></div>
+      </div>
+      <div class="vali"><label class="silt">Selgitus</label><input type="text" id="makseKommentaar" placeholder="nt ülekanne, oktoobri tööd"></div>
+      <button class="btn kuld" style="width:100%;padding:12px" id="makseSalvesta" onclick="salvestaMakse()">Salvesta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tööosa -->
+<div class="modaal" id="osaModaal">
+  <div class="modaal-sisu">
+    <div class="modaal-hdr"><span id="osaPealkiri">Lisa tööosa</span><span class="x" onclick="sulge('osaModaal')">✕</span></div>
+    <div class="modaal-keha">
+      <div id="osaTeade" class="teade"></div>
+      <div class="vali"><label class="silt">Nimi</label><input type="text" id="osaNimi" placeholder="nt Ühine aed"></div>
+      <div class="vali">
+        <label class="silt" id="osaProtsentSilt">Naabri osa %</label>
+        <input type="text" inputmode="decimal" id="osaProtsent" placeholder="50" oninput="osaArvuta()">
+      </div>
+      <div class="arvutus" id="osaArvutus"></div>
+      <div class="vali" id="osaAktiivneVali" style="display:none">
+        <label style="font-size:13px;color:#b6bdc9;display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="osaAktiivne" style="width:auto"> Töötajad saavad seda tööosa valida
+        </label>
+      </div>
+      <button class="btn kuld" style="width:100%;padding:12px" id="osaSalvesta" onclick="salvestaOsa()">Salvesta</button>
+    </div>
+  </div>
+</div>
+
+<div id="suurpilt" onclick="this.style.display='none'">
+  <button type="button">✕</button>
+  <img id="suurpiltImg" src="" alt="">
+</div>
+
+<script src="/failid.js"></script>
+<script>
+// ── Sisselogimine ────────────────────────────────────────────────
+// Leht töötab kahes rollis:
+//   admin  — Royal Paigalduse admin (olemasolev adminToken); saab kõike muuta
+//   naaber — logib siin lehel oma PIN-iga (remontToken); ainult vaatab
+var token = '';
+var roll = null;
+var eelvaade = false;   // admin vaatab lehte naabri pilguga
+var A = null;           // viimati laetud andmed
+var aktiivneTab = 'tood';
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function raha(n) {
+  return (Number(n) || 0).toLocaleString('et-EE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+function arv(n) {
+  return (Number(n) || 0).toLocaleString('et-EE', { maximumFractionDigits: 2 });
+}
+function loeArv(v) {
+  var s = String(v == null ? '' : v).trim().replace(/\s/g, '').replace(',', '.');
+  return s === '' ? NaN : parseFloat(s);
+}
+function kp(s) {
+  var o = String(s || '').split('-');
+  return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : String(s || '');
+}
+var PAEVAD = ['pühapäev', 'esmaspäev', 'teisipäev', 'kolmapäev', 'neljapäev', 'reede', 'laupäev'];
+function kpPikk(s) {
+  var d = new Date(s + 'T12:00:00');
+  return isNaN(d) ? kp(s) : PAEVAD[d.getDay()] + ', ' + kp(s);
+}
+function tana() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function saabMuuta() { return roll === 'admin' && !eelvaade; }
+
+async function api(tee, seaded) {
+  seaded = seaded || {};
+  seaded.headers = Object.assign({ 'x-session-token': token }, seaded.headers || {});
+  if (seaded.body && !(seaded.body instanceof FormData)) seaded.headers['Content-Type'] = 'application/json';
+  try {
+    var r = await fetch('/api/remont' + tee, seaded);
+    return await r.json();
+  } catch (e) {
+    return { ok: false, veateade: 'Ühenduse viga — proovi uuesti' };
+  }
+}
+
+function teade(id, tekst, korras) {
+  var el = document.getElementById(id);
+  el.className = 'teade' + (tekst ? (korras ? ' korras' : ' viga') : '');
+  el.textContent = tekst || '';
+}
+function ava(id) { document.getElementById(id).classList.add('avatud'); }
+function sulge(id) { document.getElementById(id).classList.remove('avatud'); }
+function suurPilt(url) {
+  document.getElementById('suurpiltImg').src = url;
+  document.getElementById('suurpilt').style.display = 'flex';
+}
+Array.prototype.forEach.call(document.querySelectorAll('.modaal'), function (m) {
+  m.addEventListener('click', function (e) { if (e.target === m) m.classList.remove('avatud'); });
+});
+
+async function alusta() {
+  // Proovime järjest: admini võti, siis naabri võti.
+  var voimalikud = [];
+  try {
+    voimalikud = [localStorage.getItem('adminToken'), localStorage.getItem('remontToken')].filter(Boolean);
+  } catch (e) {}
+  for (var i = 0; i < voimalikud.length; i++) {
+    token = voimalikud[i];
+    var s = await api('/sessioon');
+    if (s.ok && s.roll) { roll = s.roll; return laadi(); }
+  }
+  token = '';
+  naitaLogin();
+}
+
+function naitaLogin() {
+  document.getElementById('appVaade').style.display = 'none';
+  document.getElementById('loginVaade').style.display = 'block';
+  document.getElementById('pinSisend').focus();
+}
+document.getElementById('pinSisend').addEventListener('keydown', function (e) { if (e.key === 'Enter') logiSisse(); });
+
+async function logiSisse() {
+  var pin = document.getElementById('pinSisend').value.trim();
+  if (!pin) return teade('loginTeade', 'Sisesta PIN-kood');
+  var r = await api('/login', { method: 'POST', body: JSON.stringify({ pin: pin }) });
+  if (!r.ok) return teade('loginTeade', r.veateade || 'Vale PIN-kood');
+  token = r.token;
+  roll = 'naaber';
+  try { localStorage.setItem('remontToken', token); } catch (e) {}
+  document.getElementById('pinSisend').value = '';
+  teade('loginTeade', '');
+  laadi();
+}
+
+async function logiValja() {
+  await api('/logout', { method: 'POST' });
+  try { localStorage.removeItem('remontToken'); } catch (e) {}
+  token = ''; roll = null;
+  naitaLogin();
+}
+
+function lylitaEelvaade() {
+  eelvaade = !eelvaade;
+  if (eelvaade && aktiivneTab === 'seaded') aktiivneTab = 'tood';
+  joonista();
+  window.scrollTo(0, 0);
+}
+
+async function laadi() {
+  var r = await api('/andmed');
+  if (!r.ok) {
+    if (!A) { roll = null; naitaLogin(); }
+    return;
+  }
+  A = r;
+  roll = r.roll;
+  document.getElementById('loginVaade').style.display = 'none';
+  document.getElementById('appVaade').style.display = 'block';
+  joonista();
+}
+
+// ── Joonistamine ─────────────────────────────────────────────────
+function joonista() {
+  var s = A.seaded;
+  document.title = s.projekti_nimi;
+  document.getElementById('pealkiri').textContent = s.projekti_nimi;
+  document.getElementById('alapealkiri').textContent = s.minu_nimi + ' ja ' + s.naabri_nimi + ' · töö ' + raha(s.tunnihind) + '/h';
+  document.getElementById('eelvaateRiba').style.display = eelvaade ? 'block' : 'none';
+
+  var nupud = '<button class="btn" onclick="laeExcel()">⬇ Excel</button>';
+  if (roll === 'admin' && !eelvaade) {
+    nupud += '<button class="btn" onclick="lylitaEelvaade()">👁 Naabri vaade</button>'
+      + '<a class="btn" href="/admin">← Admin</a>';
+  }
+  if (roll === 'naaber') nupud += '<button class="btn" onclick="logiValja()">Logi välja</button>';
+  document.getElementById('paiseNupud').innerHTML = nupud;
+
+  joonistaYlevaade();
+
+  var tabid = [['tood', 'Tööd'], ['kulud', 'Materjalid'], ['maksed', 'Maksed'], ['osad', 'Jaotus']];
+  if (saabMuuta()) tabid.push(['seaded', 'Seaded']);
+  document.getElementById('tabid').innerHTML = tabid.map(function (t) {
+    return '<button class="tab' + (t[0] === aktiivneTab ? ' aktiivne' : '') + '" onclick="valiTab(\'' + t[0] + '\')">' + t[1] + '</button>';
+  }).join('');
+  ['tood', 'kulud', 'maksed', 'osad', 'seaded'].forEach(function (t) {
+    document.getElementById('paneel-' + t).className = 'paneel' + (t === aktiivneTab ? ' aktiivne' : '');
+  });
+  joonistaTood();
+  joonistaKulud();
+  joonistaMaksed();
+  joonistaOsad();
+  if (saabMuuta()) joonistaSeaded();
+}
+
+function valiTab(t) { aktiivneTab = t; joonista(); }
+
+function joonistaYlevaade() {
+  var s = A.seaded, k = A.kokku;
+  var silt, klass = '';
+  if (Math.abs(k.saldo) < 0.005) { silt = 'Arved on tasa'; klass = ' null'; }
+  else if (k.saldo > 0) silt = s.naabri_nimi + ' tasuda';
+  else silt = s.minu_nimi + ' tasuda (' + s.naabri_nimi + ' on rohkem maksnud)';
+
+  var html = '<div class="saldo"><div class="saldo-silt">' + esc(silt) + '</div>'
+    + '<div class="saldo-summa' + klass + '">' + raha(Math.abs(k.saldo)) + '</div>'
+    + '<div class="saldo-all">Töö ja materjalid kokku, juba tasutud summad maha arvatud. Hinnad on käibemaksuta.</div></div>';
+
+  if (k.maaramata_toid) {
+    html += '<div class="hoiatus">⚠ ' + k.maaramata_toid + ' töökirjel on jaotus veel määramata — need pole summades sees.'
+      + (saabMuuta() ? ' Ava „Tööd" ja vali neile tööosa.' : '') + '</div>';
+  }
+
+  html += '<div class="statid">'
+    + '<div class="stat"><div class="stat-silt">Töö</div><div class="stat-arv">' + raha(k.naabri_too) + '</div>'
+    + '<div class="stat-all">' + esc(s.naabri_nimi) + ' osa ' + arv(k.naabri_tunnid) + ' h / kokku ' + arv(k.tunnid) + ' h</div></div>'
+    + '<div class="stat"><div class="stat-silt">Materjalid</div><div class="stat-arv">' + raha(k.naabri_materjal) + '</div>'
+    + '<div class="stat-all">' + esc(s.naabri_nimi) + ' osa / kokku ' + raha(k.materjal) + '</div></div>'
+    + '<div class="stat"><div class="stat-silt">Tasutud</div><div class="stat-arv">' + raha(k.makstud_naabrilt) + '</div>'
+    + '<div class="stat-all">' + esc(s.naabri_nimi) + ' → ' + esc(s.minu_nimi) + '</div></div>'
+    + '</div>';
+
+  html += '<div class="kaart"><div class="kaart-hdr">Kuidas summa kujuneb</div><div class="kaart-sisu">'
+    + '<div class="arve-rida"><span>' + esc(s.naabri_nimi) + ' osa tööst (' + arv(k.naabri_tunnid) + ' h × ' + raha(s.tunnihind) + ')</span><b>' + raha(k.naabri_too) + '</b></div>'
+    + '<div class="arve-rida"><span>+ ' + esc(s.naabri_nimi) + ' osa materjalidest, mille ostis ' + esc(s.minu_nimi) + '</span><b>' + raha(k.minu_ostudest_naabri_osa) + '</b></div>';
+  if (k.naabri_ostudest_minu_osa) {
+    html += '<div class="arve-rida"><span>− ' + esc(s.minu_nimi) + ' osa materjalidest, mille ostis ' + esc(s.naabri_nimi) + '</span><b>−' + raha(k.naabri_ostudest_minu_osa) + '</b></div>';
+  }
+  html += '<div class="arve-rida"><span>− ' + esc(s.naabri_nimi) + ' on juba tasunud</span><b>−' + raha(k.makstud_naabrilt) + '</b></div>';
+  if (k.makstud_naabrile) {
+    html += '<div class="arve-rida"><span>+ ' + esc(s.minu_nimi) + ' on tagasi maksnud</span><b>' + raha(k.makstud_naabrile) + '</b></div>';
+  }
+  html += '<div class="arve-rida kokku"><span>' + esc(silt) + '</span><b>' + raha(Math.abs(k.saldo)) + '</b></div>'
+    + '</div></div>';
+  document.getElementById('ylevaade').innerHTML = html;
+}
+
+// Jaotuse riba: vasakul minu osa (hall), paremal naabri osa (kuldne).
+function ribaHtml(naabriProtsent, minuTekst, naabriTekst) {
+  var s = A.seaded;
+  var n = Math.max(0, Math.min(100, Number(naabriProtsent) || 0));
+  return '<div class="riba"><i style="margin-left:' + (100 - n) + '%;width:' + n + '%"></i></div>'
+    + '<div class="riba-silt"><span>' + esc(s.minu_nimi) + ' ' + arv(100 - n) + '%' + (minuTekst ? ' · ' + minuTekst : '') + '</span>'
+    + '<span class="n">' + esc(s.naabri_nimi) + ' ' + arv(n) + '%' + (naabriTekst ? ' · ' + naabriTekst : '') + '</span></div>';
+}
+
+function joonistaTood() {
+  var s = A.seaded;
+  var html = '';
+  if (saabMuuta()) {
+    html += '<div class="vihje">Töötajad panevad tunnid kirja tavalise töökirjena ettevõtte <b>KODUREMONT</b> alla ja valivad objektiks tööosa. '
+      + 'Jaotus tuleb tööosa järgi; üksiku kirje jaotust saad muuta nupust „Jaotus".</div>';
+  }
+  if (!A.tood.length) {
+    html += '<div class="kaart"><div class="tyhi">Töid pole veel kirja pandud.</div></div>';
+    document.getElementById('paneel-tood').innerHTML = html;
+    return;
+  }
+  html += '<div class="kaart">';
+  var viimane = '';
+  A.tood.forEach(function (t) {
+    if (t.kuupaev !== viimane) { html += '<div class="paev">' + esc(kpPikk(t.kuupaev)) + '</div>'; viimane = t.kuupaev; }
+    var maaramata = t.naabri_protsent === null;
+    html += '<div class="kirje"><div class="kirje-ylal"><div>'
+      + '<div class="kirje-pealkiri">' + esc(t.osa_nimi || 'Tööosa valimata')
+      + (maaramata ? '<span class="mark kollane">jaotus määramata</span>' : '')
+      + (t.oma_jaotus ? '<span class="mark">erijaotus</span>' : '') + '</div>'
+      + '<div class="kirje-meta">' + esc(t.tootaja) + ' · ' + esc(t.algus) + '–' + esc(t.lopp) + ' · ' + arv(t.tunnid) + ' h</div>'
+      + '</div><div class="kirje-summa">'
+      + '<div class="suur">' + (maaramata ? '—' : raha(t.naabri_summa)) + '</div>'
+      + '<div class="vaikekiri">' + esc(s.naabri_nimi) + ' osa</div></div></div>';
+    if (t.kommentaar) html += '<div class="kirje-tekst">' + esc(t.kommentaar) + '</div>';
+    if (!maaramata) {
+      html += ribaHtml(t.naabri_protsent, arv(t.tunnid - t.naabri_tunnid) + ' h', arv(t.naabri_tunnid) + ' h');
+    }
+    if (t.pildid && t.pildid.length) {
+      html += '<div class="pisipildid">' + t.pildid.map(function (u) {
+        return '<img src="' + esc(u) + '" loading="lazy" alt="" onclick="suurPilt(this.src)">';
+      }).join('') + '</div>';
+    }
+    if (saabMuuta()) {
+      if (t.lisakulu_summa > 0) {
+        html += '<div class="kirje-meta" style="margin-top:8px">💡 Töötaja lisakulu ' + raha(t.lisakulu_summa)
+          + (t.lisakulu_selgitus ? ' (' + esc(t.lisakulu_selgitus) + ')' : '') + ' — kui see on materjal, lisa see ka „Materjalid" alla.</div>';
+      }
+      html += '<div class="kirje-nupud"><button class="btn vaike" onclick="muudaTood(' + t.id + ')">Jaotus</button></div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('paneel-tood').innerHTML = html;
+}
+
+function joonistaKulud() {
+  var s = A.seaded;
+  var html = '';
+  if (saabMuuta()) html += '<div style="margin-bottom:12px"><button class="btn kuld" onclick="uusKulu()">+ Lisa tšekk</button></div>';
+  if (!A.kulud.length) {
+    html += '<div class="kaart"><div class="tyhi">Materjale pole veel lisatud.</div></div>';
+    document.getElementById('paneel-kulud').innerHTML = html;
+    return;
+  }
+  html += '<div class="kaart">';
+  A.kulud.forEach(function (k) {
+    var protsent = k.summa > 0 ? k.naabri_summa / k.summa * 100 : 0;
+    html += '<div class="kirje"><div class="kirje-ylal"><div>'
+      + '<div class="kirje-pealkiri">' + esc(k.kirjeldus) + (k.foto_url ? '' : '<span class="mark punane">tšekk puudub</span>') + '</div>'
+      + '<div class="kirje-meta">' + kp(k.kuupaev) + ' · maksis ' + esc(k.maksja === 'naaber' ? s.naabri_nimi : s.minu_nimi)
+      + (k.osa_nimi ? ' · ' + esc(k.osa_nimi) : '') + '</div>'
+      + '</div><div class="kirje-summa"><div class="suur">' + raha(k.summa) + '</div><div class="vaikekiri">tšekk kokku</div></div></div>'
+      + ribaHtml(protsent, raha(k.minu_summa), raha(k.naabri_summa));
+    if (k.foto_url) {
+      html += '<div class="pisipildid"><img src="' + esc(k.foto_url) + '" loading="lazy" alt="Tšekk" onclick="suurPilt(this.src)"></div>';
+    }
+    if (saabMuuta()) {
+      html += '<div class="kirje-nupud"><button class="btn vaike" onclick="muudaKulu(' + k.id + ')">Muuda</button>'
+        + '<button class="btn vaike punane" onclick="kustutaKulu(' + k.id + ')">Kustuta</button></div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('paneel-kulud').innerHTML = html;
+}
+
+function joonistaMaksed() {
+  var s = A.seaded;
+  var html = '';
+  if (saabMuuta()) html += '<div style="margin-bottom:12px"><button class="btn kuld" onclick="uusMakse()">+ Lisa makse</button></div>';
+  if (!A.maksed.length) {
+    html += '<div class="kaart"><div class="tyhi">Makseid pole veel tehtud.</div></div>';
+    document.getElementById('paneel-maksed').innerHTML = html;
+    return;
+  }
+  html += '<div class="kaart">';
+  A.maksed.forEach(function (m) {
+    var suund = m.suund === 'naabrile' ? s.minu_nimi + ' → ' + s.naabri_nimi : s.naabri_nimi + ' → ' + s.minu_nimi;
+    html += '<div class="kirje"><div class="kirje-ylal"><div>'
+      + '<div class="kirje-pealkiri">' + esc(suund) + '</div>'
+      + '<div class="kirje-meta">' + kp(m.kuupaev) + (m.kommentaar ? ' · ' + esc(m.kommentaar) : '') + '</div>'
+      + '</div><div class="kirje-summa"><div class="suur">' + raha(m.summa) + '</div></div></div>';
+    if (saabMuuta()) html += '<div class="kirje-nupud"><button class="btn vaike punane" onclick="kustutaMakse(' + m.id + ')">Kustuta</button></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('paneel-maksed').innerHTML = html;
+}
+
+function joonistaOsad() {
+  var html = '<div class="vihje">Iga tööosa kohta on kokku lepitud, kuidas kulu jaguneb. Töötunnid jagunevad selle järgi automaatselt.</div>';
+  if (saabMuuta()) html += '<div style="margin-bottom:12px"><button class="btn kuld" onclick="uusOsa()">+ Lisa tööosa</button></div>';
+  var osad = A.osad.filter(function (o) { return saabMuuta() || o.aktiivne || o.naabri_protsent !== null; });
+  if (!osad.length) {
+    html += '<div class="kaart"><div class="tyhi">Tööosi pole veel lisatud.</div></div>';
+    document.getElementById('paneel-osad').innerHTML = html;
+    return;
+  }
+  html += '<div class="kaart">';
+  osad.forEach(function (o) {
+    html += '<div class="kirje"><div class="kirje-pealkiri">' + esc(o.nimi)
+      + (o.naabri_protsent === null ? '<span class="mark kollane">jaotus määramata</span>' : '')
+      + (o.aktiivne ? '' : '<span class="mark">lõpetatud</span>') + '</div>';
+    if (o.naabri_protsent !== null) html += ribaHtml(o.naabri_protsent);
+    if (saabMuuta()) html += '<div class="kirje-nupud"><button class="btn vaike" onclick="muudaOsa(' + o.id + ')">Muuda</button></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('paneel-osad').innerHTML = html;
+}
+
+function joonistaSeaded() {
+  var s = A.seaded;
+  document.getElementById('paneel-seaded').innerHTML =
+    '<div class="kaart"><div class="kaart-hdr">Projekti seaded</div><div class="kaart-sisu">'
+    + '<div id="seadedTeade" class="teade"></div>'
+    + '<div class="vali"><label class="silt">Projekti nimi</label><input type="text" id="sProjekt" value="' + esc(s.projekti_nimi) + '"></div>'
+    + '<div class="kaks">'
+    + '<div class="vali"><label class="silt">Sinu nimi</label><input type="text" id="sMina" value="' + esc(s.minu_nimi) + '"></div>'
+    + '<div class="vali"><label class="silt">Naabri nimi</label><input type="text" id="sNaaber" value="' + esc(s.naabri_nimi) + '"></div>'
+    + '</div>'
+    + '<div class="kaks">'
+    + '<div class="vali"><label class="silt">Tunnihind naabrile (€/h)</label><input type="text" inputmode="decimal" id="sHind" value="' + esc(String(s.tunnihind).replace('.', ',')) + '"></div>'
+    + '<div class="vali"><label class="silt">Naabri PIN</label><input type="text" inputmode="numeric" autocomplete="off" id="sPin" value="' + esc(A.naabri_pin || '') + '" placeholder="vähemalt 4 numbrit"></div>'
+    + '</div>'
+    + '<div class="vihje">Naaber logib sisse aadressil <b>' + esc(location.origin) + '/remont</b> selle PIN-iga. '
+    + 'Ta näeb töid, materjale, tšekke ja arveldust, aga muuta ei saa. Töötajate tunnitasu sellel lehel ei näidata. '
+    + 'PIN-i muutmine logib ta kõigist seadmetest välja.</div>'
+    + '<button class="btn kuld" onclick="salvestaSeaded()">Salvesta seaded</button>'
+    + '</div></div>'
+    + '<div class="kaart"><div class="kaart-hdr">Töötajate seadistus</div><div class="kaart-sisu"><div class="vihje" style="margin:0">'
+    + 'Et töötaja saaks siia tunde kirjutada, lisa talle adminis (Töötajad → ettevõtted) ettevõte <b>KODUREMONT</b> ja tema tunnitasu. '
+    + 'Seejärel ilmub see tema avalehele nagu iga teine ettevõte.</div></div></div>';
+}
+
+// ── Seaded ───────────────────────────────────────────────────────
+async function salvestaSeaded() {
+  var r = await api('/seaded', { method: 'POST', body: JSON.stringify({
+    projekti_nimi: document.getElementById('sProjekt').value,
+    minu_nimi: document.getElementById('sMina').value,
+    naabri_nimi: document.getElementById('sNaaber').value,
+    tunnihind: document.getElementById('sHind').value,
+    naabri_pin: document.getElementById('sPin').value
+  }) });
+  if (!r.ok) return teade('seadedTeade', r.veateade || 'Salvestamine ebaõnnestus');
+  await laadi();
+  teade('seadedTeade', 'Salvestatud', true);
+}
+
+// ── Tööosad ──────────────────────────────────────────────────────
+var osaId = null;
+function osaValikud(valitud, tyhiTekst) {
+  return '<option value="">' + esc(tyhiTekst) + '</option>' + A.osad.filter(function (o) {
+    return o.aktiivne || String(o.id) === String(valitud);
+  }).map(function (o) {
+    return '<option value="' + o.id + '"' + (String(o.id) === String(valitud) ? ' selected' : '') + '>' + esc(o.nimi)
+      + (o.naabri_protsent === null ? '' : ' (' + esc(A.seaded.naabri_nimi) + ' ' + arv(o.naabri_protsent) + '%)') + '</option>';
+  }).join('');
+}
+function uusOsa() {
+  osaId = null;
+  document.getElementById('osaPealkiri').textContent = 'Lisa tööosa';
+  document.getElementById('osaNimi').value = '';
+  document.getElementById('osaProtsent').value = '50';
+  document.getElementById('osaAktiivneVali').style.display = 'none';
+  avaOsa();
+}
+function muudaOsa(id) {
+  var o = A.osad.find(function (x) { return x.id === id; });
+  if (!o) return;
+  osaId = id;
+  document.getElementById('osaPealkiri').textContent = 'Muuda tööosa';
+  document.getElementById('osaNimi').value = o.nimi;
+  document.getElementById('osaProtsent').value = o.naabri_protsent === null ? '' : String(o.naabri_protsent).replace('.', ',');
+  document.getElementById('osaAktiivne').checked = !!o.aktiivne;
+  document.getElementById('osaAktiivneVali').style.display = 'block';
+  avaOsa();
+}
+function avaOsa() {
+  document.getElementById('osaProtsentSilt').textContent = A.seaded.naabri_nimi + ' osa %';
+  teade('osaTeade', '');
+  osaArvuta();
+  ava('osaModaal');
+}
+function osaArvuta() {
+  var p = loeArv(document.getElementById('osaProtsent').value);
+  var korras = isFinite(p) && p >= 0 && p <= 100;
+  document.getElementById('osaArvutus').innerHTML = korras
+    ? '<span>' + esc(A.seaded.minu_nimi) + ' <b>' + arv(100 - p) + '%</b></span><span>' + esc(A.seaded.naabri_nimi) + ' <b>' + arv(p) + '%</b></span>'
+    : '<span>Sisesta protsent vahemikus 0–100</span>';
+}
+async function salvestaOsa() {
+  var keha = {
+    nimi: document.getElementById('osaNimi').value,
+    naabri_protsent: document.getElementById('osaProtsent').value,
+    aktiivne: osaId ? document.getElementById('osaAktiivne').checked : true
+  };
+  var nupp = document.getElementById('osaSalvesta');
+  nupp.disabled = true;
+  var r = osaId
+    ? await api('/osad/' + osaId, { method: 'PUT', body: JSON.stringify(keha) })
+    : await api('/osad', { method: 'POST', body: JSON.stringify(keha) });
+  nupp.disabled = false;
+  if (!r.ok) return teade('osaTeade', r.veateade || 'Salvestamine ebaõnnestus');
+  sulge('osaModaal');
+  laadi();
+}
+
+// ── Töökirje jaotus ──────────────────────────────────────────────
+var tooId = null;
+function muudaTood(id) {
+  var t = A.tood.find(function (x) { return x.id === id; });
+  if (!t) return;
+  tooId = id;
+  document.getElementById('tooInfo').textContent = kp(t.kuupaev) + ' · ' + t.tootaja + ' · ' + arv(t.tunnid) + ' h' + (t.kommentaar ? ' · ' + t.kommentaar : '');
+  document.getElementById('tooOsa').innerHTML = osaValikud(t.objekt_id, '— tööosa valimata —');
+  document.getElementById('tooProtsentSilt').textContent = A.seaded.naabri_nimi + ' osa % (ainult sellel kirjel)';
+  document.getElementById('tooProtsent').value = t.oma_jaotus ? String(t.naabri_protsent).replace('.', ',') : '';
+  teade('tooTeade', '');
+  tooArvuta();
+  ava('tooModaal');
+}
+function tooArvuta() {
+  var t = A.tood.find(function (x) { return x.id === tooId; });
+  if (!t) return;
+  var s = A.seaded;
+  var sisend = document.getElementById('tooProtsent').value.trim();
+  var p;
+  if (sisend === '') {
+    var o = A.osad.find(function (x) { return String(x.id) === document.getElementById('tooOsa').value; });
+    p = o && o.naabri_protsent !== null ? o.naabri_protsent : null;
+  } else {
+    p = loeArv(sisend);
+    if (!isFinite(p) || p < 0 || p > 100) p = NaN;
+  }
+  var el = document.getElementById('tooArvutus');
+  if (p === null) el.innerHTML = '<span>Jaotus on määramata — vali tööosa või sisesta protsent.</span>';
+  else if (isNaN(p)) el.innerHTML = '<span>Sisesta protsent vahemikus 0–100</span>';
+  else {
+    var nt = t.tunnid * p / 100;
+    el.innerHTML = '<span>' + esc(s.minu_nimi) + ' <b>' + arv(t.tunnid - nt) + ' h</b></span>'
+      + '<span>' + esc(s.naabri_nimi) + ' <b>' + arv(nt) + ' h = ' + raha(nt * s.tunnihind) + '</b></span>';
+  }
+}
+async function salvestaToo() {
+  var nupp = document.getElementById('tooSalvesta');
+  nupp.disabled = true;
+  var r = await api('/tood/' + tooId + '/jaotus', { method: 'PUT', body: JSON.stringify({
+    objekt_id: document.getElementById('tooOsa').value || null,
+    naabri_protsent: document.getElementById('tooProtsent').value
+  }) });
+  nupp.disabled = false;
+  if (!r.ok) return teade('tooTeade', r.veateade || 'Salvestamine ebaõnnestus');
+  sulge('tooModaal');
+  laadi();
+}
+
+// ── Materjalid ───────────────────────────────────────────────────
+var kuluId = null, kuluMaksjaV = 'mina', kuluJaotusV = 'protsent';
+function kuluMaksjaJoonista() {
+  var s = A.seaded;
+  document.getElementById('kuluMaksja').innerHTML =
+    '<button type="button" class="' + (kuluMaksjaV === 'mina' ? 'sees' : '') + '" onclick="kuluMaksjaVali(\'mina\')">' + esc(s.minu_nimi) + '</button>'
+    + '<button type="button" class="' + (kuluMaksjaV === 'naaber' ? 'sees' : '') + '" onclick="kuluMaksjaVali(\'naaber\')">' + esc(s.naabri_nimi) + '</button>';
+}
+function kuluMaksjaVali(v) { kuluMaksjaV = v; kuluMaksjaJoonista(); }
+function kuluJaotus(v) {
+  kuluJaotusV = v;
+  document.getElementById('kuluJaotusProtsent').className = v === 'protsent' ? 'sees' : '';
+  document.getElementById('kuluJaotusSumma').className = v === 'summa' ? 'sees' : '';
+  document.getElementById('kuluProtsentVali').style.display = v === 'protsent' ? 'block' : 'none';
+  document.getElementById('kuluNaabriSummaVali').style.display = v === 'summa' ? 'block' : 'none';
+  kuluArvuta();
+}
+function kuluOsaValitud() {
+  var o = A.osad.find(function (x) { return String(x.id) === document.getElementById('kuluOsa').value; });
+  if (o && o.naabri_protsent !== null) {
+    kuluJaotus('protsent');
+    document.getElementById('kuluProtsent').value = String(o.naabri_protsent).replace('.', ',');
+  }
+  kuluArvuta();
+}
+// Tagastab naabri osa eurodes või null, kui sisend pole korras.
+function kuluNaabriOsa() {
+  var summa = loeArv(document.getElementById('kuluSumma').value);
+  if (!isFinite(summa) || summa <= 0) return null;
+  if (kuluJaotusV === 'summa') {
+    var n = loeArv(document.getElementById('kuluNaabriSumma').value);
+    return isFinite(n) && n >= 0 && n <= summa + 0.001 ? n : null;
+  }
+  var p = loeArv(document.getElementById('kuluProtsent').value);
+  return isFinite(p) && p >= 0 && p <= 100 ? Math.round(summa * p) / 100 : null;
+}
+function kuluArvuta() {
+  var s = A.seaded;
+  var summa = loeArv(document.getElementById('kuluSumma').value);
+  var n = kuluNaabriOsa();
+  document.getElementById('kuluArvutus').innerHTML = n === null
+    ? '<span>Sisesta summa ja jaotus</span>'
+    : '<span>' + esc(s.minu_nimi) + ' <b>' + raha(summa - n) + '</b></span><span>' + esc(s.naabri_nimi) + ' <b>' + raha(n) + '</b></span>';
+}
+function avaKulu() {
+  document.getElementById('kuluProtsentSilt').textContent = A.seaded.naabri_nimi + ' osa %';
+  document.getElementById('kuluNaabriSummaSilt').textContent = A.seaded.naabri_nimi + ' osa (€)';
+  document.getElementById('kuluFoto').value = '';
+  teade('kuluTeade', '');
+  kuluMaksjaJoonista();
+  kuluJaotus(kuluJaotusV);
+  ava('kuluModaal');
+}
+function uusKulu() {
+  kuluId = null; kuluMaksjaV = 'mina'; kuluJaotusV = 'protsent';
+  document.getElementById('kuluPealkiri').textContent = 'Lisa tšekk';
+  document.getElementById('kuluKuupaev').value = tana();
+  document.getElementById('kuluSumma').value = '';
+  document.getElementById('kuluKirjeldus').value = '';
+  document.getElementById('kuluOsa').innerHTML = osaValikud('', '— ei ole seotud tööosaga —');
+  document.getElementById('kuluProtsent').value = '50';
+  document.getElementById('kuluNaabriSumma').value = '';
+  document.getElementById('kuluFotoVihje').textContent = 'Pildista tšekk kohe — nii näeb ka naaber, mille eest ta maksab.';
+  avaKulu();
+}
+function muudaKulu(id) {
+  var k = A.kulud.find(function (x) { return x.id === id; });
+  if (!k) return;
+  kuluId = id; kuluMaksjaV = k.maksja; kuluJaotusV = k.jaotus;
+  document.getElementById('kuluPealkiri').textContent = 'Muuda tšekki';
+  document.getElementById('kuluKuupaev').value = k.kuupaev;
+  document.getElementById('kuluSumma').value = k.summa.toFixed(2).replace('.', ',');
+  document.getElementById('kuluKirjeldus').value = k.kirjeldus;
+  document.getElementById('kuluOsa').innerHTML = osaValikud(k.objekt_id || '', '— ei ole seotud tööosaga —');
+  document.getElementById('kuluProtsent').value = k.naabri_protsent === null ? '' : String(k.naabri_protsent).replace('.', ',');
+  document.getElementById('kuluNaabriSumma').value = k.naabri_summa.toFixed(2).replace('.', ',');
+  document.getElementById('kuluFotoVihje').textContent = k.foto_url ? 'Foto on olemas. Vali uus ainult siis, kui tahad selle asendada.' : 'Foto puudub — lisa see siit.';
+  avaKulu();
+}
+
+// Telefonipilt tehakse enne saatmist väiksemaks (kuni 1600 px, JPEG 80%) — kiirem üleslaadimine.
+function vahendaPilt(fail) {
+  return new Promise(function (valmis) {
+    if (!fail.type || fail.type.indexOf('image/') !== 0) return valmis(fail);
+    var url = URL.createObjectURL(fail);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var suurim = 1600, w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) return valmis(fail);
+      var k = Math.min(1, suurim / Math.max(w, h));
+      var c = document.createElement('canvas');
+      c.width = Math.round(w * k); c.height = Math.round(h * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(function (blob) {
+        valmis(blob && blob.size < fail.size ? new File([blob], 'tsekk.jpg', { type: 'image/jpeg' }) : fail);
+      }, 'image/jpeg', 0.8);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); valmis(fail); };
+    img.src = url;
+  });
+}
+
+async function salvestaKulu() {
+  if (kuluNaabriOsa() === null) return teade('kuluTeade', 'Kontrolli summat ja jaotust');
+  var fd = new FormData();
+  fd.append('kuupaev', document.getElementById('kuluKuupaev').value);
+  fd.append('summa', document.getElementById('kuluSumma').value);
+  fd.append('kirjeldus', document.getElementById('kuluKirjeldus').value);
+  fd.append('maksja', kuluMaksjaV);
+  fd.append('jaotus', kuluJaotusV);
+  fd.append('naabri_protsent', document.getElementById('kuluProtsent').value);
+  fd.append('naabri_summa', document.getElementById('kuluNaabriSumma').value);
+  fd.append('objekt_id', document.getElementById('kuluOsa').value);
+  var nupp = document.getElementById('kuluSalvesta');
+  nupp.disabled = true; nupp.textContent = 'Salvestan...';
+  var fail = document.getElementById('kuluFoto').files[0];
+  if (fail) fd.append('foto', await vahendaPilt(fail));
+  var r = await api(kuluId ? '/kulud/' + kuluId + '/uuenda' : '/kulud', { method: 'POST', body: fd });
+  nupp.disabled = false; nupp.textContent = 'Salvesta';
+  if (!r.ok) return teade('kuluTeade', r.veateade || 'Salvestamine ebaõnnestus');
+  sulge('kuluModaal');
+  laadi();
+}
+async function kustutaKulu(id) {
+  var k = A.kulud.find(function (x) { return x.id === id; });
+  if (!k || !confirm('Kustutan tšeki „' + k.kirjeldus + '" (' + raha(k.summa) + ')?')) return;
+  var r = await api('/kulud/' + id, { method: 'DELETE' });
+  if (!r.ok) alert(r.veateade || 'Kustutamine ebaõnnestus');
+  laadi();
+}
+
+// ── Maksed ───────────────────────────────────────────────────────
+var makseSuundV = 'naabrilt';
+function makseSuundJoonista() {
+  var s = A.seaded;
+  document.getElementById('makseSuund').innerHTML =
+    '<button type="button" class="' + (makseSuundV === 'naabrilt' ? 'sees' : '') + '" onclick="makseSuundVali(\'naabrilt\')">' + esc(s.naabri_nimi) + ' → ' + esc(s.minu_nimi) + '</button>'
+    + '<button type="button" class="' + (makseSuundV === 'naabrile' ? 'sees' : '') + '" onclick="makseSuundVali(\'naabrile\')">' + esc(s.minu_nimi) + ' → ' + esc(s.naabri_nimi) + '</button>';
+}
+function makseSuundVali(v) { makseSuundV = v; makseSuundJoonista(); }
+function uusMakse() {
+  makseSuundV = 'naabrilt';
+  makseSuundJoonista();
+  document.getElementById('makseKuupaev').value = tana();
+  document.getElementById('makseSumma').value = '';
+  document.getElementById('makseKommentaar').value = '';
+  teade('makseTeade', '');
+  ava('makseModaal');
+}
+async function salvestaMakse() {
+  var nupp = document.getElementById('makseSalvesta');
+  nupp.disabled = true;
+  var r = await api('/maksed', { method: 'POST', body: JSON.stringify({
+    kuupaev: document.getElementById('makseKuupaev').value,
+    summa: document.getElementById('makseSumma').value,
+    suund: makseSuundV,
+    kommentaar: document.getElementById('makseKommentaar').value
+  }) });
+  nupp.disabled = false;
+  if (!r.ok) return teade('makseTeade', r.veateade || 'Salvestamine ebaõnnestus');
+  sulge('makseModaal');
+  laadi();
+}
+async function kustutaMakse(id) {
+  var m = A.maksed.find(function (x) { return x.id === id; });
+  if (!m || !confirm('Kustutan makse ' + raha(m.summa) + ' (' + kp(m.kuupaev) + ')?')) return;
+  var r = await api('/maksed/' + id, { method: 'DELETE' });
+  if (!r.ok) alert(r.veateade || 'Kustutamine ebaõnnestus');
+  laadi();
+}
+
+// ── Excel ────────────────────────────────────────────────────────
+function laeExcel() {
+  window.rpLaeFail('/api/remont/excel', token, 'koduremont.xlsx');
+}
+
+alusta();
+</script>
+</body>
+</html>

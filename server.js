@@ -132,6 +132,9 @@ app.use('/api/webauthn', require('./routes/webauthn'));
 // LIDL LATVIA — eraldiseisev fotomoodul (oma tabelid, oma admini PIN, kogu liides inglise keeles).
 // Ei puuduta Eesti Lidli moodulit (/api/kristo) ega töökirjeid.
 app.use('/api/latvia', require('./routes/latvia'));
+// KODUREMONT — naabriga jagatud remondi arvestus (töötunnid + tšekid jagatakse kahe osapoole vahel,
+// naaber näeb kõike oma PIN-iga lehel /remont). Oma tabelid, vt routes/remont.js.
+app.use('/api/remont', require('./routes/remont'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -151,6 +154,7 @@ app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public'
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
 app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));
 app.get('/padel-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel-admin.html')));
+app.get('/remont', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remont.html')));
 // Tundmatu API aadress -> selge JSON-vastus (mitte HTML-leht, mida liides ei oska lugeda)
 app.use('/api', (req, res) => {
   res.status(404).json({ ok: false, veateade: 'Sellist API aadressi ei ole' });
