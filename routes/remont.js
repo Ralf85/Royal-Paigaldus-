@@ -6,6 +6,7 @@ const { lukusMinuteid, margiVale, margiOige, lukuTeade, valeTeade, turvalineVord
 const { failiPais, onKuupaev } = require('../csvabi');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { aiFailid, loeDokument, arv: aiArv, puhasKuupaev } = require('../ailugeja');
 
 // ══════════════════════════════════════════════════════════════════════════
 // TELJE 10 (koduremont) — naabriga jagatud remondi arvestus
@@ -36,12 +37,13 @@ function getCloudinary() {
   return cloudinary;
 }
 
-const upload = multer({
+// Tšekk võib olla foto või PDF (nt e-poe arve).
+const uploadDok = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Ainult pildifailid!'));
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Ainult pildid või PDF-id!'));
   }
 });
 
@@ -105,6 +107,23 @@ async function looTabelid() {
       token VARCHAR(100) NOT NULL UNIQUE,
       loodud TIMESTAMP DEFAULT NOW()
     );
+  `);
+  // Tšeki read (tooted) ja seos Royal Paigalduse arvetega (arve_sisse).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS remont_kulu_read (
+      id SERIAL PRIMARY KEY,
+      kulu_id INTEGER NOT NULL REFERENCES remont_kulud(id) ON DELETE CASCADE,
+      jrk INTEGER NOT NULL DEFAULT 0,
+      nimetus TEXT NOT NULL,
+      summa DECIMAL(10,2) NOT NULL,
+      naabri_protsent DECIMAL(5,2) NOT NULL DEFAULT 0,
+      naabri_summa DECIMAL(10,2) NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS remont_kulu_read_kulu_idx ON remont_kulu_read(kulu_id);
+    ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;
+    ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS foto_tyyp VARCHAR(10);
+    ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS foto_arvest BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS arve_sisse_id INTEGER REFERENCES arve_sisse(id) ON DELETE SET NULL;
   `);
   await pool.query(`INSERT INTO remont_seaded (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
   // Ettevõte "TELJE 10" — selle alla teevad töötajad töökirjeid. Tüüp on 'muu', et ükski
@@ -180,16 +199,6 @@ function kpEt(kp) {
   return o.length === 3 ? `${o[2]}.${o[1]}.${o[0]}` : String(kp || '');
 }
 
-async function laeFoto(fail) {
-  const tulemus = await new Promise((resolve, reject) => {
-    const stream = getCloudinary().uploader.upload_stream(
-      { folder: 'royal-paigaldus/koduremont', resource_type: 'image', quality: 'auto' },
-      (err, result) => err ? reject(err) : resolve(result)
-    );
-    stream.end(fail.buffer);
-  });
-  return { url: tulemus.secure_url, public_id: tulemus.public_id };
-}
 
 // Kõik andmed ühe korraga — projekt on väike (üks remont), seega pole lehekülgedeks jagamist vaja.
 // Siit EI väljastata töötajate tunnitasu ega muud palgainfot.
@@ -257,11 +266,22 @@ async function koguAndmed() {
 
   const kuludRes = await pool.query(
     `SELECT k.id, to_char(k.kuupaev, 'YYYY-MM-DD') AS kuupaev, k.kirjeldus, k.summa, k.maksja, k.jaotus,
-            k.naabri_protsent, k.naabri_summa, k.objekt_id, k.foto_url, o.nimi AS osa_nimi
+            k.naabri_protsent, k.naabri_summa, k.objekt_id, k.foto_url, o.nimi AS osa_nimi,
+            k.kaibemaks, k.foto_tyyp, k.foto_arvest, k.arve_sisse_id
      FROM remont_kulud k
      LEFT JOIN objektid o ON o.id = k.objekt_id
      ORDER BY k.kuupaev DESC, k.id DESC`
   );
+  const readRes = await pool.query(
+    `SELECT kulu_id, nimetus, summa, naabri_protsent, naabri_summa FROM remont_kulu_read ORDER BY kulu_id, jrk, id`
+  );
+  const kuluRead = {};
+  readRes.rows.forEach(x => {
+    (kuluRead[x.kulu_id] = kuluRead[x.kulu_id] || []).push({
+      nimetus: x.nimetus, summa: parseFloat(x.summa) || 0,
+      naabri_protsent: parseFloat(x.naabri_protsent) || 0, naabri_summa: parseFloat(x.naabri_summa) || 0
+    });
+  });
   let materjalKokku = 0, naabriMaterjal = 0, minuMaksisNaabriOsa = 0, naaberMaksisMinuOsa = 0;
   const kulud = kuludRes.rows.map(k => {
     const summa = parseFloat(k.summa) || 0;
@@ -273,7 +293,12 @@ async function koguAndmed() {
       id: k.id, kuupaev: k.kuupaev, kirjeldus: k.kirjeldus, summa, maksja: k.maksja, jaotus: k.jaotus,
       naabri_protsent: k.naabri_protsent === null ? null : parseFloat(k.naabri_protsent),
       naabri_summa: nSumma, minu_summa: r2(summa - nSumma),
-      objekt_id: k.objekt_id, osa_nimi: k.osa_nimi || '', foto_url: k.foto_url || ''
+      objekt_id: k.objekt_id, osa_nimi: k.osa_nimi || '',
+      // Kui tšekk oli arvetes ja sealt kustutati, kustus ka fail — siis fotot enam pole.
+      foto_url: (k.foto_arvest && !k.arve_sisse_id) ? '' : (k.foto_url || ''),
+      foto_pdf: k.foto_tyyp === 'raw',
+      kaibemaks: parseFloat(k.kaibemaks) || 0, arvetes: !!k.arve_sisse_id,
+      read: kuluRead[k.id] || []
     };
   });
 
@@ -348,6 +373,8 @@ router.get('/andmed', noudaVaatajat, async (req, res) => {
     delete d.ettevote_nimi;
     // Töötaja lisakulu on palgaarvestuse info — naabrile seda ei näidata.
     d.tood.forEach(t => { delete t.lisakulu_summa; delete t.lisakulu_selgitus; });
+    // Käibemaks ja seos Royal Paigalduse arvetega on raamatupidamise info.
+    d.kulud.forEach(x => { delete x.kaibemaks; delete x.arvetes; });
   }
   res.json({ ok: true, roll: req.remontRoll, ...d });
 });
@@ -440,69 +467,227 @@ router.put('/tood/:id/jaotus', noudaAdmin, async (req, res) => {
 });
 
 // ── ADMIN: MATERJALID (TŠEKID) ────────────────────────────────────────────
-// Kontrollib vormi ja arvutab naabri osa. Tagastab { viga } või valmis väljad.
+// Tšekk sisestatakse TOODETE KAUPA: igal real on oma summa ja oma jaotus (mitu % on teise osapoole
+// kanda). Tšeki foto/PDF loeb AI (sama lugeja mis Arvete lehel, vt ailugeja.js) ja pakub read ette.
+// Soovi korral läheb sama tšekk ka Royal Paigalduse raamatupidamisse (Arved → sissetulevad, tabel
+// arve_sisse) — siis on fail arve_sisse kirje oma ja remont_kulud viitab sellele (arve_sisse_id).
+
+async function laeDokument(fail) {
+  const tyyp = fail.mimetype === 'application/pdf' ? 'raw' : 'image';
+  const seaded = { folder: 'royal-paigaldus/telje10', resource_type: tyyp };
+  if (tyyp === 'raw') {
+    // PDF vajab laiendiga nime, muidu ei ava brauser seda õigesti (sama lahendus mis routes/arved.js-is).
+    seaded.public_id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`;
+  } else {
+    seaded.quality = 'auto';
+  }
+  const tulemus = await new Promise((resolve, reject) => {
+    const stream = getCloudinary().uploader.upload_stream(seaded, (err, result) => err ? reject(err) : resolve(result));
+    stream.end(fail.buffer);
+  });
+  return { url: tulemus.secure_url, public_id: tulemus.public_id, tyyp };
+}
+async function kustutaFail(fail) {
+  if (!fail || !fail.public_id) return;
+  try { await getCloudinary().uploader.destroy(fail.public_id, { resource_type: fail.tyyp || 'image' }); } catch (e) {}
+}
+
+// AI loeb tšekilt müüja, kuupäeva, summad ja tooteread. Midagi ei salvestata — admin vaatab üle.
+router.post('/kulud/loe', noudaAdmin, aiFailid(uploadDok), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  const juhis = `Sa vaatad ühte ehitusmaterjalide OSTUTŠEKKI või ostuarvet. Loe sellelt välja müüja, kuupäev ja KÕIK ostetud tooted.
+Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
+"ettevote": "müüja (poe) nimi, nt Bauhof, Espak, K-Rauta; mitte ostja nimi",
+"kuupaev": "YYYY-MM-DD (tšeki/arve kuupäev)",
+"read": [{"nimetus": "toote nimetus nii nagu tšekil, lühidalt ja loetavalt", "kogus": "kogus koos ühikuga, nt 12 tk või 3,5 m (tühi, kui pole kirjas)", "summa": <selle rea LÕPPSUMMA numbrina — kogus korda hind, pärast allahindlust>}]
+ning allpool kirjeldatud summaväljad.
+Ridade reeglid:
+- Iga ostetud toode on eraldi rida. Ära jäta ühtegi toodet vahele ja ära liida tooteid kokku.
+- "summa" on rea kogusumma (mitte ühiku hind). Loe number tšekilt, ära arvuta.
+- Kui allahindlus, pandipakend, transport või muu tasu on tšekil eraldi real, pane see ka eraldi reana (allahindlus negatiivse summaga).
+- Ära pane ridade hulka vahesummat, käibemaksu, lõppsummat, makseviisi ega tagasiraha.
+Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
+  const t = await loeDokument(req, juhis, { summad: true, maxTokens: 4000 });
+  if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+  const kokku = t.summad.kokku, kmTa = t.summad.summa_km_ta;
+  let read = (Array.isArray(t.valjad.read) ? t.valjad.read : [])
+    .map(x => {
+      const nimetus = String((x && x.nimetus) || '').trim();
+      const kogus = String((x && x.kogus) || '').trim();
+      return { nimetus: (nimetus + (kogus ? ` (${kogus})` : '')).slice(0, 200), summa: r2(aiArv(x && x.summa)) };
+    })
+    .filter(x => x.nimetus && x.summa !== 0)
+    .slice(0, 80);
+  // Arvetel on read sageli ILMA käibemaksuta, tšekkidel koos käibemaksuga. Jagamiseks on vaja summat,
+  // mis tegelikult maksti — kui read annavad kokku käibemaksuta summa, lisame igale reale käibemaksu.
+  const ridadeSumma = r2(read.reduce((s, x) => s + x.summa, 0));
+  let ridadeMarkus = '';
+  if (read.length && kokku > 0 && Math.abs(ridadeSumma - kokku) > 0.02 && kmTa > 0 && Math.abs(ridadeSumma - kmTa) <= 0.05) {
+    const kordaja = kokku / ridadeSumma;
+    let jaak = kokku;
+    read = read.map((x, i) => {
+      const s = i === read.length - 1 ? r2(jaak) : r2(x.summa * kordaja);
+      jaak = r2(jaak - s);
+      return { nimetus: x.nimetus, summa: s };
+    });
+    ridadeMarkus = 'Arvel olid read käibemaksuta — lisasin igale reale käibemaksu, et summa klapiks makstuga.';
+  }
+  res.json({
+    ok: true,
+    ettevote: String(t.valjad.ettevote || '').trim().slice(0, 200),
+    kuupaev: puhasKuupaev(t.valjad.kuupaev),
+    summa: kokku, kaibemaks: t.summad.kaibemaks, km_kontroll: t.summad.km_kontroll,
+    read, ridade_markus: ridadeMarkus
+  });
+});
+
+// Kontrollib vormi ja arvutab jaotuse. Tagastab { viga } või valmis väljad.
 function loeKulu(b) {
   const kirjeldus = String(b.kirjeldus || '').trim().slice(0, 500);
   const summa = loeArv(b.summa);
+  const kaibemaks = loeArv(b.kaibemaks);
   const maksja = b.maksja === 'naaber' ? 'naaber' : 'mina';
-  const jaotus = b.jaotus === 'summa' ? 'summa' : 'protsent';
   if (!onKuupaev(b.kuupaev)) return { viga: 'Vali kuupäev' };
-  if (!kirjeldus) return { viga: 'Kirjuta, mis osteti' };
-  if (!Number.isFinite(summa) || summa <= 0) return { viga: 'Summa peab olema positiivne arv' };
-  let protsent = null, naabriSumma;
-  if (jaotus === 'summa') {
-    naabriSumma = loeArv(b.naabri_summa);
-    if (!Number.isFinite(naabriSumma) || naabriSumma < 0 || naabriSumma > summa + 0.001) {
-      return { viga: 'Osa peab jääma 0 ja tšeki summa vahele' };
-    }
-    naabriSumma = Math.min(r2(naabriSumma), r2(summa));
-  } else {
-    protsent = loeProtsent(b.naabri_protsent);
-    if (protsent === null) return { viga: 'Osa peab olema 0–100%' };
-    naabriSumma = r2(summa * protsent / 100);
+  if (!kirjeldus) return { viga: 'Kirjuta, kust osteti' };
+  if (!Number.isFinite(summa) || summa <= 0) return { viga: 'Tšeki summa peab olema positiivne arv' };
+  let sisend;
+  try { sisend = typeof b.read === 'string' ? JSON.parse(b.read) : b.read; } catch (e) { sisend = null; }
+  if (!Array.isArray(sisend) || !sisend.length) return { viga: 'Lisa vähemalt üks toode' };
+  if (sisend.length > 200) return { viga: 'Liiga palju ridu' };
+  const read = [];
+  for (const x of sisend) {
+    const nimetus = String((x && x.nimetus) || '').trim().slice(0, 200);
+    const rs = loeArv(x && x.summa);
+    const p = loeProtsent(x && x.naabri_protsent);
+    if (!nimetus) return { viga: 'Igal real peab olema nimetus' };
+    if (!Number.isFinite(rs) || rs === 0) return { viga: `Kontrolli rea „${nimetus}" summat` };
+    if (p === null) return { viga: `Rea „${nimetus}" jaotus peab olema 0–100%` };
+    read.push({ nimetus, summa: r2(rs), protsent: p, naabriSumma: r2(rs * p / 100) });
   }
-  const objektId = parseInt(b.objekt_id, 10);
+  const ridadeSumma = r2(read.reduce((s, x) => s + x.summa, 0));
+  if (Math.abs(ridadeSumma - r2(summa)) > 0.02) {
+    return { viga: `Read annavad kokku ${ridadeSumma.toFixed(2)} €, aga tšeki summa on ${r2(summa).toFixed(2)} € — paranda read või summa` };
+  }
+  const naabriSumma = Math.max(0, Math.min(r2(summa), r2(read.reduce((s, x) => s + x.naabriSumma, 0))));
   return {
-    kuupaev: b.kuupaev, kirjeldus, summa: r2(summa), maksja, jaotus, protsent, naabriSumma,
-    objektId: Number.isInteger(objektId) && objektId > 0 ? objektId : null
+    kuupaev: b.kuupaev, kirjeldus, summa: r2(summa), maksja, read, naabriSumma,
+    kaibemaks: Number.isFinite(kaibemaks) && kaibemaks >= 0 && kaibemaks < summa ? r2(kaibemaks) : 0,
+    arvetesse: b.arvetesse === '1' || b.arvetesse === true || b.arvetesse === 'true'
   };
 }
 
-router.post('/kulud', noudaAdmin, upload.single('foto'), async (req, res) => {
-  const k = loeKulu(req.body || {});
-  if (k.viga) return res.json({ ok: false, veateade: k.viga });
-  const foto = req.file ? await laeFoto(req.file) : { url: null, public_id: null };
-  const r = await pool.query(
-    `INSERT INTO remont_kulud (kuupaev, kirjeldus, summa, maksja, jaotus, naabri_protsent, naabri_summa, objekt_id, foto_url, foto_public_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [k.kuupaev, k.kirjeldus, k.summa, k.maksja, k.jaotus, k.protsent, k.naabriSumma, k.objektId, foto.url, foto.public_id]
-  );
-  res.json({ ok: true, id: r.rows[0].id });
-});
-
-router.post('/kulud/:id/uuenda', noudaAdmin, upload.single('foto'), async (req, res) => {
-  const k = loeKulu(req.body || {});
-  if (k.viga) return res.json({ ok: false, veateade: k.viga });
-  const vana = await pool.query(`SELECT foto_url, foto_public_id FROM remont_kulud WHERE id=$1`, [req.params.id]);
-  if (!vana.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
-  let foto = { url: vana.rows[0].foto_url, public_id: vana.rows[0].foto_public_id };
-  if (req.file) {
-    const uus = await laeFoto(req.file);
-    if (foto.public_id) { try { await getCloudinary().uploader.destroy(foto.public_id); } catch (e) {} }
-    foto = uus;
+// Salvestab tšeki (uue või olemasoleva), selle read ja vajadusel kirje Royal Paigalduse arvetes.
+async function salvestaKulu(k, uusFail, id) {
+  // Praegune seis: kulu ise ja sellega seotud arve (kui on). Fail kuulub kas arvele või kulule.
+  let vana = null, arve = null, fail = null;
+  if (id) {
+    const v = await pool.query(`SELECT * FROM remont_kulud WHERE id=$1`, [id]);
+    if (!v.rowCount) return { viga: 'Kirjet ei leitud' };
+    vana = v.rows[0];
+    if (vana.arve_sisse_id) {
+      const a = await pool.query(`SELECT id, fail_url, fail_public_id, fail_resource_type FROM arve_sisse WHERE id=$1`, [vana.arve_sisse_id]);
+      arve = a.rows[0] || null;
+    }
+    if (arve) {
+      if (arve.fail_url) fail = { url: arve.fail_url, public_id: arve.fail_public_id, tyyp: arve.fail_resource_type || 'image' };
+    } else if (vana.foto_url && !vana.foto_arvest) {
+      fail = { url: vana.foto_url, public_id: vana.foto_public_id, tyyp: vana.foto_tyyp || 'image' };
+    }
   }
-  await pool.query(
-    `UPDATE remont_kulud SET kuupaev=$1, kirjeldus=$2, summa=$3, maksja=$4, jaotus=$5, naabri_protsent=$6,
-       naabri_summa=$7, objekt_id=$8, foto_url=$9, foto_public_id=$10 WHERE id=$11`,
-    [k.kuupaev, k.kirjeldus, k.summa, k.maksja, k.jaotus, k.protsent, k.naabriSumma, k.objektId, foto.url, foto.public_id, req.params.id]
-  );
-  res.json({ ok: true });
+  if (uusFail) {
+    const laetud = await laeDokument(uusFail);
+    await kustutaFail(fail);
+    fail = laetud;
+  }
+
+  const klient = await pool.connect();
+  try {
+    await klient.query('BEGIN');
+    let arveId = arve ? arve.id : null;
+    if (k.arvetesse) {
+      const s = await klient.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
+      const vaartused = [k.kuupaev, s.rows[0].ettevote_id, k.kirjeldus, k.summa, k.kaibemaks,
+        fail ? fail.url : null, fail ? fail.public_id : null, fail ? fail.tyyp : null];
+      if (arveId) {
+        await klient.query(
+          `UPDATE arve_sisse SET kuupaev=$1, ettevote_id=$2, kirjeldus=$3, summa=$4, kaibemaks=$5,
+             fail_url=$6, fail_public_id=$7, fail_resource_type=$8 WHERE id=$9`, vaartused.concat([arveId]));
+      } else {
+        // Sama mis kiirtšekil Arvete lehel: kulu läheb vaikimisi müüja (Royal Paigaldus) alla, staatus makstud.
+        const m = await klient.query(`SELECT id FROM arve_muujad WHERE vaikimisi=true LIMIT 1`);
+        const a = await klient.query(
+          `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, fail_url, fail_public_id, fail_resource_type, staatus, muuja_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'makstud',$9) RETURNING id`, vaartused.concat([m.rows.length ? m.rows[0].id : null]));
+        arveId = a.rows[0].id;
+      }
+    } else if (arveId) {
+      // Võeti arvetest välja — arve kirje kustub, fail jääb alles ja kuulub edasi tšekile.
+      await klient.query(`DELETE FROM arve_sisse WHERE id=$1`, [arveId]);
+      arveId = null;
+    }
+    const valjad = [k.kuupaev, k.kirjeldus, k.summa, k.maksja, k.naabriSumma, k.kaibemaks,
+      fail ? fail.url : null, arveId ? null : (fail ? fail.public_id : null), fail ? fail.tyyp : null, !!arveId, arveId];
+    let kuluId = id;
+    if (id) {
+      await klient.query(
+        `UPDATE remont_kulud SET kuupaev=$1, kirjeldus=$2, summa=$3, maksja=$4, jaotus='read', naabri_protsent=NULL,
+           naabri_summa=$5, kaibemaks=$6, foto_url=$7, foto_public_id=$8, foto_tyyp=$9, foto_arvest=$10, arve_sisse_id=$11,
+           objekt_id=NULL WHERE id=$12`, valjad.concat([id]));
+      await klient.query(`DELETE FROM remont_kulu_read WHERE kulu_id=$1`, [id]);
+    } else {
+      const r = await klient.query(
+        `INSERT INTO remont_kulud (kuupaev, kirjeldus, summa, maksja, jaotus, naabri_summa, kaibemaks,
+           foto_url, foto_public_id, foto_tyyp, foto_arvest, arve_sisse_id)
+         VALUES ($1,$2,$3,$4,'read',$5,$6,$7,$8,$9,$10,$11) RETURNING id`, valjad);
+      kuluId = r.rows[0].id;
+    }
+    for (let i = 0; i < k.read.length; i++) {
+      const x = k.read[i];
+      await klient.query(
+        `INSERT INTO remont_kulu_read (kulu_id, jrk, nimetus, summa, naabri_protsent, naabri_summa) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [kuluId, i + 1, x.nimetus, x.summa, x.protsent, x.naabriSumma]
+      );
+    }
+    await klient.query('COMMIT');
+    return { id: kuluId, arvetes: !!arveId };
+  } catch (err) {
+    await klient.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    klient.release();
+  }
+}
+
+router.post('/kulud', noudaAdmin, uploadDok.single('fail'), async (req, res) => {
+  const k = loeKulu(req.body || {});
+  if (k.viga) return res.json({ ok: false, veateade: k.viga });
+  const t = await salvestaKulu(k, req.file, null);
+  if (t.viga) return res.json({ ok: false, veateade: t.viga });
+  res.json({ ok: true, id: t.id, arvetes: t.arvetes });
 });
 
+router.post('/kulud/:id/uuenda', noudaAdmin, uploadDok.single('fail'), async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const k = loeKulu(req.body || {});
+  if (k.viga) return res.json({ ok: false, veateade: k.viga });
+  const t = await salvestaKulu(k, req.file, id);
+  if (t.viga) return res.json({ ok: false, veateade: t.viga });
+  res.json({ ok: true, id: t.id, arvetes: t.arvetes });
+});
+
+// Kustutab tšeki. Kui see oli ka Royal Paigalduse arvetes, kustub ka sealne kirje koos failiga.
 router.delete('/kulud/:id', noudaAdmin, async (req, res) => {
-  const r = await pool.query(`DELETE FROM remont_kulud WHERE id=$1 RETURNING foto_public_id`, [req.params.id]);
-  if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
-  if (r.rows[0].foto_public_id) { try { await getCloudinary().uploader.destroy(r.rows[0].foto_public_id); } catch (e) {} }
+  const v = await pool.query(`SELECT * FROM remont_kulud WHERE id=$1`, [req.params.id]);
+  if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const k = v.rows[0];
+  if (k.arve_sisse_id) {
+    const a = await pool.query(`DELETE FROM arve_sisse WHERE id=$1 RETURNING fail_public_id, fail_resource_type`, [k.arve_sisse_id]);
+    if (a.rowCount) await kustutaFail({ public_id: a.rows[0].fail_public_id, tyyp: a.rows[0].fail_resource_type });
+  } else if (!k.foto_arvest) {
+    await kustutaFail({ public_id: k.foto_public_id, tyyp: k.foto_tyyp });
+  }
+  await pool.query(`DELETE FROM remont_kulud WHERE id=$1`, [req.params.id]);
   res.json({ ok: true });
 });
 
@@ -646,6 +831,19 @@ router.get('/excel', noudaVaatajat, async (req, res) => {
     kpEt(x.kuupaev), x.kirjeldus, x.osa_nimi || '—', x.maksja === 'naaber' ? s.naabri_nimi : s.minu_nimi,
     x.summa, x.minu_summa, x.naabri_summa, x.foto_url || 'puudub'
   ]), ['KOKKU', '', '', '', k.materjal, k.minu_materjal, k.naabri_materjal, '']);
+
+  // Leht: tooted (tšekkide read)
+  const tooteRead = [];
+  kulud.forEach(x => (x.read || []).forEach(rd => tooteRead.push([
+    kpEt(x.kuupaev), x.kirjeldus, rd.nimetus, rd.summa, rd.naabri_protsent, r2(rd.summa - rd.naabri_summa), rd.naabri_summa
+  ])));
+  if (tooteRead.length) {
+    leht('Tooted', 'Tooted tšekkide kaupa', [
+      { pealkiri: 'Kuupäev', laius: 12 }, { pealkiri: 'Tšekk', laius: 30 }, { pealkiri: 'Toode', laius: 46 },
+      { pealkiri: 'Summa', laius: 13, fmt: RAHA }, { pealkiri: `${s.naabri_nimi} osa %`, laius: 12, fmt: '0.##"%"' },
+      { pealkiri: `${s.minu_nimi} osa`, laius: 13, fmt: RAHA }, { pealkiri: `${s.naabri_nimi} osa`, laius: 13, fmt: RAHA }
+    ], tooteRead, null);
+  }
 
   // Leht 4: maksed
   const maksed = d.maksed.slice().sort(vanimEes);
