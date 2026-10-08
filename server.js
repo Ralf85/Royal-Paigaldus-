@@ -132,7 +132,7 @@ app.use('/api/webauthn', require('./routes/webauthn'));
 // LIDL LATVIA — eraldiseisev fotomoodul (oma tabelid, oma admini PIN, kogu liides inglise keeles).
 // Ei puuduta Eesti Lidli moodulit (/api/kristo) ega töökirjeid.
 app.use('/api/latvia', require('./routes/latvia'));
-// KODUREMONT — naabriga jagatud remondi arvestus (töötunnid + tšekid jagatakse kahe osapoole vahel,
+// TELJE 10 (koduremont) — naabriga jagatud remondi arvestus (töötunnid + tšekid jagatakse kahe osapoole vahel,
 // naaber näeb kõike oma PIN-iga lehel /remont). Oma tabelid, vt routes/remont.js.
 app.use('/api/remont', require('./routes/remont'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

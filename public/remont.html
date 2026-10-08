@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Koduremont</title>
+<title>Telje 10</title>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
@@ -118,7 +118,7 @@
 
 <div id="loginVaade" style="display:none">
   <div class="login">
-    <h2>Kodu<span>remont</span></h2>
+    <h2>Telje <span>10</span></h2>
     <p>Sisesta PIN-kood, et näha tehtud töid, materjale ja arveldust.</p>
     <div id="loginTeade" class="teade"></div>
     <input type="password" inputmode="numeric" autocomplete="off" id="pinSisend" class="pin" placeholder="••••">
@@ -128,12 +128,12 @@
 
 <div id="appVaade" style="display:none">
   <div id="eelvaateRiba" class="eelvaate-riba" style="display:none">
-    👁 Nii näeb seda lehte naaber — muuta siin midagi ei saa.
+    👁 <span id="eelvaateTekst">Nii näeb seda lehte teine osapool</span> — muuta siin midagi ei saa.
     <button class="btn vaike" style="margin-left:8px" onclick="lylitaEelvaade()">Tagasi haldusesse</button>
   </div>
   <header>
     <div>
-      <h1 id="pealkiri">Koduremont</h1>
+      <h1 id="pealkiri">Telje 10</h1>
       <div class="alapealkiri" id="alapealkiri"></div>
     </div>
     <div class="nupud" id="paiseNupud"></div>
@@ -164,7 +164,7 @@
         <select id="tooOsa" onchange="tooArvuta()"></select>
       </div>
       <div class="vali">
-        <label class="silt" id="tooProtsentSilt">Naabri osa % (ainult sellel kirjel)</label>
+        <label class="silt" id="tooProtsentSilt">Osa % (ainult sellel kirjel)</label>
         <input type="text" inputmode="decimal" id="tooProtsent" placeholder="tühi = tööosa jaotuse järgi" oninput="tooArvuta()">
       </div>
       <div class="arvutus" id="tooArvutus"></div>
@@ -200,11 +200,11 @@
         </div>
       </div>
       <div class="vali" id="kuluProtsentVali">
-        <label class="silt" id="kuluProtsentSilt">Naabri osa %</label>
+        <label class="silt" id="kuluProtsentSilt">Osa %</label>
         <input type="text" inputmode="decimal" id="kuluProtsent" placeholder="50" oninput="kuluArvuta()">
       </div>
       <div class="vali" id="kuluNaabriSummaVali" style="display:none">
-        <label class="silt" id="kuluNaabriSummaSilt">Naabri osa (€)</label>
+        <label class="silt" id="kuluNaabriSummaSilt">Osa (€)</label>
         <input type="text" inputmode="decimal" id="kuluNaabriSumma" placeholder="0,00" oninput="kuluArvuta()">
       </div>
       <div class="arvutus" id="kuluArvutus"></div>
@@ -246,7 +246,7 @@
       <div id="osaTeade" class="teade"></div>
       <div class="vali"><label class="silt">Nimi</label><input type="text" id="osaNimi" placeholder="nt Ühine aed"></div>
       <div class="vali">
-        <label class="silt" id="osaProtsentSilt">Naabri osa %</label>
+        <label class="silt" id="osaProtsentSilt">Osa %</label>
         <input type="text" inputmode="decimal" id="osaProtsent" placeholder="50" oninput="osaArvuta()">
       </div>
       <div class="arvutus" id="osaArvutus"></div>
@@ -401,10 +401,11 @@ function joonista() {
   document.getElementById('pealkiri').textContent = s.projekti_nimi;
   document.getElementById('alapealkiri').textContent = s.minu_nimi + ' ja ' + s.naabri_nimi + ' · töö ' + raha(s.tunnihind) + '/h';
   document.getElementById('eelvaateRiba').style.display = eelvaade ? 'block' : 'none';
+  document.getElementById('eelvaateTekst').textContent = 'Nii näeb seda lehte ' + s.naabri_nimi;
 
   var nupud = '<button class="btn" onclick="laeExcel()">⬇ Excel</button>';
   if (roll === 'admin' && !eelvaade) {
-    nupud += '<button class="btn" onclick="lylitaEelvaade()">👁 Naabri vaade</button>'
+    nupud += '<button class="btn" onclick="lylitaEelvaade()">👁 ' + esc(s.naabri_nimi) + ' vaade</button>'
       + '<a class="btn" href="/admin">← Admin</a>';
   }
   if (roll === 'naaber') nupud += '<button class="btn" onclick="logiValja()">Logi välja</button>';
@@ -482,7 +483,7 @@ function joonistaTood() {
   var s = A.seaded;
   var html = '';
   if (saabMuuta()) {
-    html += '<div class="vihje">Töötajad panevad tunnid kirja tavalise töökirjena ettevõtte <b>KODUREMONT</b> alla ja valivad objektiks tööosa. '
+    html += '<div class="vihje">Töötajad panevad tunnid kirja tavalise töökirjena ettevõtte <b>' + esc(A.ettevote_nimi || '') + '</b> alla ja valivad objektiks tööosa. '
       + 'Jaotus tuleb tööosa järgi; üksiku kirje jaotust saad muuta nupust „Jaotus".</div>';
   }
   if (!A.tood.length) {
@@ -609,19 +610,19 @@ function joonistaSeaded() {
     + '<div class="vali"><label class="silt">Projekti nimi</label><input type="text" id="sProjekt" value="' + esc(s.projekti_nimi) + '"></div>'
     + '<div class="kaks">'
     + '<div class="vali"><label class="silt">Sinu nimi</label><input type="text" id="sMina" value="' + esc(s.minu_nimi) + '"></div>'
-    + '<div class="vali"><label class="silt">Naabri nimi</label><input type="text" id="sNaaber" value="' + esc(s.naabri_nimi) + '"></div>'
+    + '<div class="vali"><label class="silt">Teise osapoole nimi</label><input type="text" id="sNaaber" value="' + esc(s.naabri_nimi) + '"></div>'
     + '</div>'
     + '<div class="kaks">'
-    + '<div class="vali"><label class="silt">Tunnihind naabrile (€/h)</label><input type="text" inputmode="decimal" id="sHind" value="' + esc(String(s.tunnihind).replace('.', ',')) + '"></div>'
-    + '<div class="vali"><label class="silt">Naabri PIN</label><input type="text" inputmode="numeric" autocomplete="off" id="sPin" value="' + esc(A.naabri_pin || '') + '" placeholder="vähemalt 4 numbrit"></div>'
+    + '<div class="vali"><label class="silt">Tunnihind (' + esc(s.naabri_nimi) + ', €/h)</label><input type="text" inputmode="decimal" id="sHind" value="' + esc(String(s.tunnihind).replace('.', ',')) + '"></div>'
+    + '<div class="vali"><label class="silt">' + esc(s.naabri_nimi) + ' PIN</label><input type="text" inputmode="numeric" autocomplete="off" id="sPin" value="' + esc(A.naabri_pin || '') + '" placeholder="vähemalt 4 numbrit"></div>'
     + '</div>'
-    + '<div class="vihje">Naaber logib sisse aadressil <b>' + esc(location.origin) + '/remont</b> selle PIN-iga. '
+    + '<div class="vihje">' + esc(s.naabri_nimi) + ' logib sisse aadressil <b>' + esc(location.origin) + '/remont</b> selle PIN-iga. '
     + 'Ta näeb töid, materjale, tšekke ja arveldust, aga muuta ei saa. Töötajate tunnitasu sellel lehel ei näidata. '
     + 'PIN-i muutmine logib ta kõigist seadmetest välja.</div>'
     + '<button class="btn kuld" onclick="salvestaSeaded()">Salvesta seaded</button>'
     + '</div></div>'
     + '<div class="kaart"><div class="kaart-hdr">Töötajate seadistus</div><div class="kaart-sisu"><div class="vihje" style="margin:0">'
-    + 'Et töötaja saaks siia tunde kirjutada, lisa talle adminis (Töötajad → ettevõtted) ettevõte <b>KODUREMONT</b> ja tema tunnitasu. '
+    + 'Et töötaja saaks siia tunde kirjutada, lisa talle adminis (Töötajad → ettevõtted) ettevõte <b>' + esc(A.ettevote_nimi || '') + '</b> ja tema tunnitasu. '
     + 'Seejärel ilmub see tema avalehele nagu iga teine ettevõte.</div></div></div>';
 }
 
@@ -809,7 +810,7 @@ function uusKulu() {
   document.getElementById('kuluOsa').innerHTML = osaValikud('', '— ei ole seotud tööosaga —');
   document.getElementById('kuluProtsent').value = '50';
   document.getElementById('kuluNaabriSumma').value = '';
-  document.getElementById('kuluFotoVihje').textContent = 'Pildista tšekk kohe — nii näeb ka naaber, mille eest ta maksab.';
+  document.getElementById('kuluFotoVihje').textContent = 'Pildista tšekk kohe — nii näeb ka ' + A.seaded.naabri_nimi + ', mille eest ta maksab.';
   avaKulu();
 }
 function muudaKulu(id) {
@@ -921,7 +922,7 @@ async function kustutaMakse(id) {
 
 // ── Excel ────────────────────────────────────────────────────────
 function laeExcel() {
-  window.rpLaeFail('/api/remont/excel', token, 'koduremont.xlsx');
+  window.rpLaeFail('/api/remont/excel', token, 'telje10.xlsx');
 }
 
 alusta();

@@ -8,10 +8,10 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 
 // ══════════════════════════════════════════════════════════════════════════
-// KODUREMONT — naabriga jagatud remondi arvestus
+// TELJE 10 (koduremont) — naabriga jagatud remondi arvestus
 //
 // Kuidas see töötab:
-//  * Töötajad panevad tunnid kirja TAVALISE töökirjena ettevõtte "KODUREMONT" alla (nagu Lidl või
+//  * Töötajad panevad tunnid kirja TAVALISE töökirjena ettevõtte "TELJE 10" alla (nagu Lidl või
 //    Cramo). Nii jõuab nende palk (tunnitasu määrab admin töötaja ettevõtete all) tavapärasesse
 //    palgaarvestusse ja töötaja vaates ei muutu midagi.
 //  * "Tööosa" on selle ettevõtte OBJEKT (nt "Ühine aed"). Igal tööosal on vaikimisi jaotus —
@@ -25,7 +25,7 @@ const multer = require('multer');
 // ══════════════════════════════════════════════════════════════════════════
 
 const NAABRI_SESSIOON_PAEVI = 90;
-const ETTEVOTTE_NIMI = 'KODUREMONT';
+const ETTEVOTTE_NIMI = 'TELJE 10';
 
 function getCloudinary() {
   cloudinary.config({
@@ -64,10 +64,10 @@ async function looTabelid() {
     CREATE TABLE IF NOT EXISTS remont_seaded (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       ettevote_id INTEGER REFERENCES ettevotted(id),
-      projekti_nimi VARCHAR(100) NOT NULL DEFAULT 'Koduremont',
+      projekti_nimi VARCHAR(100) NOT NULL DEFAULT 'TELJE 10',
       minu_nimi VARCHAR(60) NOT NULL DEFAULT 'Ralf',
-      naabri_nimi VARCHAR(60) NOT NULL DEFAULT 'Naaber',
-      tunnihind DECIMAL(10,2) NOT NULL DEFAULT 25,
+      naabri_nimi VARCHAR(60) NOT NULL DEFAULT 'Kerttu',
+      tunnihind DECIMAL(10,2) NOT NULL DEFAULT 27,
       naabri_pin VARCHAR(20)
     );
     CREATE TABLE IF NOT EXISTS remont_osad (
@@ -107,7 +107,7 @@ async function looTabelid() {
     );
   `);
   await pool.query(`INSERT INTO remont_seaded (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
-  // Ettevõte "KODUREMONT" — selle alla teevad töötajad töökirjeid. Tüüp on 'muu', et ükski
+  // Ettevõte "TELJE 10" — selle alla teevad töötajad töökirjeid. Tüüp on 'muu', et ükski
   // olemasolev tüübipõhine erireegel (Lidl, Cramo lõunapaus jne) sellele ei rakenduks.
   const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
   if (!s.rows[0].ettevote_id) {
@@ -117,6 +117,19 @@ async function looTabelid() {
       [ETTEVOTTE_NIMI]
     );
     await pool.query(`UPDATE remont_seaded SET ettevote_id=$1 WHERE id=1`, [e.rows[0].id]);
+  }
+  // Ühekordne muudatus (08.10.2026): projekt ja ettevõte said nimeks "TELJE 10", teine osapool on
+  // Kerttu ja tunnihind 27 €. Tehakse üks kord — hilisemad muudatused "Seaded" lehel jäävad kehtima.
+  await pool.query(`ALTER TABLE remont_seaded ADD COLUMN IF NOT EXISTS versioon INTEGER NOT NULL DEFAULT 1`);
+  const v = await pool.query(`SELECT versioon, ettevote_id FROM remont_seaded WHERE id=1`);
+  if (v.rows[0].versioon < 2) {
+    await pool.query(
+      `UPDATE remont_seaded SET projekti_nimi='TELJE 10', minu_nimi='Ralf', naabri_nimi='Kerttu', tunnihind=27, versioon=2 WHERE id=1`
+    );
+    await pool.query(
+      `UPDATE ettevotted SET nimi=$1 WHERE id=$2 AND NOT EXISTS (SELECT 1 FROM ettevotted WHERE nimi=$1)`,
+      [ETTEVOTTE_NIMI, v.rows[0].ettevote_id]
+    );
   }
   await pool.query(`DELETE FROM remont_sessions WHERE loodud < NOW() - INTERVAL '${NAABRI_SESSIOON_PAEVI} days'`);
 }
@@ -184,6 +197,8 @@ async function koguAndmed() {
   const sRes = await pool.query(`SELECT * FROM remont_seaded WHERE id=1`);
   const seaded = sRes.rows[0];
   const hind = parseFloat(seaded.tunnihind) || 0;
+  const eRes = await pool.query(`SELECT nimi FROM ettevotted WHERE id=$1`, [seaded.ettevote_id]);
+  const ettevoteNimi = eRes.rows.length ? eRes.rows[0].nimi : ETTEVOTTE_NIMI;
 
   const osadRes = await pool.query(
     `SELECT o.id, o.nimi, o.aktiivne, ro.naabri_protsent
@@ -283,6 +298,7 @@ async function koguAndmed() {
     },
     naabri_pin: seaded.naabri_pin || '',
     ettevote_id: seaded.ettevote_id,
+    ettevote_nimi: ettevoteNimi,
     osad, tood, kulud, maksed,
     kokku: {
       tunnid: r2(tunnidKokku), naabri_tunnid: r2(naabriTunnid), naabri_too: r2(naabriToo),
@@ -329,6 +345,7 @@ router.get('/andmed', noudaVaatajat, async (req, res) => {
   if (!onAdmin) {
     delete d.naabri_pin;
     delete d.ettevote_id;
+    delete d.ettevote_nimi;
     // Töötaja lisakulu on palgaarvestuse info — naabrile seda ei näidata.
     d.tood.forEach(t => { delete t.lisakulu_summa; delete t.lisakulu_selgitus; });
   }
@@ -356,12 +373,12 @@ router.post('/seaded', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ── ADMIN: TÖÖOSAD (= ettevõtte KODUREMONT objektid + jaotus) ─────────────
+// ── ADMIN: TÖÖOSAD (= ettevõtte TELJE 10 objektid + jaotus) ─────────────
 router.post('/osad', noudaAdmin, async (req, res) => {
   const nimi = String((req.body || {}).nimi || '').trim().slice(0, 200);
   const p = loeProtsent((req.body || {}).naabri_protsent);
   if (!nimi) return res.json({ ok: false, veateade: 'Sisesta tööosa nimi' });
-  if (p === null) return res.json({ ok: false, veateade: 'Naabri osa peab olema 0–100%' });
+  if (p === null) return res.json({ ok: false, veateade: 'Osa peab olema 0–100%' });
   const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
   const o = await pool.query(
     `INSERT INTO objektid (nimi, ettevote_id) VALUES ($1, $2) RETURNING id`, [nimi, s.rows[0].ettevote_id]
@@ -375,7 +392,7 @@ router.put('/osad/:id', noudaAdmin, async (req, res) => {
   const nimi = String(b.nimi || '').trim().slice(0, 200);
   const p = loeProtsent(b.naabri_protsent);
   if (!nimi) return res.json({ ok: false, veateade: 'Sisesta tööosa nimi' });
-  if (p === null) return res.json({ ok: false, veateade: 'Naabri osa peab olema 0–100%' });
+  if (p === null) return res.json({ ok: false, veateade: 'Osa peab olema 0–100%' });
   const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
   const o = await pool.query(
     `UPDATE objektid SET nimi=$1, aktiivne=$2 WHERE id=$3 AND ettevote_id=$4 RETURNING id`,
@@ -407,7 +424,7 @@ router.put('/tood/:id/jaotus', noudaAdmin, async (req, res) => {
   }
   const tyhi = b.naabri_protsent === null || b.naabri_protsent === undefined || String(b.naabri_protsent).trim() === '';
   const p = tyhi ? null : loeProtsent(b.naabri_protsent);
-  if (!tyhi && p === null) return res.json({ ok: false, veateade: 'Naabri osa peab olema 0–100%' });
+  if (!tyhi && p === null) return res.json({ ok: false, veateade: 'Osa peab olema 0–100%' });
 
   await pool.query(`UPDATE tookirjed SET objekt_id=$1 WHERE id=$2`, [objektId, req.params.id]);
   if (p === null) {
@@ -436,12 +453,12 @@ function loeKulu(b) {
   if (jaotus === 'summa') {
     naabriSumma = loeArv(b.naabri_summa);
     if (!Number.isFinite(naabriSumma) || naabriSumma < 0 || naabriSumma > summa + 0.001) {
-      return { viga: 'Naabri summa peab jääma 0 ja tšeki summa vahele' };
+      return { viga: 'Osa peab jääma 0 ja tšeki summa vahele' };
     }
     naabriSumma = Math.min(r2(naabriSumma), r2(summa));
   } else {
     protsent = loeProtsent(b.naabri_protsent);
-    if (protsent === null) return { viga: 'Naabri osa peab olema 0–100%' };
+    if (protsent === null) return { viga: 'Osa peab olema 0–100%' };
     naabriSumma = r2(summa * protsent / 100);
   }
   const objektId = parseInt(b.objekt_id, 10);
