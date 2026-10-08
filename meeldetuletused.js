@@ -80,9 +80,8 @@ async function saada(kuupaev, liik) {
     [kuupaev, ETTEVOTTE_TYYBID]
   );
   const saajad = r.rows.filter(w => w.teavitused && !w.kirjas);
-  for (const w of saajad) {
-    await saadaTeavitus(w.id, PEALKIRI, SONUM, '/tootaja');
-  }
+  // Korraga, mitte järjest — muidu lükkab üks aeglaselt vastav telefon kõigi teiste teate edasi.
+  await Promise.all(saajad.map(w => saadaTeavitus(w.id, PEALKIRI, SONUM, '/tootaja')));
   await pool.query(`UPDATE tunni_meeldetuletused SET saajaid=$1 WHERE kuupaev=$2 AND liik=$3`, [saajad.length, kuupaev, liik]);
   const juba = r.rows.filter(w => w.kirjas).length;
   const lubamata = r.rows.filter(w => !w.teavitused && !w.kirjas).length;
