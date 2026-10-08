@@ -1,8 +1,8 @@
-// meeldetuletused.js — automaatne tunnimeeldetuletus Lidli ja Cramo töötajatele.
+// meeldetuletused.js — automaatne tunnimeeldetuletus Lidli, Cramo, Telje 10 ja MUU töötajatele.
 //
 // Tööpäeviti (E–R) kell 17:30 Eesti aja järgi saadetakse telefoni teavitus
 // "PANE TÄNASED TUNNID KIRJA" neile, kes:
-//   * on aktiivsed ja kellele on määratud Lidli või Cramo ettevõte,
+//   * on aktiivsed ja kellele on määratud Lidl, Cramo, TELJE 10 või MUU,
 //   * on telefonis teavitused lubanud ("🔔 Luba teavitused"),
 //   * EI OLE täna veel ühtegi töökirjet lisanud (kes juba kirja pani, seda ei segata).
 //
@@ -15,6 +15,8 @@ const { saadaTeavitus } = require('./routes/push');
 const KELL = '17:30';        // Eesti aeg
 const AKEN_MINUTID = 60;     // kui server oli 17:30 maas, saadetakse teade veel kuni 18:30
 const ETTEVOTTE_TYYBID = ['lidl', 'cramo'];
+// Lisaks ettevõtted nime järgi (nende tüüp on 'muu', mis on ka nt Merekohvikul — seepärast nimi).
+const ETTEVOTTE_NIMED = ['TELJE 10', 'MUU'];
 const PEALKIRI = '⏰ PANE TÄNASED TUNNID KIRJA';
 const SONUM = 'Tööpäev läbi? Lisa oma tänased töötunnid rakendusse.';
 
@@ -94,10 +96,11 @@ async function saada(kuupaev, liik, nimed) {
        AND EXISTS (
          SELECT 1 FROM worker_ettevotted we
          JOIN ettevotted e ON e.id = we.ettevote_id
-         WHERE we.worker_id = w.id AND e.aktiivne = true AND LOWER(e.tyyp) = ANY($2)
+         WHERE we.worker_id = w.id AND e.aktiivne = true
+           AND (LOWER(e.tyyp) = ANY($2) OR UPPER(e.nimi) = ANY($3))
        )
      ORDER BY w.nimi`,
-    [kuupaev, ETTEVOTTE_TYYBID]
+    [kuupaev, ETTEVOTTE_TYYBID, ETTEVOTTE_NIMED]
   );
   const saajad = r.rows.filter(w => w.teavitused && !w.kirjas);
   // Korraga, mitte järjest — muidu lükkab üks aeglaselt vastav telefon kõigi teiste teate edasi.
