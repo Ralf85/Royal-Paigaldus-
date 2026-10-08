@@ -24,6 +24,7 @@
   .btn.kuld:hover { background: #d8b95e; }
   .btn.punane { background: #2a1010; border-color: #5a1a1a; color: #f87171; }
   .btn.vaike { padding: 5px 10px; font-size: 12px; }
+  .btn.kuldne { border-color: #c9a84c; color: #f3e3b0; background: rgba(201,168,76,0.12); }
   .btn:disabled { opacity: 0.55; cursor: default; }
   main { max-width: 860px; margin: 0 auto; padding: 16px; }
   .eelvaate-riba { background: #3b2f0b; color: #fcd34d; font-size: 13px; padding: 9px 16px; text-align: center; }
@@ -95,7 +96,7 @@
   /* Tšeki read (tooted) */
   .failinupp { display: block; text-align: center; background: #0d0f13; border: 1.5px dashed #2b3039; border-radius: 12px; padding: 22px 8px; color: #b6bdc9; font-size: 14px; font-weight: 700; cursor: pointer; line-height: 1.6; }
   .failinupp.kuld { border-color: #c9a84c; color: #f3e3b0; background: rgba(201,168,76,0.08); }
-  .failirida { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #101318; border-radius: 8px; padding: 8px 11px; font-size: 13px; color: #b6bdc9; margin-bottom: 12px; word-break: break-all; }
+  .failirida { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; background: #101318; border-radius: 8px; padding: 8px 11px; font-size: 13px; color: #b6bdc9; margin-bottom: 12px; word-break: break-all; }
   .arvekast { background: #101318; border: 0.5px solid #252830; border-radius: 10px; padding: 12px; }
   .tooted-hdr { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; font-weight: 700; margin: 4px 0 6px; }
   .tooted-hdr .koik { font-size: 11px; font-weight: 600; color: #7c8494; display: flex; align-items: center; gap: 4px; }
@@ -610,7 +611,8 @@ function joonistaKulud() {
       html += '<div class="pisipildid"><img src="' + esc(k.foto_url) + '" loading="lazy" alt="Tšekk" onclick="suurPilt(this.src)"></div>';
     }
     if (saabMuuta()) {
-      html += '<div class="kirje-nupud"><button class="btn vaike" onclick="muudaKulu(' + k.id + ')">Muuda</button>'
+      html += '<div class="kirje-nupud"><button class="btn vaike kuldne" onclick="muudaKulu(' + k.id + ', true)">Detailne jagamine</button>'
+        + '<button class="btn vaike" onclick="muudaKulu(' + k.id + ')">Muuda</button>'
         + '<button class="btn vaike punane" onclick="kustutaKulu(' + k.id + ')">Kustuta</button></div>';
     }
     html += '</div>';
@@ -842,6 +844,7 @@ function kuluFailRidaJoonista() {
   var el = document.getElementById('kuluFailRida');
   var tekst = kuluFail ? '📎 ' + esc(kuluFail.name || 'tšekk') : (kuluVanaFoto ? '📎 Tšekk on lisatud' : '⚠ Tšekki pole lisatud');
   el.innerHTML = '<span>' + tekst + '</span>'
+    + (kuluId && kuluVanaFoto && !kuluFail ? '<button type="button" class="btn vaike" onclick="kuluLoeSalvestatud()">🤖 Loe tooted</button>' : '')
     + '<label class="btn vaike" style="cursor:pointer">' + (kuluFail || kuluVanaFoto ? 'Vaheta fail' : 'Lisa fail')
     + '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="kuluFailVahetatud(this)"></label>';
 }
@@ -998,7 +1001,8 @@ async function kuluFailValitud(input) {
   if (!kuluRead.length) kuluRead = [{ nimetus: '', summa: '', protsent: VAIKIMISI_PROTSENT }];
   kuluAvaVorm();
 }
-function muudaKulu(id) {
+// detailne = true: kui tšekil pole veel tooteridu, loetakse need salvestatud failist.
+function muudaKulu(id, detailne) {
   var k = A.kulud.find(function (x) { return x.id === id; });
   if (!k) return;
   kuluId = id; kuluMaksjaV = k.maksja; kuluFail = null; kuluVanaFoto = !!k.foto_url; VAIKIMISI_PROTSENT = '50';
@@ -1027,6 +1031,32 @@ function muudaKulu(id) {
   teade('kuluTeade', '');
   kuluAvaVorm();
   ava('kuluModaal');
+  if (detailne && !(k.read && k.read.length > 1) && k.foto_url) kuluLoeSalvestatud();
+}
+
+// Loeb tooted juba salvestatud tšeki failist. Praegune üldine jaotus jääb iga rea vaikimisi protsendiks.
+async function kuluLoeSalvestatud() {
+  var id = kuluId;
+  var k = A.kulud.find(function (x) { return x.id === id; });
+  if (!k) return;
+  kuluNaita('kuluLugemine');
+  var r = await api('/kulud/' + id + '/loe', { method: 'POST' });
+  if (kuluId !== id) return;
+  var ai = document.getElementById('kuluAiTeade');
+  ai.style.display = 'block';
+  if (r && r.ok && r.read && r.read.length) {
+    var p = k.summa > 0 ? Math.round(k.naabri_summa / k.summa * 10000) / 100 : 50;
+    VAIKIMISI_PROTSENT = String(p).replace('.', ',');
+    kuluRead = r.read.map(function (x) { return { nimetus: x.nimetus, summa: komaga(x.summa), protsent: VAIKIMISI_PROTSENT }; });
+    if (r.kaibemaks && !loeArv(document.getElementById('kuluKaibemaks').value)) document.getElementById('kuluKaibemaks').value = komaga(r.kaibemaks);
+    ai.style.color = '#86efac';
+    ai.textContent = '🤖 Loetud ' + kuluRead.length + ' toodet. Igal real on praegu senine jaotus (' + VAIKIMISI_PROTSENT + '%) — muuda ridu, mis jagunevad teisiti.'
+      + (r.ridade_markus ? ' ' + r.ridade_markus : '');
+  } else {
+    ai.style.color = '#fb923c';
+    ai.textContent = '⚠ ' + ((r && r.veateade) || 'Tooteid ei õnnestunud tšekilt lugeda') + ' — lisa read käsitsi nupuga „+ Lisa rida".';
+  }
+  kuluAvaVorm();
 }
 
 // Telefonipilt tehakse enne saatmist väiksemaks (kuni 2200 px, JPEG 85%) — tšekk jääb loetav, üleslaadimine kiire.

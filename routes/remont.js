@@ -6,6 +6,7 @@ const { lukusMinuteid, margiVale, margiOige, lukuTeade, valeTeade, turvalineVord
 const { failiPais, onKuupaev } = require('../csvabi');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const { laadiPuhver } = require('../zipabi');
 const { aiFailid, loeDokument, arv: aiArv, puhasKuupaev } = require('../ailugeja');
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -493,8 +494,8 @@ async function kustutaFail(fail) {
 }
 
 // AI loeb tšekilt müüja, kuupäeva, summad ja tooteread. Midagi ei salvestata — admin vaatab üle.
-router.post('/kulud/loe', noudaAdmin, aiFailid(uploadDok), async (req, res) => {
-  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+// req — päring, millel on req.file (ja soovi korral req.aiPildid); tagastab vastuse objekti.
+async function loeTsekk(req) {
   const juhis = `Sa vaatad ühte ehitusmaterjalide OSTUTŠEKKI või ostuarvet. Loe sellelt välja müüja, kuupäev ja KÕIK ostetud tooted.
 Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
 "ettevote": "müüja (poe) nimi, nt Bauhof, Espak, K-Rauta; mitte ostja nimi",
@@ -508,7 +509,7 @@ Ridade reeglid:
 - Ära pane ridade hulka vahesummat, käibemaksu, lõppsummat, makseviisi ega tagasiraha.
 Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
   const t = await loeDokument(req, juhis, { summad: true, maxTokens: 4000 });
-  if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
+  if (!t.ok) return { ok: false, veateade: t.veateade };
   const kokku = t.summad.kokku, kmTa = t.summad.summa_km_ta;
   let read = (Array.isArray(t.valjad.read) ? t.valjad.read : [])
     .map(x => {
@@ -532,13 +533,42 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
     });
     ridadeMarkus = 'Arvel olid read käibemaksuta — lisasin igale reale käibemaksu, et summa klapiks makstuga.';
   }
-  res.json({
+  return {
     ok: true,
     ettevote: String(t.valjad.ettevote || '').trim().slice(0, 200),
     kuupaev: puhasKuupaev(t.valjad.kuupaev),
     summa: kokku, kaibemaks: t.summad.kaibemaks, km_kontroll: t.summad.km_kontroll,
     read, ridade_markus: ridadeMarkus
-  });
+  };
+}
+
+router.post('/kulud/loe', noudaAdmin, aiFailid(uploadDok), async (req, res) => {
+  if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
+  res.json(await loeTsekk(req));
+});
+
+// "Detailne jagamine" juba salvestatud tšekile: loeb tooted varem üles laetud failist.
+function failiTyyp(puhver) {
+  const algus = puhver.slice(0, 12);
+  if (algus.slice(0, 4).toString('latin1') === '%PDF') return 'application/pdf';
+  if (algus[0] === 0xFF && algus[1] === 0xD8) return 'image/jpeg';
+  if (algus.slice(1, 4).toString('latin1') === 'PNG') return 'image/png';
+  if (algus.slice(0, 4).toString('latin1') === 'RIFF' && algus.slice(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  if (algus.slice(0, 3).toString('latin1') === 'GIF') return 'image/gif';
+  return null;
+}
+router.post('/kulud/:id/loe', noudaAdmin, async (req, res) => {
+  const v = await pool.query(`SELECT foto_url, foto_arvest, arve_sisse_id FROM remont_kulud WHERE id=$1`, [req.params.id]);
+  if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const k = v.rows[0];
+  if (!k.foto_url || (k.foto_arvest && !k.arve_sisse_id)) return res.json({ ok: false, veateade: 'Sellel tšekil pole faili — lisa foto või PDF' });
+  let puhver;
+  try { puhver = await laadiPuhver(k.foto_url, 20000); } catch (e) {
+    return res.json({ ok: false, veateade: 'Tšeki faili ei saanud avada' });
+  }
+  const tyyp = failiTyyp(puhver);
+  if (!tyyp) return res.json({ ok: false, veateade: 'Tšeki faili vormingut ei tuntud ära' });
+  res.json(await loeTsekk({ file: { buffer: puhver, mimetype: tyyp }, aiPildid: [] }));
 });
 
 // Kontrollib vormi ja arvutab jaotuse. Tagastab { viga } või valmis väljad.
