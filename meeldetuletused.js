@@ -19,8 +19,11 @@ const PEALKIRI = '⏰ PANE TÄNASED TUNNID KIRJA';
 const SONUM = 'Tööpäev läbi? Lisa oma tänased töötunnid rakendusse.';
 
 // Ühekordsed lisasaatmised (nt proovimiseks). Möödunud kuupäevaga rida ei tee midagi.
+// Kui real on "nimed", läheb teade ainult neile töötajatele (nime algus), sõltumata ettevõttest ja
+// sellest, kas tunnid on juba kirjas.
 const YHEKORDSED = [
-  { kuupaev: '2026-10-08', kell: '15:15' }
+  { kuupaev: '2026-10-08', kell: '15:15' },
+  { kuupaev: '2026-10-08', kell: '15:24', nimed: ['Vaiko', 'Ralf'] }
 ];
 
 // Praegune aeg Eestis: { kuupaev: 'YYYY-MM-DD', minutid: minuteid südaööst, toopaev: true/false }
@@ -57,13 +60,30 @@ async function looTabel() {
   tabelOlemas = true;
 }
 
-async function saada(kuupaev, liik) {
+async function saada(kuupaev, liik, nimed) {
   // "Broneerime" saatmise enne saatmist — kui rida on juba olemas, on teade täna juba läinud.
   const b = await pool.query(
     `INSERT INTO tunni_meeldetuletused (kuupaev, liik) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING kuupaev`,
     [kuupaev, liik]
   );
   if (!b.rowCount) return;
+
+  if (nimed && nimed.length) {
+    const n = await pool.query(
+      `SELECT w.id, w.nimi,
+              EXISTS (SELECT 1 FROM push_subscriptions ps WHERE ps.worker_id = w.id) AS teavitused
+       FROM workers w
+       WHERE w.aktiivne = true AND w.nimi ILIKE ANY($1)
+       ORDER BY w.nimi`,
+      [nimed.map(x => x + '%')]
+    );
+    const kellele = n.rows.filter(w => w.teavitused);
+    await Promise.all(kellele.map(w => saadaTeavitus(w.id, PEALKIRI, SONUM, '/tootaja')));
+    await pool.query(`UPDATE tunni_meeldetuletused SET saajaid=$1 WHERE kuupaev=$2 AND liik=$3`, [kellele.length, kuupaev, liik]);
+    console.log(`⏰ Tunnimeeldetuletus (${liik}, ${kuupaev}): saadetud [${kellele.map(w => w.nimi).join(', ')}]`
+      + `; teavitused lubamata [${n.rows.filter(w => !w.teavitused).map(w => w.nimi).join(', ')}]`);
+    return;
+  }
 
   const r = await pool.query(
     `SELECT w.id, w.nimi,
@@ -95,12 +115,12 @@ async function kontrolli() {
     const nyyd = eestiAeg();
     const ajad = [];
     if (nyyd.toopaev) ajad.push({ kell: KELL, liik: 'paev' });
-    YHEKORDSED.filter(y => y.kuupaev === nyyd.kuupaev).forEach(y => ajad.push({ kell: y.kell, liik: 'test-' + y.kell }));
+    YHEKORDSED.filter(y => y.kuupaev === nyyd.kuupaev).forEach(y => ajad.push({ kell: y.kell, liik: 'test-' + y.kell, nimed: y.nimed }));
     for (const a of ajad) {
       const algus = minutiteks(a.kell);
       if (nyyd.minutid < algus || nyyd.minutid >= algus + AKEN_MINUTID) continue;
       await looTabel();
-      await saada(nyyd.kuupaev, a.liik);
+      await saada(nyyd.kuupaev, a.liik, a.nimed);
     }
   } catch (err) {
     console.error('Tunnimeeldetuletus ebaõnnestus:', err.message);
