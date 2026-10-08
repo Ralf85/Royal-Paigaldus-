@@ -184,6 +184,8 @@ initDB().then(async () => {
     console.error('Vananenud sessioonide koristus ebaõnnestus:', e.message);
   }
   const server = app.listen(PORT, () => console.log(`🚀 Server käib pordil ${PORT}`));
+  // Tööpäeviti 17:30 teavitus Lidli ja Cramo töötajatele: "PANE TÄNASED TUNNID KIRJA" (vt meeldetuletused.js)
+  require('./meeldetuletused').kaivita();
   // Kui porti ei saa avada, pole mõtet "poolikult" tööle jääda — väljume, Railway käivitab uuesti.
   server.on('error', (err) => {
     console.error('❌ Serveri käivitamine ebaõnnestus:', err.message);
