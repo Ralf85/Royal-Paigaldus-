@@ -1085,6 +1085,10 @@ function vahendaPilt(fail) {
 async function salvestaKulu() {
   var x = kuluSeis();
   if (!kuluRead.length) return teade('kuluTeade', 'Lisa vähemalt üks toode');
+  if (!isFinite(x.kokku) || x.kokku <= 0) {
+    document.getElementById('kuluSumma').focus();
+    return teade('kuluTeade', 'Lahtris „Tšeki summa kokku" peab olema number (nt ' + (x.ridadeSumma > 0 ? komaga(x.ridadeSumma) : '80,00') + '), mitte tekst');
+  }
   if (!x.korras) return teade('kuluTeade', Math.abs(x.vahe) > 0.02 ? 'Read ja tšeki summa ei klapi — vaata hoiatust all' : 'Kontrolli, et igal real on nimetus, summa ja protsent');
   var fd = new FormData();
   fd.append('kuupaev', document.getElementById('kuluKuupaev').value);
