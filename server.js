@@ -155,6 +155,7 @@ app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));
 app.get('/padel-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel-admin.html')));
 app.get('/remont', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remont.html')));
+app.get('/telje10-tsekk', (req, res) => res.sendFile(path.join(__dirname, 'public', 'telje10-tsekk.html')));
 // Tundmatu API aadress -> selge JSON-vastus (mitte HTML-leht, mida liides ei oska lugeda)
 app.use('/api', (req, res) => {
   res.status(404).json({ ok: false, veateade: 'Sellist API aadressi ei ole' });

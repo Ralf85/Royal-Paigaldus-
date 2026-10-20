@@ -1872,6 +1872,7 @@ const TJ_MOODULID = [
   { kood: 'xseeria',  nimi: 'X-seeria',                          grupp: 'Projektid', api: '/api/xseeria/admin/lubatud' },
   { kood: 'edgf',     nimi: 'EDGF kulud',                        grupp: 'Projektid', api: '/api/edgf/admin/lubatud' },
   { kood: 're',       nimi: 'Rally Estonia kulud',               grupp: 'Projektid', api: '/api/re/admin/lubatud' },
+  { kood: 'telje10',  nimi: 'Telje 10 tšekid (AI loeb, töötaja märgib read)', grupp: 'Projektid', api: '/api/remont/admin/lubatud' },
   { kood: 'arved',    nimi: 'Arved (raamatupidaja vaade)',       grupp: 'Arved',     api: '/api/arved/admin/lubatud' },
   { kood: 'omaarved', nimi: 'Minu arved (oma ettevõtte arved)',  grupp: 'Arved',     api: '/api/omaarved/admin/lubatud' },
   { kood: 'padel',    nimi: 'Padel',                             grupp: 'Vaba aeg',  api: '/api/padel/admin/lubatud' }

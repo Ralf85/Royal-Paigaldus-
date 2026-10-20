@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Telje 10 tšekk</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0d0f13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --piir: rgba(255,255,255,0.08);
+    --tekst: #e2e8f0; --tekst2: #bbb; --tekst3: #7a8290;
+    --kuld: #c9a84c; --roheline: #4ade80; --oranz: #fb923c; --punane: #f87171; --sinine: #60a5fa;
+  }
+  body.hele {
+    --bg: #f4f5f7; --bg2: #ffffff; --bg3: #eef0f3; --piir: rgba(0,0,0,0.10);
+    --tekst: #111827; --tekst2: #374151; --tekst3: #6b7280;
+    --kuld: #a5832a; --roheline: #15803d; --oranz: #c2410c; --punane: #b91c1c; --sinine: #1d4ed8;
+  }
+  body { background: var(--bg); color: var(--tekst); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 16px; padding-bottom: 80px; max-width: 560px; margin: 0 auto; }
+  .ylal { margin-bottom: 16px; }
+  .ylal h1 { font-size: 19px; font-weight: 800; }
+  .ylal h1 span { color: var(--kuld); }
+  a.tagasi { color: var(--tekst2); text-decoration: none; font-size: 13px; display: inline-block; margin-top: 4px; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .kaart h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .abi { font-size: 12px; color: var(--tekst3); line-height: 1.45; }
+  label.silt { display: block; font-size: 11px; color: var(--tekst3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  input { background: var(--bg3); border: 0.5px solid var(--piir); color: var(--tekst); border-radius: 8px; padding: 10px; font-size: 15px; width: 100%; font-family: inherit; }
+  .kaks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .valik-nupud { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .suur-nupp { display: block; text-align: center; border: 2px dashed var(--kuld); border-radius: 12px; padding: 24px 8px; color: var(--kuld); font-size: 15px; font-weight: 700; cursor: pointer; background: rgba(201,168,76,0.08); }
+  .suur-nupp.hall { border-color: var(--piir); color: var(--tekst2); background: var(--bg3); }
+  .suur-nupp input { display: none; }
+  #eelvaade { width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; background: var(--bg3); display: none; margin-bottom: 10px; }
+  .teade { font-size: 13px; padding: 10px 12px; border-radius: 8px; margin: 8px 0; display: none; line-height: 1.4; }
+  .teade.ok { display: block; background: rgba(74,222,128,0.12); color: var(--roheline); }
+  .teade.info { display: block; background: rgba(96,165,250,0.12); color: var(--sinine); }
+  .teade.viga { display: block; background: rgba(248,113,113,0.12); color: var(--punane); }
+  .teade.hoiatus { display: block; background: rgba(251,146,60,0.12); color: var(--oranz); }
+  .maksis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .maksis button { background: var(--bg3); border: 2px solid var(--piir); border-radius: 12px; padding: 14px 10px; color: var(--tekst); text-align: left; cursor: pointer; font-family: inherit; }
+  .maksis button b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .maksis button span { font-size: 11.5px; color: var(--tekst3); line-height: 1.35; display: block; }
+  .maksis button.valitud { border-color: var(--kuld); background: rgba(201,168,76,0.12); }
+  .rida { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 0.5px solid var(--piir); }
+  .rida:last-child { border-bottom: none; }
+  .rida input[type=checkbox] { width: 26px; height: 26px; flex: none; accent-color: #c9a84c; }
+  .rida .nim { flex: 1; min-width: 0; }
+  .rida .nim input { padding: 7px 8px; font-size: 13.5px; }
+  .rida .sum { width: 86px; flex: none; }
+  .rida .sum input { padding: 7px 8px; font-size: 13.5px; text-align: right; }
+  .rida.oma .nim input, .rida.oma .sum input { color: var(--tekst3); text-decoration: line-through; }
+  .rida .x { background: none; border: none; color: var(--punane); font-size: 18px; cursor: pointer; padding: 0 4px; }
+  .vaiksed-nupud { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .nupp { background: var(--kuld); color: #1a1405; border: none; border-radius: 10px; padding: 14px 16px; font-size: 15px; font-weight: 800; cursor: pointer; width: 100%; font-family: inherit; }
+  .nupp:disabled { opacity: 0.55; }
+  .nupp.vaike { width: auto; padding: 7px 12px; font-size: 12px; font-weight: 700; background: var(--bg3); color: var(--tekst); border: 0.5px solid var(--piir); }
+  .nupp.punane { background: var(--punane); color: #fff; }
+  .kokku { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13.5px; margin: 12px 0; }
+  .kokku .s { text-align: right; font-weight: 700; }
+  .kokku .k { color: var(--kuld); }
+  .tsekk { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 0.5px solid var(--piir); font-size: 13px; }
+  .tsekk:last-child { border-bottom: none; }
+  .tsekk .p { font-weight: 700; }
+  .tsekk .m { font-size: 11.5px; color: var(--tekst3); margin-top: 2px; }
+  .mark { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-top: 4px; }
+  .mark.ootel { background: rgba(251,146,60,0.15); color: var(--oranz); }
+  .mark.makstud { background: rgba(74,222,128,0.15); color: var(--roheline); }
+  .mark.lisakulu { background: rgba(96,165,250,0.15); color: var(--sinine); }
+  .peidus { display: none; }
+</style>
+</head>
+<body>
+  <div class="ylal">
+    <h1>🧾 <span>Telje 10</span> tšekk</h1>
+    <a class="tagasi" href="/tootaja">← Tagasi pealehele</a>
+  </div>
+
+  <div id="lubamatu" class="kaart peidus"><div class="abi">Sul pole Telje 10 tšekkide ligipääsu. Palun küsi Ralfilt.</div></div>
+
+  <div id="sisu" class="peidus">
+    <!-- 1. Tšeki pilt -->
+    <div class="kaart" id="algus">
+      <h2>1. Pildista tšekk</h2>
+      <div class="valik-nupud">
+        <label class="suur-nupp">📷<br>Pildista<input type="file" accept="image/*" capture="environment" onchange="failValitud(this)"></label>
+        <label class="suur-nupp hall">🖼️<br>Albumist / PDF<input type="file" accept="image/*,application/pdf" onchange="failValitud(this)"></label>
+      </div>
+      <div class="abi" style="margin-top:10px">Pildista kogu tšekk, nii et kõik read ja summad oleksid loetavad. AI loeb tooted ise ära.</div>
+    </div>
+
+    <div id="vorm" class="peidus">
+      <div class="kaart">
+        <img id="eelvaade" alt="Tšekk">
+        <div id="loeTeade" class="teade"></div>
+        <div class="kaks">
+          <div><label class="silt">Pood</label><input id="pood" placeholder="nt Bauhof"></div>
+          <div><label class="silt">Kuupäev</label><input type="date" id="kuupaev"></div>
+        </div>
+        <div class="kaks" style="margin-bottom:0">
+          <div><label class="silt">Tšekk kokku (€)</label><input id="kokku" inputmode="decimal" oninput="arvuta()"></div>
+          <div><label class="silt">Käibemaks (€)</label><input id="kaibemaks" inputmode="decimal"></div>
+        </div>
+      </div>
+
+      <!-- 2. Kes maksis -->
+      <div class="kaart">
+        <h2>2. Kuidas maksid?</h2>
+        <div class="maksis">
+          <button type="button" id="m-isiklik" onclick="valiMaksis('isiklik')"><b>💳 Isikliku kaardiga</b><span>Royal Paigaldus maksab sulle raha tagasi</span></button>
+          <button type="button" id="m-ettevote" onclick="valiMaksis('ettevote')"><b>🏢 Oma ettevõtte kaardiga</b><span>Summa läheb sinu lisakuludesse</span></button>
+        </div>
+      </div>
+
+      <!-- 3. Read -->
+      <div class="kaart">
+        <h2>3. Märgi Telje 10 kulud</h2>
+        <div class="abi">Märgi linnukesega read, mis osteti Telje 10 jaoks. <b>Märkimata read on sinu enda ostud</b> (nt jook, söök) — neid ei hüvitata.</div>
+        <div class="vaiksed-nupud">
+          <button type="button" class="nupp vaike" onclick="margiKoik(true)">✓ Märgi kõik</button>
+          <button type="button" class="nupp vaike" onclick="margiKoik(false)">Tühjenda</button>
+          <button type="button" class="nupp vaike" onclick="lisaRida()">+ Lisa rida</button>
+        </div>
+        <div id="read"></div>
+        <div class="kokku">
+          <span class="k">Telje 10 kulu</span><span class="s k" id="sMinu">0,00 €</span>
+          <span>Sinu enda ostud</span><span class="s" id="sOma">0,00 €</span>
+          <span>Read kokku</span><span class="s" id="sRead">0,00 €</span>
+        </div>
+        <div id="ridadeHoiatus" class="teade"></div>
+        <button class="nupp" id="salvesta" onclick="salvesta()">Salvesta</button>
+        <div id="salvestaTeade" class="teade"></div>
+      </div>
+    </div>
+
+    <!-- Minu tšekid -->
+    <div class="kaart">
+      <h2>Minu Telje 10 tšekid</h2>
+      <div id="minu"><div class="abi">Laadin…</div></div>
+    </div>
+  </div>
+
+  <script src="/aipilt.js"></script>
+  <script>
+    var TOKEN = localStorage.getItem('workerToken') || '';
+    if (localStorage.getItem('teema') === 'hele') document.body.classList.add('hele');
+    var fail = null, read = [], maksis = '';
+
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function arv(v) { var n = parseFloat(String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : NaN; }
+    function r2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+    function eur(n) { return (isFinite(n) ? r2(n) : 0).toFixed(2).replace('.', ',') + ' €'; }
+    function komaga(n) { return isFinite(n) ? r2(n).toFixed(2).replace('.', ',') : ''; }
+    function tana() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function kp(s) { var o = String(s || '').split('-'); return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : s; }
+    function teade(id, tekst, tyyp) { var el = document.getElementById(id); el.className = 'teade' + (tekst ? ' ' + (tyyp || 'viga') : ''); el.textContent = tekst || ''; }
+
+    async function api(tee, seaded) {
+      seaded = seaded || {};
+      seaded.headers = Object.assign({ 'x-session-token': TOKEN }, seaded.headers || {});
+      try {
+        var r = await fetch('/api/remont' + tee, seaded);
+        if (r.status === 401) { window.location = '/'; return { ok: false }; }
+        return await r.json();
+      } catch (e) { return { ok: false, veateade: 'Ühendus katkes — proovi uuesti' }; }
+    }
+
+    async function alusta() {
+      if (!TOKEN) { window.location = '/'; return; }
+      var k = await api('/tootaja/kontroll');
+      if (!k || !k.lubatud) { document.getElementById('lubamatu').classList.remove('peidus'); return; }
+      document.getElementById('sisu').classList.remove('peidus');
+      laadiMinu();
+    }
+
+    // ── 1. Pilt ja AI lugemine ──
+    async function failValitud(input) {
+      var f = input.files && input.files[0];
+      input.value = '';
+      if (!f) return;
+      fail = f; read = []; maksis = '';
+      document.getElementById('vorm').classList.remove('peidus');
+      document.getElementById('algus').querySelector('h2').textContent = '1. Pildista tšekk (vali uus, kui vaja)';
+      var img = document.getElementById('eelvaade');
+      if (f.type.indexOf('image/') === 0) { img.src = URL.createObjectURL(f); img.style.display = 'block'; } else { img.style.display = 'none'; }
+      ['pood', 'kokku', 'kaibemaks'].forEach(function (id) { document.getElementById(id).value = ''; });
+      document.getElementById('kuupaev').value = tana();
+      valiMaksis('');
+      joonistaRead();
+      teade('salvestaTeade', '');
+      teade('loeTeade', '🤖 Loen tšekki… (võtab kuni pool minutit)', 'info');
+      document.getElementById('salvesta').disabled = true;
+      var fd = window.rpAiVorm ? await window.rpAiVorm(f) : (function () { var x = new FormData(); x.append('fail', f); return x; })();
+      var r = await api('/tootaja/loe', { method: 'POST', body: fd });
+      if (fail !== f) return; // vahepeal valiti juba teine pilt
+      document.getElementById('salvesta').disabled = false;
+      if (r && r.ok) {
+        if (r.ettevote) document.getElementById('pood').value = r.ettevote;
+        if (r.kuupaev) document.getElementById('kuupaev').value = r.kuupaev;
+        if (r.summa) document.getElementById('kokku').value = komaga(r.summa);
+        if (r.kaibemaks) document.getElementById('kaibemaks').value = komaga(r.kaibemaks);
+        read = (r.read || []).map(function (x) { return { nimetus: x.nimetus, summa: komaga(x.summa), ralfile: false }; });
+        if (!read.length) read = [{ nimetus: '', summa: '', ralfile: true }];
+        teade('loeTeade', read.length > 1 || (read[0] && read[0].nimetus)
+          ? '✓ Tšekk loetud (' + read.length + ' rida). Kontrolli üle, vali makseviis ja märgi Telje 10 read.'
+          : 'Ridu ei õnnestunud lugeda — lisa read käsitsi.', read[0] && read[0].nimetus ? 'ok' : 'hoiatus');
+      } else {
+        read = [{ nimetus: '', summa: '', ralfile: true }];
+        teade('loeTeade', ((r && r.veateade) || 'AI ei saanud tšekki lugeda') + ' — täida väljad käsitsi.', 'hoiatus');
+      }
+      joonistaRead();
+    }
+
+    // ── 2. Makseviis ──
+    function valiMaksis(v) {
+      maksis = v;
+      document.getElementById('m-isiklik').classList.toggle('valitud', v === 'isiklik');
+      document.getElementById('m-ettevote').classList.toggle('valitud', v === 'ettevote');
+      arvuta();
+    }
+
+    // ── 3. Read ──
+    function joonistaRead() {
+      document.getElementById('read').innerHTML = read.map(function (x, i) {
+        return '<div class="rida' + (x.ralfile ? '' : ' oma') + '">'
+          + '<input type="checkbox" ' + (x.ralfile ? 'checked' : '') + ' onchange="muudaRida(' + i + ',\'ralfile\',this.checked)" aria-label="Telje 10 kulu">'
+          + '<div class="nim"><input value="' + esc(x.nimetus) + '" placeholder="Toode" oninput="muudaRida(' + i + ',\'nimetus\',this.value)"></div>'
+          + '<div class="sum"><input value="' + esc(x.summa) + '" inputmode="decimal" placeholder="0,00" oninput="muudaRida(' + i + ',\'summa\',this.value)"></div>'
+          + '<button type="button" class="x" onclick="eemaldaRida(' + i + ')" aria-label="Eemalda rida">✕</button>'
+          + '</div>';
+      }).join('') || '<div class="abi" style="padding:10px 0">Ridu pole — lisa rida.</div>';
+      arvuta();
+    }
+    function muudaRida(i, vali, v) {
+      if (!read[i]) return;
+      read[i][vali] = v;
+      if (vali === 'ralfile') joonistaRead(); else arvuta();
+    }
+    function margiKoik(v) { read.forEach(function (x) { x.ralfile = v; }); joonistaRead(); }
+    function lisaRida() { read.push({ nimetus: '', summa: '', ralfile: true }); joonistaRead(); }
+    function eemaldaRida(i) { read.splice(i, 1); joonistaRead(); }
+
+    function seis() {
+      var minu = 0, oma = 0, vigaseid = 0;
+      read.forEach(function (x) {
+        var s = arv(x.summa);
+        if (!String(x.nimetus).trim() || !isFinite(s) || s === 0) { vigaseid++; return; }
+        if (x.ralfile) minu += s; else oma += s;
+      });
+      return { minu: r2(minu), oma: r2(oma), kokku: r2(minu + oma), vigaseid: vigaseid, tsekk: arv(document.getElementById('kokku').value) };
+    }
+    function arvuta() {
+      var vt = document.getElementById('salvestaTeade');
+      if (vt && vt.classList.contains('viga')) teade('salvestaTeade', ''); // vana veateade kaob muutmisel
+      var x = seis();
+      document.getElementById('sMinu').textContent = eur(x.minu);
+      document.getElementById('sOma').textContent = eur(x.oma);
+      document.getElementById('sRead').textContent = eur(x.kokku);
+      if (read.length && isFinite(x.tsekk) && x.tsekk > 0 && Math.abs(x.kokku - x.tsekk) > 0.02) {
+        teade('ridadeHoiatus', 'Read annavad kokku ' + eur(x.kokku) + ', tšekk on ' + eur(x.tsekk) + '. Kontrolli, kas mõni rida on puudu või summa valesti.', 'hoiatus');
+      } else teade('ridadeHoiatus', '');
+      var nupp = document.getElementById('salvesta');
+      if (!nupp.disabled) {
+        nupp.textContent = maksis === 'isiklik' ? 'Salvesta — Royal maksab sulle ' + eur(x.minu)
+          : maksis === 'ettevote' ? 'Salvesta — ' + eur(x.minu) + ' lisakuludesse' : 'Salvesta';
+      }
+    }
+
+    async function salvesta() {
+      var x = seis();
+      if (!fail) return teade('salvestaTeade', 'Lisa tšeki pilt');
+      if (!maksis) return teade('salvestaTeade', 'Vali, kuidas maksid (isiklik või ettevõtte kaart)');
+      if (!document.getElementById('pood').value.trim()) return teade('salvestaTeade', 'Kirjuta poe nimi');
+      if (x.vigaseid) return teade('salvestaTeade', 'Igal real peab olema nimetus ja summa (või eemalda tühi rida)');
+      if (x.minu <= 0) return teade('salvestaTeade', 'Märgi vähemalt üks rida, mis on Telje 10 kulu');
+      var fd = new FormData();
+      fd.append('fail', fail);
+      fd.append('pood', document.getElementById('pood').value);
+      fd.append('kuupaev', document.getElementById('kuupaev').value);
+      fd.append('tsekk_kokku', document.getElementById('kokku').value);
+      fd.append('kaibemaks', document.getElementById('kaibemaks').value);
+      fd.append('maksis', maksis);
+      fd.append('read', JSON.stringify(read.map(function (r) { return { nimetus: r.nimetus, summa: r.summa, ralfile: !!r.ralfile }; })));
+      var nupp = document.getElementById('salvesta');
+      nupp.disabled = true; nupp.textContent = 'Salvestan…';
+      var r = await api('/tootaja/tsekk', { method: 'POST', body: fd });
+      nupp.disabled = false;
+      if (!r || !r.ok) { arvuta(); return teade('salvestaTeade', (r && r.veateade) || 'Salvestamine ebaõnnestus'); }
+      fail = null; read = [];
+      document.getElementById('vorm').classList.add('peidus');
+      document.getElementById('algus').querySelector('h2').textContent = '1. Pildista tšekk';
+      teade('loeTeade', '');
+      var tekst = r.maksis === 'isiklik'
+        ? '✅ Salvestatud! ' + eur(r.summa) + ' makstakse sulle Royal Paigalduse poolt tagasi.'
+        : '✅ Salvestatud! ' + eur(r.summa) + ' lisati sinu lisakuludesse.';
+      var vanaTeade = document.getElementById('valmisTeade'); if (vanaTeade) vanaTeade.remove();
+      document.getElementById('minu').insertAdjacentHTML('beforebegin', '<div class="teade ok" id="valmisTeade">' + esc(tekst) + '</div>');
+      setTimeout(function () { var el = document.getElementById('valmisTeade'); if (el) el.remove(); }, 8000);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      laadiMinu();
+    }
+
+    // ── Minu tšekid ──
+    var kustutaKinnita = null;
+    async function laadiMinu() {
+      var r = await api('/tootaja/minu');
+      var div = document.getElementById('minu');
+      if (!r || !r.ok) { div.innerHTML = '<div class="abi">Ei saanud laadida.</div>'; return; }
+      if (!r.tsekid.length) { div.innerHTML = '<div class="abi">Sa pole veel ühtegi tšekki lisanud.</div>'; return; }
+      div.innerHTML = r.tsekid.map(function (t) {
+        var mark = t.maksis === 'isiklik'
+          ? (t.huvitis === 'makstud' ? '<span class="mark makstud">✓ Tagasi makstud</span>' : '<span class="mark ootel">⏳ Ootab tagasimaksmist</span>')
+          : '<span class="mark lisakulu">🏢 Lisakuludes</span>';
+        var oma = t.tsekk_kokku !== null && t.tsekk_kokku - t.summa > 0.004 ? ' · tšekk ' + eur(t.tsekk_kokku) : '';
+        var kust = t.saab_kustutada
+          ? '<div style="margin-top:6px"><button type="button" class="nupp vaike' + (kustutaKinnita === t.id ? ' punane' : '') + '" onclick="kustuta(' + t.id + ')">'
+            + (kustutaKinnita === t.id ? 'Kinnita kustutamine' : 'Kustuta') + '</button></div>' : '';
+        return '<div class="tsekk"><div><div class="p">' + esc(t.pood) + '</div><div class="m">' + kp(t.kuupaev) + oma + '</div>' + mark + kust + '</div>'
+          + '<div class="p">' + eur(t.summa) + '</div></div>';
+      }).join('');
+    }
+    async function kustuta(id) {
+      if (kustutaKinnita !== id) { kustutaKinnita = id; laadiMinu(); return; }
+      kustutaKinnita = null;
+      var r = await api('/tootaja/tsekk/' + id, { method: 'DELETE' });
+      if (!r || !r.ok) {
+        document.getElementById('minu').insertAdjacentHTML('afterbegin', '<div class="teade viga">' + esc((r && r.veateade) || 'Kustutamine ebaõnnestus') + '</div>');
+        return;
+      }
+      laadiMinu();
+    }
+
+    alusta();
+  </script>
+</body>
+</html>

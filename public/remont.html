@@ -591,7 +591,9 @@ function joonistaKulud() {
     var protsent = k.summa > 0 ? k.naabri_summa / k.summa * 100 : 0;
     html += '<div class="kirje"><div class="kirje-ylal"><div>'
       + '<div class="kirje-pealkiri">' + esc(k.kirjeldus) + (k.foto_url ? '' : '<span class="mark punane">tšekk puudub</span>')
-      + (saabMuuta() && k.arvetes ? '<span class="mark roheline">arvetes ✓</span>' : '') + '</div>'
+      + (saabMuuta() && k.arvetes ? '<span class="mark roheline">arvetes ✓</span>' : '')
+      + (saabMuuta() && k.tootaja && !k.tootaja.ule_vaadatud ? '<span class="mark kollane">uus — vaata jaotus üle</span>' : '') + '</div>'
+      + (saabMuuta() && k.tootaja ? tootajaTsekkHtml(k) : '')
       + '<div class="kirje-meta">' + kp(k.kuupaev) + ' · maksis ' + esc(k.maksja === 'naaber' ? s.naabri_nimi : s.minu_nimi)
       + (k.osa_nimi ? ' · ' + esc(k.osa_nimi) : '') + '</div>'
       + '</div><div class="kirje-summa"><div class="suur">' + raha(k.summa) + '</div><div class="vaikekiri">tšekk kokku</div></div></div>'
@@ -619,6 +621,21 @@ function joonistaKulud() {
   });
   html += '</div>';
   document.getElementById('paneel-kulud').innerHTML = html;
+}
+
+// Töötaja lisatud tšekk: kes lisas, kuidas maksis ja mida ta enda ostudena välja jättis (ainult adminile).
+function tootajaTsekkHtml(k) {
+  var t = k.tootaja;
+  var maksis = t.maksis === 'isiklik'
+    ? '💳 isikliku kaardiga — ' + (t.huvitis === 'makstud' ? '<b style="color:#86efac">tagasi makstud ✓</b>'
+      : t.huvitis === 'ootel' ? '<b style="color:#fcd34d">maksa tagasi ' + raha(k.summa) + '</b> (Arved → sissetulevad, märgi makstuks)'
+      : 'arvetest eemaldatud')
+    : '🏢 oma ettevõtte kaardiga — ' + (t.lisakulus ? raha(k.summa) + ' tema lisakuludes' : 'lisakulu kustutatud');
+  var oma = (t.oma_ostud || []).length
+    ? ' · enda ostud välja jäetud: ' + t.oma_ostud.map(function (x) { return esc(x.nimetus) + ' ' + raha(x.summa); }).join(', ')
+    : '';
+  return '<div class="kirje-meta" style="margin-top:3px">Lisas <b>' + esc(t.nimi) + '</b> · ' + maksis
+    + (t.tsekk_kokku !== null && Math.abs(t.tsekk_kokku - k.summa) > 0.004 ? ' · tšekk kokku ' + raha(t.tsekk_kokku) : '') + oma + '</div>';
 }
 
 function joonistaMaksed() {
