@@ -687,6 +687,26 @@ async function avLaadiKoikArvedZip() {
   await avLaadiZipFail(`/api/arved/zip?ids=${avArvedList.map(a => a.id).join(',')}`, 'arved.zip');
 }
 
+// Kõik arved kuupäevast kuupäevani ühes ZIP-is: kaust "Sisse tulnud arved" (kulud/tšekid) ja
+// kaust "Välja läinud arved" (meie arved) + "Arvete nimekiri.csv". Periood võetakse kuupäevaväljadelt.
+async function avLaadiPerioodiZip() {
+  const algus = document.getElementById('av-filt-algus')?.value;
+  const lopp = document.getElementById('av-filt-lopp')?.value;
+  if (!algus || !lopp) {
+    teata('Vali enne kuupäevaväljadel periood (alates ja kuni) — siis laen selle perioodi kõik arved alla.');
+    document.getElementById(algus ? 'av-filt-lopp' : 'av-filt-algus')?.focus();
+    return;
+  }
+  if (algus > lopp) { teata('Alguskuupäev on hilisem kui lõpukuupäev.'); return; }
+  let url = `/api/arved/periood-zip?algus=${algus}&lopp=${lopp}`;
+  // Kui müüja filtris on valitud üks minu ettevõte, tulevad ainult selle ettevõtte arved.
+  if (avMuujaFilter !== 'koik') {
+    const m = (avmMuujad || []).find(x => x.ettevote_nimi === avMuujaFilter);
+    if (m) url += `&muuja_id=${m.id}`;
+  }
+  await laadiFailServerist(url, `Arved ${algus} - ${lopp}.zip`, { teade: '⏳ Pakin perioodi arveid ZIP-i…' });
+}
+
 function avFiltreeriStaatus(s) {
   avStaatusFilter = s;
   ['koik', 'maksmata', 'makstud'].forEach(k => {

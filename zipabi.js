@@ -26,18 +26,18 @@ function looZip(res) {
 }
 
 // Failinimi ZIP-i sees: lubatud märgid + kordumatus (sama nimega faile ZIP-is olla ei tohi).
-function zipNimi(olek, soovitud) {
+// kaust (valikuline) — kaust ZIP-i sees (nt "Sisse tulnud arved"); tagastab siis "kaust/failinimi".
+function zipNimi(olek, soovitud, kaust) {
   // Täpitähed lihtsustatakse (õ->o, ä->a, š->s), muud keelatud märgid asendatakse alakriipsuga.
   let nimi = String(soovitud || 'fail').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9-_.]/g, '_').replace(/_+/g, '_');
-  if (!olek.nimed.has(nimi.toLowerCase())) { olek.nimed.add(nimi.toLowerCase()); return nimi; }
+  const ees = kaust ? String(kaust).replace(/[\\/:*?"<>|]/g, '-') + '/' : '';
   const punkt = nimi.lastIndexOf('.');
   const alus = punkt > 0 ? nimi.slice(0, punkt) : nimi, laiend = punkt > 0 ? nimi.slice(punkt) : '';
-  let n = 2;
-  while (olek.nimed.has(`${alus}_${n}${laiend}`.toLowerCase())) n++;
-  nimi = `${alus}_${n}${laiend}`;
-  olek.nimed.add(nimi.toLowerCase());
-  return nimi;
+  let n = 1;
+  while (olek.nimed.has((ees + nimi).toLowerCase())) { n++; nimi = `${alus}_${n}${laiend}`; }
+  olek.nimed.add((ees + nimi).toLowerCase());
+  return ees + nimi;
 }
 
 // Kuupäev failinime jaoks kujul AAAA-KK-PP (andmebaasi kuupäev on Date objekt, mitte tekst).
@@ -51,10 +51,11 @@ function kpNimeks(kp) {
 
 // Lisab ZIP-i faili aadressilt (Cloudinary). Kui faili ei saa kätte (viga, vale vastus, ooteaeg),
 // jäetakse see vahele ja märgitakse olek.puudu nimekirja — ülejäänud ZIP tehakse ikka valmis.
-function lisaUrl(archive, olek, url, soovitudNimi) {
+// kaust (valikuline) — ZIP-i sees olev kaust, kuhu fail pannakse (nt "Sisse tulnud arved").
+function lisaUrl(archive, olek, url, soovitudNimi, kaust) {
   return new Promise((resolve) => {
     if (olek.katkenud) return resolve(false);
-    const nimi = zipNimi(olek, soovitudNimi);
+    const nimi = zipNimi(olek, soovitudNimi, kaust);
     let valmis = false;
     const lopeta = (ok, pohjus) => {
       if (valmis) return;

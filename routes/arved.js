@@ -801,6 +801,32 @@ router.get('/', noudaAdmin, async (req, res) => {
   }
 });
 
+// Lisab ühe VÄLJAMINEVA arve ZIP-i: üleslaaditud originaalfail kui on, muidu genereeritud PDF.
+// muujaCache — müüja andmed/logo laetakse ühe ZIP-i jooksul ainult korra.
+async function lisaValjaArveZipi(archive, olek, arve, muujaCache, kaust) {
+  const kuupaev = kpNimeks(arve.kuupaev);
+  const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`;
+  if (arve.fail_url) {
+    // Üleslaaditud/tagantjärele lisatud arve — tõmba originaalfail
+    const laiend = (arve.fail_url.match(/\.(\w+)(\?|$)/) || [, 'pdf'])[1];
+    return lisaUrl(archive, olek, arve.fail_url, `${nimiAlus}.${laiend}`, kaust);
+  }
+  // Süsteemis loodud arve — genereeri PDF samast mootorist, mida kasutab üksiku arve vaade
+  if (!(arve.muuja_id in muujaCache)) {
+    const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
+    const muuja = muujaR.rows[0];
+    let logoBuf = null;
+    if (muuja && muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    muujaCache[arve.muuja_id] = { muuja, logoBuf };
+  }
+  const { muuja, logoBuf } = muujaCache[arve.muuja_id];
+  const nimi = zipNimi(olek, `${nimiAlus}.pdf`, kaust);
+  if (!muuja) { olek.puudu.push(`${nimi} — arvel pole müüja andmeid, PDF-i ei saanud teha`); return false; }
+  const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
+  archive.append(renderArvePdf(muuja, arve, readR.rows, logoBuf), { name: nimi });
+  return true;
+}
+
 // ── ZIP-ina KORRAGA ALLALAADIMINE (valitud arved — uploaditud fail kui on, muidu genereeritud PDF) ──
 // NB: peab olema registreeritud ENNE "/:id" (allpool), muidu Express käsitleks "/zip" kui id="zip".
 router.get('/zip', noudaArvedLubatud, async (req, res) => {
@@ -815,36 +841,78 @@ router.get('/zip', noudaArvedLubatud, async (req, res) => {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_arved.zip"`);
     const { archive, olek } = looZip(res);
-    // Valitud arved võivad olla eri müüja-ettevõtete nimel — laadi iga müüja andmed/logo ainult
-    // korra ja pane vahemällu, et sama ettevõtte pilti mitu korda uuesti alla ei laetaks.
     const muujaCache = {};
     for (const arve of r.rows) {
       if (olek.katkenud) break;
-      const kuupaev = kpNimeks(arve.kuupaev);
-      const nimiAlus = `${kuupaev}_${arve.number}_${(arve.ostja_nimi || 'ostja')}`.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-_.]/g, '_');
-      if (arve.fail_url) {
-        // Üleslaaditud/tagantjärele lisatud arve — tõmba originaalfail
-        const laiend = (arve.fail_url.match(/\.(\w+)(\?|$)/) || [, 'pdf'])[1];
-        await lisaUrl(archive, olek, arve.fail_url, `${nimiAlus}.${laiend}`);
-      } else {
-        // Süsteemis loodud arve — genereeri PDF samast mootorist, mida kasutab üksiku arve vaade
-        if (!muujaCache[arve.muuja_id]) {
-          const muujaR = await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [arve.muuja_id]);
-          const muuja = muujaR.rows[0];
-          let logoBuf = null;
-          if (muuja && muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
-          muujaCache[arve.muuja_id] = { muuja, logoBuf };
-        }
-        const { muuja, logoBuf } = muujaCache[arve.muuja_id];
-        if (!muuja) continue;
-        const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
-        const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
-        archive.append(doc, { name: zipNimi(olek, `${nimiAlus}.pdf`) });
-      }
+      await lisaValjaArveZipi(archive, olek, arve, muujaCache);
     }
     await lopetaZip(archive, olek);
   } catch (err) {
     console.error(err);
+    if (res.headersSent) return res.destroy();
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── PERIOODI ZIP: kõik arved kuupäevast kuupäevani, kaustadena "Sisse tulnud arved" ja "Välja läinud arved" ──
+// Lisaks on ZIP-is "Arvete nimekiri.csv" (Excelis avatav) — mõlema suuna arved koos summadega,
+// ka need sissetulnud kirjed, millel faili pole (et raamatupidaja näeks, mis on puudu).
+// ?algus=AAAA-KK-PP&lopp=AAAA-KK-PP[&muuja_id=N] — muuja_id piirab ühe minu ettevõtte arvetega.
+const KAUST_SISSE = 'Sisse tulnud arved';
+const KAUST_VALJA = 'Välja läinud arved';
+router.get('/periood-zip', noudaArvedLubatud, async (req, res) => {
+  const { onKuupaev, csvFail, csvArv, csvKuupaev, failiPais } = require('../csvabi');
+  const { algus, lopp } = req.query;
+  if (!onKuupaev(algus) || !onKuupaev(lopp)) return res.status(400).json({ ok: false, veateade: 'Vali periood: kuupäev alates ja kuupäev kuni' });
+  if (algus > lopp) return res.status(400).json({ ok: false, veateade: 'Alguskuupäev on hilisem kui lõpukuupäev' });
+  const muujaId = parseInt(req.query.muuja_id, 10) || null;
+  try {
+    const valja = await pool.query(
+      `SELECT a.*, m.ettevote_nimi AS muuja_nimi, e.nimi AS ettevote_nimi FROM arved a
+       LEFT JOIN arve_muujad m ON m.id = a.muuja_id LEFT JOIN ettevotted e ON e.id = a.ettevote_id
+       WHERE a.kuupaev BETWEEN $1 AND $2 AND ($3::int IS NULL OR a.muuja_id = $3) ORDER BY a.kuupaev, a.number`,
+      [algus, lopp, muujaId]
+    );
+    const sisse = await pool.query(
+      `SELECT s.*, e.nimi AS ettevote_nimi, m.ettevote_nimi AS muuja_nimi FROM arve_sisse s
+       LEFT JOIN ettevotted e ON e.id = s.ettevote_id LEFT JOIN arve_muujad m ON m.id = s.muuja_id
+       WHERE s.kuupaev BETWEEN $1 AND $2 AND ($3::int IS NULL OR s.muuja_id = $3) ORDER BY s.kuupaev, s.id`,
+      [algus, lopp, muujaId]
+    );
+    if (!valja.rows.length && !sisse.rows.length) {
+      return res.status(404).json({ ok: false, veateade: 'Selles perioodis arveid pole' });
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', failiPais(`Arved ${algus} - ${lopp}.zip`));
+    const { archive, olek } = looZip(res);
+
+    const read = [['Suund', 'Kuupäev', 'Arve nr', 'Müüja / ostja (kirjeldus)', 'Objekt', 'Summa km-ta', 'Käibemaks', 'Kokku', 'Staatus', 'Minu ettevõte', 'Fail ZIP-is']];
+    for (const s of sisse.rows) {
+      if (olek.katkenud) break;
+      let failiNimi = 'fail puudub';
+      if (s.fail_url) {
+        const laiend = (s.fail_url.match(/\.(\w+)(\?|$)/) || [, 'jpg'])[1];
+        const soov = `${kpNimeks(s.kuupaev)}_${(s.kirjeldus || s.ettevote_nimi || 'kulu').slice(0, 40)}_${s.id}.${laiend}`;
+        const enne = olek.puudu.length;
+        await lisaUrl(archive, olek, s.fail_url, soov, KAUST_SISSE);
+        failiNimi = olek.puudu.length > enne ? 'ei õnnestunud alla laadida' : 'jah';
+      }
+      const kokku = parseFloat(s.summa) || 0, km = parseFloat(s.kaibemaks) || 0;
+      read.push(['Sisse', csvKuupaev(s.kuupaev), '', s.kirjeldus || '', s.ettevote_nimi || '', csvArv(kokku - km, 2), csvArv(km, 2), csvArv(kokku, 2), s.staatus || '', s.muuja_nimi || '', failiNimi]);
+    }
+    const muujaCache = {};
+    for (const a of valja.rows) {
+      if (olek.katkenud) break;
+      const enne = olek.puudu.length;
+      await lisaValjaArveZipi(archive, olek, a, muujaCache, KAUST_VALJA);
+      read.push(['Välja', csvKuupaev(a.kuupaev), a.number || '', a.ostja_nimi || '', a.ettevote_nimi || '', csvArv(a.summa_km_ta, 2), csvArv(a.kaibemaks, 2), csvArv(a.kokku, 2), a.staatus || '', a.muuja_nimi || '', olek.puudu.length > enne ? 'ei õnnestunud' : 'jah']);
+    }
+    if (olek.katkenud) return;
+    archive.append(csvFail(read), { name: 'Arvete nimekiri.csv' });
+    await lopetaZip(archive, olek);
+  } catch (err) {
+    console.error(err);
+    if (res.headersSent) return res.destroy();
     res.status(500).json({ ok: false, veateade: err.message });
   }
 });
