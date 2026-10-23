@@ -138,7 +138,7 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     const kirjed = await pool.query(
       `SELECT t.*, e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp,
               COALESCE(o.nimi, '') as objekt_nimi,
-              we.tunnitasu,
+              COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu,
               COALESCE(t.kilomeetrid, 0) as kilomeetrid,
               COALESCE(t.km_raha, 0) as km_raha,
               COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
@@ -199,11 +199,13 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
 
     const kogTeenitudRes = await pool.query(
       `SELECT
-         COALESCE(SUM(tk.tunnid * COALESCE(we.tunnitasu, 0)), 0) +
+         COALESCE(SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0)), 0) +
          COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
          COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
        AS kokku
        FROM tookirjed tk
        LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)

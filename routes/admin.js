@@ -434,7 +434,10 @@ router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
   }
 });
 
-router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
+// Üksiku töökirje erihind (muu_tunnitasu). Admini Kokkuvõte vaade (admin-pohi.js → salvestaMuuTasu)
+// kutsub aadressi /kirjed/:id/muu-tasu — varem seda teed polnud ja salvestus kukkus vaikselt läbi.
+// Mõlemad aadressid kasutavad nüüd sama loogikat.
+async function salvestaKirjeTunnitasu(req, res) {
   const { tunnitasu } = req.body;
   try {
     const kirje = await pool.query('SELECT worker_id, ettevote_id FROM tookirjed WHERE id=$1', [req.params.id]);
@@ -444,7 +447,9 @@ router.put('/tookirjed/:id/tunnitasu', noudaAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
-});
+}
+router.put('/tookirjed/:id/tunnitasu', noudaAdmin, salvestaKirjeTunnitasu);
+router.put('/kirjed/:id/muu-tasu', noudaAdmin, salvestaKirjeTunnitasu);
 
 // ── KOKKUVÕTE ─────────────────────────────────────────────────────
 
@@ -735,8 +740,8 @@ router.get('/raport-csv', noudaAdmin, async (req, res) => {
             TO_CHAR(t.algus, 'HH24:MI') as algus,
             TO_CHAR(t.lopp, 'HH24:MI') as lopp,
             t.tunnid::numeric as tunnid,
-            COALESCE(we.tunnitasu,0)::numeric as tunnitasu,
-            ROUND(t.tunnid * COALESCE(we.tunnitasu,0), 2)::numeric as summa,
+            COALESCE(t.muu_tunnitasu, we.tunnitasu, 0)::numeric as tunnitasu,
+            ROUND(t.tunnid * COALESCE(t.muu_tunnitasu, we.tunnitasu, 0), 2)::numeric as summa,
             COALESCE(t.kilomeetrid, 0)::numeric as km,
             COALESCE(t.km_raha, 0)::numeric as km_raha,
             COALESCE(t.lisakulu_summa, 0)::numeric as lisakulu_summa,
@@ -1543,7 +1548,7 @@ async function filterPäring(req) {
             w.nimi as worker_nimi, e.nimi as ettevote_nimi,
             COALESCE(o.nimi,'') as objekt_nimi,
             COALESCE(lp.nimi,'') as lidl_projekt_nimi,
-            COALESCE(we.tunnitasu, t.muu_tunnitasu, 0) as tunnitasu
+            COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu
      FROM tookirjed t
      JOIN workers w ON t.worker_id=w.id
      JOIN ettevotted e ON t.ettevote_id=e.id
