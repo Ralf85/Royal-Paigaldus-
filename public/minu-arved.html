@@ -85,7 +85,7 @@
           </div>
           <div class="f-grupp"><label class="f-label">IBAN (pangakonto)</label><input id="mv-iban" placeholder="EE..."></div>
           <div class="f-grupp" style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="mv-km-kohuslane" checked style="width:auto">
+            <input type="checkbox" id="mv-km-kohuslane" style="width:auto">
             <label for="mv-km-kohuslane" style="font-size:13px;color:var(--text2)">Olen käibemaksukohuslane — selle ettevõtte arvetele lisandub alati 24% käibemaks (kui märkimata, alati 0%)</label>
           </div>
           <div style="display:flex;gap:8px">
@@ -258,7 +258,8 @@ function avaMuujaVorm() {
   ['mv-nimi','mv-aadress','mv-rgkood','mv-kmkr','mv-telefon','mv-epost','mv-pank','mv-iban'].forEach(function(id) {
     document.getElementById(id).value = '';
   });
-  document.getElementById('mv-km-kohuslane').checked = true;
+  // Uus ettevõte on vaikimisi ILMA käibemaksuta — linnuke pannakse ainult käibemaksukohuslasele.
+  document.getElementById('mv-km-kohuslane').checked = false;
   document.getElementById('muuja-teade').style.display = 'none';
   document.getElementById('muuja-vorm').style.display = 'block';
 }

@@ -129,7 +129,7 @@ router.post('/muujad', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) 
     const r = await pool.query(
       `INSERT INTO omaarve_muujad (worker_id, ettevote_nimi, aadress, rg_kood, kmkr, pangakonto, pank, telefon, epost, km_kohuslane, vaikimisi)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane !== false, esimene]
+      [req.session.workerId, ettevote_nimi.trim(), aadress || '', rg_kood || '', kmkr || '', pangakonto || '', pank || '', telefon || '', epost || '', km_kohuslane === true, esimene]
     );
     res.json({ ok: true, id: r.rows[0].id });
   } catch (err) {
