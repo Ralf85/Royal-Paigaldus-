@@ -380,6 +380,55 @@ router.delete('/valikud/:id', noudaAdmin, async (req, res) => {
 // ── AUTOTÄITMINE: valmis read valitud ettevõtte+perioodi töökirjete põhjal ──
 // viis=koond  -> üks rida kogutundide (levinuima tunnitasuga) + üks rida km transpordi kohta (nagu senine Lidli raport)
 // viis=tootajad -> üks rida töötaja kohta, kogus=tema tunnid, hind=tema tunnitasu selle ettevõtte juures (nagu Cramo arved)
+// ── VIIMANE ARVE KLIENDILE (uue arve vormis: millal viimati arve tehti ja mis periood on katmata) ──
+// ?klient=e-<ettevotte id> (Minu ettevõtted: Lidl, Cramo…) või k-<arve_kliendid id> (käsitsi lisatud klient).
+// Kreeditarved ja kreeditarvega tühistatud arved jäetakse arvestusest välja.
+router.get('/viimane', noudaAdmin, async (req, res) => {
+  const m = /^([ek])-(\d+)$/.exec(String(req.query.klient || ''));
+  if (!m) return res.json({ ok: false, veateade: 'Vali klient' });
+  const id = parseInt(m[2], 10);
+  try {
+    let tingimus, param;
+    if (m[1] === 'e') { tingimus = 'a.ettevote_id = $1'; param = id; }
+    else {
+      const k = await pool.query('SELECT nimi FROM arve_kliendid WHERE id=$1', [id]);
+      if (!k.rows.length) return res.json({ ok: true, viimane: null });
+      tingimus = 'LOWER(TRIM(a.ostja_nimi)) = LOWER(TRIM($1))'; param = k.rows[0].nimi;
+    }
+    const kehtivad = `FROM arved a LEFT JOIN arve_muujad mu ON mu.id = a.muuja_id
+       WHERE ${tingimus} AND a.kreedit_algne_arve_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM arved k WHERE k.kreedit_algne_arve_id = a.id)`;
+    const v = await pool.query(
+      `SELECT a.number, to_char(a.kuupaev,'YYYY-MM-DD') AS kuupaev, to_char(a.algus,'YYYY-MM-DD') AS algus,
+              to_char(a.lopp,'YYYY-MM-DD') AS lopp, a.kokku, a.staatus, mu.ettevote_nimi AS muuja_nimi
+       ${kehtivad} ORDER BY a.kuupaev DESC, a.id DESC LIMIT 1`, [param]);
+    // Kuni mis kuupäevani on tööd arvetega kaetud (suurim perioodi lõpp; perioodita arvel arve kuupäev).
+    const kaetud = await pool.query(
+      `SELECT to_char(MAX(COALESCE(a.lopp, a.kuupaev)),'YYYY-MM-DD') AS kuni, COUNT(*)::int AS arveid ${kehtivad}`, [param]);
+    const kuni = kaetud.rows[0].kuni;
+    // Arveta tööd: selle ettevõtte töökirjed pärast kaetud perioodi lõppu (kuni tänaseni).
+    let arveta = null;
+    if (m[1] === 'e') {
+      const t = await pool.query(
+        `SELECT COUNT(*)::int AS kirjeid, COALESCE(SUM(tunnid),0) AS tunnid,
+                to_char(MIN(kuupaev),'YYYY-MM-DD') AS esimene, to_char(MAX(kuupaev),'YYYY-MM-DD') AS viimane
+         FROM tookirjed WHERE ettevote_id=$1 AND ($2::date IS NULL OR kuupaev > $2::date) AND kuupaev <= CURRENT_DATE`,
+        [id, kuni]);
+      const r = t.rows[0];
+      arveta = { kirjeid: r.kirjeid, tunnid: Math.round(parseFloat(r.tunnid) * 100) / 100, esimene: r.esimene, viimane: r.viimane };
+    }
+    const a = v.rows[0];
+    res.json({
+      ok: true,
+      viimane: a ? { number: a.number, kuupaev: a.kuupaev, algus: a.algus, lopp: a.lopp, kokku: parseFloat(a.kokku) || 0, staatus: a.staatus, muuja_nimi: a.muuja_nimi } : null,
+      kaetud_kuni: kuni, arveid: kaetud.rows[0].arveid, arveta
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
 router.get('/autotaita', noudaAdmin, async (req, res) => {
   const { ettevote_id, algus, lopp, viis, esitus_hind } = req.query;
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });

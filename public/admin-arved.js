@@ -362,8 +362,53 @@ function avKlientValik() {
   return { tyyp: pref === 'e' ? 'ettevote' : 'klient', id: idStr };
 }
 
+// Kliendi valimisel: millal viimati arve tehti, mis periood on kaetud ja mitu tundi on veel arveta.
+let avViimanePaev = 0;
+function avKpEt(s) { const o = String(s || '').split('-'); return o.length === 3 ? `${o[2]}.${o[1]}.${o[0]}` : (s || ''); }
+function avKpLisa(s, paevi) { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + paevi); return kpISO(d); }
+async function avNaitaViimaneArve() {
+  const div = document.getElementById('av-viimane-info');
+  if (!div) return;
+  const raw = document.getElementById('av-klient').value;
+  const paring = ++avViimanePaev;
+  if (!raw) { div.style.display = 'none'; return; }
+  div.style.display = 'block';
+  div.innerHTML = '<span style="color:var(--hall)">Otsin viimast arvet…</span>';
+  const r = await api('/api/arved/viimane?klient=' + encodeURIComponent(raw));
+  if (paring !== avViimanePaev) return; // vahepeal valiti teine klient
+  if (!r || !r.ok) { div.style.display = 'none'; return; }
+  let html = '';
+  if (r.viimane) {
+    const v = r.viimane;
+    const periood = v.algus && v.lopp ? ` · periood <b>${avKpEt(v.algus)} – ${avKpEt(v.lopp)}</b>` : '';
+    html += `🧾 Viimane arve <b>${tmEsc(v.number)}</b> · ${avKpEt(v.kuupaev)}${periood} · ${avEurTekst(v.kokku)} €`
+      + (v.staatus === 'makstud' ? ' <span style="color:#4ade80">makstud</span>' : ' <span style="color:#fbbf24">maksmata</span>');
+    if (r.kaetud_kuni && (!v.lopp || r.kaetud_kuni !== v.lopp)) html += `<br>Arvetega kaetud kuni <b>${avKpEt(r.kaetud_kuni)}</b>`;
+  } else {
+    html += '🧾 Sellele kliendile pole veel arvet tehtud.';
+  }
+  const a = r.arveta;
+  if (a) {
+    if (a.kirjeid) {
+      html += `<br>⏳ Arveta: <b>${avEurTekst(a.tunnid)} h</b> (${a.kirjeid} kirjet) · ${avKpEt(a.esimene)} – ${avKpEt(a.viimane)}`;
+      const algus = r.kaetud_kuni ? avKpLisa(r.kaetud_kuni, 1) : a.esimene;
+      html += ` <a href="#" style="color:var(--kuld,#c9a84c);font-weight:600" onclick="avKasutaPerioodi('${algus}','${a.viimane}');return false;">→ kasuta perioodina</a>`;
+    } else if (r.kaetud_kuni) {
+      html += '<br><span style="color:#4ade80">✓ Kõik tööd on arvetega kaetud</span>';
+    }
+  }
+  div.innerHTML = html;
+}
+function avEurTekst(n) { return (Math.round((parseFloat(n) || 0) * 100) / 100).toFixed(2).replace(".", ","); }
+function avKasutaPerioodi(algus, lopp) {
+  document.getElementById('av-algus').value = algus;
+  document.getElementById('av-lopp').value = lopp;
+  naitaTeade('arve-teade', 'ok', `Periood ${avKpEt(algus)} – ${avKpEt(lopp)} — vajuta nüüd autotäitmise nuppu`);
+}
+
 function avKlientMuutus() {
   avRenderAutotaitaNupud();
+  avNaitaViimaneArve();
   const valjadDiv = document.getElementById('av-ostja-valjad');
   const link = document.getElementById('av-uus-klient-link');
   const { tyyp, id } = avKlientValik();
@@ -406,6 +451,7 @@ function avKlientMuutus() {
 function avAvaUusKlient() {
   document.getElementById('av-klient').value = '';
   avRenderAutotaitaNupud();
+  avNaitaViimaneArve();
   document.getElementById('av-ostja-valjad').style.display = 'block';
   document.getElementById('av-uus-klient-link').style.display = 'none';
   document.getElementById('av-ostja-nimi').value = '';
@@ -564,6 +610,7 @@ async function avSalvestaArve() {
   document.getElementById('av-lopp').value = '';
   document.getElementById('av-ostja-valjad').style.display = 'none';
   document.getElementById('av-uus-klient-link').style.display = 'block';
+  avNaitaViimaneArve(); // uus arve on nüüd „viimane arve"
   await laadiArved();
   setTimeout(avSuljeUusArveModal, 900);
 }
