@@ -122,6 +122,12 @@
           <div><label class="f-label">Kontaktisik</label><input id="s-kontakt" placeholder=""></div>
         </div>
         <div class="f-grupp"><label class="f-label">Saaja e-post (arve saatmiseks)</label><input id="s-epost" type="email" placeholder="nimi@ettevote.ee"></div>
+        <div class="f-grupp" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="nupp hall" id="saaja-salvesta-nupp" onclick="salvestaSaaja()">💾 Salvesta saaja</button>
+          <button type="button" class="nupp hall" id="saaja-kustuta-nupp" style="display:none;color:#f87171" onclick="kustutaSaaja()">🗑 Kustuta saaja</button>
+          <span style="font-size:12px;color:var(--text3)">Salvestatud saaja ilmub ülal valikusse — andmeid ei pea uuesti sisestama.</span>
+        </div>
+        <div id="saaja-teade" class="teade" style="margin-bottom:12px"></div>
         <div class="f-rida f-grupp">
           <div><label class="f-label">Arve kuupäev</label><input id="s-kuupaev" type="date"></div>
           <div><label class="f-label">Maksetähtaeg (päeva)</label><input id="s-tahtaeg" type="number" value="14"></div>
@@ -321,13 +327,63 @@ async function laadiSaajad() {
   var r = await api('/api/omaarved/saajad');
   saajad = Array.isArray(r) ? r : [];
   var sel = document.getElementById('saaja-valik');
+  var praegune = sel.value;
   sel.innerHTML = '<option value="">— Uus saaja —</option>' + saajad.map(function(s) {
-    return '<option value="' + s.id + '">' + s.nimi + '</option>';
+    return '<option value="' + s.id + '">' + esc(s.nimi) + '</option>';
   }).join('');
+  if (praegune && saajad.some(function(s) { return String(s.id) === praegune; })) sel.value = praegune;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function saajaTeade(tyyp, tekst) {
+  var el = document.getElementById('saaja-teade');
+  el.className = tekst ? 'teade ' + tyyp : 'teade';
+  el.textContent = tekst || '';
+}
+// Salvestab vormis olevad saaja andmed ilma arvet tegemata (uus saaja või valitud saaja muutmine).
+async function salvestaSaaja() {
+  var nimi = document.getElementById('s-nimi').value.trim();
+  if (!nimi) { saajaTeade('viga', 'Sisesta saaja nimi'); document.getElementById('s-nimi').focus(); return; }
+  var valitudId = document.getElementById('saaja-valik').value;
+  var nupp = document.getElementById('saaja-salvesta-nupp');
+  nupp.disabled = true;
+  var r = await api('/api/omaarved/saajad', { method: 'POST', body: JSON.stringify({
+    id: valitudId || null,
+    nimi: nimi,
+    aadress: document.getElementById('s-aadress').value,
+    rg_kood: document.getElementById('s-rgkood').value,
+    kmkr: document.getElementById('s-kmkr').value,
+    kontaktisik: document.getElementById('s-kontakt').value,
+    epost: document.getElementById('s-epost').value,
+    maksetahtaeg_paevad: document.getElementById('s-tahtaeg').value
+  }) }).catch(function() { return { ok: false, veateade: 'Ühendus katkes' }; });
+  nupp.disabled = false;
+  if (!r || !r.ok) { saajaTeade('viga', (r && r.veateade) || 'Salvestamine ebaõnnestus'); return; }
+  await laadiSaajad();
+  document.getElementById('saaja-valik').value = String(r.id);
+  document.getElementById('saaja-kustuta-nupp').style.display = 'inline-block';
+  saajaTeade('ok', '✅ Saaja „' + nimi + '" salvestatud');
+}
+var kustutaKinnitus = false;
+async function kustutaSaaja() {
+  var id = document.getElementById('saaja-valik').value;
+  if (!id) return;
+  var nupp = document.getElementById('saaja-kustuta-nupp');
+  if (!kustutaKinnitus) { kustutaKinnitus = true; nupp.textContent = '🗑 Kinnita kustutamine'; return; }
+  kustutaKinnitus = false; nupp.textContent = '🗑 Kustuta saaja';
+  var r = await api('/api/omaarved/saajad/' + id, { method: 'DELETE' }).catch(function() { return { ok: false }; });
+  if (!r || !r.ok) { saajaTeade('viga', 'Kustutamine ebaõnnestus'); return; }
+  document.getElementById('saaja-valik').value = '';
+  await laadiSaajad();
+  saajaValitud();
+  saajaTeade('ok', 'Saaja kustutatud (varem tehtud arved jäävad alles)');
 }
 function saajaValitud() {
   var id = parseInt(document.getElementById('saaja-valik').value, 10);
   var s = saajad.find(function(x) { return x.id === id; });
+  saajaTeade('', '');
+  kustutaKinnitus = false;
+  var kNupp = document.getElementById('saaja-kustuta-nupp');
+  if (kNupp) { kNupp.textContent = '🗑 Kustuta saaja'; kNupp.style.display = s ? 'inline-block' : 'none'; }
   if (!s) {
     document.getElementById('s-nimi').value = '';
     document.getElementById('s-aadress').value = '';
@@ -425,11 +481,30 @@ async function salvestaArve() {
   await Promise.all([laadiSaajad(), laadiAjalugu()]);
 }
 
+// Küsib e-posti lehe sees (brauseri enda hüpikaken on mõnes seadmes blokeeritud ega ilmu üldse).
+function kysiEposti() {
+  return new Promise(function(resolve) {
+    var kate = document.createElement('div');
+    kate.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px';
+    kate.innerHTML = '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:18px;width:100%;max-width:380px">'
+      + '<div style="font-weight:700;margin-bottom:10px">Arve saaja e-post</div>'
+      + '<input type="email" id="kysi-epost" placeholder="nimi@ettevote.ee" style="margin-bottom:12px">'
+      + '<div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="nupp hall" id="kysi-loobu">Loobu</button><button type="button" class="nupp" id="kysi-ok">Saada</button></div></div>';
+    document.body.appendChild(kate);
+    var sisend = kate.querySelector('#kysi-epost');
+    function lopeta(v) { kate.remove(); resolve(v); }
+    kate.querySelector('#kysi-loobu').onclick = function() { lopeta(''); };
+    kate.querySelector('#kysi-ok').onclick = function() { lopeta(sisend.value.trim()); };
+    sisend.addEventListener('keydown', function(e) { if (e.key === 'Enter') lopeta(sisend.value.trim()); if (e.key === 'Escape') lopeta(''); });
+    setTimeout(function() { sisend.focus(); }, 50);
+  });
+}
+
 // ── E-MAILIGA SAATMINE ──
 async function saadaEmail(id, teadaOlevEpost) {
   var epost = teadaOlevEpost;
   if (!epost) {
-    epost = window.prompt('Sisesta arve saaja e-posti aadress:');
+    epost = await kysiEposti();
     if (!epost) return;
   }
   var r = await api('/api/omaarved/' + id + '/saada-email', { method: 'POST', body: JSON.stringify({ epost: epost }) });

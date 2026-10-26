@@ -201,6 +201,38 @@ router.get('/saajad', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) =
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
 });
+// Saaja salvestamine ilma arvet tegemata. id olemas -> muudetakse seda saajat (ka nime), muidu
+// lisatakse uus või uuendatakse sama nimega saajat.
+router.post('/saajad', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
+  const b = req.body || {};
+  const tekst = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+  const nimi = tekst(b.nimi, 200);
+  if (!nimi) return res.json({ ok: false, veateade: 'Sisesta saaja nimi' });
+  const paevi = Math.min(365, Math.max(0, parseInt(b.maksetahtaeg_paevad, 10) || 14));
+  const v = [nimi, tekst(b.aadress, 500), tekst(b.rg_kood, 20), tekst(b.kmkr, 20), tekst(b.kontaktisik, 200), tekst(b.epost, 200), paevi];
+  try {
+    const id = parseInt(b.id, 10);
+    if (id) {
+      const teine = await pool.query('SELECT id FROM omaarve_saajad WHERE worker_id=$1 AND nimi=$2 AND id<>$3', [req.session.workerId, nimi, id]);
+      if (teine.rows.length) return res.json({ ok: false, veateade: 'Sellise nimega saaja on juba olemas' });
+      const r = await pool.query(
+        `UPDATE omaarve_saajad SET nimi=$1, aadress=$2, rg_kood=$3, kmkr=$4, kontaktisik=$5, epost=$6, maksetahtaeg_paevad=$7
+         WHERE id=$8 AND worker_id=$9 RETURNING id`, v.concat([id, req.session.workerId]));
+      if (!r.rows.length) return res.json({ ok: false, veateade: 'Saajat ei leitud' });
+      return res.json({ ok: true, id: r.rows[0].id });
+    }
+    const r = await pool.query(
+      `INSERT INTO omaarve_saajad (worker_id, nimi, aadress, rg_kood, kmkr, kontaktisik, epost, maksetahtaeg_paevad)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (worker_id, nimi) DO UPDATE SET aadress=EXCLUDED.aadress, rg_kood=EXCLUDED.rg_kood, kmkr=EXCLUDED.kmkr,
+         kontaktisik=EXCLUDED.kontaktisik, epost=EXCLUDED.epost, maksetahtaeg_paevad=EXCLUDED.maksetahtaeg_paevad
+       RETURNING id`, [req.session.workerId].concat(v));
+    res.json({ ok: true, id: r.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
 router.delete('/saajad/:id', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   try {
     await pool.query('DELETE FROM omaarve_saajad WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
