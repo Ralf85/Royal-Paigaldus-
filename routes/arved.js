@@ -1090,6 +1090,50 @@ router.post('/', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── ARVE EELVAADE: sama PDF mis salvestamisel, aga midagi ei salvestata ega broneerita numbrit ──
+// Number on see, mille arve salvestamisel saaks (kui vahepeal keegi teist arvet ei tee).
+router.post('/eelvaade', noudaAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const read = Array.isArray(b.read) ? b.read : [];
+    if (!b.ostja_nimi || !read.length) return res.status(400).json({ ok: false, veateade: 'Täida ostja nimi ja vähemalt üks arve rida' });
+    const muujaR = b.muuja_id
+      ? await pool.query('SELECT * FROM arve_muujad WHERE id=$1', [b.muuja_id])
+      : await pool.query('SELECT * FROM arve_muujad WHERE vaikimisi=true');
+    const muuja = muujaR.rows[0];
+    if (!muuja) return res.status(400).json({ ok: false, veateade: 'Vali müüja-ettevõte' });
+    const kp = b.kuupaev ? new Date(b.kuupaev) : new Date();
+    if (isNaN(kp)) return res.status(400).json({ ok: false, veateade: 'Vigane arve kuupäev' });
+    const number = await vaataMuujaJargmineNumber(muuja.id, kp);
+    const paevi = parseInt(b.maksetahtaeg_paevad, 10) || 14;
+    const tahtaeg = new Date(kp); tahtaeg.setDate(tahtaeg.getDate() + paevi);
+    const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
+    const kaibemaksProtsent = muuja.km_kohuslane !== false ? 24 : 0;
+    const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
+    const arve = {
+      number, kuupaev: kp, maksetahtaeg: tahtaeg, viitenumber: viitenumberNumbrist(number),
+      ostja_nimi: b.ostja_nimi, ostja_aadress: b.ostja_aadress || '', ostja_rg_kood: b.ostja_rg_kood || '', ostja_kmkr: b.ostja_kmkr || '',
+      kontaktisik: b.kontaktisik || '', po_number: b.po_number || '', viide_tyyp: ['po', 'projekt'].includes(b.viide_tyyp) ? b.viide_tyyp : 'po',
+      algus: b.algus || null, lopp: b.lopp || null,
+      summa_km_ta: summaKmTa, kaibemaks_protsent: kaibemaksProtsent, kaibemaks, kokku: +(summaKmTa + kaibemaks).toFixed(2)
+    };
+    const arveRead = read.map((r, i) => ({
+      jrk_nr: i + 1, kirjeldus: r.kirjeldus || '', kogus: parseFloat(r.kogus) || 0, uhik: r.uhik || '',
+      hind: parseFloat(r.hind) || 0, summa: parseFloat(r.summa) || 0
+    }));
+    let logoBuf = null;
+    if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    const doc = renderArvePdf(muuja, arve, arveRead, logoBuf, { eelvaade: true });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', require('../csvabi').failiPais(`EELVAADE ${String(number).replace(/[\\/:*?"<>|]/g, '-')}.pdf`, 'inline'));
+    doc.pipe(res);
+  } catch (err) {
+    console.error(err);
+    if (res.headersSent) return res.destroy();
+    res.status(500).json({ ok: false, veateade: 'Eelvaadet ei õnnestunud teha: ' + err.message });
+  }
+});
+
 // ── VANADE ARVETE ÜLESLAADIMINE (tagantjärele, nt raamatupidamise ajaloo jaoks) ──
 // AI loeb faili ja proovib täita numbri, ostja, kuupäevad ja summad — kasutaja vaatab üle ja salvestab.
 router.post('/laadi/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
@@ -1289,8 +1333,21 @@ router.delete('/:id', noudaAdmin, async (req, res) => {
 });
 
 // ── PDF GENEREERIMINE (jagatud abifunktsioon — kasutab nii üksiku PDF-i vaade kui ZIP-ina allalaadimine) ──
-function renderArvePdf(muuja, arve, read, logoBuf) {
+// valikud.eelvaade = true -> igale lehele hall vesimärk "EELVAADE" (arvet pole veel salvestatud).
+function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    if (valikud && valikud.eelvaade) {
+      const vesimark = () => {
+        doc.save();
+        doc.rotate(-35, { origin: [297, 421] });
+        doc.font('Helvetica-Bold').fontSize(96).fillColor('#d1d5db').fillOpacity(0.45)
+          .text('EELVAADE', 0, 385, { width: 595, align: 'center', lineBreak: false });
+        doc.restore();
+        doc.fillOpacity(1).fillColor('#000');
+      };
+      vesimark(); // joonistatakse enne sisu, nii jääb see teksti taha
+      doc.on('pageAdded', vesimark);
+    }
     const MARGIN = 40, PAGE_W = 595.28, CONTENT_W = PAGE_W - MARGIN * 2;
     const leftX = MARGIN, rightColX = MARGIN + 300, rightColW = CONTENT_W - 300;
 

@@ -1,0 +1,2 @@
+pdf.js 3.11.174 (legacy build, Mozilla, Apache-2.0 — vt LICENSE).
+Kasutusel arve eelvaate näitamiseks lehe sees (admin-arved.js -> avEelvaadeArve).

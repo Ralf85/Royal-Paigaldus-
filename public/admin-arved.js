@@ -566,15 +566,16 @@ async function avAutotaida(viis) {
   avJoonistaRead();
 }
 
-async function avSalvestaArve() {
+// Kogub vormist arve andmed (kasutavad nii eelvaade kui salvestamine). Vea korral näitab teadet ja tagastab null.
+function avArveKeha() {
   const { tyyp, id } = avKlientValik();
   const ettevoteId = tyyp === 'ettevote' ? id : null;
   const ostjaNimi = document.getElementById('av-ostja-nimi').value.trim();
-  if (!ostjaNimi) return naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!');
+  if (!ostjaNimi) { naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!'); return null; }
   const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
-  if (!kehtivadRead.length) return naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!');
-  if (!avmMuujad.length) return naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt');
-  const body = {
+  if (!kehtivadRead.length) { naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!'); return null; }
+  if (!avmMuujad.length) { naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt'); return null; }
+  return {
     muuja_id: document.getElementById('av-muuja').value,
     ettevote_id: ettevoteId || null,
     ostja_nimi: ostjaNimi,
@@ -590,6 +591,109 @@ async function avSalvestaArve() {
     lopp: document.getElementById('av-lopp').value || null,
     read: kehtivadRead
   };
+}
+
+// ── ARVE EELVAADE: PDF näidatakse lehe sees, arvet ei salvestata ega numbrit ei broneerita ──
+let avEelvaateUrl = null;
+async function avEelvaadeArve() {
+  const body = avArveKeha();
+  if (!body) return;
+  naitaTeade('arve-teade', 'ok', '⏳ Teen eelvaadet…');
+  let blob;
+  try {
+    const r = await fetch('/api/arved/eelvaade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-session-token': TOKEN },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      let pohjus = '';
+      try { pohjus = (await r.json()).veateade || ''; } catch (e) {}
+      throw new Error(r.status === 401 ? 'Sessioon on aegunud — logi uuesti sisse' : (pohjus || 'HTTP ' + r.status));
+    }
+    blob = new Blob([await r.blob()], { type: 'application/pdf' });
+  } catch (err) {
+    return naitaTeade('arve-teade', 'viga', 'Eelvaadet ei õnnestunud teha: ' + err.message);
+  }
+  if (avEelvaateUrl) URL.revokeObjectURL(avEelvaateUrl);
+  avEelvaateUrl = URL.createObjectURL(blob);
+  let kate = document.getElementById('avEelvaade');
+  if (!kate) {
+    kate = document.createElement('div');
+    kate.id = 'avEelvaade';
+    kate.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.75);display:flex;flex-direction:column;padding:16px;gap:10px';
+    kate.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<span style="font-weight:700;color:#fff;flex:1">👁 Arve eelvaade — seda arvet pole veel salvestatud</span>'
+      + '<a id="avEelvaadeAlla" class="nupp hall" style="text-decoration:none">⬇️ Laadi alla</a>'
+      + '<button class="nupp hall" onclick="avSuljeEelvaade()">✕ Sulge ja muuda</button>'
+      + '<button class="nupp roheline" onclick="avSuljeEelvaade();avSalvestaArve()">💾 Kõik õige — salvesta</button>'
+      + '</div>'
+      + '<div id="avEelvaadeLehed" style="flex:1;overflow:auto;background:#525659;border-radius:10px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:14px"></div>'
+      + '<iframe id="avEelvaadeRaam" title="Arve eelvaade" style="flex:1;width:100%;border:0;border-radius:10px;background:#fff;display:none"></iframe>';
+    document.body.appendChild(kate);
+  }
+  kate.style.display = 'flex';
+  // PDF joonistatakse lehe sisse (pdf.js) — brauseri enda PDF-vaatur ei tööta iframe'is igal pool.
+  // Kui pdf.js mingil põhjusel ei lae, kasutatakse varuna brauseri vaaturit.
+  const lehed = document.getElementById('avEelvaadeLehed');
+  const raam = document.getElementById('avEelvaadeRaam');
+  try {
+    await avJoonistaPdf(blob, lehed);
+    lehed.style.display = 'flex'; raam.style.display = 'none';
+  } catch (e) {
+    console.warn('pdf.js eelvaade ebaõnnestus, kasutan brauseri vaaturit:', e);
+    lehed.style.display = 'none'; raam.style.display = 'block';
+    raam.src = avEelvaateUrl;
+  }
+  const alla = document.getElementById('avEelvaadeAlla');
+  alla.href = avEelvaateUrl;
+  alla.download = 'Arve eelvaade.pdf';
+  kate.style.display = 'flex';
+  naitaTeade('arve-teade', 'ok', '👁 Eelvaade avatud');
+}
+let avPdfjsLubadus = null;
+function avLaePdfjs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!avPdfjsLubadus) {
+    avPdfjsLubadus = new Promise((resolve, reject) => {
+      const sk = document.createElement('script');
+      sk.src = '/vendor/pdfjs/pdf.min.js';
+      sk.onload = () => {
+        if (!window.pdfjsLib) return reject(new Error('pdf.js puudub'));
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      sk.onerror = () => { avPdfjsLubadus = null; reject(new Error('pdf.js ei laadinud')); };
+      document.head.appendChild(sk);
+    });
+  }
+  return avPdfjsLubadus;
+}
+async function avJoonistaPdf(blob, koht) {
+  const pdfjs = await avLaePdfjs();
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  koht.innerHTML = '';
+  const laius = Math.min(900, Math.max(320, koht.clientWidth - 28));
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const leht = await pdf.getPage(n);
+    const alus = leht.getViewport({ scale: 1 });
+    const suhe = window.devicePixelRatio || 1;
+    const vaade = leht.getViewport({ scale: laius / alus.width * suhe });
+    const c = document.createElement('canvas');
+    c.width = Math.floor(vaade.width); c.height = Math.floor(vaade.height);
+    c.style.cssText = `width:${laius}px;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.4);border-radius:2px;flex:none`;
+    koht.appendChild(c);
+    await leht.render({ canvasContext: c.getContext('2d'), viewport: vaade }).promise;
+  }
+}
+function avSuljeEelvaade() {
+  const kate = document.getElementById('avEelvaade');
+  if (kate) kate.style.display = 'none';
+}
+
+async function avSalvestaArve() {
+  const body = avArveKeha();
+  if (!body) return;
   // Uus vaheleht avatakse KOHE (enne serveri vastust) — Safari blokeerib akna, mis avatakse alles pärast ootamist.
   const pdfAken = avAvaTyhiAken();
   const r = await api('/api/arved', { method: 'POST', body: JSON.stringify(body) });
