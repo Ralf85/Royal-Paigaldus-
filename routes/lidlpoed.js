@@ -35,6 +35,16 @@ async function initLidlPoed() {
       UNIQUE (projekt_id, worker_id)
     );
   `);
+  // Pildivaatajad: töötajad, kes näevad Lidl Eesti fotovaates selle projekti KÕIKI pilte (vt routes/kristo.js)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lidl_projekt_pildivaatajad (
+      id SERIAL PRIMARY KEY,
+      projekt_id INTEGER NOT NULL REFERENCES lidl_projektid(id) ON DELETE CASCADE,
+      worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      lisatud TIMESTAMP DEFAULT NOW(),
+      UNIQUE (projekt_id, worker_id)
+    );
+  `);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS markus TEXT;`);
 }
@@ -205,7 +215,8 @@ router.get('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
     // Lidli töötajad + kas nad on sellele projektile määratud
     const tootajad = await pool.query(
       `SELECT DISTINCT w.id, w.nimi,
-              EXISTS (SELECT 1 FROM lidl_projekt_tootajad pt WHERE pt.projekt_id = $1 AND pt.worker_id = w.id) AS valitud
+              EXISTS (SELECT 1 FROM lidl_projekt_tootajad pt WHERE pt.projekt_id = $1 AND pt.worker_id = w.id) AS valitud,
+              EXISTS (SELECT 1 FROM lidl_projekt_pildivaatajad pv WHERE pv.projekt_id = $1 AND pv.worker_id = w.id) AS pildid
        FROM workers w
        JOIN worker_ettevotted we ON we.worker_id = w.id
        JOIN ettevotted e ON e.id = we.ettevote_id
@@ -228,6 +239,10 @@ router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
     .map(x => parseInt(x, 10)).filter(x => !isNaN(x));
   const workerIds = (Array.isArray(req.body.worker_ids) ? req.body.worker_ids : [])
     .map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+  // Pildivaatajad — uuendatakse ainult siis, kui päring need kaasa saadab
+  const pildiWorkerIds = Array.isArray(req.body.pildi_worker_ids)
+    ? req.body.pildi_worker_ids.map(x => parseInt(x, 10)).filter(x => !isNaN(x))
+    : null;
   const tahtaeg = req.body.tahtaeg || null;
   const markus = (req.body.markus || '').trim() || null;
   const uusNimi = typeof req.body.nimi === 'string' ? req.body.nimi.trim() : null;
@@ -286,6 +301,15 @@ router.put('/admin/:projektId/poed', noudaAdmin, async (req, res) => {
         `INSERT INTO lidl_projekt_tootajad (projekt_id, worker_id) VALUES ($1, $2) ON CONFLICT (projekt_id, worker_id) DO NOTHING`,
         [projektId, wid]
       );
+    }
+    if (pildiWorkerIds !== null) {
+      await client.query(`DELETE FROM lidl_projekt_pildivaatajad WHERE projekt_id = $1`, [projektId]);
+      for (const wid of pildiWorkerIds) {
+        await client.query(
+          `INSERT INTO lidl_projekt_pildivaatajad (projekt_id, worker_id) VALUES ($1, $2) ON CONFLICT (projekt_id, worker_id) DO NOTHING`,
+          [projektId, wid]
+        );
+      }
     }
     await client.query('COMMIT');
     res.json({ ok: true, kokku: ids.length, tootajaid: workerIds.length });

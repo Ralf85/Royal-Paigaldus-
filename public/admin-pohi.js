@@ -339,6 +339,11 @@ function lppModal() {
           <div id="lpp-tootajad-info" style="font-size:11px;color:var(--hall);margin-top:4px"></div>
         </div>
         <div class="vorm-grupp">
+          <label>📷 Töötajad, kes näevad selle projekti pilte</label>
+          <div id="lpp-pildid" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div style="font-size:11px;color:var(--hall);margin-top:4px">Valitud töötajad näevad Lidl Eesti pildivaates selle projekti kõiki pilte (ka teiste tehtud), projektide ja poodide kaupa. Muuta ega kommenteerida nad ei saa.</div>
+        </div>
+        <div class="vorm-grupp">
           <label>Kleebi poodide nimekiri (numbrid)</label>
           <div style="display:flex;gap:8px">
             <input type="text" id="lpp-kleebi" placeholder="nt. 623, 604 512 / 518..." style="flex:1">
@@ -388,6 +393,7 @@ async function lppAva(projektId) {
   lppPoed = r.poed;
   lppTootajad = Array.isArray(r.tootajad) ? r.tootajad : [];
   lppJoonistaTootajad();
+  lppJoonistaPildid();
   // Kui midagi on juba valitud, näita vaikimisi ainult valitud poode
   document.getElementById('lpp-ainult-valitud').checked = lppPoed.some(p => p.valitud);
   lppJoonista();
@@ -409,6 +415,23 @@ function lppJoonistaTootajad() {
   info.innerHTML = valitud
     ? `Projekti näevad ainult ${valitud} valitud töötaja${valitud === 1 ? '' : 't'}.`
     : '<span style="color:var(--oranz)">Kedagi pole valitud — projekti näevad KÕIK Lidli töötajad.</span>';
+}
+function lppJoonistaPildid() {
+  const div = document.getElementById('lpp-pildid');
+  if (!lppTootajad.length) {
+    div.innerHTML = '<span style="font-size:12px;color:var(--hall)">Ühelgi töötajal pole LIDL ettevõtet määratud</span>';
+    return;
+  }
+  div.innerHTML = lppTootajad.map((w, i) => `
+    <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;border:1px solid ${w.pildid ? 'var(--kuld)' : 'var(--piir)'};background:${w.pildid ? 'rgba(200,163,71,0.14)' : 'none'};color:var(--tekst)">
+      <input type="checkbox" ${w.pildid ? 'checked' : ''} onchange="lppTogglePildid(${i}, this.checked)" style="width:auto;margin:0">
+      ${escapeHtmlXs(w.nimi)}
+    </label>`).join('');
+}
+function lppTogglePildid(i, valitud) {
+  if (!lppTootajad[i]) return;
+  lppTootajad[i].pildid = valitud;
+  lppJoonistaPildid();
 }
 function lppToggleTootaja(i, valitud) {
   if (!lppTootajad[i]) return;
@@ -521,6 +544,7 @@ async function lppSalvesta() {
     body: JSON.stringify({
       objekt_ids,
       worker_ids: lppTootajad.filter(w => w.valitud).map(w => w.id),
+      pildi_worker_ids: lppTootajad.filter(w => w.pildid).map(w => w.id),
       nimi: document.getElementById('lpp-nimi').value,
       aktiivne: document.getElementById('lpp-aktiivne').checked,
       tahtaeg: document.getElementById('lpp-tahtaeg').value || null,

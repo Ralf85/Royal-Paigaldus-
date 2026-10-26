@@ -14,6 +14,85 @@ function noudaAdmin(req, res, next) {
   next();
 }
 
+// ── PILDIVAATAJAD ─────────────────────────────────────────────────────────
+// Admin saab Lidli projekti juurde määrata töötajad, kes näevad selle projekti KÕIKI pilte
+// (ka teiste töötajate omi) — nii "Projektide kaupa" kui "Poodide kaupa" vaates.
+// Kristo ja admin näevad endiselt kõike. Pildivaataja näeb ainult talle määratud projekte
+// ja ainult vaatab: PO numbrite muutmine ja kommentaaride lisamine jäävad Kristole/adminile.
+// Seos käib lidl_projekt_id kaudu, seega vanad vabateksti kirjeldused (ilma projektita)
+// pildivaatajale ei paista.
+async function initPildivaatajad() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lidl_projekt_pildivaatajad (
+      id SERIAL PRIMARY KEY,
+      projekt_id INTEGER NOT NULL REFERENCES lidl_projektid(id) ON DELETE CASCADE,
+      worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      lisatud TIMESTAMP DEFAULT NOW(),
+      UNIQUE (projekt_id, worker_id)
+    );
+  `);
+}
+let pvInitOk = false;
+async function tagaPvInit() {
+  if (pvInitOk) return;
+  await initPildivaatajad();
+  pvInitOk = true;
+}
+tagaPvInit().catch(e => console.error('Pildivaatajate init ebaõnnestus (proovitakse uuesti):', e.message));
+
+// Töötajale määratud projektid (id + nimi). Tühi massiiv = ligipääsu pole.
+async function pildivaatajaProjektid(workerId) {
+  await tagaPvInit();
+  const r = await pool.query(
+    `SELECT lp.id, lp.nimi FROM lidl_projekt_pildivaatajad v
+     JOIN lidl_projektid lp ON lp.id = v.projekt_id
+     WHERE v.worker_id = $1 ORDER BY lp.jrk_nr, lp.nimi`,
+    [workerId]
+  );
+  return r.rows;
+}
+
+// Lugemisõigus: admin/Kristo → kõik (req.fotoPiirang = null);
+// pildivaataja → ainult määratud projektid (req.fotoPiirang = [projekti id-d]).
+async function noudaFotoVaade(req, res, next) {
+  if (!req.session.workerId && !req.session.isAdmin) return res.status(401).json({ ok: false, veateade: 'Logi sisse' });
+  if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) {
+    req.fotoPiirang = null;
+    req.fotoNimed = null;
+    return next();
+  }
+  try {
+    const projektid = await pildivaatajaProjektid(req.session.workerId);
+    if (!projektid.length) return res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
+    req.fotoPiirang = projektid.map(p => p.id);
+    req.fotoNimed = new Set(projektid.map(p => p.nimi));
+    next();
+  } catch (err) {
+    console.error(err);
+    res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
+  }
+}
+function kirjeldusLubatud(req, kirjeldus) {
+  return req.fotoPiirang === null || req.fotoNimed.has(kirjeldus);
+}
+// SQL-filter: NULL = piiranguta, muidu ainult lubatud projektide töökirjed
+const PIIR = n => `AND ($${n}::int[] IS NULL OR t.lidl_projekt_id = ANY($${n}::int[]))`;
+
+// Kas sisselogitud kasutaja tohib Lidl Eesti pildivaadet näha (töötaja pealeht kasutab seda
+// nupu näitamiseks). Ei tagasta kunagi 403, et pealeht ei suunaks välja.
+router.get('/oigus', async (req, res) => {
+  try {
+    if (!req.session.workerId && !req.session.isAdmin) return res.json({ ok: true, lubatud: false });
+    if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) {
+      return res.json({ ok: true, lubatud: true, taielik: true, projektid: [] });
+    }
+    const projektid = await pildivaatajaProjektid(req.session.workerId);
+    res.json({ ok: true, lubatud: projektid.length > 0, taielik: false, projektid: projektid.map(p => p.nimi) });
+  } catch (err) {
+    res.json({ ok: true, lubatud: false });
+  }
+});
+
 // Ühine grupeerimisvõti "projekti" jaoks: eelistatakse struktureeritud lidl_projektid nimekirja
 // (lidl_projekt_id), aga vanad, enne seda tekkinud kirjed grupeeritakse endiselt oma vaba kommentaari
 // teksti järgi, et ajalugu ei kaoks ega jookseks kokku "Määramata" alla.
@@ -21,7 +100,7 @@ const KIRJELDUS_VOTI = `COALESCE(lp.nimi, t.kommentaar, 'Määramata')`;
 const LP_JOIN = `LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id`;
 
 // ── TASE 1: Poed (Lidl kauplused, kus on pilte) ──────────────────────────
-router.get('/poed', noudaKristo, async (req, res) => {
+router.get('/poed', noudaFotoVaade, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT
@@ -35,10 +114,11 @@ router.get('/poed', noudaKristo, async (req, res) => {
        JOIN objektid o ON t.objekt_id = o.id
        JOIN ettevotted e ON o.ettevote_id = e.id
        ${LP_JOIN}
-       WHERE e.nimi = 'LIDL'
+       WHERE e.nimi = 'LIDL' ${PIIR(1)}
        GROUP BY o.id, o.nimi
        HAVING COUNT(DISTINCT p.id) > 0
-       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`
+       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
+      [req.fotoPiirang]
     );
     res.json({ ok: true, poed: r.rows });
   } catch (err) {
@@ -92,7 +172,7 @@ router.put('/projekt-info', noudaKristo, async (req, res) => {
   }
 });
 
-router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
+router.get('/projektide-nimekiri', noudaFotoVaade, async (req, res) => {
   try {
     // 1) Projektid, mille all on juba pilte (sh vanad vabateksti kirjeldused)
     const piltidega = await pool.query(
@@ -105,16 +185,17 @@ router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
        JOIN objektid o ON t.objekt_id = o.id
        JOIN ettevotted e ON o.ettevote_id = e.id
        ${LP_JOIN}
-       WHERE e.nimi = 'LIDL'
+       WHERE e.nimi = 'LIDL' ${PIIR(1)}
        GROUP BY ${KIRJELDUS_VOTI}
-       ORDER BY MAX(t.kuupaev) DESC`
+       ORDER BY MAX(t.kuupaev) DESC`,
+      [req.fotoPiirang]
     );
     // 2) Aktiivsed projektid nimekirjast, millel veel ühtegi pilti pole — need peavad samuti
     //    nähtaval olema, muidu ei saa uue projekti kaetust üldse jälgida.
     const koikProjektid = await pool.query(`SELECT nimi FROM lidl_projektid WHERE aktiivne = true ORDER BY jrk_nr, nimi`);
     const olemas = new Set(piltidega.rows.map(x => x.kirjeldus));
     const tyhjad = koikProjektid.rows
-      .filter(p => !olemas.has(p.nimi))
+      .filter(p => !olemas.has(p.nimi) && kirjeldusLubatud(req, p.nimi))
       .map(p => ({ kirjeldus: p.nimi, piltide_arv: 0, poode_arv: 0, viimane_kuupaev: null }));
 
     const poodeKokku = await pool.query(
@@ -169,9 +250,10 @@ router.get('/projektide-nimekiri', noudaKristo, async (req, res) => {
   }
 });
 
-router.get('/projekt-poed', noudaKristo, async (req, res) => {
+router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
   const { kirjeldus } = req.query;
   if (!kirjeldus) return res.json({ ok: false, veateade: 'Projekt määramata' });
+  if (!kirjeldusLubatud(req, kirjeldus)) return res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
   try {
     // Kui admin on sellele projektile konkreetsed poed määranud (lidl_projekt_poed), näidatakse
     // ainult neid. Muidu nagu varem — kõik aktiivsed Lidli poed.
@@ -191,6 +273,8 @@ router.get('/projekt-poed', noudaKristo, async (req, res) => {
       }
     } catch (e) { /* tabelit pole veel */ }
     // LEFT JOIN alampäringuga — nii jäävad alles ka poed, kus selle projekti pilte pole.
+    params.push(req.fotoPiirang);
+    const piirIdx = params.length;
     const r = await pool.query(
       `SELECT o.id as objekt_id, o.nimi as objekt_nimi,
               COALESCE(x.piltide_arv, 0)::int as piltide_arv,
@@ -204,7 +288,7 @@ router.get('/projekt-poed', noudaKristo, async (req, res) => {
          FROM tookirje_pildid p
          JOIN tookirjed t ON p.tookirje_id = t.id
          ${LP_JOIN}
-         WHERE ${KIRJELDUS_VOTI} = $1
+         WHERE ${KIRJELDUS_VOTI} = $1 ${PIIR(piirIdx)}
          GROUP BY t.objekt_id
        ) x ON x.objekt_id = o.id
        WHERE e.nimi = 'LIDL' AND o.aktiivne = true ${poeFilter}
@@ -221,7 +305,7 @@ router.get('/projekt-poed', noudaKristo, async (req, res) => {
 
 // ── KRONOLOOGIA: kõik tööd (kõigist poodidest) ühes voos, uusim üleslaetud pilt enne.
 // Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks, ilma poodide kaupa kaevamata.
-router.get('/kronoloogia', noudaKristo, async (req, res) => {
+router.get('/kronoloogia', noudaFotoVaade, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT t.id AS tookirje_id, t.kuupaev, w.nimi AS worker_nimi, o.nimi AS objekt_nimi,
@@ -234,10 +318,11 @@ router.get('/kronoloogia', noudaKristo, async (req, res) => {
        JOIN objektid o ON t.objekt_id = o.id
        JOIN ettevotted e ON o.ettevote_id = e.id
        ${LP_JOIN}
-       WHERE e.nimi = 'LIDL'
+       WHERE e.nimi = 'LIDL' ${PIIR(1)}
        GROUP BY t.id, t.kuupaev, w.nimi, o.nimi, ${KIRJELDUS_VOTI}
        ORDER BY MAX(p.loodud) DESC
-       LIMIT 80`
+       LIMIT 80`,
+      [req.fotoPiirang]
     );
     res.json({ ok: true, kirjed: r.rows });
   } catch (err) {
@@ -247,7 +332,7 @@ router.get('/kronoloogia', noudaKristo, async (req, res) => {
 });
 
 // ── TASE 2: Projektid ühe poe sees ────────────────────────────────────────
-router.get('/projektid', noudaKristo, async (req, res) => {
+router.get('/projektid', noudaFotoVaade, async (req, res) => {
   const { objekt_id } = req.query;
   if (!objekt_id) return res.json({ ok: false, veateade: 'Pood määramata' });
   try {
@@ -263,11 +348,11 @@ router.get('/projektid', noudaKristo, async (req, res) => {
        JOIN ettevotted e ON o.ettevote_id = e.id
        ${LP_JOIN}
        LEFT JOIN kristo_kommentaarid k ON k.objekt_id = o.id AND k.kirjeldus = ${KIRJELDUS_VOTI}
-       WHERE e.nimi = 'LIDL' AND o.id = $1
+       WHERE e.nimi = 'LIDL' AND o.id = $1 ${PIIR(2)}
        GROUP BY ${KIRJELDUS_VOTI}
        HAVING COUNT(DISTINCT p.id) > 0
        ORDER BY MAX(t.kuupaev) DESC`,
-      [objekt_id]
+      [objekt_id, req.fotoPiirang]
     );
     res.json({ ok: true, projektid: r.rows });
   } catch (err) {
@@ -277,8 +362,9 @@ router.get('/projektid', noudaKristo, async (req, res) => {
 });
 
 // ── TASE 3: Pildid poe + projekti järgi ───────────────────────────────────
-router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
+router.get('/pildid/:objektId', noudaFotoVaade, async (req, res) => {
   const { kirjeldus } = req.query;
+  if (!kirjeldusLubatud(req, kirjeldus)) return res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
   try {
     const r = await pool.query(
       `SELECT p.id, p.url, DATE(t.kuupaev) as kuupaev
@@ -286,9 +372,9 @@ router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
        JOIN tookirjed t ON p.tookirje_id = t.id
        ${LP_JOIN}
        WHERE t.objekt_id = $1
-         AND ${KIRJELDUS_VOTI} = $2
+         AND ${KIRJELDUS_VOTI} = $2 ${PIIR(3)}
        ORDER BY t.kuupaev DESC, p.loodud`,
-      [req.params.objektId, kirjeldus]
+      [req.params.objektId, kirjeldus, req.fotoPiirang]
     );
     res.json({ ok: true, pildid: r.rows });
   } catch (err) {
@@ -297,11 +383,15 @@ router.get('/pildid/:objektId', noudaKristo, async (req, res) => {
 });
 
 // ── ZIP allalaadimine Kristole ────────────────────────────────────────────
-router.get('/zip/:objektId', noudaKristo, async (req, res) => {
+router.get('/zip/:objektId', noudaFotoVaade, async (req, res) => {
   const { looZip, lisaUrl, lopetaZip, kpNimeks } = require('../zipabi');
   const https = require('https');
   const http = require('http');
   const { kirjeldus } = req.query;
+  // Pildivaataja saab ZIP-i ainult konkreetse lubatud projekti kohta, mitte terve poe kõiki pilte
+  if (req.fotoPiirang !== null && (!kirjeldus || !kirjeldusLubatud(req, kirjeldus))) {
+    return res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
+  }
   try {
     let query, params;
     if (kirjeldus) {
@@ -310,9 +400,9 @@ router.get('/zip/:objektId', noudaKristo, async (req, res) => {
                JOIN tookirjed t ON p.tookirje_id = t.id
                JOIN workers w ON t.worker_id = w.id
                ${LP_JOIN}
-               WHERE t.objekt_id = $1 AND ${KIRJELDUS_VOTI} = $2
+               WHERE t.objekt_id = $1 AND ${KIRJELDUS_VOTI} = $2 ${PIIR(3)}
                ORDER BY t.kuupaev, p.loodud`;
-      params = [req.params.objektId, kirjeldus];
+      params = [req.params.objektId, kirjeldus, req.fotoPiirang];
     } else {
       query = `SELECT p.url, p.nimi, DATE(t.kuupaev) as kuupaev, w.nimi as worker_nimi
                FROM tookirje_pildid p
@@ -474,9 +564,10 @@ router.put('/admin/projektid/:id', noudaAdmin, async (req, res) => {
 // Kommentaar käib konkreetse "projekti" (objekt_id + kirjeldus) kohta — sama grupeerimisvõti,
 // mida kasutab pildivaade, kuna projektil endal (kui see on veel vabateksti kirjeldus) eraldi
 // ID-d pole.
-router.get('/kommentaarid', noudaKristo, async (req, res) => {
+router.get('/kommentaarid', noudaFotoVaade, async (req, res) => {
   const { objekt_id, kirjeldus } = req.query;
   if (!objekt_id || !kirjeldus) return res.json({ ok: false, veateade: 'Objekt ja kirjeldus on kohustuslikud' });
+  if (!kirjeldusLubatud(req, kirjeldus)) return res.status(403).json({ ok: false, veateade: 'Ligipääs keelatud' });
   try {
     const r = await pool.query(
       `SELECT * FROM kristo_kommentaarid WHERE objekt_id=$1 AND kirjeldus=$2 ORDER BY loodud DESC`,

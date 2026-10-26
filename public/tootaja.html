@@ -520,6 +520,11 @@
       <div id="minuTeatedSisu"></div>
     </div>
 
+    <a class="kaart" id="lidlPildidKaart" href="/lidl-eesti?tase=p1&vaade=projekt" style="display:none;text-decoration:none;color:inherit">
+      <div class="kaart-hdr"><span>&#128247;</span><span class="kaart-hdr-tekst">Lidl projektide pildid</span><span class="kaart-hdr-arv" id="lidlPildidArv">0</span><span style="color:var(--text3);font-size:16px;margin-left:6px">&rsaquo;</span></div>
+      <div id="lidlPildidSisu" style="padding:10px 16px 12px;font-size:12px;color:var(--text3);line-height:1.5"></div>
+    </a>
+
     <div class="kaart" id="lidlProjektidKaart" style="display:none">
       <div class="kaart-hdr"><span>&#127978;</span><span class="kaart-hdr-tekst">Tulevased projektid</span><span class="kaart-hdr-arv" id="lidlProjektidArv">0</span></div>
       <div id="lidlProjektidSisu"></div>
@@ -708,7 +713,7 @@
       // HTML koostatakse onXseeria/onArved/onPadel/onLatvia lippude põhjal. Kui need jooksevad
       // paralleelselt, jõuab joonistamine vahel enne vastust valmis ja moodul jääb plaadita.
       await Promise.all([kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), kontrolliLatvia(), kontrolliTelje10Tsekk()]);
-      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated(), laadiLidlTulevasedProjektid()]);
+      await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated(), laadiLidlTulevasedProjektid(), laadiLidlPildiLigipaas()]);
     }
 
     async function kontrolliMerekohvik() {
@@ -890,6 +895,19 @@
     // Poele vajutades avaneb töökirje vorm, kus projekt ja pood on juba valitud.
     var lidlTulevased = [];
     var lidlNaitaTehtud = {};
+    // Kui admin on töötajale avanud mõne Lidli projekti pildid, näidatakse pealehel nuppu,
+    // mis viib Lidl Eesti pildivaatesse (seal näeb ta ainult neid projekte, kõigi töötajate pilte).
+    async function laadiLidlPildiLigipaas() {
+      var kaart = document.getElementById('lidlPildidKaart');
+      if (LV) { kaart.style.display = 'none'; return; }
+      try {
+        var r = await api('/api/kristo/oigus');
+        if (!r || !r.lubatud || r.taielik || !r.projektid || !r.projektid.length) { kaart.style.display = 'none'; return; }
+        document.getElementById('lidlPildidArv').textContent = r.projektid.length;
+        document.getElementById('lidlPildidSisu').textContent = r.projektid.join(' · ');
+        kaart.style.display = 'block';
+      } catch (e) { kaart.style.display = 'none'; }
+    }
     async function laadiLidlTulevasedProjektid() {
       var kaart = document.getElementById('lidlProjektidKaart');
       if (LV) { kaart.style.display = 'none'; return; }

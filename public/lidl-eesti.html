@@ -151,6 +151,8 @@
     .foto-rida:hover { border-color: #c9a84c; }
     .foto-rida img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
     .foto-rida-info { flex: 1; font-size: 12px; color: #7a8290; }
+    /* Pildivaataja (töötaja, kellele admin on projekti pildid avanud): ainult vaatamine */
+    body.piiratud .info-nupp, body.piiratud .kommentaar-nupp, body.piiratud .kmodal-lisa, body.piiratud .poe-kommentaar-marker { display: none !important; }
     .too-footer-tekst { text-align: center; color: #7a8290; font-size: 12px; margin-top: 16px; }
   </style>
 </head>
@@ -235,6 +237,7 @@
     var kommentaarObjektId = null;
     var kommentaarObjektNimi = '';
     var kommentaarKirjeldus = '';
+    var PIIRATUD = false; // true = pildivaataja, näeb ainult talle määratud projekte
 
     function api(url, opts) {
       opts = opts || {};
@@ -263,7 +266,7 @@
       else if (tase === 'p3') { avaProjektiPoed(valitudKirjeldus, true); }
       else if (tase === 'p2') { avaProjektiNimekiri(true); }
       else if (tase === 'krono') { avaPoed(true); }
-      else { window.location = '/'; }
+      else { window.location = PIIRATUD ? '/tootaja' : '/'; }
     }
 
     (function() {
@@ -708,6 +711,9 @@
       if (!TOKEN) { window.location = '/'; return; }
       var s = await api('/api/auth/sessioon');
       if (!s.sisselogitud) { window.location = '/'; return; }
+      var oigus = await api('/api/kristo/oigus');
+      if (!oigus || !oigus.lubatud) { window.location = '/'; return; }
+      if (!oigus.taielik) { PIIRATUD = true; document.body.classList.add('piiratud'); }
       var params = new URLSearchParams(window.location.search);
       var algTaseParam = params.get('tase') || '1';
       if (algTaseParam === 'krono') {
@@ -724,6 +730,8 @@
       } else if (parseInt(algTaseParam, 10) === 3 && params.get('objekt_id') && params.get('kirjeldus')) {
         valitudObjekt = { id: parseInt(params.get('objekt_id'), 10), nimi: params.get('objekt_nimi') || '' };
         await avaProjekt(params.get('kirjeldus'), false);
+      } else if (PIIRATUD) {
+        await avaProjektiNimekiri(false);
       } else {
         await avaPoed(false);
       }
