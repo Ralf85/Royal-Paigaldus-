@@ -240,13 +240,9 @@
   tr.mt-detail td { background: #181c24; padding: 4px 14px 16px; }
   table.mt tfoot td { font-weight: 800; border-top: 1px solid rgba(255,255,255,0.12); border-bottom: none; }
   .tapp { font-size: 10px; vertical-align: middle; } .tapp.punane { color: #f87171; } .tapp.kollane { color: #fcd34d; }
-  .linnuke { display: inline-flex; cursor: pointer; padding: 4px; }
-  .linnuke input { position: absolute; opacity: 0; width: 0; height: 0; }
-  .linnuke span { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid #3a4150; display: inline-flex; align-items: center; justify-content: center; transition: all .12s; }
-  .linnuke input:checked + span { background: #4ade80; border-color: #4ade80; }
-  .linnuke input:checked + span::after { content: "✓"; color: #0d0f13; font-weight: 900; font-size: 14px; }
-  .linnuke:hover span { border-color: #4ade80; }
-  .linnuke input:disabled + span { opacity: .5; cursor: not-allowed; }
+  input.arv-linnuke { width: 22px; height: 22px; accent-color: #22c55e; cursor: pointer; margin: 0; vertical-align: middle; }
+  input.arv-linnuke:disabled { cursor: wait; opacity: .5; }
+  .hyvitis { display: inline-block; font-size: 11px; font-weight: 700; color: #86efac; background: rgba(74,222,128,0.12); border-radius: 6px; padding: 3px 8px; white-space: nowrap; cursor: help; }
   .mt-det { display: flex; gap: 16px; align-items: flex-start; }
   .mt-pilt { width: 92px; height: 122px; object-fit: cover; border-radius: 8px; background: #2b3039; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: #8b93a1; text-decoration: none; }
   .mt-pilt.puudub { background: none; border: 1.5px dashed #5a1a1a; color: #f87171; cursor: default; }
@@ -919,8 +915,11 @@ function joonistaKulud() {
       + '<td class="p n">' + raha(k.naabri_summa) + '</td>';
     if (admin) {
       html += '<td class="p' + (Number(k.kaibemaks) > 0 ? '' : ' h') + '">' + (Number(k.kaibemaks) > 0 ? raha(k.kaibemaks) : '—') + '</td>'
-        + '<td class="k" onclick="event.stopPropagation()"><label class="linnuke" title="' + (isiklik ? 'Töötaja kuluhüvitis — muuda „Muuda" vaates' : 'Royal Paigalduse arvetes') + '">'
-        + '<input type="checkbox"' + (k.arvetes ? ' checked' : '') + (isiklik ? ' disabled' : '') + ' onchange="kuluArvetesLylita(' + k.id + ', this)"><span></span></label></td>';
+        + '<td class="k" onclick="event.stopPropagation()">'
+        + (isiklik
+          ? '<span class="hyvitis" title="Töötaja maksis oma kaardiga — on Royali arvetes kuluhüvitisena (töötajale tagasi maksta). Muuda tšeki „Muuda" vaates.">hüvitis ✓</span>'
+          : '<input type="checkbox" class="arv-linnuke"' + (k.arvetes ? ' checked' : '') + ' title="' + (k.arvetes ? 'Royali arvetes — vajuta, et välja võtta' : 'Lisa Royali arvetesse') + '" onclick="event.stopPropagation()" onchange="kuluArvetesLylita(' + k.id + ', this)">')
+        + '</td>';
     }
     html += '</tr>';
     if (avatud) html += '<tr class="mt-detail"><td colspan="' + veerge + '">' + kuluDetailHtml(k) + '</td></tr>';
@@ -929,7 +928,7 @@ function joonistaKulud() {
     + '<td class="p m">' + raha(kM) + '</td><td class="p n">' + raha(kN) + '</td>'
     + (admin ? '<td class="p">' + raha(kKm) + '</td><td class="k h">' + arvetes + ' / ' + A.kulud.length + '</td>' : '')
     + '</tr></tfoot></table></div>';
-  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="tapp kollane">●</span> töötaja lisatud, vaata üle &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu).</div>';
+  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="tapp kollane">●</span> töötaja lisatud, vaata üle &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu) või võtab sealt välja. „hüvitis ✓" = töötaja maksis oma kaardiga.</div>';
   document.getElementById('paneel-kulud').innerHTML = html;
 }
 
