@@ -150,6 +150,18 @@
       <div class="vorm-rida" id="muuta-lidl-projekt-rida" style="display:none">
         <div class="vorm-grupp"><label>Projekt (Lidl)</label><select id="muuta-lidl-projekt"><option value="">— Vali projekt —</option></select></div>
       </div>
+      <!-- Lidl: poe seis ka muutmisel (sama mis uue kirje vormis) -->
+      <div class="vorm-rida" id="muuta-poe-seis-grupp" style="display:none">
+        <div class="poe-seis">
+          <div class="poe-seis-silt">Kas töö selles poes on 100% valmis?</div>
+          <div class="poe-seis-nupud">
+            <button type="button" class="valmis" id="muuta-poe-seis-valmis" onclick="muutaValiPoeSeis('valmis')">✓ Jah, valmis</button>
+            <button type="button" class="puudu" id="muuta-poe-seis-puudu" onclick="muutaValiPoeSeis('puudu')">! Midagi jäi puudu</button>
+          </div>
+          <textarea id="muuta-poe-seis-kommentaar" style="display:none"></textarea>
+          <div class="poe-seis-varem" id="muuta-poe-seis-varem"></div>
+        </div>
+      </div>
       <div class="vorm-rida">
         <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="muuta-komm" placeholder="vabatahtlik"></div>
       </div>
@@ -311,7 +323,7 @@
       ettevoteId = params.get('ettevote');
       if (!ettevoteId) { window.location = '/tootaja'; return; }
       var t = new Date();
-      document.getElementById('kuupaev').value = t.toISOString().split('T')[0];
+      document.getElementById('kuupaev').value = kohalikTana();
       // Lae ettevõte info
       var ettevotted = await api('/api/tood/minu-ettevotted');
       var ettevote = ettevotted.find(function(e) { return String(e.id) === String(ettevoteId); });
@@ -776,6 +788,8 @@
       document.getElementById('muuta-teade').style.display = 'none';
       document.getElementById('muuta-foto-progress').style.display = 'none';
       laadiMuutaFotod(kirje.id);
+      muutaObjektId = kirje.objekt_id || null;
+      muutaLaePoeSeis();
       document.getElementById('muutaModal').classList.add('avatud');
     }
     async function laadiMuutaFotod(kirjeId) {
@@ -819,6 +833,37 @@
     }
     document.getElementById('muuta-foto-kaamera').addEventListener('change', function() { muutaLisaFotod(this.files); });
     document.getElementById('muuta-foto-album').addEventListener('change', function() { muutaLisaFotod(this.files); });
+    // ── Poe seis muutmise aknas ──
+    var muutaPoeSeis = null, muutaPoeSeisAlg = null, muutaObjektId = null;
+    function muutaValiPoeSeis(v) {
+      muutaPoeSeis = muutaPoeSeis === v ? null : v;
+      document.getElementById('muuta-poe-seis-valmis').classList.toggle('sees', muutaPoeSeis === 'valmis');
+      document.getElementById('muuta-poe-seis-puudu').classList.toggle('sees', muutaPoeSeis === 'puudu');
+      var ta = document.getElementById('muuta-poe-seis-kommentaar');
+      ta.style.display = muutaPoeSeis ? 'block' : 'none';
+      ta.placeholder = muutaPoeSeis === 'puudu' ? 'Mis jäi puudu? nt üks riiuli kinnitus puurimata' : 'Kommentaar (vabatahtlik) — nt 15 riiulit jäi üle';
+    }
+    async function muutaLaePoeSeis() {
+      var grupp = document.getElementById('muuta-poe-seis-grupp');
+      var projektId = etteVoteTyyp === 'lidl' ? document.getElementById('muuta-lidl-projekt').value : '';
+      muutaPoeSeis = null; muutaPoeSeisAlg = null;
+      document.getElementById('muuta-poe-seis-kommentaar').value = '';
+      document.getElementById('muuta-poe-seis-varem').innerHTML = '';
+      muutaValiPoeSeis(null);
+      if (!projektId || !muutaObjektId) { grupp.style.display = 'none'; return; }
+      grupp.style.display = 'block';
+      try {
+        var r = await api('/api/lidl-poed/projekt/' + encodeURIComponent(projektId) + '/poed');
+        var p = (r && r.ok && Array.isArray(r.poed)) ? r.poed.find(function(x) { return String(x.objekt_id) === String(muutaObjektId); }) : null;
+        if (p && p.seis) {
+          muutaPoeSeisAlg = { seis: p.seis, kommentaar: p.seis_kommentaar || '' };
+          muutaValiPoeSeis(p.seis);
+          document.getElementById('muuta-poe-seis-kommentaar').value = p.seis_kommentaar || '';
+          var kes = (p.seis_muutja || '') + (p.seis_muudetud ? ', ' + new Date(p.seis_muudetud).toLocaleDateString('et-EE') : '');
+          if (kes) document.getElementById('muuta-poe-seis-varem').textContent = 'Viimati märkis: ' + kes;
+        }
+      } catch (e) {}
+    }
     function sulgeModal() { document.getElementById('muutaModal').classList.remove('avatud'); }
     async function salvestaMuutus() {
       var id = document.getElementById('muuta-id').value;
@@ -826,6 +871,14 @@
         var t0 = document.getElementById('muuta-teade');
         t0.className = 'modal-teade viga'; t0.style.display = 'block';
         t0.textContent = 'Vali kindlasti Projekt, et fotod jõuaksid õigesse kausta!';
+        return;
+      }
+      var mSeisNahtav = document.getElementById('muuta-poe-seis-grupp').style.display !== 'none';
+      var mSeisKomm = document.getElementById('muuta-poe-seis-kommentaar').value.trim();
+      if (mSeisNahtav && muutaPoeSeis === 'puudu' && !mSeisKomm) {
+        var t1 = document.getElementById('muuta-teade');
+        t1.className = 'modal-teade viga'; t1.style.display = 'block';
+        t1.textContent = 'Kirjuta, mis jäi puudu';
         return;
       }
       var r = await api('/api/tood/kirje/' + id, {
@@ -841,7 +894,17 @@
           lidl_projekt_id: etteVoteTyyp === 'lidl' ? (document.getElementById('muuta-lidl-projekt').value || null) : null
         })
       });
-      if (r.ok) { sulgeModal(); await laadiKirjed(); }
+      if (r.ok) {
+        // Poe seis salvestatakse ainult siis, kui see muutus (valik või kommentaar)
+        var muutus = mSeisNahtav && muutaPoeSeis && (!muutaPoeSeisAlg || muutaPoeSeisAlg.seis !== muutaPoeSeis || muutaPoeSeisAlg.kommentaar !== mSeisKomm);
+        if (muutus) {
+          try {
+            await api('/api/lidl-poed/seis', { method: 'POST', body: JSON.stringify({
+              projekt_id: document.getElementById('muuta-lidl-projekt').value, objekt_id: muutaObjektId, seis: muutaPoeSeis, kommentaar: mSeisKomm }) });
+          } catch (e) { console.error('Poe seisu viga:', e); }
+        }
+        sulgeModal(); await laadiKirjed();
+      }
       else {
         var t = document.getElementById('muuta-teade');
         t.className = 'modal-teade viga'; t.style.display = 'block';
@@ -854,6 +917,7 @@
       if (r.ok) await laadiKirjed();
       else alert(r.veateade || 'Kustutamine ebaõnnestus');
     }
+    document.getElementById('muuta-lidl-projekt').addEventListener('change', muutaLaePoeSeis);
     document.getElementById('muutaModal').addEventListener('click', function(e) {
       if (e.target === this) sulgeModal();
     });

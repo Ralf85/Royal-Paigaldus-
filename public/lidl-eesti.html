@@ -484,7 +484,7 @@
       var kaetus = '<div class="kaetus">'
         + '<span><b>' + r.tehtud + '</b> / ' + r.kokku + ' poodi valmis</span>'
         + '<div class="kaetus-riba"><i style="width:' + pct + '%"></i></div>'
-        + (puudu ? '<span style="color:#fcd34d;font-weight:700">! ' + puudu + ' puudustega</span>' : '')
+        + (puudu ? '<span style="color:#fcd34d;font-weight:700">! ' + puudu + ' poes puudu</span>' : '')
         + '<span style="color:#7a8290">' + (r.kokku - r.tehtud - puudu) + ' veel tegemata</span>'
         + '</div>';
       sisu.innerHTML = kaetus + '<div class="poe-grid">' + r.poed.map(function(p) {
@@ -502,7 +502,7 @@
           + '<div class="poe-nimi">' + osad.nimi + '</div>'
           + '<div class="poe-meta">' + (p.piltide_arv > 0
               ? (p.piltide_arv + ' pilti<br>' + formatKp(p.viimane_kuupaev))
-              : (onTehtud ? 'valmis' : onPuudu ? 'puudustega' : 'tegemata'))
+              : (onTehtud ? 'valmis' : onPuudu ? 'midagi puudu' : 'tegemata'))
           + '</div>'
           + (p.seis_kommentaar ? '<div class="poe-kommentaar">💬 ' + escH(p.seis_kommentaar) + '</div>' : '')
           + '</div>';
