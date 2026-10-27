@@ -802,7 +802,8 @@ router.post('/kulud', noudaAdmin, uploadDok.single('fail'), async (req, res) => 
   res.json({ ok: true, id: t.id, arvetes: t.arvetes });
 });
 
-// Olemasoleva tšeki lisamine Royal Paigalduse arvetesse ühe klikiga (Materjalid → "Arvetest väljas").
+// Olemasoleva tšeki lisamine Royal Paigalduse arvetesse või sealt eemaldamine (Materjalid → linnuke "Royali arvetes").
+// body: { arvetesse: true, kaibemaks } või { arvetesse: false }
 // Tšeki read, jaotus ja fail jäävad samaks; muutub ainult käibemaks ja arvetes olek.
 router.post('/kulud/:id/arvetesse', noudaAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
@@ -810,10 +811,17 @@ router.post('/kulud/:id/arvetesse', noudaAdmin, async (req, res) => {
   const v = await pool.query(`SELECT *, to_char(kuupaev, 'YYYY-MM-DD') AS kp FROM remont_kulud WHERE id=$1`, [id]);
   if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
   const vana = v.rows[0];
-  if (vana.arve_sisse_id) return res.json({ ok: true, id, arvetes: true });
+  const b = req.body || {};
+  const lisa = !(b.arvetesse === false || b.arvetesse === '0' || b.arvetesse === 'false');
+  if (lisa && vana.arve_sisse_id) return res.json({ ok: true, id, arvetes: true });
+  if (!lisa && !vana.arve_sisse_id) return res.json({ ok: true, id, arvetes: false });
+  // Töötaja isikliku kaardiga makstud tšekk on arvetes kuluhüvitisena (töötajale tagasimaksmiseks) — seda siit ei eemalda.
+  if (!lisa && vana.tootaja_maksis === 'isiklik') {
+    return res.json({ ok: false, veateade: 'See on töötaja kuluhüvitis — muuda seda tšeki „Muuda" vaates' });
+  }
   const summa = parseFloat(vana.summa) || 0;
-  const km = loeArv((req.body || {}).kaibemaks);
-  if (!Number.isFinite(km) || km < 0 || km >= summa) {
+  const km = lisa ? loeArv(b.kaibemaks) : (parseFloat(vana.kaibemaks) || 0);
+  if (lisa && (!Number.isFinite(km) || km < 0 || km >= summa)) {
     return res.json({ ok: false, veateade: `Käibemaks peab olema 0 ja ${summa.toFixed(2)} € vahel` });
   }
   const readRes = await pool.query(
@@ -831,11 +839,13 @@ router.post('/kulud/:id/arvetesse', noudaAdmin, async (req, res) => {
   const k = {
     kuupaev: vana.kp,
     kirjeldus: vana.kirjeldus, summa: r2(summa), maksja: vana.maksja, read,
-    naabriSumma: r2(parseFloat(vana.naabri_summa) || 0), kaibemaks: r2(km), arvetesse: true
+    naabriSumma: r2(parseFloat(vana.naabri_summa) || 0), kaibemaks: r2(km), arvetesse: lisa
   };
   try {
     const t = await salvestaKulu(k, null, id);
     if (t.viga) return res.json({ ok: false, veateade: t.viga });
+    // Linnukese vahetamine ei tähenda, et töötaja tšekk on üle vaadatud — taastame endise oleku.
+    if (vana.tootaja_maksis) await pool.query(`UPDATE remont_kulud SET ule_vaadatud=$1 WHERE id=$2`, [!!vana.ule_vaadatud, id]);
     res.json({ ok: true, id: t.id, arvetes: t.arvetes });
   } catch (e) {
     console.error('Tšeki arvetesse lisamine:', e);
