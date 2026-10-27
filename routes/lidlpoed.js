@@ -45,6 +45,19 @@ async function initLidlPoed() {
       UNIQUE (projekt_id, worker_id)
     );
   `);
+  // Poe seis projektis: töötaja/admin märgib, kas töö on poes 100% valmis või jäi midagi puudu (+ kommentaar).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lidl_poe_seis (
+      id SERIAL PRIMARY KEY,
+      projekt_id INTEGER NOT NULL REFERENCES lidl_projektid(id) ON DELETE CASCADE,
+      objekt_id INTEGER NOT NULL REFERENCES objektid(id) ON DELETE CASCADE,
+      seis VARCHAR(10) NOT NULL CHECK (seis IN ('valmis', 'puudu')),
+      kommentaar TEXT,
+      muutja VARCHAR(120),
+      muudetud TIMESTAMP DEFAULT NOW(),
+      UNIQUE (projekt_id, objekt_id)
+    );
+  `);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS markus TEXT;`);
 }
@@ -88,9 +101,14 @@ async function poedStaatusega(projektIds) {
   const r = await pool.query(
     `SELECT pp.projekt_id, o.id AS objekt_id, o.nimi AS objekt_nimi, pp.kasitsi_tehtud,
             COALESCE(x.kirjeid, 0)::int AS kirjeid, x.viimane_kuupaev,
-            COALESCE(pp.kasitsi_tehtud, COALESCE(x.kirjeid, 0) > 0) AS tehtud
+            s.seis, s.kommentaar AS seis_kommentaar, s.muutja AS seis_muutja, s.muudetud AS seis_muudetud,
+            -- Tehtud: admini käsitsi märge > poe seis (puudu = pole tehtud) > automaatne (on töökirje)
+            COALESCE(pp.kasitsi_tehtud,
+              CASE WHEN s.seis = 'puudu' THEN false WHEN s.seis = 'valmis' THEN true
+                   ELSE COALESCE(x.kirjeid, 0) > 0 END) AS tehtud
      FROM lidl_projekt_poed pp
      JOIN objektid o ON o.id = pp.objekt_id
+     LEFT JOIN lidl_poe_seis s ON s.projekt_id = pp.projekt_id AND s.objekt_id = pp.objekt_id
      LEFT JOIN LATERAL (
        SELECT COUNT(*) AS kirjeid, MAX(t.kuupaev) AS viimane_kuupaev
        FROM tookirjed t
@@ -143,6 +161,50 @@ router.get('/projekt/:id/poed', noudaSisslogimist, async (req, res) => {
     await tagaInit();
     const poed = await poedStaatusega([parseInt(req.params.id, 10)]);
     res.json({ ok: true, poed });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
+// Poe seisu märkimine: "valmis" (100% tehtud) või "puudu" (+ kommentaar, mis jäi tegemata).
+// Märkida saavad Lidli ligipääsuga töötajad (pildi lisamisel), Kristo ja admin. seis: null = eemalda märge.
+const KRISTO_WORKER_ID = 17;
+router.post('/seis', noudaSisslogimist, async (req, res) => {
+  try {
+    await tagaInit();
+    const b = req.body || {};
+    const projektId = parseInt(b.projekt_id, 10), objektId = parseInt(b.objekt_id, 10);
+    if (!Number.isInteger(projektId) || !Number.isInteger(objektId)) return res.json({ ok: false, veateade: 'Projekt või pood määramata' });
+    const seis = b.seis === null || b.seis === '' ? null : String(b.seis);
+    if (seis !== null && seis !== 'valmis' && seis !== 'puudu') return res.json({ ok: false, veateade: 'Vigane seis' });
+    const kommentaar = String(b.kommentaar || '').trim().slice(0, 1000);
+    if (seis === 'puudu' && !kommentaar) return res.json({ ok: false, veateade: 'Kirjuta, mis jäi puudu' });
+
+    const onAdmin = !!req.session.isAdmin;
+    const onKristo = req.session.workerId === KRISTO_WORKER_ID;
+    if (!onAdmin && !onKristo && !(await tootajaLidlId(req.session.workerId))) {
+      return res.status(403).json({ ok: false, veateade: 'Lidli ligipääs puudub' });
+    }
+    const kontroll = await pool.query(
+      `SELECT (SELECT COUNT(*) FROM lidl_projektid WHERE id=$1)::int AS p,
+              (SELECT COUNT(*) FROM objektid o JOIN ettevotted e ON e.id=o.ettevote_id
+                WHERE o.id=$2 AND (e.tyyp='lidl' OR UPPER(e.nimi)='LIDL'))::int AS o`, [projektId, objektId]);
+    if (!kontroll.rows[0].p || !kontroll.rows[0].o) return res.json({ ok: false, veateade: 'Projekti või poodi ei leitud' });
+
+    if (seis === null) {
+      await pool.query(`DELETE FROM lidl_poe_seis WHERE projekt_id=$1 AND objekt_id=$2`, [projektId, objektId]);
+      return res.json({ ok: true, seis: null });
+    }
+    const muutja = onAdmin && !req.session.workerId ? 'Admin' : (req.session.workerNimi || (onAdmin ? 'Admin' : 'Töötaja'));
+    await pool.query(
+      `INSERT INTO lidl_poe_seis (projekt_id, objekt_id, seis, kommentaar, muutja, muudetud)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (projekt_id, objekt_id) DO UPDATE SET seis=EXCLUDED.seis, kommentaar=EXCLUDED.kommentaar,
+         muutja=EXCLUDED.muutja, muudetud=NOW()`,
+      [projektId, objektId, seis, seis === 'puudu' ? kommentaar : (kommentaar || null), muutja]
+    );
+    res.json({ ok: true, seis });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });

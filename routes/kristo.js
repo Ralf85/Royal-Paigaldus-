@@ -272,13 +272,22 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
         poeFilter = `AND o.id IN (SELECT objekt_id FROM lidl_projekt_poed WHERE projekt_id = $2)`;
       }
     } catch (e) { /* tabelit pole veel */ }
+    // Poe seis (valmis / puudu + kommentaar) — lidl_poe_seis, projekti id nime järgi.
+    let projektId = null;
+    try {
+      const pr = await pool.query(`SELECT id FROM lidl_projektid WHERE nimi = $1 ORDER BY id LIMIT 1`, [kirjeldus]);
+      if (pr.rows.length) projektId = pr.rows[0].id;
+    } catch (e) { /* tabelit pole veel */ }
     // LEFT JOIN alampäringuga — nii jäävad alles ka poed, kus selle projekti pilte pole.
     params.push(req.fotoPiirang);
     const piirIdx = params.length;
+    params.push(projektId);
+    const projIdx = params.length;
     const r = await pool.query(
       `SELECT o.id as objekt_id, o.nimi as objekt_nimi,
               COALESCE(x.piltide_arv, 0)::int as piltide_arv,
-              x.viimane_kuupaev
+              x.viimane_kuupaev,
+              s.seis, s.kommentaar AS seis_kommentaar, s.muutja AS seis_muutja, s.muudetud AS seis_muudetud
        FROM objektid o
        JOIN ettevotted e ON o.ettevote_id = e.id
        LEFT JOIN (
@@ -291,12 +300,15 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
          WHERE ${KIRJELDUS_VOTI} = $1 ${PIIR(piirIdx)}
          GROUP BY t.objekt_id
        ) x ON x.objekt_id = o.id
+       LEFT JOIN lidl_poe_seis s ON s.objekt_id = o.id AND s.projekt_id = ${projIdx}::int
        WHERE e.nimi = 'LIDL' AND o.aktiivne = true ${poeFilter}
        ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
       params
     );
-    const tehtud = r.rows.filter(x => x.piltide_arv > 0).length;
-    res.json({ ok: true, kirjeldus, poed: r.rows, tehtud, kokku: r.rows.length, maaratud_poed: maaratud });
+    // Tehtud = märgitud "valmis" VÕI on pilte ja pole märgitud "puudu". Puudu = eraldi arv.
+    const tehtud = r.rows.filter(x => x.seis === 'valmis' || (x.piltide_arv > 0 && x.seis !== 'puudu')).length;
+    const puudu = r.rows.filter(x => x.seis === 'puudu').length;
+    res.json({ ok: true, kirjeldus, projekt_id: projektId, poed: r.rows, tehtud, puudu, kokku: r.rows.length, maaratud_poed: maaratud });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });

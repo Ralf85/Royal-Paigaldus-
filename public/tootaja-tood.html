@@ -104,6 +104,15 @@
     .salvesta-nupp-modal { width: 100%; background: #c9a84c; color: #0d0f13; border: none; border-radius: 8px; padding: 11px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
     .modal-teade { font-size: 12px; margin-top: 8px; display: none; padding: 8px; border-radius: 6px; }
     .modal-teade.viga { background: #7f1d1d; color: #fca5a5; }
+    /* Lidl: poe seis (valmis / midagi puudu) */
+    .poe-seis { background: rgba(255,242,0,0.04); border: 1px solid rgba(255,242,0,0.25); border-radius: 12px; padding: 12px; }
+    .poe-seis-silt { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .poe-seis-nupud { display: flex; gap: 8px; }
+    .poe-seis-nupud button { flex: 1; background: var(--bg, #0d0f13); border: 1px solid #2b3039; color: #9aa3b2; border-radius: 10px; padding: 12px 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .poe-seis-nupud button.valmis.sees { background: rgba(74,222,128,0.16); border-color: #4ade80; color: #86efac; }
+    .poe-seis-nupud button.puudu.sees { background: rgba(251,191,36,0.16); border-color: #fbbf24; color: #fcd34d; }
+    .poe-seis textarea { width: 100%; margin-top: 8px; min-height: 64px; background: #0d0f13; border: 1px solid #2b3039; border-radius: 8px; color: inherit; padding: 9px 11px; font-size: 15px; font-family: inherit; resize: vertical; }
+    .poe-seis-varem { font-size: 12px; color: #9aa3b2; margin-top: 8px; line-height: 1.45; }
   </style>
 </head>
 <body>
@@ -198,6 +207,18 @@
             <select class="kirjeldus-select" id="lidl-projekt-select">
               <option value="">— Vali projekt —</option>
             </select>
+          </div>
+        </div>
+        <!-- Lidl: kas töö selles poes on 100% valmis? (näidatakse, kui projekt ja pood on valitud) -->
+        <div class="vorm-rida" id="poe-seis-grupp" style="display:none">
+          <div class="poe-seis">
+            <div class="poe-seis-silt">Kas töö selles poes on 100% valmis?</div>
+            <div class="poe-seis-nupud">
+              <button type="button" class="valmis" id="poe-seis-valmis" onclick="valiPoeSeis('valmis')">✓ Jah, valmis</button>
+              <button type="button" class="puudu" id="poe-seis-puudu" onclick="valiPoeSeis('puudu')">! Midagi jäi puudu</button>
+            </div>
+            <textarea id="poe-seis-kommentaar" style="display:none" placeholder="Mis jäi puudu? nt üks riiuli kinnitus puurimata"></textarea>
+            <div class="poe-seis-varem" id="poe-seis-varem"></div>
           </div>
         </div>
         <!-- Kommentaar töötajale -->
@@ -328,6 +349,7 @@
         document.getElementById('lidl-projekt-select').addEventListener('change', function() {
           jarjestaObjektidProjektiJargi(this.value);
         });
+        document.getElementById('objekt').addEventListener('change', uuendaPoeSeisuPlokk);
         // Pealehe "Tulevased projektid" → poele vajutus: projekt ja pood on kohe valitud
         var urlProjekt = params.get('projekt');
         var urlObjekt = params.get('objekt');
@@ -381,6 +403,43 @@
     function getKirjeldus() {
       return document.getElementById('kirjeldus-select').value;
     }
+    // ── Lidl poe seis ────────────────────────────────────────
+    var projektiPoed = [];      // valitud projekti poed koos seisuga (jarjestaObjektidProjektiJargi täidab)
+    var poeSeis = null;         // 'valmis' | 'puudu' | null
+    function valiPoeSeis(v) {
+      poeSeis = poeSeis === v ? null : v;
+      document.getElementById('poe-seis-valmis').classList.toggle('sees', poeSeis === 'valmis');
+      document.getElementById('poe-seis-puudu').classList.toggle('sees', poeSeis === 'puudu');
+      var ta = document.getElementById('poe-seis-kommentaar');
+      // Kommentaar: "puudu" puhul kohustuslik, "valmis" puhul vabatahtlik (nt "15 riiulit jäi üle")
+      ta.style.display = poeSeis ? 'block' : 'none';
+      ta.placeholder = poeSeis === 'puudu' ? 'Mis jäi puudu? nt üks riiuli kinnitus puurimata' : 'Kommentaar (vabatahtlik) — nt 15 riiulit jäi üle';
+      if (poeSeis === 'puudu') ta.focus();
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; });
+    }
+    function uuendaPoeSeisuPlokk() {
+      var grupp = document.getElementById('poe-seis-grupp');
+      if (!grupp) return;
+      var projektId = etteVoteTyyp === 'lidl' ? document.getElementById('lidl-projekt-select').value : '';
+      var objektId = document.getElementById('objekt').value;
+      if (!projektId || !objektId) { grupp.style.display = 'none'; return; }
+      grupp.style.display = 'block';
+      var p = projektiPoed.find(function(x) { return String(x.objekt_id) === String(objektId); });
+      var varem = document.getElementById('poe-seis-varem');
+      if (p && p.seis) {
+        var kes = (p.seis_muutja ? p.seis_muutja : '') + (p.seis_muudetud ? ', ' + new Date(p.seis_muudetud).toLocaleDateString('et-EE') : '');
+        varem.innerHTML = p.seis === 'puudu'
+          ? '<b style="color:#fcd34d">! Varem märgitud puudu:</b> ' + esc(p.seis_kommentaar || '') + (kes ? ' <span style="opacity:.7">(' + esc(kes) + ')</span>' : '')
+          : '<b style="color:#86efac">✓ Varem märgitud valmis</b>' + (p.seis_kommentaar ? ': ' + esc(p.seis_kommentaar) : '') + (kes ? ' <span style="opacity:.7">(' + esc(kes) + ')</span>' : '');
+      } else varem.innerHTML = '';
+    }
+    function lahtestaPoeSeis() {
+      poeSeis = null;
+      document.getElementById('poe-seis-kommentaar').value = '';
+      valiPoeSeis(null);
+    }
     async function laadiLidlProjektid() {
       try {
         var list = await api('/api/tood/lidl-projektid');
@@ -411,6 +470,7 @@
           poed = (r && r.ok && Array.isArray(r.poed)) ? r.poed : [];
         } catch(e) { poed = []; }
       }
+      projektiPoed = poed;
       sel.innerHTML = '<option value="">— Vali objekt —</option>';
       function lisaOption(parent, o, tekst) {
         var opt = document.createElement('option');
@@ -436,6 +496,7 @@
         if (g2.children.length) sel.appendChild(g2);
       }
       sel.value = valitud;
+      uuendaPoeSeisuPlokk();
     }
     // ── FOTOD ────────────────────────────────────────────────
     function lisaFotod(files) {
@@ -510,6 +571,19 @@
         naitaTeade('❌ Piltide lisamisel vali kindlasti Projekt, et fotod jõuaksid õigesse kausta!', 'viga');
         return;
       }
+      var seisuPlokkNahtav = document.getElementById('poe-seis-grupp').style.display !== 'none';
+      var seisKommentaar = document.getElementById('poe-seis-kommentaar').value.trim();
+      if (seisuPlokkNahtav && valitudFotod.length > 0 && !poeSeis) {
+        naitaTeade('❌ Märgi, kas töö selles poes on 100% valmis või jäi midagi puudu', 'viga');
+        document.getElementById('poe-seis-grupp').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (seisuPlokkNahtav && poeSeis === 'puudu' && !seisKommentaar) {
+        naitaTeade('❌ Kirjuta, mis jäi puudu', 'viga');
+        document.getElementById('poe-seis-kommentaar').focus();
+        return;
+      }
+      var seisuSaatmine = (seisuPlokkNahtav && poeSeis) ? { projekt_id: lidlProjektId, objekt_id: objekt_id, seis: poeSeis, kommentaar: seisKommentaar } : null;
       salvestamine = true;
       var nupp = document.getElementById('salvesta-nupp');
       nupp.disabled = true;
@@ -567,6 +641,12 @@
             }
           }
         }
+        if (seisuSaatmine) {
+          try {
+            var sr = await api('/api/lidl-poed/seis', { method: 'POST', body: JSON.stringify(seisuSaatmine) });
+            if (!sr || !sr.ok) console.error('Poe seisu salvestamine ebaõnnestus:', sr && sr.veateade);
+          } catch(e) { console.error('Poe seisu viga:', e); }
+        }
         setProgress('✅ Kõik salvestatud!', 100);
         // Puhasta vorm
         document.getElementById('km').value = '0';
@@ -575,7 +655,7 @@
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
         document.getElementById('kirjeldus-select').value = '';
         document.getElementById('lidl-projekt-select').value = '';
-        if (etteVoteTyyp === 'lidl') jarjestaObjektidProjektiJargi('');
+        if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(''); }
         document.getElementById('kommentaar').value = '';
         var teadeTekst = '✅ Salvestatud! ' + r.tunnid + 'h';
         if (fotodKoopia.length) teadeTekst += ' · ' + fotodKoopia.length + ' pilti lisatud';

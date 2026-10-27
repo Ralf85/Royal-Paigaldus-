@@ -75,6 +75,26 @@
     .poe-kaart.tehtud { border-color: rgba(74,222,128,0.35); }
     .poe-tehtud-markk { position: absolute; top: 8px; right: 10px; font-size: 12px; color: #4ade80; }
     /* Kaetuse riba */
+    /* Poe seis: valmis (roheline ✓) / puudu (kollane !) + kommentaar */
+    .poe-kaart.puudu { border-color: rgba(251,191,36,0.6); background: linear-gradient(180deg, rgba(251,191,36,0.07), #13161c 70%); }
+    .poe-puudu-markk { position: absolute; top: 7px; right: 9px; width: 20px; height: 20px; border-radius: 50%; background: #fbbf24; color: #13161c; font-size: 13px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+    .poe-kommentaar { margin-top: 8px; font-size: 11px; line-height: 1.35; color: #fcd34d; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding: 0 4px; }
+    .poe-kaart.tehtud .poe-kommentaar { color: #9aa3b2; }
+    .seis-paneel { border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #252830; background: #13161c; }
+    .seis-paneel.valmis { border-color: rgba(74,222,128,0.45); }
+    .seis-paneel.puudu { border-color: rgba(251,191,36,0.6); background: linear-gradient(160deg, rgba(251,191,36,0.08), #13161c 60%); }
+    .seis-pea { font-size: 15px; font-weight: 800; }
+    .seis-paneel.valmis .seis-pea { color: #86efac; } .seis-paneel.puudu .seis-pea { color: #fcd34d; }
+    .seis-tekst { font-size: 14px; margin-top: 6px; line-height: 1.45; white-space: pre-wrap; }
+    .seis-kes { font-size: 12px; color: #7a8290; margin-top: 6px; }
+    .seis-muuda { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid rgba(255,255,255,0.08); }
+    .seis-nupud { display: flex; gap: 8px; flex-wrap: wrap; }
+    .seis-nupud button { background: #0d0f13; border: 1px solid #2b3039; color: #9aa3b2; border-radius: 9px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .seis-nupud button.v.sees { background: rgba(74,222,128,0.16); border-color: #4ade80; color: #86efac; }
+    .seis-nupud button.p.sees { background: rgba(251,191,36,0.16); border-color: #fbbf24; color: #fcd34d; }
+    .seis-muuda textarea { width: 100%; margin-top: 8px; min-height: 60px; background: #0d0f13; border: 1px solid #2b3039; border-radius: 8px; color: #e2e8f0; padding: 9px 11px; font-size: 14px; font-family: inherit; }
+    .seis-salvesta { margin-top: 8px; background: #FFF200; color: #13161c; border: none; border-radius: 9px; padding: 9px 16px; font-weight: 800; font-size: 13px; cursor: pointer; }
+    .seis-teade { font-size: 12px; color: #f87171; margin-left: 8px; }
     .kaetus { display: flex; align-items: center; gap: 12px; background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; flex-wrap: wrap; }
     .kaetus b { color: #FFF200; }
     .kaetus-riba { flex: 1; min-width: 120px; height: 7px; background: #1e2128; border-radius: 5px; overflow: hidden; }
@@ -238,6 +258,10 @@
     var kommentaarObjektNimi = '';
     var kommentaarKirjeldus = '';
     var PIIRATUD = false; // true = pildivaataja, näeb ainult talle määratud projekte
+    var projektiPoed = [];   // viimati laetud projekti poed koos seisuga
+    var valitudProjektId = null;
+    var projektiPoedKirjeldus = null;
+    var seisuValik = null;   // muutmisvormi valik: 'valmis' | 'puudu'
 
     function api(url, opts) {
       opts = opts || {};
@@ -451,27 +475,84 @@
         sisu.innerHTML = '<div class="tyhi">Ühtegi aktiivset Lidli objekti pole</div>';
         return;
       }
+      projektiPoed = r.poed; projektiPoedKirjeldus = kirjeldus; valitudProjektId = r.projekt_id || null;
       var pct = r.kokku ? Math.round(r.tehtud / r.kokku * 100) : 0;
+      var puudu = r.puudu || 0;
       var kaetus = '<div class="kaetus">'
-        + '<span><b>' + r.tehtud + '</b> / ' + r.kokku + ' poodi tehtud</span>'
+        + '<span><b>' + r.tehtud + '</b> / ' + r.kokku + ' poodi valmis</span>'
         + '<div class="kaetus-riba"><i style="width:' + pct + '%"></i></div>'
-        + '<span style="color:#7a8290">' + (r.kokku - r.tehtud) + ' veel tegemata</span>'
+        + (puudu ? '<span style="color:#fcd34d;font-weight:700">! ' + puudu + ' puudustega</span>' : '')
+        + '<span style="color:#7a8290">' + (r.kokku - r.tehtud - puudu) + ' veel tegemata</span>'
         + '</div>';
       sisu.innerHTML = kaetus + '<div class="poe-grid">' + r.poed.map(function(p) {
         var osad = poeNimiOsad(p.objekt_nimi);
-        var onTehtud = p.piltide_arv > 0;
-        var klikk = onTehtud
+        var onPuudu = p.seis === 'puudu';
+        var onTehtud = !onPuudu && (p.seis === 'valmis' || p.piltide_arv > 0);
+        // Kaardile saab vajutada, kui on pilte või seis märgitud — ja adminil/Kristol alati (et seisu märkida)
+        var klikitav = p.piltide_arv > 0 || p.seis || (!PIIRATUD && valitudProjektId);
+        var klikk = klikitav
           ? ' onclick=\'avaProjektiPildid(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\''
           : '';
-        return '<div class="poe-kaart ' + (onTehtud ? 'tehtud' : 'tyhi') + '"' + klikk + '>'
-          + (onTehtud ? '<div class="poe-tehtud-markk">✓</div>' : '')
+        return '<div class="poe-kaart ' + (onPuudu ? 'puudu' : onTehtud ? 'tehtud' : 'tyhi') + '"' + klikk + (klikitav && !onTehtud && !onPuudu ? ' style="cursor:pointer"' : '') + '>'
+          + (onPuudu ? '<div class="poe-puudu-markk" title="Midagi jäi puudu">!</div>' : onTehtud ? '<div class="poe-tehtud-markk">✓</div>' : '')
           + (osad.number ? '<div class="poe-number">' + osad.number + '</div>' : '')
           + '<div class="poe-nimi">' + osad.nimi + '</div>'
-          + '<div class="poe-meta">' + (onTehtud
+          + '<div class="poe-meta">' + (p.piltide_arv > 0
               ? (p.piltide_arv + ' pilti<br>' + formatKp(p.viimane_kuupaev))
-              : 'tegemata')
-          + '</div></div>';
+              : (onTehtud ? 'valmis' : onPuudu ? 'puudustega' : 'tegemata'))
+          + '</div>'
+          + (p.seis_kommentaar ? '<div class="poe-kommentaar">💬 ' + escH(p.seis_kommentaar) + '</div>' : '')
+          + '</div>';
       }).join('') + '</div>';
+    }
+
+    function escH(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; });
+    }
+    // Poe seisu paneel pildivaate kohal: valmis / puudu + kommentaar. Admin ja Kristo saavad muuta.
+    function seisuPaneelHtml(objektId) {
+      var p = projektiPoed.find(function(x) { return x.objekt_id === objektId; }) || {};
+      var seis = p.seis || null;
+      seisuValik = seis;
+      var kes = (p.seis_muutja || '') + (p.seis_muudetud ? (p.seis_muutja ? ' · ' : '') + new Date(p.seis_muudetud).toLocaleString('et-EE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+      var html = '<div class="seis-paneel ' + (seis || '') + '">'
+        + '<div class="seis-pea">' + (seis === 'valmis' ? '✓ Valmis' : seis === 'puudu' ? '! Midagi jäi puudu' : 'Seis märkimata') + '</div>'
+        + (p.seis_kommentaar ? '<div class="seis-tekst">' + escH(p.seis_kommentaar) + '</div>' : '')
+        + (kes ? '<div class="seis-kes">' + escH(kes) + '</div>' : '');
+      if (!PIIRATUD && valitudProjektId) {
+        html += '<div class="seis-muuda"><div class="seis-nupud">'
+          + '<button type="button" class="v' + (seis === 'valmis' ? ' sees' : '') + '" id="seisV" onclick="seisuVali(\'valmis\')">✓ Valmis</button>'
+          + '<button type="button" class="p' + (seis === 'puudu' ? ' sees' : '') + '" id="seisP" onclick="seisuVali(\'puudu\')">! Midagi puudu</button>'
+          + (seis ? '<button type="button" onclick="seisuSalvesta(true)">Eemalda märge</button>' : '')
+          + '</div>'
+          + '<textarea id="seisKommentaar" placeholder="Kommentaar — puudu puhul kohustuslik">' + escH(p.seis_kommentaar || '') + '</textarea>'
+          + '<button type="button" class="seis-salvesta" id="seisNupp" onclick="seisuSalvesta(false)">Salvesta seis</button><span class="seis-teade" id="seisTeade"></span>'
+          + '</div>';
+      }
+      return html + '</div>';
+    }
+    function seisuVali(v) {
+      seisuValik = v;
+      document.getElementById('seisV').classList.toggle('sees', v === 'valmis');
+      document.getElementById('seisP').classList.toggle('sees', v === 'puudu');
+      if (v === 'puudu') document.getElementById('seisKommentaar').focus();
+    }
+    async function seisuSalvesta(eemalda) {
+      var teade = document.getElementById('seisTeade');
+      var kommentaar = document.getElementById('seisKommentaar').value.trim();
+      if (!eemalda && !seisuValik) { teade.textContent = 'Vali Valmis või Midagi puudu'; return; }
+      if (!eemalda && seisuValik === 'puudu' && !kommentaar) { teade.textContent = 'Kirjuta, mis jäi puudu'; return; }
+      var nupp = document.getElementById('seisNupp'); nupp.disabled = true; nupp.textContent = 'Salvestan…';
+      var r;
+      try {
+        r = await api('/api/lidl-poed/seis', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projekt_id: valitudProjektId, objekt_id: valitudObjekt.id, seis: eemalda ? null : seisuValik, kommentaar: kommentaar }) });
+      } catch (e) { r = { ok: false, veateade: 'Ühenduse viga' }; }
+      if (!r || !r.ok) { nupp.disabled = false; nupp.textContent = 'Salvesta seis'; teade.textContent = (r && r.veateade) || 'Ei õnnestunud'; return; }
+      // Värskenda poodide andmed ja joonista sama poe vaade uuesti
+      var pr = await api('/api/kristo/projekt-poed?kirjeldus=' + encodeURIComponent(valitudKirjeldus));
+      if (pr && pr.ok) { projektiPoed = pr.poed; valitudProjektId = pr.projekt_id || valitudProjektId; }
+      avaProjektiPildid(valitudObjekt.id, valitudObjekt.nimi, false);
     }
 
     // ── PROJEKTIVAADE, TASE 3: ühe poe pildid selle projekti all ─
@@ -485,14 +566,22 @@
       var r = await api('/api/kristo/pildid/' + objektId + '?kirjeldus=' + encodeURIComponent(valitudKirjeldus));
       praegusedPildid = (r.ok && r.pildid) ? r.pildid : [];
       var riba = document.getElementById('toimingud-riba');
+      // Otse lingiga / värskendusega avades pole poodide seisu veel laetud
+      if (projektiPoedKirjeldus !== valitudKirjeldus) {
+        try {
+          var pr0 = await api('/api/kristo/projekt-poed?kirjeldus=' + encodeURIComponent(valitudKirjeldus));
+          if (pr0 && pr0.ok) { projektiPoed = pr0.poed; projektiPoedKirjeldus = valitudKirjeldus; valitudProjektId = pr0.projekt_id || null; }
+        } catch (e) {}
+      }
+      var seisHtml = seisuPaneelHtml(objektId);
       if (!praegusedPildid.length) {
         riba.style.display = 'none';
-        sisu.innerHTML = '<div class="tyhi">Selle projekti alt pilte ei leitud</div>';
+        sisu.innerHTML = seisHtml + '<div class="tyhi">Selle projekti alt pilte ei leitud</div>';
         return;
       }
       riba.style.display = 'flex';
       document.getElementById('foto-arv').textContent = praegusedPildid.length + ' pilti';
-      sisu.innerHTML = '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
+      sisu.innerHTML = seisHtml + '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
         return '<img src="' + p.url + '" loading="lazy" onclick="avaSuur(' + i + ')">';
       }).join('') + '</div>';
     }

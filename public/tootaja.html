@@ -939,7 +939,9 @@
         var poodLink = function(x, klass) {
           return '<a class="tp-pood ' + klass + '" href="/tootaja-tood?ettevote=' + encodeURIComponent(ettevoteId)
             + '&projekt=' + p.id + '&objekt=' + x.objekt_id + '">'
-            + (klass === 'tehtud' ? '✓ ' : '') + esc(x.objekt_nimi) + '</a>';
+            + (klass === 'tehtud' ? '✓ ' : x.seis === 'puudu' ? '<b style="color:#d97706">!</b> ' : '') + esc(x.objekt_nimi)
+            + (x.seis === 'puudu' && x.seis_kommentaar ? '<span style="display:block;font-size:11px;color:#b45309;font-weight:500">' + esc(x.seis_kommentaar) + '</span>' : '')
+            + '</a>';
         };
         return '<div class="tp-projekt">'
           + '<div class="tp-rida1"><span class="tp-nimi">' + esc(p.nimi) + '</span><span class="tp-arv">' + p.tehtud + '/' + p.kokku + ' tehtud</span></div>'
