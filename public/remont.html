@@ -430,6 +430,18 @@
   </div>
 </div>
 
+<div class="modaal" id="kysiModaal">
+  <div class="modaal-sisu" style="max-width:400px">
+    <div class="modaal-keha">
+      <div id="kysiTekst" style="font-size:14px;line-height:1.5;white-space:pre-wrap;margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" id="kysiEi">Tühista</button>
+        <button class="btn punane" id="kysiJah">Kustuta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="suurpilt" onclick="this.style.display='none'">
   <button type="button">✕</button>
   <img id="suurpiltImg" src="" alt="">
@@ -492,6 +504,29 @@ function teade(id, tekst, korras) {
   var el = document.getElementById(id);
   el.className = 'teade' + (tekst ? (korras ? ' korras' : ' viga') : '');
   el.textContent = tekst || '';
+}
+// Oma kinnitusaken brauseri confirm()/alert() asemel — Safari võib need vaikselt ära jätta.
+function kysi(tekst, jahTekst) {
+  return new Promise(function (valmis) {
+    var m = document.getElementById('kysiModaal');
+    var jah = document.getElementById('kysiJah'), ei = document.getElementById('kysiEi');
+    document.getElementById('kysiTekst').textContent = tekst;
+    jah.textContent = jahTekst || 'Kustuta';
+    jah.style.display = ''; ei.textContent = 'Tühista';
+    function lopp(v) { m.classList.remove('avatud'); jah.onclick = ei.onclick = null; valmis(v); }
+    jah.onclick = function () { lopp(true); };
+    ei.onclick = function () { lopp(false); };
+    m.classList.add('avatud');
+  });
+}
+function teata(tekst) {
+  var m = document.getElementById('kysiModaal');
+  document.getElementById('kysiTekst').textContent = tekst;
+  document.getElementById('kysiJah').style.display = 'none';
+  var ei = document.getElementById('kysiEi');
+  ei.textContent = 'OK';
+  ei.onclick = function () { m.classList.remove('avatud'); };
+  m.classList.add('avatud');
 }
 function ava(id) { document.getElementById(id).classList.add('avatud'); }
 function sulge(id) { document.getElementById(id).classList.remove('avatud'); }
@@ -1500,9 +1535,9 @@ async function kustutaKulu(id) {
   var k = A.kulud.find(function (x) { return x.id === id; });
   if (!k) return;
   var kysimus = 'Kustutan tšeki „' + k.kirjeldus + '" (' + raha(k.summa) + ')?' + (k.arvetes ? '\n\nSee kustub ka Royal Paigalduse arvetest.' : '');
-  if (!confirm(kysimus)) return;
+  if (!await kysi(kysimus)) return;
   var r = await api('/kulud/' + id, { method: 'DELETE' });
-  if (!r.ok) alert(r.veateade || 'Kustutamine ebaõnnestus');
+  if (!r.ok) teata(r.veateade || 'Kustutamine ebaõnnestus');
   laadi();
 }
 
@@ -1540,9 +1575,9 @@ async function salvestaMakse() {
 }
 async function kustutaMakse(id) {
   var m = A.maksed.find(function (x) { return x.id === id; });
-  if (!m || !confirm('Kustutan makse ' + raha(m.summa) + ' (' + kp(m.kuupaev) + ')?')) return;
+  if (!m || !await kysi('Kustutan makse ' + raha(m.summa) + ' (' + kp(m.kuupaev) + ')?')) return;
   var r = await api('/maksed/' + id, { method: 'DELETE' });
-  if (!r.ok) alert(r.veateade || 'Kustutamine ebaõnnestus');
+  if (!r.ok) teata(r.veateade || 'Kustutamine ebaõnnestus');
   laadi();
 }
 
