@@ -232,6 +232,17 @@ const AUDIT_TEGEVUSED = {
   lisa_arve: 'lõi arve',
   muuda_arve: 'muutis arvet',
   kustuta_arve: 'kustutas arve',
+  // Koodid, mida server tegelikult audit_log tabelisse kirjutab
+  SISSELOGIMINE: 'logis sisse',
+  SISSELOGIMINE_FACEID: 'logis sisse (Face ID)',
+  LISA_TOOKIRJE: 'lisas töökirje',
+  MUUDA_TOOKIRJE: 'muutis töökirjet',
+  KUSTUTA_TOOKIRJE: 'kustutas töökirje',
+  ADMIN_MUUTIS_TOOKIRJET: 'admin muutis töökirjet',
+  ADMIN_KUSTUTAS_TOOKIRJE: 'admin kustutas töökirje',
+  ADMIN_ARHIVEERIS_TOOTAJA: 'admin arhiveeris töötaja',
+  ADMIN_TAASTAS_TOOTAJA: 'admin taastas töötaja',
+  ADMIN_VAHETAS_ROLLI: 'admin vahetas rolli',
 };
 
 async function laadiAuditLogi() {
@@ -240,7 +251,7 @@ async function laadiAuditLogi() {
   if (!Array.isArray(d) || !d.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Tegevusi pole veel</div>'; return; }
   div.innerHTML = '<div style="padding:8px 18px">' + d.map(a => {
     const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE') : '—';
-    const tegevusTekst = AUDIT_TEGEVUSED[a.tegevus] || a.tegevus || '—';
+    const tegevusTekst = AUDIT_TEGEVUSED[a.tegevus] || (a.tegevus ? String(a.tegevus).toLowerCase().replace(/_/g, ' ') : '—');
     return `<div class="tegevus-rida"><div class="tegevus-dot"></div><div><div class="tegevus-tekst"><b>${escapeHtmlXs(a.worker_nimi || 'Admin')}</b> — ${escapeHtmlXs(tegevusTekst)}</div><div class="tegevus-aeg">${aeg}</div></div></div>`;
   }).join('') + '</div>';
 }

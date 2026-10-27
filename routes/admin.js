@@ -566,6 +566,7 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
       edgf: edgf_kokku.toFixed(2),
       re: re_kokku.toFixed(2),
       xseeria: xseeria_kokku.toFixed(2),
+      vabad_lisakulud: vabad_lisakulud.toFixed(2),
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
       saadaVeel: (kogTeenitud - kogMakstud).toFixed(2),

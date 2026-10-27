@@ -1105,7 +1105,45 @@ let dashViimatiLaaditud = [];
 let dashOtsing = '';
 let dashStaatusFilter = 'kõik';
 let dashLehekülg = 1;
-const DASH_LEHE_SUURUS = 8;
+const DASH_LEHE_SUURUS = 20;
+let dashNaitaTegevuseta = false;
+
+// ── Kokkuvõtte arvud ühest kohast ───────────────────────────────────
+// teenitud  = ainult töötunnid × tunnitasu (selle kuu)
+// kulud     = kõik muu, mis läheb töötajale maksmisele: km-raha, kirje lisakulu, vabad lisakulud,
+//             EDGF, Rally Estonia, X-seeria (= serveri kogusumma − teenitud, nii et midagi ei jää välja)
+// kogusumma = teenitud + kulud (selle kuu)
+// saldo     = KUMULATIIVNE: kõik teenitud + kulud kuni selle kuu lõpuni − kõik maksed (server: saadaVeel)
+//             > 0 → firma võlgneb töötajale, < 0 → töötajale on ette makstud
+function dashArvud(w) {
+  const tunnid = parseFloat(w.tunnid) || 0;
+  const teenitud = parseFloat(w.teenitud) || 0;
+  const kogusumma = parseFloat(w.kogusumma != null ? w.kogusumma : w.teenitud) || 0;
+  const kulud = Math.max(0, Math.round((kogusumma - teenitud) * 100) / 100);
+  const makstud = parseFloat(w.makstud) || 0;
+  let saldo = parseFloat(w.saadaVeel) || 0;
+  if (Math.abs(saldo) < 0.005) saldo = 0;
+  return { tunnid, teenitud, kulud, kogusumma, makstud, saldo };
+}
+// Töötaja, kellel sel kuul pole tunde, kulusid ega makseid ning saldo on null — tabelis vaikimisi peidus.
+function dashOnTegevuseta(w) {
+  const a = dashArvud(w);
+  return a.tunnid <= 0 && a.kogusumma <= 0 && a.makstud <= 0 && a.saldo === 0;
+}
+function dashOnAktiivne(w) {
+  const a = dashArvud(w);
+  return a.tunnid > 0 || a.kogusumma > 0;
+}
+// Eesti numbrivorming: 2 684,00 € ja 167,8 h
+const DASH_EUR_FMT = new Intl.NumberFormat('et-EE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const DASH_EUR0_FMT = new Intl.NumberFormat('et-EE', { maximumFractionDigits: 0 });
+const DASH_H_FMT = new Intl.NumberFormat('et-EE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function fEur(v, margiga) {
+  const n = parseFloat(v) || 0;
+  return (margiga && n > 0 ? '+' : '') + DASH_EUR_FMT.format(n) + ' €';
+}
+function fEur0(v) { return DASH_EUR0_FMT.format(parseFloat(v) || 0) + ' €'; }
+function fH(v) { return DASH_H_FMT.format(parseFloat(v) || 0) + ' h'; }
 
 async function laadiKokkuvote() {
   const kuu = document.getElementById('kv-kuu').value;
@@ -1118,6 +1156,52 @@ async function laadiKokkuvote() {
   dashLehekülg = 1;
   kuvaTootajaKaardid(dashViimatiLaaditud);
   renderKokkuvoteTable();
+  laadiEmtaKaart(parseInt(kuu, 10), parseInt(aasta, 10));
+}
+
+// ── EMTA tasu kaart ─────────────────────────────────────────────────
+// Käibemaks, mis tuleb valitud kuu eest maksuametile tasuda: müügiarvete KM − ostuarvete/tšekkide KM.
+// Kasutab sama arvutust mis Ettevõtted-leht (etArvuta failis admin-ettevotted.js), kõigi
+// KM-kohuslaste ettevõtete peale kokku. Tähtaeg on järgmise kuu 20. kuupäev.
+async function laadiEmtaKaart(kuu, aasta) {
+  const valEl = document.getElementById('stat-emta');
+  const subEl = document.getElementById('stat-emta-sub');
+  const labelEl = document.getElementById('stat-emta-label');
+  const kaart = document.getElementById('stat-emta-kaart');
+  if (!valEl || typeof etArvuta !== 'function') return;
+  valEl.textContent = '…';
+  try {
+    const [m, a, s] = await Promise.all([api('/api/arved/muujad'), api('/api/arved'), api('/api/arved/sisse')]);
+    etMuujad = (m && Array.isArray(m.muujad)) ? m.muujad : [];
+    etArved = Array.isArray(a) ? a : [];
+    etSisse = Array.isArray(s) ? s : [];
+    etLaetud = true;
+
+    const kohuslased = etMuujad.filter(x => x.km_kohuslane !== false);
+    if (!kohuslased.length) {
+      labelEl.textContent = 'EMTA tasu';
+      valEl.textContent = '—';
+      valEl.style.color = 'var(--hall)';
+      subEl.textContent = 'KM-kohuslast ettevõtet pole';
+      return;
+    }
+    let kokku = 0, kmMuuk = 0, kmOst = 0;
+    const read = kohuslased.map(x => {
+      const r = etArvuta(x.id, aasta, kuu);
+      kokku += r.kmTasuda; kmMuuk += r.kmMuuk; kmOst += r.kmOst;
+      return `${x.ettevote_nimi}: ${r.kmTasuda >= 0 ? '' : '−'}${fEur(Math.abs(r.kmTasuda))}`;
+    });
+    if (Math.abs(kokku) < 0.005) kokku = 0;
+    const tagasi = kokku < 0;
+    labelEl.textContent = tagasi ? 'EMTA tagastab' : 'EMTA tasu';
+    valEl.textContent = fEur(Math.abs(kokku));
+    valEl.style.color = tagasi ? 'var(--roheline)' : 'var(--kuld)';
+    subEl.textContent = `KM müük ${fEur0(kmMuuk)} − ost ${fEur0(kmOst)} · tähtaeg ${etKmTahtaeg(aasta, kuu)}`;
+    kaart.title = `Käibemaks ${KUUD[kuu-1]} ${aasta}\n` + read.join('\n') + '\n\nVajuta, et avada Ettevõtted → käibemaksu raport';
+  } catch (e) {
+    valEl.textContent = '—';
+    subEl.textContent = 'ei õnnestunud laadida';
+  }
 }
 
 function dashOtsiMuutus(v) {
@@ -1137,25 +1221,26 @@ function renderKokkuvoteTable() {
   const aasta = document.getElementById('kv-aasta').value;
   const div = document.getElementById('kokkuvoteKast');
   const andmed = dashViimatiLaaditud;
-  if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:var(--hall)">Selle kuu kirjeid pole</div>'; uuendaStatKaardid([], kuu, aasta, 0, 0, 0); return; }
+  if(!andmed.length) { div.innerHTML='<div style="padding:32px;text-align:center;color:var(--hall)">Selle kuu kirjeid pole</div>'; uuendaStatKaardid([], kuu, aasta); return; }
 
-  let kokku_tunnid=0, kokku_teenitud=0, kokku_makstud=0;
-  andmed.forEach(w => { kokku_tunnid+=parseFloat(w.tunnid); kokku_teenitud+=parseFloat(w.kogusumma||w.teenitud); kokku_makstud+=parseFloat(w.makstud); });
-  uuendaStatKaardid(andmed, kuu, aasta, kokku_tunnid, kokku_teenitud, kokku_makstud);
+  uuendaStatKaardid(andmed, kuu, aasta);
 
   const staatusSildid = { makstud:'Makstud', osaline:'Osaliselt makstud', tasumata:'Tasumata', ettemakse:'Ettemakse' };
+  const tegevusetaArv = andmed.filter(dashOnTegevuseta).length;
   let filtreeritud = andmed.filter(w => {
     if (dashOtsing && !w.nimi.toLowerCase().includes(dashOtsing)) return false;
+    // Tegevuseta töötajad (pole tunde, kulusid, makseid ega saldot) on vaikimisi peidus,
+    // aga otsinguga leiab nad alati üles.
+    if (!dashNaitaTegevuseta && !dashOtsing && dashOnTegevuseta(w)) return false;
     if (dashStaatusFilter !== 'kõik') {
-      const st = saldoStaatus(parseFloat(w.kogusumma||w.teenitud), parseFloat(w.makstud||0));
-      if (st.text !== staatusSildid[dashStaatusFilter]) return false;
+      if (saldoStaatus(w).text !== staatusSildid[dashStaatusFilter]) return false;
     }
     return true;
   });
 
   // Järjestus: 1) kellel on saada (suurim võlg ees), 2) ettemaksuga (suurim ettemaks ees),
   // 3) nullsaldoga töötajad tähestiku järjekorras.
-  const dashSaldo = w => { const v = parseFloat(w.saadaVeel) || 0; return Math.abs(v) < 0.005 ? 0 : v; };
+  const dashSaldo = w => dashArvud(w).saldo;
   const dashGrupp = v => v > 0 ? 0 : v < 0 ? 1 : 2;
   filtreeritud.sort((x, y) => {
     const sx = dashSaldo(x), sy = dashSaldo(y);
@@ -1170,12 +1255,16 @@ function renderKokkuvoteTable() {
   if (dashLehekülg > kokkuLeheküljed) dashLehekülg = kokkuLeheküljed;
   const lehelised = filtreeritud.slice((dashLehekülg-1)*DASH_LEHE_SUURUS, dashLehekülg*DASH_LEHE_SUURUS);
 
+  const tegevusetaNupp = tegevusetaArv > 0 && !dashOtsing
+    ? `<button type="button" class="dash-tegevuseta-nupp" onclick="dashTegevusetaLylita()">${dashNaitaTegevuseta ? 'Peida tegevuseta' : 'Näita ka tegevuseta'} (${tegevusetaArv})</button>`
+    : '';
   const filtriRida = `<div class="tabel-filtri-riba">
     <input type="text" placeholder="🔍 Otsi töötajat..." value="${dashOtsing.replace(/"/g,'&quot;')}" oninput="dashOtsiMuutus(this.value)" class="tabel-otsi">
     <div class="tabel-staatus-pillid">
       ${[['kõik','Kõik'],['makstud','Makstud'],['osaline','Osaliselt'],['tasumata','Tasumata'],['ettemakse','Ettemakse']].map(([f,l]) =>
         `<button type="button" class="dash-staatus-pill${dashStaatusFilter===f?' aktiivne':''}" onclick="dashStaatusMuutus('${f}')">${l}</button>`
       ).join('')}
+      ${tegevusetaNupp}
     </div>
   </div>`;
 
@@ -1184,25 +1273,34 @@ function renderKokkuvoteTable() {
     return;
   }
 
-  let html = filtriRida + `<div style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:var(--radius-kaart);overflow:hidden;margin-bottom:8px">
-    <table><thead><tr style="border-bottom:0.5px solid var(--piir2)">
-      <th>Töötaja</th><th style="text-align:right">Tunnid</th><th style="text-align:right">Teenitud</th>
-      <th style="text-align:right">Kulud</th><th style="text-align:right">Makstud</th><th style="text-align:right">Saldo</th><th>Staatus</th><th></th>
+  // KOKKU rida = filtreeritud nimekirja (kõigi lehtede) summa, samade reeglitega nagu read.
+  let k_tunnid=0, k_teenitud=0, k_kulud=0, k_makstud=0, k_saldo=0;
+  filtreeritud.forEach(w => {
+    const a = dashArvud(w);
+    k_tunnid += a.tunnid; k_teenitud += a.teenitud; k_kulud += a.kulud; k_makstud += a.makstud; k_saldo += a.saldo;
+  });
+
+  let html = filtriRida + `<div class="dash-tabel-wrap" style="background:var(--bg2);border:0.5px solid var(--piir);border-radius:var(--radius-kaart);overflow:hidden;margin-bottom:8px">
+    <table class="dash-tabel"><thead><tr style="border-bottom:0.5px solid var(--piir2)">
+      <th>Töötaja</th><th class="num">Tunnid</th><th class="num">Teenitud</th>
+      <th class="num" title="km-raha, lisakulud, EDGF, Rally Estonia, X-seeria">Kulud</th><th class="num">Makstud</th>
+      <th class="num" title="Kumulatiivne: kõik teenitud ja kulud kuni selle kuu lõpuni miinus kõik maksed. + = töötajale veel maksta, − = ette makstud">Saldo</th><th>Staatus</th><th></th>
     </tr></thead><tbody>`;
   lehelised.forEach(w => {
-    const tunnid=parseFloat(w.tunnid), teenitud=parseFloat(w.teenitud), makstud=parseFloat(w.makstud), saada=parseFloat(w.saadaVeel);
-    const edgf=parseFloat(w.edgf||0)+parseFloat(w.re||0), lisakulu=parseFloat(w.lisakulu||0), xseeria=parseFloat(w.xseeria||0), kulud=edgf+lisakulu+xseeria, kogusumma=parseFloat(w.kogusumma||w.teenitud);
-    const st = saldoStaatus(kogusumma, makstud);
+    const a = dashArvud(w);
+    const tunnid = a.tunnid, teenitud = a.teenitud, makstud = a.makstud, saada = a.saldo, kulud = a.kulud;
+    const st = saldoStaatus(w);
     const vc = tootajaVarv(w.id || w.nimi);
+    const kuluTitle = kulud > 0 ? ` title="${dashKuluSelgitus(w)}"` : '';
     html += `<tr id="worker-rida-${w.nimi.replace(/\s/g,'_')}">
-      <td style="font-weight:600;cursor:pointer;color:${tunnid>0||kulud>0?'#2563eb':'var(--hall)'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
+      <td class="dash-nimi" style="font-weight:600;cursor:pointer;color:${tunnid>0||kulud>0?'#2563eb':'var(--hall)'}" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
         <span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span>${tmEsc(w.nimi)}
       </td>
-      <td style="text-align:right;color:#5b9cf6">${tunnid>0?tunnid.toFixed(1)+' h':'—'}</td>
-      <td style="text-align:right;color:#4ade80">${teenitud>0?teenitud.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right;color:#a78bfa">${kulud>0?'+'+kulud.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right;color:var(--hall)">${makstud>0?makstud.toFixed(2)+' €':'—'}</td>
-      <td style="text-align:right;color:${saada>0?'#fbbf24':saada<0?'#ef4444':'var(--hall)'}">${saada!==0?(saada>0?'+':'')+saada.toFixed(2)+' €':'—'}</td>
+      <td class="num" style="color:#5b9cf6">${tunnid>0?fH(tunnid):'—'}</td>
+      <td class="num" style="color:#4ade80">${teenitud>0?fEur(teenitud):'—'}</td>
+      <td class="num" style="color:#a78bfa"${kuluTitle}>${kulud>0?'+'+fEur(kulud):'—'}</td>
+      <td class="num" style="color:var(--hall)">${makstud>0?fEur(makstud):'—'}</td>
+      <td class="num" style="color:${saada>0?'#fbbf24':saada<0?'#ef4444':'var(--hall)'}">${saada!==0?fEur(saada, true):'—'}</td>
       <td><span class="staatus-pill ${st.cls}">${st.text}</span></td>
       <td style="text-align:right">${tunnid>0?`<button class="av-tegevus-ikoon" id="kirjed-chevron-${w.nimi.replace(/\s/g,'_')}" onclick="toggleKirjed('${w.nimi.replace(/\s/g,'_')}')" title="Näita töökirjeid"><span class="tj-arhiiv-chevron">▾</span></button>`:''}
       </td></tr>
@@ -1234,11 +1332,11 @@ function renderKokkuvoteTable() {
   });
   html += `<tr style="border-top:1px solid var(--piir);font-weight:700">
     <td>KOKKU</td>
-    <td style="text-align:right;color:#5b9cf6">${kokku_tunnid.toFixed(1)} h</td>
-    <td style="text-align:right;color:#4ade80">${kokku_teenitud.toFixed(2)} €</td>
-    <td style="text-align:right;color:#a78bfa">—</td>
-    <td style="text-align:right;color:var(--hall)">${kokku_makstud.toFixed(2)} €</td>
-    <td style="text-align:right;color:#fbbf24">${(kokku_teenitud-kokku_makstud).toFixed(2)} €</td>
+    <td class="num" style="color:#5b9cf6">${fH(k_tunnid)}</td>
+    <td class="num" style="color:#4ade80">${fEur(k_teenitud)}</td>
+    <td class="num" style="color:#a78bfa">${k_kulud>0?'+'+fEur(k_kulud):'—'}</td>
+    <td class="num" style="color:var(--hall)">${fEur(k_makstud)}</td>
+    <td class="num" style="color:${k_saldo>0.004?'#fbbf24':k_saldo<-0.004?'#ef4444':'var(--hall)'}">${fEur(k_saldo, true)}</td>
     <td></td><td></td>
   </tr></tbody></table></div>`;
   if (kokkuLeheküljed > 1) {
@@ -1250,6 +1348,17 @@ function renderKokkuvoteTable() {
   }
   div.innerHTML = html;
   kvRenderUlevaadeToggle();
+}
+
+function dashTegevusetaLylita() { dashNaitaTegevuseta = !dashNaitaTegevuseta; dashLehekülg = 1; renderKokkuvoteTable(); }
+
+// Kulude veeru vihje: millest kulud koosnevad.
+function dashKuluSelgitus(w) {
+  const osad = [
+    ['km-raha', w.km_raha], ['Lisakulu (kirjel)', w.lisakulu], ['Vabad lisakulud', w.vabad_lisakulud],
+    ['EDGF', w.edgf], ['Rally Estonia', w.re], ['X-seeria', w.xseeria]
+  ].filter(([, v]) => (parseFloat(v) || 0) > 0).map(([n, v]) => `${n}: ${fEur(v)}`);
+  return tmEsc(osad.length ? osad.join(' · ') : 'Kulud');
 }
 
 let kvUlevaadeAvatud = localStorage.getItem('kvUlevaadeAvatud') === '1';
@@ -1265,12 +1374,14 @@ function kvRenderUlevaadeToggle() {
   if (chevron) chevron.classList.toggle('avatud', kvUlevaadeAvatud);
 }
 
-function saldoStaatus(teenitud, makstud) {
-  if (teenitud <= 0 && makstud <= 0) return { text: '—', cls: 'hall' };
-  if (makstud > teenitud) return { text: 'Ettemakse', cls: 'sinine' };
-  if (makstud >= teenitud) return { text: 'Makstud', cls: 'roheline' };
-  if (makstud > 0) return { text: 'Osaliselt makstud', cls: 'oranz' };
-  return { text: 'Tasumata', cls: 'punane' };
+// Staatus põhineb SAMAL kumulatiivsel saldol, mida tabel näitab (mitte ainult selle kuu summadel),
+// et staatus ja saldo ei räägiks kunagi vastu.
+function saldoStaatus(w) {
+  const a = dashArvud(w);
+  if (a.saldo > 0) return a.makstud > 0 ? { text: 'Osaliselt makstud', cls: 'oranz' } : { text: 'Tasumata', cls: 'punane' };
+  if (a.saldo < 0) return { text: 'Ettemakse', cls: 'sinine' };
+  if (a.kogusumma > 0 || a.makstud > 0) return { text: 'Makstud', cls: 'roheline' };
+  return { text: '—', cls: 'hall' };
 }
 
 const TOP_TOOTAJAID = 12;
@@ -1278,10 +1389,8 @@ function kuvaTootajaKaardid(andmed) {
   const div = document.getElementById('kokkuvote-tootajad-kaardid');
   if (!div) return;
   // Järjestus: kõige rohkem teeninud (koos kuludega) sel kuul ees
-  const aktiivsed = (andmed || []).filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
-    return parseFloat(w.tunnid) > 0 || kulud > 0;
-  }).sort((a,b) => parseFloat(b.kogusumma || b.teenitud) - parseFloat(a.kogusumma || a.teenitud));
+  const aktiivsed = (andmed || []).filter(dashOnAktiivne)
+    .sort((a,b) => dashArvud(b).kogusumma - dashArvud(a).kogusumma);
   if (!aktiivsed.length) { div.innerHTML = ''; return; }
   const top = aktiivsed.slice(0, TOP_TOOTAJAID);
   div.innerHTML = `<div class="top-tootajad-kaart">
@@ -1294,19 +1403,19 @@ function kuvaTootajaKaardid(andmed) {
     </div>
     <div class="top-tootajad-scroll" id="top-tootajad-scroll">` + top.map((w, i) => {
     const vc = tootajaVarv(w.id || w.nimi);
-    const tunnid = parseFloat(w.tunnid);
-    const teenitud = parseFloat(w.kogusumma || w.teenitud);
-    const makstud = parseFloat(w.makstud || 0);
-    const st = saldoStaatus(teenitud, makstud);
+    const a = dashArvud(w);
+    const st = saldoStaatus(w);
+    const kuluVihje = a.kulud > 0 ? ` title="Töö ${fEur(a.teenitud)} + kulud ${fEur(a.kulud)}"` : '';
     return `<div class="top-tootaja-kaart" onclick="avaTootajaModal(${w.id||0}, '${w.nimi.replace(/'/g,"\\'")}')">
       <div class="top-tootaja-koht">${i+1}.</div>
       <div class="top-tootaja-avatar" style="background:${vc}">${tootajaAvatar(w)}</div>
       <div class="top-tootaja-nimi">${tmEsc(w.nimi)}</div>
-      <div class="top-tootaja-info">${tunnid.toFixed(1)}h · ${teenitud.toFixed(0)}€</div>
+      <div class="top-tootaja-info"${kuluVihje}>${fH(a.tunnid)} · ${fEur0(a.kogusumma)}</div>
       <span class="staatus-pill ${st.cls}">${st.text}</span>
     </div>`;
   }).join('') + `</div></div>`;
 }
+
 function topKeri(suund) {
   const el = document.getElementById('top-tootajad-scroll');
   if (!el) return;
@@ -1350,15 +1459,26 @@ async function tjEemaldaFoto(workerId) {
   if (dashViimatiLaaditud && dashViimatiLaaditud.length) { kuvaTootajaKaardid(dashViimatiLaaditud); renderKokkuvoteTable(); }
 }
 
-async function uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMakstud) {
+// Kõik numbrid tulevad dashArvud()-ist, sama loogikaga mis tabel.
+//   Teenitud  = selle kuu töö + kulud (kogusumma)
+//   Tasumata  = kumulatiivne: kui palju on töötajatele veel maksta (positiivsete saldode summa)
+//   Ettemaks  = kumulatiivne: kui palju on töötajatele ette makstud (negatiivsete saldode summa)
+function dashKokku(andmed) {
+  const k = { tunnid: 0, kogusumma: 0, makstud: 0, tasumata: 0, ettemaks: 0, tasumataArv: 0, aktiivseid: 0 };
+  (andmed || []).forEach(w => {
+    const a = dashArvud(w);
+    k.tunnid += a.tunnid; k.kogusumma += a.kogusumma; k.makstud += a.makstud;
+    if (a.saldo > 0) { k.tasumata += a.saldo; k.tasumataArv++; }
+    if (a.saldo < 0) k.ettemaks += -a.saldo;
+    if (dashOnAktiivne(w)) k.aktiivseid++;
+  });
+  return k;
+}
+
+async function uuendaKiirkokkuvote(andmed) {
   const div = document.getElementById('dash-kiirkokkuvote');
   if (!div) return;
-  const aktiivseid = (andmed||[]).filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
-    return parseFloat(w.tunnid) > 0 || kulud > 0;
-  }).length;
-  const volgu = kokkuTeenitud - kokkuMakstud;
-  const protsentMakstud = kokkuTeenitud > 0 ? Math.min(100, Math.round((kokkuMakstud / kokkuTeenitud) * 100)) : 0;
+  const k = dashKokku(andmed);
   let kommentaariRida = '';
   try {
     const kk = await api('/api/kristo/admin/kommentaarid/arv');
@@ -1367,10 +1487,11 @@ async function uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMaks
     }
   } catch(e) {}
   div.innerHTML = `
-    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Aktiivseid töötajaid</span><span class="kiirinfo-val">${aktiivseid}</span></div>
-    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Töötunde kokku</span><span class="kiirinfo-val">${kokkuTunnid.toFixed(1)} h</span></div>
-    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Makstud osakaal</span><span class="kiirinfo-val">${protsentMakstud}%</span></div>
-    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Tasumata</span><span class="kiirinfo-val" style="color:${volgu>0?'var(--oranz)':'var(--tekst)'}">${volgu.toFixed(2)} €</span></div>
+    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Aktiivseid töötajaid</span><span class="kiirinfo-val">${k.aktiivseid}</span></div>
+    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Töötunde kokku</span><span class="kiirinfo-val">${fH(k.tunnid)}</span></div>
+    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Sel kuul välja makstud</span><span class="kiirinfo-val">${fEur(k.makstud)}</span></div>
+    <div class="kiirinfo-rida"><span class="kiirinfo-silt">Töötajatele veel maksta</span><span class="kiirinfo-val" style="color:${k.tasumata>0?'var(--oranz)':'var(--tekst)'}">${fEur(k.tasumata)}</span></div>
+    ${k.ettemaks > 0 ? `<div class="kiirinfo-rida"><span class="kiirinfo-silt">Ette makstud</span><span class="kiirinfo-val" style="color:var(--sinine)">${fEur(k.ettemaks)}</span></div>` : ''}
     ${kommentaariRida}`;
 }
 
@@ -1382,7 +1503,7 @@ async function laadiViimasedTegevused() {
     if (!Array.isArray(d) || !d.length) { div.innerHTML = '<div style="font-size:12px;color:var(--hall)">Tegevusi pole veel</div>'; return; }
     div.innerHTML = d.slice(0, 6).map(a => {
       const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-      const tegevusTekst = (typeof AUDIT_TEGEVUSED !== 'undefined' && AUDIT_TEGEVUSED[a.tegevus]) || a.tegevus || '—';
+      const tegevusTekst = (typeof AUDIT_TEGEVUSED !== 'undefined' && AUDIT_TEGEVUSED[a.tegevus]) || (a.tegevus ? String(a.tegevus).toLowerCase().replace(/_/g, ' ') : '—');
       return `<div class="tegevus-rida">
         <div class="tegevus-dot"></div>
         <div>
@@ -1396,30 +1517,29 @@ async function laadiViimasedTegevused() {
   }
 }
 
-function uuendaStatKaardid(andmed, kuu, aasta, kokkuTunnid, kokkuTeenitud, kokkuMakstud) {
+function uuendaStatKaardid(andmed, kuu, aasta) {
   const kaardid = document.getElementById('stat-kaardid');
   if (!kaardid) return;
-  const aktiivseid = andmed.filter(w => {
-    const kulud = parseFloat(w.edgf||0) + parseFloat(w.re||0) + parseFloat(w.lisakulu||0) + parseFloat(w.xseeria||0);
-    return parseFloat(w.tunnid) > 0 || kulud > 0;
-  }).length;
+  const k = dashKokku(andmed);
   const kuuNimi = (typeof KUUD !== 'undefined' && KUUD[kuu-1]) ? KUUD[kuu-1] : '';
-  const volgu = kokkuTeenitud - kokkuMakstud;
 
-  document.getElementById('stat-tootajaid').textContent = aktiivseid;
+  document.getElementById('stat-tootajaid').textContent = k.aktiivseid;
   document.getElementById('stat-tootajaid-sub').textContent = `${andmed.length} kokku selles nimekirjas`;
 
-  document.getElementById('stat-tunnid').textContent = kokkuTunnid.toFixed(1) + ' h';
+  document.getElementById('stat-tunnid').textContent = fH(k.tunnid);
   document.getElementById('stat-tunnid-sub').textContent = `${kuuNimi} ${aasta}`;
 
-  document.getElementById('stat-teenitud').textContent = kokkuTeenitud.toFixed(2) + ' €';
+  document.getElementById('stat-teenitud').textContent = fEur(k.kogusumma);
 
+  // Tasumata = palju on töötajatele kokku veel maksta (kumulatiivne, sama mis tabeli Saldo veerg)
   const volguEl = document.getElementById('stat-volgu');
-  volguEl.textContent = (volgu > 0 ? '+' : '') + volgu.toFixed(2) + ' €';
-  volguEl.style.color = volgu > 0 ? '#fbbf24' : volgu < 0 ? '#ef4444' : 'var(--tekst)';
-  document.getElementById('stat-volgu-sub').textContent = `makstud: ${kokkuMakstud.toFixed(2)} €`;
+  volguEl.textContent = fEur(k.tasumata);
+  volguEl.style.color = k.tasumata > 0 ? 'var(--oranz)' : 'var(--tekst)';
+  const sub = [k.tasumataArv ? `${k.tasumataArv} töötajale` : 'kõik makstud'];
+  if (k.ettemaks > 0) sub.push(`ettemaks ${fEur0(k.ettemaks)}`);
+  document.getElementById('stat-volgu-sub').textContent = sub.join(' · ');
 
-  uuendaKiirkokkuvote(andmed, kokkuTunnid, kokkuTeenitud, kokkuMakstud);
+  uuendaKiirkokkuvote(andmed);
 }
 
 function tmEsc(s) {
@@ -1957,7 +2077,7 @@ async function tjLaadiAjalugu(workerId) {
     if (!omad.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selle töötaja kohta pole veel ajalugu</div>'; return; }
     div.innerHTML = omad.map(a => {
       const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : '—';
-      const tegevusTekst = (typeof AUDIT_TEGEVUSED !== 'undefined' && AUDIT_TEGEVUSED[a.tegevus]) || a.tegevus || '—';
+      const tegevusTekst = (typeof AUDIT_TEGEVUSED !== 'undefined' && AUDIT_TEGEVUSED[a.tegevus]) || (a.tegevus ? String(a.tegevus).toLowerCase().replace(/_/g, ' ') : '—');
       return `<div class="tegevus-rida"><div class="tegevus-dot"></div><div><div class="tegevus-tekst">${escapeHtmlXs(tegevusTekst)}</div><div class="tegevus-aeg">${aeg}</div></div></div>`;
     }).join('');
   } catch(e) {
