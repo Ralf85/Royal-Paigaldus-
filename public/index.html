@@ -163,23 +163,49 @@
     .kontakt-nupp:hover { border-color: #c9a84c; color: #e8d9ac; }
     .kontakt-paneel {
       position: absolute; top: calc(100% + 10px); right: 0;
-      background: #1e293b;
-      border: 1px solid rgba(201,168,76,0.25);
-      border-radius: 12px;
-      padding: 16px 20px;
-      min-width: 220px;
+      background: linear-gradient(180deg, #15130e 0%, #0c0c0e 100%);
+      border: 1px solid rgba(201,168,76,0.35);
+      border-radius: 14px;
+      padding: 18px 22px;
+      min-width: 260px;
       font-size: 13px;
       color: #cbd5e1;
       text-align: left;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      letter-spacing: normal;
+      font-weight: 400;
+      cursor: default;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 24px rgba(201,168,76,0.06);
       opacity: 0; visibility: hidden; transform: translateY(-6px);
       transition: opacity .18s, transform .18s, visibility .18s;
     }
     .kontakt-nupp.avatud .kontakt-paneel { opacity: 1; visibility: visible; transform: translateY(0); }
     .kontakt-paneel a { display: block; color: #e8d9ac; text-decoration: none; margin-top: 6px; font-weight: 600; }
     .kontakt-paneel a:hover { color: #c9a84c; text-decoration: underline; }
-    .kontakt-paneel .silt { color: #64748b; font-size: 11px; margin-top: 12px; }
+    .kontakt-paneel .silt { color: #7a6f55; font-size: 11px; margin-top: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
     .kontakt-paneel .silt:first-child { margin-top: 0; }
+    .kontakt-paneel .firma {
+      padding-bottom: 14px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(201,168,76,0.18);
+    }
+    .kontakt-paneel .firma-nimi { color: #e8d9ac; font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
+    .kontakt-paneel .firma-kood { color: #8b8574; font-size: 12px; margin-top: 4px; }
+    .kontakt-paneel a.registri-link { font-size: 12px; font-weight: 500; color: #a8925a; margin-top: 8px; }
+    .kontakt-paneel a.registri-link:hover { color: #c9a84c; }
+
+    /* ── Jalus: ettevõtte rekvisiidid ──────────────────────────────────── */
+    .jalus {
+      position: fixed;
+      left: 0; right: 0; bottom: 18px;
+      text-align: center;
+      font-size: 11px;
+      color: #4b4f57;
+      letter-spacing: 0.04em;
+      padding: 0 16px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .jalus span + span::before { content: "·"; margin: 0 8px; color: #3a3d44; }
 
     /* ── Modaal, kus on PIN-koodi moodul ───────────────────────────────── */
     .kate {
@@ -240,11 +266,16 @@
   <div class="ylanupud">
     <button class="kontakt-nupp" id="kontaktNupp" onclick="event.stopPropagation();lylitaKontakt()">
       Kontakt
-      <div class="kontakt-paneel">
+      <div class="kontakt-paneel" onclick="event.stopPropagation()">
+        <div class="firma">
+          <div class="firma-nimi">ROYAL PAIGALDUS OÜ</div>
+          <div class="firma-kood">Registrikood 16256983</div>
+          <a class="registri-link" href="https://ariregister.rik.ee/est/company/16256983" target="_blank" rel="noopener">Vaata äriregistrist ↗</a>
+        </div>
         <div class="silt">Telefon</div>
         <a href="tel:+37258586475">+372 5858 6475</a>
         <div class="silt">E-post</div>
-        <a href="mailto:ralf.rogov@gmail.com">ralf.rogov@gmail.com</a>
+        <a href="mailto:info@royalco.ee">info@royalco.ee</a>
       </div>
     </button>
     <button class="signin-nupp" onclick="avaKast()">Logi sisse</button>
@@ -259,6 +290,10 @@
       </div>
     </div>
     <div class="hero-alltekst">Tööpäevik</div>
+  </div>
+
+  <div class="jalus">
+    <span>Royal Paigaldus OÜ</span><span>Reg. 16256983</span><span>royalco.ee</span>
   </div>
 
   <!-- Väli, mida brauser kasutab Face ID/passkey automaatseks pakkumiseks ("Conditional UI") —
