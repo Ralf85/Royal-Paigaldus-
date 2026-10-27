@@ -222,6 +222,9 @@
   .kasum-silt { font-size: 13px; font-weight: 700; color: #86efac; }
   .kasum-all { font-size: 11px; color: #8b93a1; margin-top: 3px; }
   .kasum-summa { font-size: 22px; font-weight: 800; color: var(--tasutud); white-space: nowrap; }
+  .arvetesse-rida { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; background: #101318; border: 0.5px dashed #7a5d0f; border-radius: 9px; padding: 8px 10px; }
+  .arvetesse-rida span { font-size: 12px; color: #8b93a1; }
+  .arvetesse-rida input { width: 110px; padding: 6px 9px; font-size: 15px; }
   .kogu-markus { font-size: 12px; color: #8b93a1; margin-top: 10px; }
   @media (max-width: 520px) { .kogu-osad { grid-template-columns: 1fr; } .kogu-summa { font-size: 24px; } }
 
@@ -818,6 +821,23 @@ function joonistaTood() {
 }
 
 
+var kuluFilter = 'koik';
+function valiKuluFilter(f) { kuluFilter = f; joonistaKulud(); }
+
+// Olemasolev tšekk Royal Paigalduse arvetesse (ainult admin). Tühi väli = soovitus 24% järgi (placeholder).
+async function lisaArvetesse(id) {
+  var k = A.kulud.find(function (x) { return x.id === id; });
+  var el = document.getElementById('kmArv-' + id);
+  var km = loeArv(el.value !== '' ? el.value : el.placeholder);
+  if (!Number.isFinite(km) || km < 0 || km >= k.summa) { alert('Kontrolli käibemaksu summat'); el.focus(); return; }
+  if (el.value === '' && !confirm('Käibemaks on tühi — kasutan 24% järgi arvutatud ' + raha(km) + '. Kontrollisid tšeki pealt?')) { el.focus(); return; }
+  var nupp = document.getElementById('kmNupp-' + id);
+  nupp.disabled = true; nupp.textContent = 'Lisan…';
+  var r = await api('/kulud/' + id + '/arvetesse', { method: 'POST', body: JSON.stringify({ kaibemaks: km }) });
+  if (!r.ok) { nupp.disabled = false; nupp.textContent = 'Lisa Royali arvetesse'; alert(r.veateade || 'Ei õnnestunud'); return; }
+  await laadi();
+}
+
 function joonistaKulud() {
   var s = A.seaded;
   var html = '';
@@ -827,8 +847,26 @@ function joonistaKulud() {
     document.getElementById('paneel-kulud').innerHTML = html;
     return;
   }
+  var nahtavad = A.kulud;
+  if (saabMuuta()) {
+    var valjas = A.kulud.filter(function (k) { return !k.arvetes; });
+    var valjasSumma = valjas.reduce(function (a, k) { return a + (Number(k.summa) || 0); }, 0);
+    if (!valjas.length && kuluFilter === 'valjas') kuluFilter = 'koik';
+    html += '<div class="filtrid">'
+      + '<button class="filter' + (kuluFilter === 'koik' ? ' sees' : '') + '" onclick="valiKuluFilter(\'koik\')">Kõik<b>' + A.kulud.length + '</b></button>'
+      + '<button class="filter' + (kuluFilter === 'valjas' ? ' sees' : '') + '" onclick="valiKuluFilter(\'valjas\')">Royali arvetest väljas<b>' + valjas.length + '</b></button>'
+      + '</div>';
+    if (valjas.length && kuluFilter !== 'valjas') {
+      html += '<div class="hoiatus">' + valjas.length + ' tšekki (' + raha(valjasSumma) + ') pole Royal Paigalduse arvetes. '
+        + '<a href="#" style="color:#fde68a" onclick="valiKuluFilter(\'valjas\');return false">Näita neid ›</a></div>';
+    }
+    if (kuluFilter === 'valjas') {
+      html += '<div class="vihje">Kontrolli tšeki pealt käibemaksu summa ja vajuta „Lisa arvetesse". Tšekk läheb Royal Paigalduse sissetulevate arvete alla (staatus makstud) ja raamatupidaja näeb seda koos failiga.</div>';
+      nahtavad = valjas;
+    }
+  }
   html += '<div class="kaart">';
-  A.kulud.forEach(function (k) {
+  nahtavad.forEach(function (k) {
     var protsent = k.summa > 0 ? k.naabri_summa / k.summa * 100 : 0;
     html += '<div class="kirje"><div class="kirje-ylal"><div>'
       + '<div class="kirje-pealkiri">' + esc(k.kirjeldus) + (k.foto_url ? '' : '<span class="mark punane">tšekk puudub</span>')
@@ -854,6 +892,12 @@ function joonistaKulud() {
       html += '<div class="pisipildid"><img src="' + esc(k.foto_url) + '" loading="lazy" alt="Tšekk" onclick="suurPilt(this.src)"></div>';
     }
     if (saabMuuta()) {
+      if (!k.arvetes) {
+        html += '<div class="arvetesse-rida"><span>Käibemaks (€)</span>'
+          + '<input type="text" inputmode="decimal" id="kmArv-' + k.id + '" value="' + (Number(k.kaibemaks) > 0 ? esc(String(k.kaibemaks).replace(".", ",")) : '') + '" placeholder="' + esc(arv(Math.round(k.summa / 1.24 * 0.24 * 100) / 100)) + '">'
+          + '<button class="btn vaike kuld" id="kmNupp-' + k.id + '" onclick="lisaArvetesse(' + k.id + ')">Lisa Royali arvetesse</button>'
+          + '</div>';
+      }
       html += '<div class="kirje-nupud"><button class="btn vaike kuldne" onclick="muudaKulu(' + k.id + ', true)">Detailne jagamine</button>'
         + '<button class="btn vaike" onclick="muudaKulu(' + k.id + ')">Muuda</button>'
         + '<button class="btn vaike punane" onclick="kustutaKulu(' + k.id + ')">Kustuta</button></div>';

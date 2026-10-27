@@ -802,6 +802,47 @@ router.post('/kulud', noudaAdmin, uploadDok.single('fail'), async (req, res) => 
   res.json({ ok: true, id: t.id, arvetes: t.arvetes });
 });
 
+// Olemasoleva tšeki lisamine Royal Paigalduse arvetesse ühe klikiga (Materjalid → "Arvetest väljas").
+// Tšeki read, jaotus ja fail jäävad samaks; muutub ainult käibemaks ja arvetes olek.
+router.post('/kulud/:id/arvetesse', noudaAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const v = await pool.query(`SELECT *, to_char(kuupaev, 'YYYY-MM-DD') AS kp FROM remont_kulud WHERE id=$1`, [id]);
+  if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const vana = v.rows[0];
+  if (vana.arve_sisse_id) return res.json({ ok: true, id, arvetes: true });
+  const summa = parseFloat(vana.summa) || 0;
+  const km = loeArv((req.body || {}).kaibemaks);
+  if (!Number.isFinite(km) || km < 0 || km >= summa) {
+    return res.json({ ok: false, veateade: `Käibemaks peab olema 0 ja ${summa.toFixed(2)} € vahel` });
+  }
+  const readRes = await pool.query(
+    `SELECT nimetus, summa, naabri_protsent, naabri_summa FROM remont_kulu_read WHERE kulu_id=$1 ORDER BY jrk, id`, [id]
+  );
+  let read = readRes.rows.map(x => ({
+    nimetus: x.nimetus, summa: parseFloat(x.summa) || 0,
+    protsent: parseFloat(x.naabri_protsent) || 0, naabriSumma: parseFloat(x.naabri_summa) || 0
+  }));
+  // Vanadel tšekkidel ridu pole — teeme ühe rea, mis säilitab praeguse jaotuse.
+  if (!read.length) {
+    const nS = parseFloat(vana.naabri_summa) || 0;
+    read = [{ nimetus: vana.kirjeldus || 'Materjal', summa: r2(summa), protsent: summa > 0 ? r2(nS / summa * 100) : 0, naabriSumma: r2(nS) }];
+  }
+  const k = {
+    kuupaev: vana.kp,
+    kirjeldus: vana.kirjeldus, summa: r2(summa), maksja: vana.maksja, read,
+    naabriSumma: r2(parseFloat(vana.naabri_summa) || 0), kaibemaks: r2(km), arvetesse: true
+  };
+  try {
+    const t = await salvestaKulu(k, null, id);
+    if (t.viga) return res.json({ ok: false, veateade: t.viga });
+    res.json({ ok: true, id: t.id, arvetes: t.arvetes });
+  } catch (e) {
+    console.error('Tšeki arvetesse lisamine:', e);
+    res.json({ ok: false, veateade: 'Arvetesse lisamine ebaõnnestus' });
+  }
+});
+
 router.post('/kulud/:id/uuenda', noudaAdmin, uploadDok.single('fail'), async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id)) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
