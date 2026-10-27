@@ -628,6 +628,41 @@ function kogumaksumusHtml() {
 }
 
 
+// Käibemaks materjalidelt — ainult adminile, neutraalne ülevaade.
+// km iga tšeki kohta jagatakse osapoolte vahel sama suhtega nagu tšeki summa (minu_summa / naabri_summa).
+// "Royali arvetes" = tšekk on lisatud Royal Paigalduse sissetulevatesse arvetesse.
+function kmMaterjalidHtml() {
+  var s = A.seaded;
+  var k = { km: 0, arvetes: 0, arvetesMinu: 0, arvetesNaabri: 0, arvetesSumma: 0, valjasMinu: 0, valjasNaabri: 0, ilmaKm: 0 };
+  A.kulud.forEach(function (x) {
+    var summa = Number(x.summa) || 0, km = Number(x.kaibemaks) || 0;
+    var nOsa = summa > 0 ? (Number(x.naabri_summa) || 0) / summa : 0;
+    k.km += km;
+    if (x.arvetes) {
+      if (km <= 0) k.ilmaKm++;
+      k.arvetes += km; k.arvetesSumma += summa;
+      k.arvetesNaabri += km * nOsa; k.arvetesMinu += km * (1 - nOsa);
+    } else {
+      k.valjasNaabri += km * nOsa; k.valjasMinu += km * (1 - nOsa);
+    }
+  });
+  if (k.km <= 0 && !k.ilmaKm) return '';
+  var rida = function (silt, v, stiil) { return '<div class="arve-rida"><span>' + silt + '</span><b' + (stiil ? ' style="' + stiil + '"' : '') + '>' + raha(v) + '</b></div>'; };
+  return '<div class="kaart"><div class="kaart-hdr">Käibemaks materjalidelt <span class="mark">ainult sulle</span></div><div class="kaart-sisu">'
+    + rida('Käibemaks tšekkidel kokku', k.km)
+    + rida('… neist Royal Paigalduse arvetes (sisendkäibemaksuna)', k.arvetes, 'color:var(--naaber)')
+    + rida('&nbsp;&nbsp;&nbsp;' + esc(s.minu_nimi) + ' osa materjalide pealt', k.arvetesMinu, 'color:var(--mina)')
+    + rida('&nbsp;&nbsp;&nbsp;' + esc(s.naabri_nimi) + ' osa materjalide pealt', k.arvetesNaabri, 'color:var(--naaber)')
+    + (k.km - k.arvetes > 0.004 ? rida('… arvetest väljas', k.km - k.arvetes, 'color:#8b93a1') : '')
+    + '<div class="kogu-markus">' + esc(s.naabri_nimi) + ' tasub oma osa materjalidest tšeki summas ehk koos käibemaksuga. '
+    + 'Arvetes olevate tšekkide summa kokku ' + raha(k.arvetesSumma) + ', km-ta ' + raha(k.arvetesSumma - k.arvetes) + '.</div>'
+    + (k.ilmaKm ? '<div class="kogu-markus" style="color:#fcd34d">⚠ ' + k.ilmaKm + ' arvetes oleval tšekil on käibemaks märkimata — need pole summades sees.</div>' : '')
+    + '<div class="hoiatus" style="margin:12px 0 0">Raamatupidamise mõttes: sisendkäibemaksu saab maha arvata ainult ettevõtte maksustatava tegevuse kulude pealt. '
+    + 'Oma kodu materjalide (' + esc(s.minu_nimi) + ' osa) km on üldjuhul mittemahaarvatav. Kui ' + esc(s.naabri_nimi) + ' osa käib läbi firma, '
+    + 'tuleks talle esitada arve koos käibemaksuga. Vaata need summad üle koos raamatupidajaga — vajadusel saab varasemaid KMD-sid parandada.</div>'
+    + '</div></div>';
+}
+
 function joonistaYlevaade() {
   var s = A.seaded, k = A.kokku;
   var silt, tasa = Math.abs(k.saldo) < 0.005;
@@ -640,7 +675,7 @@ function joonistaYlevaade() {
     : '<div class="saldo-suund">' + (k.saldo > 0 ? isikHtml('n') : isikHtml('m'))
       + '<span class="suund-nool">→</span>' + (k.saldo > 0 ? isikHtml('m') : isikHtml('n')) + '</div>';
 
-  var html = (saabMuuta() ? kogumaksumusHtml() : '') + '<div class="saldo' + (tasa ? ' tasa' : '') + '"><div class="saldo-silt">' + (tasa ? 'Arved on tasa' : 'Tasuda') + '</div>'
+  var html = (saabMuuta() ? kogumaksumusHtml() + kmMaterjalidHtml() : '') + '<div class="saldo' + (tasa ? ' tasa' : '') + '"><div class="saldo-silt">' + (tasa ? 'Arved on tasa' : 'Tasuda') + '</div>'
     + suund
     + '<div class="saldo-summa' + (tasa ? ' null' : '') + '">' + raha(Math.abs(k.saldo)) + '</div>'
     + '<div class="saldo-all">Töö ja materjalid kokku, juba tasutud summad maha arvatud. Töö tunnihind on käibemaksuta, materjalid tšeki summas.</div></div>';
