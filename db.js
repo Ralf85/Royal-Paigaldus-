@@ -902,6 +902,8 @@ async function initDB() {
     await client.query(`ALTER TABLE maksed ADD COLUMN IF NOT EXISTS ettevote_id INTEGER REFERENCES ettevotted(id);`);
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id);`);
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS viide_tyyp VARCHAR(20) DEFAULT 'po';`);
+    // Millal arvet viimati parandati (arve muutmine sama numbriga, ilma kreeditarveta).
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS muudetud TIMESTAMP;`);
 
     // ── SISSELOGIMISE KAITSE (valed PIN-katsed IP kaupa, vt loginkaitse.js) ──
     await client.query(`

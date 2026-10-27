@@ -1104,14 +1104,20 @@ router.post('/eelvaade', noudaAdmin, async (req, res) => {
     if (!muuja) return res.status(400).json({ ok: false, veateade: 'Vali müüja-ettevõte' });
     const kp = b.kuupaev ? new Date(b.kuupaev) : new Date();
     if (isNaN(kp)) return res.status(400).json({ ok: false, veateade: 'Vigane arve kuupäev' });
-    const number = await vaataMuujaJargmineNumber(muuja.id, kp);
+    // Olemasoleva arve muutmisel näidatakse selle arve enda numbrit ja käibemaksu.
+    let vana = null;
+    if (b.arve_id) {
+      const v = await pool.query('SELECT number, viitenumber, kaibemaks_protsent FROM arved WHERE id=$1', [b.arve_id]);
+      vana = v.rows[0] || null;
+    }
+    const number = vana ? vana.number : await vaataMuujaJargmineNumber(muuja.id, kp);
     const paevi = parseInt(b.maksetahtaeg_paevad, 10) || 14;
     const tahtaeg = new Date(kp); tahtaeg.setDate(tahtaeg.getDate() + paevi);
     const summaKmTa = read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0);
-    const kaibemaksProtsent = muuja.km_kohuslane !== false ? 24 : 0;
+    const kaibemaksProtsent = vana ? parseFloat(vana.kaibemaks_protsent) || 0 : (muuja.km_kohuslane !== false ? 24 : 0);
     const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
     const arve = {
-      number, kuupaev: kp, maksetahtaeg: tahtaeg, viitenumber: viitenumberNumbrist(number),
+      number, kuupaev: kp, maksetahtaeg: tahtaeg, viitenumber: vana ? vana.viitenumber : viitenumberNumbrist(number),
       ostja_nimi: b.ostja_nimi, ostja_aadress: b.ostja_aadress || '', ostja_rg_kood: b.ostja_rg_kood || '', ostja_kmkr: b.ostja_kmkr || '',
       kontaktisik: b.kontaktisik || '', po_number: b.po_number || '', viide_tyyp: ['po', 'projekt'].includes(b.viide_tyyp) ? b.viide_tyyp : 'po',
       algus: b.algus || null, lopp: b.lopp || null,
@@ -1303,6 +1309,66 @@ router.post('/sumup/salvesta', noudaAdmin, uploadSisse.single('fail'), async (re
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });
+  }
+});
+
+// ── ARVE MUUTMINE (vea parandamine sama numbriga, ilma kreeditarveta) ──────────────
+// Number, viitenumber, müüja ja käibemaksu % jäävad samaks. Muutuvad ostja andmed, kuupäevad, PO/kontakt,
+// periood ja read (summad arvutatakse ridadest uuesti). Üles laaditud (failiga) arveid, kreeditarveid ja
+// kreeditarvega tühistatud arveid muuta ei saa.
+router.put('/:id(\\d+)', noudaAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const b = req.body || {};
+    const read = Array.isArray(b.read) ? b.read : [];
+    if (!b.ostja_nimi || !String(b.ostja_nimi).trim() || !read.length) {
+      return res.json({ ok: false, veateade: 'Täida ostja nimi ja vähemalt üks arve rida' });
+    }
+    const v = await client.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
+    const arve = v.rows[0];
+    if (!arve) return res.status(404).json({ ok: false, veateade: 'Arvet ei leitud' });
+    if (arve.fail_url) return res.json({ ok: false, veateade: 'Üles laaditud arvet siin muuta ei saa — selle sisu on failis.' });
+    if (arve.kreedit_algne_arve_id) return res.json({ ok: false, veateade: 'Kreeditarvet ei saa muuta.' });
+    const krediteeritud = await client.query('SELECT 1 FROM arved WHERE kreedit_algne_arve_id=$1', [arve.id]);
+    if (krediteeritud.rows.length) return res.json({ ok: false, veateade: 'Sellele arvele on tehtud kreeditarve — seda enam muuta ei saa.' });
+
+    const kp = b.kuupaev ? new Date(b.kuupaev) : new Date(arve.kuupaev);
+    if (isNaN(kp)) return res.json({ ok: false, veateade: 'Vigane arve kuupäev' });
+    const paevi = parseInt(b.maksetahtaeg_paevad, 10) || 14;
+    const tahtaeg = new Date(kp); tahtaeg.setDate(tahtaeg.getDate() + paevi);
+    const viideTyyp = ['po', 'projekt'].includes(b.viide_tyyp) ? b.viide_tyyp : 'po';
+    const summaKmTa = +read.reduce((s, r) => s + (parseFloat(r.summa) || 0), 0).toFixed(2);
+    const kaibemaksProtsent = parseFloat(arve.kaibemaks_protsent) || 0;
+    const kaibemaks = +(summaKmTa * kaibemaksProtsent / 100).toFixed(2);
+    const kokku = +(summaKmTa + kaibemaks).toFixed(2);
+
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE arved SET kuupaev=$1, maksetahtaeg=$2, ettevote_id=$3, ostja_nimi=$4, ostja_aadress=$5, ostja_rg_kood=$6,
+         ostja_kmkr=$7, kontaktisik=$8, po_number=$9, viide_tyyp=$10, algus=$11, lopp=$12,
+         summa_km_ta=$13, kaibemaks=$14, kokku=$15, muudetud=NOW() WHERE id=$16`,
+      [kp, tahtaeg, b.ettevote_id || null, String(b.ostja_nimi).trim(), b.ostja_aadress || '', b.ostja_rg_kood || '',
+       b.ostja_kmkr || '', b.kontaktisik || '', b.po_number || '', viideTyyp, b.algus || null, b.lopp || null,
+       summaKmTa, kaibemaks, kokku, arve.id]
+    );
+    await client.query('DELETE FROM arve_read WHERE arve_id=$1', [arve.id]);
+    let jrk = 0;
+    for (const rida of read) {
+      jrk++;
+      await client.query(
+        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [arve.id, jrk, rida.kirjeldus || '', parseFloat(rida.kogus) || 0, rida.uhik || '', parseFloat(rida.hind) || 0, parseFloat(rida.summa) || 0]
+      );
+    }
+    await client.query('COMMIT');
+    console.log(`Arve ${arve.number} muudetud: ${arve.kokku} -> ${kokku}`);
+    res.json({ ok: true, id: arve.id, number: arve.number, kokku });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: err.message });
+  } finally {
+    client.release();
   }
 });
 

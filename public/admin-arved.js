@@ -109,7 +109,7 @@ function avmRenderValik() {
 function avmMuujaValitud() {
   const id = parseInt(document.getElementById('av-muuja').value, 10);
   const m = avmMuujad.find(x => x.id === id);
-  avKmProtsent = (m && m.km_kohuslane) ? 24 : 0;
+  avKmProtsent = avMuudetavArve ? (parseFloat(avMuudetavArve.kaibemaks_protsent) || 0) : ((m && m.km_kohuslane) ? 24 : 0);
   avJoonistaRead();
   avPreviewNumber();
 }
@@ -210,11 +210,86 @@ async function avmEemaldaLogo() {
   await avmLaadiMuujad();
 }
 
+// avMuudetavArve: null = uus arve; objekt = olemasoleva arve parandamine (sama number, ilma kreeditarveta).
+let avMuudetavArve = null;
 function avAvaUusArveModal() {
+  if (avMuudetavArve) avLopetaMuutmine(true);
   document.getElementById('avUusArveModal').classList.add('avatud');
 }
 function avSuljeUusArveModal() {
   document.getElementById('avUusArveModal').classList.remove('avatud');
+  if (avMuudetavArve) avLopetaMuutmine(true);
+}
+// Muutmisrežiimi lõpp: vorm tagasi "Uus arve" kujule. tyhjenda=true puhastab ka ostja väljad ja read.
+function avLopetaMuutmine(tyhjenda) {
+  avMuudetavArve = null;
+  document.getElementById('av-modal-pealkiri').textContent = '➕ Uus arve';
+  document.getElementById('av-salvesta-nupp').textContent = '💾 Salvesta ja loo PDF';
+  document.getElementById('av-muuja').disabled = false;
+  if (tyhjenda) {
+    ['av-ostja-nimi', 'av-ostja-aadress', 'av-ostja-rgkood', 'av-ostja-kmkr', 'av-kontaktisik', 'av-po', 'av-algus', 'av-lopp']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('av-klient').value = '';
+    document.getElementById('av-kuupaev').value = kpISO(new Date());
+    document.getElementById('av-ostja-valjad').style.display = 'none';
+    document.getElementById('av-uus-klient-link').style.display = 'block';
+    const info = document.getElementById('av-viimane-info'); if (info) info.style.display = 'none';
+    avRead = [];
+    avLisaRida();
+  }
+  avmMuujaValitud(); // taastab müüja käibemaksu % ja järgmise numbri
+}
+
+// Avab olemasoleva arve muutmiseks samas vormis.
+async function avMuudaArve(id) {
+  const r = await api('/api/arved/' + id);
+  if (!r || !r.ok) return teata('Arvet ei saanud avada: ' + ((r && r.veateade) || ''));
+  const a = r.arve;
+  if (a.fail_url) return teata('See arve on üles laaditud failina — selle sisu siin muuta ei saa.');
+  if (a.kreedit_algne_arve_id) return teata('Kreeditarvet ei saa muuta.');
+  if (avArvedList.some(x => x.kreedit_algne_arve_id === a.id)) return teata('Sellele arvele on juba tehtud kreeditarve — seda enam muuta ei saa.');
+  avMuudetavArve = a;
+  document.getElementById('avUusArveModal').classList.add('avatud');
+  document.getElementById('av-modal-pealkiri').textContent = '✏️ Muuda arvet ' + a.number;
+  document.getElementById('arve-jargmine-nr').textContent = a.staatus === 'makstud' ? 'NB! arve on märgitud makstuks' : 'number jääb samaks';
+  document.getElementById('av-salvesta-nupp').textContent = '💾 Salvesta muudatused';
+  // Müüja ja käibemaks jäävad arve omaks (number on müüja numbriseeriast).
+  const muujaSel = document.getElementById('av-muuja');
+  if (a.muuja_id) muujaSel.value = String(a.muuja_id);
+  muujaSel.disabled = true;
+  // Klient: Minu ettevõte (e-id) või salvestatud klient (k-id) nime järgi, muidu käsitsi.
+  const kSel = document.getElementById('av-klient');
+  let valik = a.ettevote_id ? 'e-' + a.ettevote_id : '';
+  if (!valik) {
+    const k = avKliendidList.find(x => (x.nimi || '').trim().toLowerCase() === (a.ostja_nimi || '').trim().toLowerCase());
+    if (k) valik = 'k-' + k.id;
+  }
+  kSel.value = valik;
+  if (kSel.value !== valik) kSel.value = '';
+  avKlientMuutus(); // täidab välja kliendi andmetega — kirjutame need allpool arve enda andmetega üle
+  document.getElementById('av-ostja-valjad').style.display = 'block';
+  document.getElementById('av-uus-klient-link').style.display = 'none';
+  const kp = String(a.kuupaev).slice(0, 10), tahtaeg = String(a.maksetahtaeg || '').slice(0, 10);
+  document.getElementById('av-kuupaev').value = kp;
+  if (tahtaeg) document.getElementById('av-maksetahtaeg-paevad').value = Math.max(1, Math.round((new Date(tahtaeg) - new Date(kp)) / 86400000));
+  document.getElementById('av-ostja-nimi').value = a.ostja_nimi || '';
+  document.getElementById('av-ostja-aadress').value = a.ostja_aadress || '';
+  document.getElementById('av-ostja-rgkood').value = a.ostja_rg_kood || '';
+  document.getElementById('av-ostja-kmkr').value = a.ostja_kmkr || '';
+  document.getElementById('av-kontaktisik').value = a.kontaktisik || '';
+  document.getElementById('av-viide-tyyp').value = a.viide_tyyp === 'projekt' ? 'projekt' : 'po';
+  avViideTyypMuutus();
+  document.getElementById('av-po').value = a.po_number || '';
+  document.getElementById('av-algus').value = a.algus ? String(a.algus).slice(0, 10) : '';
+  document.getElementById('av-lopp').value = a.lopp ? String(a.lopp).slice(0, 10) : '';
+  avKmProtsent = parseFloat(a.kaibemaks_protsent) || 0;
+  avRead = (r.read || []).map(x => ({
+    kirjeldus: x.kirjeldus || '', kogus: parseFloat(x.kogus) || 0, uhik: x.uhik || '',
+    hind: parseFloat(x.hind) || 0, summa: parseFloat(x.summa) || 0
+  }));
+  if (!avRead.length) avRead.push({ kirjeldus: '', kogus: 1, uhik: '', hind: 0, summa: 0 });
+  avJoonistaRead();
+  naitaTeade('arve-teade', 'ok', '✏️ Paranda vajalik ja vajuta „Salvesta muudatused". Number ' + a.number + ' jääb samaks.');
 }
 function avAvaLisaKuluModal() {
   document.getElementById('avLisaKuluModal').classList.add('avatud');
@@ -282,6 +357,7 @@ async function avUuendaKmAnalyys() {
 }
 
 async function avPreviewNumber() {
+  if (avMuudetavArve) return; // muutmisel number ei muutu
   const njrEl = document.getElementById('arve-jargmine-nr');
   const muujaEl = document.getElementById('av-muuja');
   const kpEl = document.getElementById('av-kuupaev');
@@ -589,7 +665,8 @@ function avArveKeha() {
     maksetahtaeg_paevad: document.getElementById('av-maksetahtaeg-paevad').value,
     algus: document.getElementById('av-algus').value || null,
     lopp: document.getElementById('av-lopp').value || null,
-    read: kehtivadRead
+    read: kehtivadRead,
+    arve_id: avMuudetavArve ? avMuudetavArve.id : null
   };
 }
 
@@ -694,6 +771,17 @@ function avSuljeEelvaade() {
 async function avSalvestaArve() {
   const body = avArveKeha();
   if (!body) return;
+  if (avMuudetavArve) {
+    const muudetav = avMuudetavArve;
+    const pdfAken2 = avAvaTyhiAken();
+    const r = await api('/api/arved/' + muudetav.id, { method: 'PUT', body: JSON.stringify(body) });
+    if (!r || !r.ok) { if (pdfAken2) pdfAken2.close(); return naitaTeade('arve-teade', 'viga', (r && r.veateade) || 'Salvestamine ebaõnnestus'); }
+    avAvaArvePdf(r.id, 'vaata', pdfAken2, r.number);
+    avSuljeUusArveModal();
+    await laadiArvedTabel();
+    teata('✅ Arve ' + r.number + ' muudetud. Kui saatsid vana versiooni juba kliendile, saada talle uus PDF.');
+    return;
+  }
   // Uus vaheleht avatakse KOHE (enne serveri vastust) — Safari blokeerib akna, mis avatakse alles pärast ootamist.
   const pdfAken = avAvaTyhiAken();
   const r = await api('/api/arved', { method: 'POST', body: JSON.stringify(body) });
@@ -894,7 +982,7 @@ function avJoonistaArvedTabel() {
       return `
       <tr style="border-left:3px solid ${vc}">
         <td><input type="checkbox" ${avArvedValitud.has(a.id) ? 'checked' : ''} onchange="avVaataArve(${a.id}, this.checked)"></td>
-        <td style="font-weight:600">${a.number}</td>
+        <td style="font-weight:600">${a.number}${a.muudetud ? ` <span title="Parandatud ${formatKp(a.muudetud)}" style="font-size:10px;color:var(--hall);font-weight:400">✏️</span>` : ''}</td>
         <td>${formatKp(a.kuupaev)}</td>
         <td>${a.muuja_nimi
           ? `<span style="color:${vc};font-size:12px;font-weight:600">${a.muuja_nimi}</span>`
@@ -908,6 +996,8 @@ function avJoonistaArvedTabel() {
             ? `<a href="${avFailUrl(a.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : `<button type="button" onclick="avAvaArvePdf(${a.id}, 'vaata')" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`}
           <button type="button" onclick="avAvaArvePdf(${a.id}, 'laadi')" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></button>
+          ${!a.fail_url && !a.kreedit_algne_arve_id && !avArvedList.some(x => x.kreedit_algne_arve_id === a.id)
+            ? `<button type="button" onclick="avMuudaArve(${a.id})" class="av-tegevus-ikoon" title="Muuda arvet (sama number)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>` : ''}
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
       </tr>`;
