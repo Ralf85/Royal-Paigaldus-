@@ -300,7 +300,7 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
          WHERE ${KIRJELDUS_VOTI} = $1 ${PIIR(piirIdx)}
          GROUP BY t.objekt_id
        ) x ON x.objekt_id = o.id
-       LEFT JOIN lidl_poe_seis s ON s.objekt_id = o.id AND s.projekt_id = ${projIdx}::int
+       LEFT JOIN lidl_poe_seis s ON s.objekt_id = o.id AND s.projekt_id = $${projIdx}::int
        WHERE e.nimi = 'LIDL' AND o.aktiivne = true ${poeFilter}
        ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
       params
