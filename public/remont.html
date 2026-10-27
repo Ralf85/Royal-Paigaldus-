@@ -657,9 +657,7 @@ function kmMaterjalidHtml() {
     + '<div class="kogu-markus">' + esc(s.naabri_nimi) + ' tasub oma osa materjalidest tšeki summas ehk koos käibemaksuga. '
     + 'Arvetes olevate tšekkide summa kokku ' + raha(k.arvetesSumma) + ', km-ta ' + raha(k.arvetesSumma - k.arvetes) + '.</div>'
     + (k.ilmaKm ? '<div class="kogu-markus" style="color:#fcd34d">⚠ ' + k.ilmaKm + ' arvetes oleval tšekil on käibemaks märkimata — need pole summades sees.</div>' : '')
-    + '<div class="hoiatus" style="margin:12px 0 0">Raamatupidamise mõttes: sisendkäibemaksu saab maha arvata ainult ettevõtte maksustatava tegevuse kulude pealt. '
-    + 'Oma kodu materjalide (' + esc(s.minu_nimi) + ' osa) km on üldjuhul mittemahaarvatav. Kui ' + esc(s.naabri_nimi) + ' osa käib läbi firma, '
-    + 'tuleks talle esitada arve koos käibemaksuga. Vaata need summad üle koos raamatupidajaga — vajadusel saab varasemaid KMD-sid parandada.</div>'
+    + '<div class="kogu-markus">' + esc(s.minu_nimi) + ' osa materjalide km on mittemahaarvatav — arvesta seda KMD-s.</div>'
     + '</div></div>';
 }
 
