@@ -113,6 +113,7 @@
   .pill.on { background: #14532d; color: #86efac; }
   .pill.off { background: #2a1010; color: #f87171; }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
 
@@ -435,7 +436,7 @@ async function openProjectStorePhotos(storeId, number, name) {
 }
 
 async function deleteProjectPhoto(id) {
-  if (!confirm('Delete this photo permanently?')) return;
+  if (!await rpKysi('Delete this photo permanently?')) return;
   const r = await api('/admin/photos/' + id, { method: 'DELETE' });
   if (!r.ok) { alert(r.error || 'Delete failed'); return; }
   if (pStore) openProjectStorePhotos(pStore.id, pStore.number, pStore.name);
@@ -503,7 +504,7 @@ async function openGalleryPhotos(projectId, projectName) {
 }
 
 async function deletePhoto(id) {
-  if (!confirm('Delete this photo permanently?')) return;
+  if (!await rpKysi('Delete this photo permanently?')) return;
   const r = await api('/admin/photos/' + id, { method: 'DELETE' });
   if (!r.ok) { alert(r.error || 'Delete failed'); return; }
   if (gProject) openGalleryPhotos(gProject.id, gProject.name);
@@ -603,7 +604,7 @@ async function toggleStore(id, active) {
 }
 
 async function deleteStore(id) {
-  if (!confirm('Delete this store?')) return;
+  if (!await rpKysi('Delete this store?')) return;
   const r = await api('/admin/stores/' + id, { method: 'DELETE' });
   if (!r.ok) return msg('storeMsg', 'err', r.error || 'Failed');
   loadStores();
@@ -652,7 +653,7 @@ async function toggleProject(id, active) {
 }
 
 async function deleteProject(id) {
-  if (!confirm('Delete this project?')) return;
+  if (!await rpKysi('Delete this project?')) return;
   const r = await api('/admin/projects/' + id, { method: 'DELETE' });
   if (!r.ok) return msg('projMsg', 'err', r.error || 'Failed');
   loadProjects();
@@ -752,7 +753,7 @@ async function toggleAdmin(id, active) {
 }
 
 async function deleteAdmin(id) {
-  if (!confirm('Delete this Latvia admin?')) return;
+  if (!await rpKysi('Delete this Latvia admin?')) return;
   const r = await api('/admin/lv-admins/' + id, { method: 'DELETE' });
   if (!r.ok) return msg('adminMsg', 'err', r.error || 'Failed');
   loadAdmins();

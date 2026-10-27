@@ -711,7 +711,7 @@ async function xsLaadiAsukohad() {
       <td>${a.puhastatud_arv}/${a.korvide_koguarv}</td>
       <td style="white-space:nowrap">
         <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAlustaParkEdit(${JSON.stringify(a).replace(/'/g, "&apos;")})'>✎</button>
-        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAvaFotoModal(${a.id}, "${escapeJs(a.nimi)}")'>📷</button>
+        <button class="nupp hall" style="padding:5px 10px;font-size:12px" onclick='xsAvaFotoModal(${a.id}, ${JSON.stringify(String(a.nimi || '')).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;')})'>📷</button>
         <button class="nupp punane" onclick="xsKustutaAsukoht(${a.id})">Kustuta</button>
       </td>
     </tr>`).join('') + `</tbody></table>`;
@@ -1289,8 +1289,10 @@ async function xsLaadiKulud() {
   if (kokkuEl) kokkuEl.textContent = xsFmtEur(Number(d.kokkuSumma) + omaKokku);
   const makstudBoxEl = document.getElementById('xs-kulu-makstud-box');
   if (makstudBoxEl) {
-    const makstud = Number(d.kokkuMakstud || 0);
-    const maksmata = Number(d.kokkuMaksmata || 0) + omaKokku;
+    // Töötajate oma kulud: makstud osa läheb "Makstud" alla, ainult tasumata osa "Maksmata" alla
+    const omaMakstudKokku = omaKulud.filter(k => k.makstud).reduce((s, k) => s + parseFloat(k.summa), 0);
+    const makstud = Number(d.kokkuMakstud || 0) + omaMakstudKokku;
+    const maksmata = Number(d.kokkuMaksmata || 0) + (omaKokku - omaMakstudKokku);
     makstudBoxEl.innerHTML = `<span style="color:#4ade80">✅ Makstud: ${xsFmtEur(makstud)}</span> · <span style="color:#f87171">⏳ Maksmata: ${xsFmtEur(maksmata)}</span>`;
   }
   div.innerHTML = d.kulud.length

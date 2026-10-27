@@ -239,8 +239,9 @@ router.put('/muujad/:id/vaikimisi', noudaAdmin, async (req, res) => {
     await client.query('BEGIN');
     await client.query('UPDATE arve_muujad SET vaikimisi=false');
     const r = await client.query('UPDATE arve_muujad SET vaikimisi=true WHERE id=$1', [req.params.id]);
+    // Vale id korral ei tohi vana vaikimisi müüja kaduda — tühistame kõik
+    if (!r.rowCount) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' }); }
     await client.query('COMMIT');
-    if (!r.rowCount) return res.json({ ok: false, veateade: 'Ettevõtet ei leitud' });
     res.json({ ok: true });
   } catch (err) {
     await client.query('ROLLBACK');

@@ -200,6 +200,7 @@
       .tootaja-kaart { flex: 1; min-width: 100px; }
     }
   </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body class="tume">
   <div class="topbar">
@@ -455,8 +456,9 @@
       lohistatavId = id;
       lohistatavNimi = nimi;
       event.dataTransfer.effectAllowed = 'copy';
-      event.currentTarget.classList.add('lohistatakse');
-      setTimeout(function() { event.currentTarget.classList.remove('lohistatakse'); }, 100);
+      var lohEl = event.currentTarget;   // setTimeout-i ajal on event.currentTarget juba null
+      lohEl.classList.add('lohistatakse');
+      setTimeout(function() { lohEl.classList.remove('lohistatakse'); }, 100);
     }
 
     function lohitatakseUle(event, iso) {
@@ -498,6 +500,7 @@
 
       var vastus = await api('/api/graafik/admin/kuu?aasta=' + aasta + '&kuu=' + kuu);
       var vahetused = (vastus && vastus.vahetused) ? vastus.vahetused : [];
+      viimasedVahetused = vahetused;
       var paevadInfo = (vastus && vastus.paevad) ? vastus.paevad : [];
 
       var paevadMap = {};
@@ -513,7 +516,7 @@
       var viimane = new Date(aasta, kuu, 0).getDate();
       var algus = esimene.getDay();
       algus = algus === 0 ? 6 : algus - 1;
-      var taanaIso = new Date().toISOString().substring(0,10);
+      var taanaIso = kohalikTana();
 
       var html = ['E','T','K','N','R','L','P'].map(function(p) {
         return '<div class="kal-paev-hdr">' + p + '</div>';
@@ -602,8 +605,8 @@
     function avaModalTyhi() {
       muudaVahetusId = null;
       document.getElementById('modal-pealkiri-tekst') && (document.getElementById('modal-pealkiri-tekst').textContent = '+ Lisa vahetus');
-      document.getElementById('m-kuupaev').value = new Date().toISOString().split('T')[0];
-      var aeg = getDefaultAeg(new Date().toISOString().split('T')[0]);
+      document.getElementById('m-kuupaev').value = kohalikTana();
+      var aeg = getDefaultAeg(kohalikTana());
       document.getElementById('m-algus').value = aeg.algus;
       document.getElementById('m-lopp').value = aeg.lopp;
       document.getElementById('m-markus').value = '';
@@ -622,12 +625,15 @@
       document.getElementById('lisaModal').classList.add('avatud');
     }
 
+    var viimasedVahetused = [];
     function avaModal(id, workerId, algus, lopp, iso) {
       muudaVahetusId = id;
       document.getElementById('m-kuupaev').value = iso;
       document.getElementById('m-algus').value = algus;
       document.getElementById('m-lopp').value = lopp;
-      document.getElementById('m-markus').value = '';
+      // Olemasolev märkus täidetakse ette (varem jäi väli tühjaks ja salvestamine kustutas märkuse)
+      var v0 = viimasedVahetused.find(function(x) { return x.id === id; });
+      document.getElementById('m-markus').value = (v0 && (v0['märkus'] || v0.markus)) || '';
       // Vali töötaja
       var sel = document.getElementById('m-worker');
       Array.from(sel.options).forEach(function(o) { o.selected = parseInt(o.value) === workerId; });
@@ -673,7 +679,7 @@
     }
 
     async function kustutaVahetus(id, nimi) {
-      if (!confirm(nimi + ' vahetuse kustutad?')) return;
+      if (!await rpKysi(nimi + ' vahetuse kustutad?')) return;
       var r = await api('/api/graafik/admin/' + id, { method: 'DELETE' });
       if (r.ok) laadiKuu();
     }

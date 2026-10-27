@@ -396,7 +396,8 @@ function avPoValikMuutus() {
   if (item) document.getElementById('av-po').value = item.vaartus;
 }
 async function avSalvestaPoValik() {
-  const ettevoteId = document.getElementById('av-klient').value;
+  const kv = avKlientValik();
+  const ettevoteId = kv.tyyp === 'ettevote' ? kv.id : null;
   const vaartus = document.getElementById('av-po').value.trim();
   const tyyp = avViideTyyp();
   const siltNimi = tyyp === 'projekt' ? 'projektinumber' : 'PO number';
@@ -422,7 +423,8 @@ function avKontaktValikMuutus() {
   if (item) document.getElementById('av-kontaktisik').value = item.vaartus;
 }
 async function avSalvestaKontaktValik() {
-  const ettevoteId = document.getElementById('av-klient').value;
+  const kv = avKlientValik();
+  const ettevoteId = kv.tyyp === 'ettevote' ? kv.id : null;
   const vaartus = document.getElementById('av-kontaktisik').value.trim();
   if (!ettevoteId) return naitaTeade('arve-teade', 'viga', 'Vali enne klient (ettevõte) — kontaktisikud salvestuvad ettevõtte kaupa.');
   if (!vaartus) return naitaTeade('arve-teade', 'viga', 'Kontaktisiku väli on tühi.');
@@ -648,7 +650,7 @@ function avArveKeha() {
   const ettevoteId = tyyp === 'ettevote' ? id : null;
   const ostjaNimi = document.getElementById('av-ostja-nimi').value.trim();
   if (!ostjaNimi) { naitaTeade('arve-teade', 'viga', 'Sisesta ostja nimi!'); return null; }
-  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0);
+  const kehtivadRead = avRead.filter(r => (r.kirjeldus || '').trim() && (parseFloat(r.summa) !== 0 || parseFloat(r.kogus) > 0));
   if (!kehtivadRead.length) { naitaTeade('arve-teade', 'viga', 'Lisa vähemalt üks arve rida!'); return null; }
   if (!avmMuujad.length) { naitaTeade('arve-teade', 'viga', 'Lisa enne vähemalt üks müüja-ettevõte "Müüjad" alt'); return null; }
   return {

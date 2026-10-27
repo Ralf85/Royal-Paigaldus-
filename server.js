@@ -150,6 +150,7 @@ app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
 app.get('/lidl-latvia', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia.html')));
 app.get('/lidl-latvia-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia-admin.html')));
 app.get('/xseeria', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria.html')));
+app.get('/xseeria-haldus', (req, res) => res.sendFile(path.join(__dirname, 'public', 'xseeria-haldus.html')));
 app.get('/arved-vaade', (req, res) => res.sendFile(path.join(__dirname, 'public', 'arved-vaade.html')));
 app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public', 'minu-arved.html')));
 app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));

@@ -44,6 +44,7 @@
   .teade.viga { background: rgba(248,113,113,0.12); color: #f87171; display: block; }
   .rr-kirjeldus { min-width: 160px; }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
   <div class="topbar">
@@ -206,7 +207,7 @@ async function init() {
     return;
   }
   document.getElementById('sisu').style.display = 'block';
-  document.getElementById('s-kuupaev').value = new Date().toISOString().split('T')[0];
+  document.getElementById('s-kuupaev').value = kohalikTana();
   await Promise.all([laadiMuujad(), laadiSaajad(), laadiAjalugu()]);
   if (!document.getElementById('read-body').children.length) lisaRida();
 }
@@ -316,7 +317,7 @@ async function teeMuujaVaikimisi(id) {
   await laadiMuujad();
 }
 async function kustutaMuuja(id) {
-  if (!confirm('Kustutada see ettevõte?')) return;
+  if (!await rpKysi('Kustutada see ettevõte?')) return;
   var r = await api('/api/omaarved/muujad/' + id, { method: 'DELETE' });
   if (!r.ok) { alert('Viga: ' + (r.veateade || 'kustutamine ebaõnnestus')); return; }
   await laadiMuujad();

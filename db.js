@@ -522,6 +522,10 @@ async function initDB() {
     `);
     await client.query(`ALTER TABLE arve_lubatud ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id) ON DELETE SET NULL;`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS muuja_id INTEGER REFERENCES arve_muujad(id);`);
+    // Müüja muutmine ja logo kasutavad neid veerge (routes/arved.js) — lisame, kui puuduvad
+    await client.query(`ALTER TABLE arve_muujad ADD COLUMN IF NOT EXISTS uuendatud TIMESTAMP;`);
+    await client.query(`ALTER TABLE arve_muujad ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
+    await client.query(`ALTER TABLE arve_muujad ADD COLUMN IF NOT EXISTS logo_public_id TEXT;`);
     // Vana deploy võis arve_sisse juba luua ilma nende veergudeta — lisame eraldi, et need kindlasti tekiks.
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaibemaks DECIMAL(10,2) NOT NULL DEFAULT 0;`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);

@@ -732,7 +732,8 @@ async function salvestaKulu(k, uusFail, id) {
         const a = await klient.query(
           `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, fail_url, fail_public_id, fail_resource_type, staatus, muuja_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-          vaartused.concat([k.tootaja && k.tootaja.maksis === 'isiklik' ? 'ootel' : 'makstud', m.rows.length ? m.rows[0].id : null]));
+          // Töötaja isikliku kaardiga ostetud tšekk on kuluhüvitis (staatus ootel = maksa töötajale) ka admini muutmisel
+          vaartused.concat([(k.tootaja && k.tootaja.maksis === 'isiklik') || (vana && vana.tootaja_maksis === 'isiklik') ? 'ootel' : 'makstud', m.rows.length ? m.rows[0].id : null]));
         arveId = a.rows[0].id;
       }
     } else if (arveId) {
@@ -858,6 +859,12 @@ router.post('/kulud/:id/uuenda', noudaAdmin, uploadDok.single('fail'), async (re
   if (!Number.isInteger(id)) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
   const k = loeKulu(req.body || {});
   if (k.viga) return res.json({ ok: false, veateade: k.viga });
+  // Töötaja kuluhüvitist (isiklik kaart, arvetes "ootel") ei tohi muutmisel arvetest välja võtta —
+  // siis kaoks info, et töötajale on raha tagasi maksta.
+  const v0 = await pool.query(`SELECT tootaja_maksis, arve_sisse_id FROM remont_kulud WHERE id=$1`, [id]);
+  if (v0.rows.length && v0.rows[0].tootaja_maksis === 'isiklik' && v0.rows[0].arve_sisse_id && !k.arvetesse) {
+    return res.json({ ok: false, veateade: 'See on töötaja kuluhüvitis — see peab jääma Royali arvetesse (märgi seal makstuks, kui töötajale on tagasi makstud)' });
+  }
   const t = await salvestaKulu(k, req.file, id);
   if (t.viga) return res.json({ ok: false, veateade: t.viga });
   res.json({ ok: true, id: t.id, arvetes: t.arvetes });

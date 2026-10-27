@@ -71,6 +71,7 @@
   #lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
   #lightbox .close { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: none; border-radius: 50%; background: rgba(255,255,255,0.14); color: #fff; font-size: 20px; cursor: pointer; }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
 
@@ -204,7 +205,7 @@ async function start() {
   document.getElementById('whoAmI').textContent = s.name ? 'Hello, ' + s.name : '';
   document.getElementById('tabs').style.display = 'flex';
   document.getElementById('panel-upload').style.display = 'block';
-  document.getElementById('workDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('workDate').value = kohalikTana();
   await loadStoresAndProjects();
   setupFileInputs();
 }
@@ -389,7 +390,7 @@ async function loadMine() {
 }
 
 async function deleteMine(id) {
-  if (!confirm('Delete this photo?')) return;
+  if (!await rpKysi('Delete this photo?')) return;
   const r = await api('/my-photos/' + id, { method: 'DELETE' });
   if (!r.ok) { alert(r.error || 'Delete failed'); return; }
   loadMine();

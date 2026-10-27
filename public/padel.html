@@ -113,6 +113,7 @@
   .avatarid > *:last-child { margin-right: 0 !important; }
   @media (max-width: 420px) { .st-ruudud { grid-template-columns: repeat(2, 1fr); } .st-kaardid { grid-template-columns: 1fr; } }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
   <div class="topbar">
@@ -158,7 +159,7 @@ function api(url, opts) {
 }
 function fmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function fmtKp(d) { if (!d) return '—'; var dt = new Date(d); return String(dt.getDate()).padStart(2,'0') + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + dt.getFullYear(); }
-function tanaISO() { return new Date().toISOString().split('T')[0]; }
+function tanaISO() { return kohalikTana(); }
 // Server tagastab kuupäeva mõnikord täispika ISO stringina (nt "2026-09-02T00:00:00.000Z") —
 // normaliseerime alati "YYYY-MM-DD" kujule, enne kui kuupäevi omavahel võrdleme.
 function avatarHtml(fotoUrl, nimi, suurus) {
@@ -607,16 +608,16 @@ async function saadaSonum(ryhmId) {
   var r = await api('/api/padel/ryhm/' + ryhmId);
   if (!r.ok) return;
   var nimekiri = r.liikmed.map(function(l, i) { return (i + 1) + '. ' + l.nimi; }).join('\n');
-  var valik = (prompt('Kellele saata?\n\n' + nimekiri + '\n\nKirjuta number (nt 1), või jäta tühjaks, et saata KÕIGILE:') || '').trim();
+  var valik = (await rpKysiTeksti('Kellele saata?\n\n' + nimekiri + '\n\nKirjuta number (nt 1), või jäta tühjaks, et saata KÕIGILE:') || '').trim();
   var liigeId = null;
   if (valik) {
     var idx = parseInt(valik, 10);
     if (!Number.isInteger(idx) || idx < 1 || idx > r.liikmed.length) return alert('Vigane number — proovi uuesti ja kirjuta ainult number (nt 1).');
     liigeId = r.liikmed[idx - 1].id;
   }
-  var pealkiri = (prompt('Pealkiri (nt "Palju õnne!" või "Maksa võlg ära"):') || '').trim();
+  var pealkiri = (await rpKysiTeksti('Pealkiri (nt "Palju õnne!" või "Maksa võlg ära"):') || '').trim();
   if (!pealkiri) return;
-  var sonum = (prompt('Sõnumi tekst:') || '').trim();
+  var sonum = (await rpKysiTeksti('Sõnumi tekst:') || '').trim();
   if (!sonum) return;
   var res = await api('/api/padel/ryhm/' + ryhmId + '/sonum', { method: 'POST', body: JSON.stringify({ pealkiri: pealkiri, sonum: sonum, liige_id: liigeId }) });
   if (res.ok) alert('✅ Sõnum saadetud (' + res.saadeti + ' saajale)');

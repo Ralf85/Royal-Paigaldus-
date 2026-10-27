@@ -336,6 +336,7 @@
     .pv-kestus { font-size: 11px; font-weight: 400; color: var(--text3); margin-top: 2px; }
     .pv-jalus { padding: 10px 16px 14px; font-size: 11px; color: var(--text4); text-align: center; border-top: 0.5px solid var(--border2); }
   </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
   <div class="topbar">
@@ -595,6 +596,10 @@
       return fetch(url, opts).then(function(r) { return r.json(); });
     }
 
+    // Tekst JS-stringi sisse onclick="...'X'..." atribuudis: enne JS-escape, siis HTML-escape (' ja " ei lõhu nuppu)
+    function jsAttr(s) {
+      return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -734,7 +739,7 @@
     function projektiKaardidHtml(extraAttr) {
       return minuProjektid.map(function(p) {
         var summa = parseFloat(p.kuu_summa) || 0;
-        return '<div class="emp-card" ' + extraAttr + ' style="background:' + p.varv + '22;border-color:' + p.varv + ';cursor:pointer" onclick="toggleProjektModal(' + p.id + ',\'' + p.nimi.replace(/'/g,"\\'") + '\',\'' + p.varv + '\')">'
+        return '<div class="emp-card" ' + extraAttr + ' style="background:' + p.varv + '22;border-color:' + p.varv + ';cursor:pointer" onclick="toggleProjektModal(' + p.id + ',\'' + jsAttr(p.nimi) + '\',\'' + p.varv + '\')">'
           + '<div class="emp-logo" style="background:' + p.varv + '"><span style="font-size:18px">' + p.ikoon + '</span></div>'
           + '<div class="emp-label" style="color:' + p.varv + '">' + p.nimi.toUpperCase() + '</div>'
           + '<div class="emp-tunnid">' + (summa > 0 ? summa.toFixed(0) + ' €' : '0 €') + '</div>'
@@ -1034,7 +1039,7 @@
       lisakuluModalNahtav = !lisakuluModalNahtav;
       var modal = document.getElementById('lisakuluModal');
       modal.style.display = lisakuluModalNahtav ? 'flex' : 'none';
-      if (lisakuluModalNahtav) { document.getElementById('lk-kuupaev').value = new Date().toISOString().split('T')[0]; document.getElementById('lk-summa').focus(); }
+      if (lisakuluModalNahtav) { document.getElementById('lk-kuupaev').value = kohalikTana(); document.getElementById('lk-summa').focus(); }
     }
 
     async function lisaKulu() {
@@ -1042,7 +1047,7 @@
       var selgitus=document.getElementById('lk-selgitus').value, teade=document.getElementById('lk-teade');
       if (!kuupaev||!summa||!selgitus) { teade.style.display='block';teade.style.color='#ef4444';teade.textContent='Täida kõik väljad';return; }
       var r = await api('/api/tood/lisakulu/lisa', {method:'POST',body:JSON.stringify({kuupaev,summa,selgitus})});
-      if (r.ok) { teade.style.display='none';document.getElementById('lk-summa').value='';document.getElementById('lk-selgitus').value='';document.getElementById('lk-kuupaev').value=new Date().toISOString().split('T')[0];await laadiLisakulud();await laadiEttevotted(); }
+      if (r.ok) { teade.style.display='none';document.getElementById('lk-summa').value='';document.getElementById('lk-selgitus').value='';document.getElementById('lk-kuupaev').value=kohalikTana();await laadiLisakulud();await laadiEttevotted(); }
       else { teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga'; }
     }
 
@@ -1055,14 +1060,14 @@
       div.innerHTML = vastus.kulud.map(function(k){
         var d=new Date(k.kuupaev);
         return '<div class="lk-rida"><div class="lk-kp"><div class="lk-kp-paev">'+d.getDate()+'</div><div class="lk-kp-kuu">'+KUUD_LYHIKE[d.getMonth()]+'</div></div>'
-          +'<div class="lk-info"><div class="lk-selgitus">'+k.selgitus+'</div></div>'
+          +'<div class="lk-info"><div class="lk-selgitus">'+esc(k.selgitus)+'</div></div>'
           +'<div class="lk-summa">+'+parseFloat(k.summa).toFixed(2)+' €</div>'
           +'<button class="lk-kustuta" onclick="kustutaKulu('+k.id+')">✕</button></div>';
       }).join('')+'<div class="kokku-rida"><span style="color:var(--text3)">Kokku</span><span class="lk-summa" style="font-size:12px">+'+kokku.toFixed(2)+' €</span></div>';
     }
 
     async function kustutaKulu(id) {
-      if (!confirm('Kustutad selle lisakulu?')) return;
+      if (!await rpKysi('Kustutad selle lisakulu?')) return;
       var r = await api('/api/tood/lisakulu/'+id,{method:'DELETE'});
       if(r.ok){await laadiLisakulud();await laadiEttevotted();}
     }
@@ -1077,7 +1082,7 @@
         aktiivneProjekt = { id: id, nimi: nimi, varv: varv };
         document.getElementById('projekt-modal-pealkiri').textContent = (minuProjektid.find(function(p){return p.id===id;})||{}).ikoon + ' ' + nimi + ' kulud';
         document.getElementById('projekt-modal-pealkiri').style.color = varv;
-        document.getElementById('projekt-kuupaev').value = new Date().toISOString().split('T')[0];
+        document.getElementById('projekt-kuupaev').value = kohalikTana();
         laadiProjektKulud();
       }
     }
@@ -1123,7 +1128,7 @@
         document.getElementById('projekt-foto').value='';document.getElementById('projekt-foto-album').value='';document.getElementById('projekt-foto-eelvaade').style.display='none';
         window._projektFotoInput=null;
         document.getElementById('projekt-ai-teade').style.display='none';
-        document.getElementById('projekt-kuupaev').value=new Date().toISOString().split('T')[0];
+        document.getElementById('projekt-kuupaev').value=kohalikTana();
         await laadiProjektKulud();await kontrolliProjektid();await laadiEttevotted();
       }
       else{teade.style.display='block';teade.style.color='#ef4444';teade.textContent=r.veateade||'Viga';}
@@ -1140,15 +1145,15 @@
       div.innerHTML=kuuKulud.map(function(k){
         var d=new Date(k.kuupaev);
         return '<div class="lk-rida"><div class="lk-kp"><div class="lk-kp-paev">'+d.getDate()+'</div><div class="lk-kp-kuu">'+KUUD_LYHIKE[d.getMonth()]+'</div></div>'
-          +'<div class="lk-info"><div class="lk-selgitus">'+k.selgitus+'</div>'+(k.foto_url?'<div style="margin-top:4px"><a href="'+k.foto_url+'" target="_blank" style="font-size:11px;color:'+varv+'">📷 vaata tšekki</a></div>':'')+'</div>'
+          +'<div class="lk-info"><div class="lk-selgitus">'+esc(k.selgitus)+'</div>'+(k.foto_url?'<div style="margin-top:4px"><a href="'+k.foto_url+'" target="_blank" style="font-size:11px;color:'+varv+'">📷 vaata tšekki</a></div>':'')+'</div>'
           +'<div class="lk-summa" style="color:'+varv+'">+'+parseFloat(k.summa).toFixed(2)+' €</div>'
-          +'<button class="lk-kustuta" onclick="avaProjektMuuta('+k.id+',\''+k.kuupaev.substring(0,10)+'\','+parseFloat(k.summa)+',\''+k.selgitus.replace(/'/g,"\\'")+'\',\''+(k.foto_url||'').replace(/'/g,"\\'")+'\')">✏️</button>'
+          +'<button class="lk-kustuta" onclick="avaProjektMuuta('+k.id+',\''+k.kuupaev.substring(0,10)+'\','+parseFloat(k.summa)+',\''+jsAttr(k.selgitus)+'\',\''+jsAttr(k.foto_url||'')+'\')">✏️</button>'
           +'<button class="lk-kustuta" onclick="kustutaProjektKulu('+k.id+')">✕</button></div>';
       }).join('')+'<div class="kokku-rida"><span style="color:var(--text3)">Kokku</span><span style="color:'+varv+';font-weight:700">+'+kokku.toFixed(2)+' €</span></div>';
     }
 
     async function kustutaProjektKulu(id) {
-      if(!confirm('Kustutad selle kulu?'))return;
+      if(!await rpKysi('Kustutad selle kulu?'))return;
       var r=await api('/api/projektid/kulu/'+id,{method:'DELETE'});
       if(r.ok){await laadiProjektKulud();await kontrolliProjektid();await laadiEttevotted();}
     }

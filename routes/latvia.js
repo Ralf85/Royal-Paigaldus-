@@ -540,9 +540,11 @@ router.get('/gallery/zip/:storeId', noudaLvLigipaas, async (req, res) => {
                FROM lv_photos p
                WHERE p.store_id = $1`;
     const params = [req.params.storeId];
-    if (project_id && String(project_id) !== '0') {
+    if (String(project_id) === '0') {
+      sql += ' AND p.project_id IS NULL';   // "Määramata" kaust — sama mis pildinimekirjas
+    } else if (project_id) {
       params.push(project_id);
-      sql += ` AND p.project_id = $${params.length}`;
+      sql += ` AND p.project_id = ${params.length}`;
     }
     sql += ' ORDER BY p.work_date, p.created';
     const photos = await pool.query(sql, params);
@@ -582,7 +584,10 @@ router.get('/admin/workers', noudaLvAdmin, async (req, res) => {
          LEFT JOIN lv_access a ON a.worker_id = w.id
          WHERE w.aktiivne = true AND COALESCE(w.arhiveeritud, false) = false
          ORDER BY w.nimi`
-      : `SELECT w.id, w.nimi AS name, w.pin, true AS allowed
+      // Läti admin ei näe Eesti töötajate (kellel on mõni Eesti ettevõte) PIN-i — sellega saaks nende nimel Eesti rakendusse sisse
+      : `SELECT w.id, w.nimi AS name,
+                CASE WHEN EXISTS (SELECT 1 FROM worker_ettevotted we WHERE we.worker_id = w.id) THEN NULL ELSE w.pin END AS pin,
+                true AS allowed
          FROM workers w
          JOIN lv_access a ON a.worker_id = w.id
          WHERE COALESCE(w.arhiveeritud, false) = false
@@ -623,6 +628,9 @@ router.put('/admin/workers-new/:id', noudaLvAdmin, async (req, res) => {
     if (!onPeaadmin(req)) {
       const lubatud = await pool.query('SELECT 1 FROM lv_access WHERE worker_id=$1', [req.params.id]);
       if (!lubatud.rows.length) return res.status(403).json({ ok: false, error: 'This worker is not in the Latvia module' });
+      // Eesti töötaja nime/PIN-i saab muuta ainult peaadmin
+      const eesti = await pool.query('SELECT 1 FROM worker_ettevotted WHERE worker_id=$1 LIMIT 1', [req.params.id]);
+      if (eesti.rows.length) return res.status(403).json({ ok: false, error: 'Only the main admin can change this worker' });
     }
     await pool.query('UPDATE workers SET nimi=$1, pin=$2 WHERE id=$3', [name.trim(), String(pin).trim(), req.params.id]);
     res.json({ ok: true });

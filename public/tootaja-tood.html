@@ -114,6 +114,7 @@
     .poe-seis textarea { width: 100%; margin-top: 8px; min-height: 64px; background: #0d0f13; border: 1px solid #2b3039; border-radius: 8px; color: inherit; padding: 9px 11px; font-size: 15px; font-family: inherit; resize: vertical; }
     .poe-seis-varem { font-size: 12px; color: #9aa3b2; margin-top: 8px; line-height: 1.45; }
   </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
   <div class="topbar">
@@ -735,7 +736,7 @@
           + (tags ? '<div class="kirje-tags">' + tags + '</div>' : '')
           + pildiHTML
           + '<div class="kirje-actions">'
-          + '<button class="muuda-nupp" onclick=\'avaModal(' + JSON.stringify(k) + ')\'>✏️ Muuda</button>'
+          + '<button class="muuda-nupp" onclick=\'avaModal(' + JSON.stringify(k).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;') + ')\'>✏️ Muuda</button>'
           + '<button class="kustuta-nupp" onclick="kustutaKirje(' + k.id + ')">🗑 Kustuta</button>'
           + '</div></div>';
       }).join('');
@@ -848,7 +849,7 @@
       }
     }
     async function kustutaKirje(id) {
-      if (!confirm('Kustutad selle töökirje?')) return;
+      if (!await rpKysi('Kustutad selle töökirje?')) return;
       var r = await api('/api/tood/kustuta/' + id, { method: 'DELETE' });
       if (r.ok) await laadiKirjed();
       else alert(r.veateade || 'Kustutamine ebaõnnestus');

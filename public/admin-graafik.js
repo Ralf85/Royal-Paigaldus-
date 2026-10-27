@@ -144,8 +144,9 @@ function algaLohistamine(event, workerId, workerNimi) {
   lohistatavWorkerNimi = workerNimi;
   event.dataTransfer.effectAllowed = 'copy';
   event.dataTransfer.setData('text/plain', workerId);
-  event.currentTarget.classList.add('lohistatakse');
-  setTimeout(() => event.currentTarget.classList.remove('lohistatakse'), 100);
+  const el = event.currentTarget;   // setTimeout-i ajal on event.currentTarget juba null
+  el.classList.add('lohistatakse');
+  setTimeout(() => el.classList.remove('lohistatakse'), 100);
 }
 
 function lohitatakseUle(event, iso) {

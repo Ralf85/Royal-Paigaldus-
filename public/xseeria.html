@@ -68,6 +68,7 @@
   .tasutud-silt { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #14532d; color: #86efac; margin-top: 8px; }
   .tasutud-info { font-size: 11px; color: #666; margin-top: 8px; font-style: italic; }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
 
@@ -408,7 +409,7 @@ async function laadiKulud() {
     document.getElementById('kulu-summa').value = muudaAndmedPuhver.summa;
     document.getElementById('kulu-selgitus').value = muudaAndmedPuhver.selgitus;
   } else {
-    document.getElementById('kulu-kuupaev').value = new Date().toISOString().split('T')[0];
+    document.getElementById('kulu-kuupaev').value = kohalikTana();
   }
 }
 
@@ -524,7 +525,7 @@ async function salvestaKulu() {
 }
 
 async function kustutaKulu(id) {
-  if (!confirm('Kustutad selle kulu?')) return;
+  if (!await rpKysi('Kustutad selle kulu?')) return;
   const r = await api('/minu-kulud/' + id, { method: 'DELETE' });
   if (r && r.ok === false && r.veateade) alert(r.veateade);
   await laadiKulud();
@@ -658,7 +659,7 @@ async function laeUlesRajakaart(korvId, input) {
 }
 
 async function kustutaRajakaart(korvId) {
-  if (!confirm('Kustutada selle raja pilt?')) return;
+  if (!await rpKysi('Kustutada selle raja pilt?')) return;
   await api('/korvid/' + korvId + '/rajakaart', { method: 'DELETE' });
   laadiKorvid();
 }
@@ -678,8 +679,10 @@ function fmtKp(iso) {
 function escapeHtml(s) {
   return (s || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// JS-stringi sisse onclick="...'X'..." atribuudis: enne JS-escape (\\ ja '), siis HTML-escape.
+// (Varem tehti vastupidi ja apostroofiga nimi, nt "McDonald's", lõhkus nupu.)
 function escapeAttr(s) {
-  return escapeHtml(s).replace(/'/g, "\\'");
+  return escapeHtml(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 }
 
 // Seadistab püsiva "🗺️" mulli (paremal all), mis on nähtav KÕIGIS X-seeria vaadetes ühe

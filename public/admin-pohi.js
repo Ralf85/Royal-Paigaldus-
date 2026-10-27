@@ -1592,7 +1592,8 @@ async function avaTootajaModal(workerId, workerNimi) {
     api(`/api/admin/tootaja-kuu?worker_id=${workerId}&aasta=${aasta}&kuu=${kuu}`)
   ]);
   const workerData = Array.isArray(kokkuvote) ? (kokkuvote.find(w => String(w.id) === String(workerId)) || kokkuvote.find(w => w.nimi === workerNimi)) : null;
-  const d = (detail && !detail.viga) ? detail : null;
+  // api() tagastab vea korral { ok:false, veateade } — seda ei tohi käsitleda andmetena
+  const d = (detail && !detail.viga && detail.ok !== false) ? detail : null;
 
   // ── Ülemised numbrid ──
   const tunnid = workerData ? parseFloat(workerData.tunnid) : 0;
@@ -2245,7 +2246,7 @@ async function laadiObjektid(filter) {
   const svgSalvesta='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
   let html='<table><thead><tr>'+(objAktiivneFilter?'':'<th>Ettevõte</th>')+'<th>Nimi</th><th>Aktiivne</th><th></th></tr></thead><tbody>';
   if(!nimekiri.length) html+=`<tr><td colspan="${objAktiivneFilter?3:4}" style="text-align:center;color:var(--hall);padding:24px">Objekte pole</td></tr>`;
-  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${o.nimi}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
+  nimekiri.forEach(o=>{html+=`<tr>${objAktiivneFilter?'':`<td style="color:var(--hall)">${o.ettevote_nimi}</td>`}<td><input type="text" value="${tmEsc(o.nimi)}" id="on-${o.id}" style="width:200px"></td><td><input type="checkbox" ${o.aktiivne?'checked':''} id="oa-${o.id}"></td><td style="text-align:right"><button class="av-tegevus-ikoon" title="Salvesta" onclick="uuendaObjekt(${o.id})">${svgSalvesta}</button></td></tr>`;});
   document.getElementById('objektidTabel').innerHTML=html+'</tbody></table>';
 }
 
@@ -2412,7 +2413,15 @@ function mkAvaMuudaModal(id) {
   const m = mkKoikMaksed.find(x=>x.id===id);
   if(!m) return;
   document.getElementById('mk-muuda-id').value=m.id;
-  document.getElementById('mk-muuda-worker').value=m.worker_id;
+  const wSel = document.getElementById('mk-muuda-worker');
+  // Endise/arhiveeritud töötaja makse: tema nime pole aktiivsete nimekirjas — lisame ajutise valiku,
+  // muidu jääks väärtus tühjaks ja salvestamine annaks serveri vea.
+  if (m.worker_id && !Array.from(wSel.options).some(o => String(o.value) === String(m.worker_id))) {
+    const o = document.createElement('option');
+    o.value = m.worker_id; o.textContent = (m.worker_nimi || m.nimi || ('Töötaja #' + m.worker_id)) + ' (endine)';
+    wSel.appendChild(o);
+  }
+  wSel.value=m.worker_id;
   document.getElementById('mk-muuda-summa').value=parseFloat(m.summa).toFixed(2);
   document.getElementById('mk-muuda-kuupaev').value=m.kuupaev.slice(0,10);
   document.getElementById('mk-muuda-ettevote').value=m.ettevote_id||'';

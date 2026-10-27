@@ -328,7 +328,7 @@
         osad.push('<span class="murr-osa' + (tase === 'p1' ? ' aktiivne' : '') + '" onclick="avaProjektiNimekiri(true)">📁 Projektid</span>');
         if (valitudKirjeldus) {
           osad.push('<span class="murr-sep">›</span>');
-          osad.push('<span class="murr-osa' + (tase === 'p2' ? ' aktiivne' : '') + '" onclick=\'avaProjektiPoed(' + JSON.stringify(valitudKirjeldus) + ', true)\'>' + valitudKirjeldus + '</span>');
+          osad.push('<span class="murr-osa' + (tase === 'p2' ? ' aktiivne' : '') + '" onclick=\'avaProjektiPoed(' + jsA(valitudKirjeldus) + ', true)\'>' + valitudKirjeldus + '</span>');
         }
         if (tase === 'p3' && valitudObjekt) {
           osad.push('<span class="murr-sep">›</span>');
@@ -340,7 +340,7 @@
       osad.push('<span class="murr-osa' + (tase === 1 ? ' aktiivne' : '') + '" onclick="avaPoed(true)">🏬 Poed</span>');
       if (valitudObjekt) {
         osad.push('<span class="murr-sep">›</span>');
-        osad.push('<span class="murr-osa' + (tase === 2 ? ' aktiivne' : '') + '" onclick=\'avaObjekt(' + valitudObjekt.id + ', ' + JSON.stringify(valitudObjekt.nimi) + ', true)\'>' + valitudObjekt.nimi + '</span>');
+        osad.push('<span class="murr-osa' + (tase === 2 ? ' aktiivne' : '') + '" onclick=\'avaObjekt(' + valitudObjekt.id + ', ' + jsA(valitudObjekt.nimi) + ', true)\'>' + valitudObjekt.nimi + '</span>');
       }
       if (valitudKirjeldus) {
         osad.push('<span class="murr-sep">›</span>');
@@ -368,7 +368,7 @@
       }
       sisu.innerHTML = '<div class="poe-grid">' + r.poed.map(function(p) {
         var osad = poeNimiOsad(p.objekt_nimi);
-        return '<div class="poe-kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\'>'
+        return '<div class="poe-kaart" onclick=\'avaObjekt(' + p.objekt_id + ', ' + jsA(p.objekt_nimi) + ', true)\'>'
           + (osad.number ? '<div class="poe-number">' + osad.number + '</div>' : '')
           + '<div class="poe-nimi">' + osad.nimi + '</div>'
           + '<div class="poe-meta">' + p.projektide_arv + ' projekti<br>' + p.piltide_arv + ' pilti</div>'
@@ -404,7 +404,7 @@
         if (p.po_number) sildid += '<span class="info-silt po">PO: ' + p.po_number + '</span>';
         if (p.projekt_number) sildid += '<span class="info-silt prj">Projekt: ' + p.projekt_number + '</span>';
         if (p.markus) sildid += '<span class="info-silt mrk">' + p.markus + '</span>';
-        return '<div class="kaart" onclick=\'avaProjektiPoed(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
+        return '<div class="kaart" onclick=\'avaProjektiPoed(' + jsA(p.kirjeldus) + ', true)\'>'
           + '<div style="flex:1;min-width:0">'
           + '<div class="kaart-nimi">' + p.kirjeldus + '</div>'
           + '<div class="kaart-meta">' + poode + '/' + pKokku + ' poodi tehtud · ' + p.piltide_arv + ' pilti'
@@ -494,7 +494,7 @@
         // Kaardile saab vajutada, kui on pilte või seis märgitud — ja adminil/Kristol alati (et seisu märkida)
         var klikitav = p.piltide_arv > 0 || p.seis || (!PIIRATUD && valitudProjektId);
         var klikk = klikitav
-          ? ' onclick=\'avaProjektiPildid(' + p.objekt_id + ', ' + JSON.stringify(p.objekt_nimi) + ', true)\''
+          ? ' onclick=\'avaProjektiPildid(' + p.objekt_id + ', ' + jsA(p.objekt_nimi) + ', true)\''
           : '';
         return '<div class="poe-kaart ' + (onPuudu ? 'puudu' : onTehtud ? 'tehtud' : 'tyhi') + '"' + klikk + (klikitav && !onTehtud && !onPuudu ? ' style="cursor:pointer"' : '') + '>'
           + (onPuudu ? '<div class="poe-puudu-markk" title="Midagi jäi puudu">!</div>' : onTehtud ? '<div class="poe-tehtud-markk">✓</div>' : '')
@@ -509,6 +509,8 @@
       }).join('') + '</div>';
     }
 
+    // JSON väärtus ühekordsete jutumärkidega onclick='...' atribuudi sisse (nimi apostroofiga ei lõhu nuppu)
+    function jsA(x) { return JSON.stringify(x).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); }
     function escH(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; });
     }
@@ -647,11 +649,11 @@
       }
       sisu.innerHTML = '<div class="grid">' + r.projektid.map(function(p) {
         var kArv = parseInt(p.kommentaare_arv, 10) || 0;
-        return '<div class="kaart" onclick=\'avaProjekt(' + JSON.stringify(p.kirjeldus) + ', true)\'>'
+        return '<div class="kaart" onclick=\'avaProjekt(' + jsA(p.kirjeldus) + ', true)\'>'
           + '<div><div class="kaart-nimi">' + p.kirjeldus + '</div>'
           + '<div class="kaart-meta">' + p.piltide_arv + ' pilti · viimati ' + formatKp(p.viimane_kuupaev) + '</div></div>'
           + '<div class="kaart-nupud">'
-          + '<button class="kommentaar-nupp' + (kArv ? ' aktiivsed' : '') + '" onclick=\'event.stopPropagation(); avaKommentaarid(' + objektId + ', ' + JSON.stringify(objektNimi) + ', ' + JSON.stringify(p.kirjeldus) + ')\'>💬' + (kArv ? ' ' + kArv : '') + '</button>'
+          + '<button class="kommentaar-nupp' + (kArv ? ' aktiivsed' : '') + '" onclick=\'event.stopPropagation(); avaKommentaarid(' + objektId + ', ' + jsA(objektNimi) + ', ' + jsA(p.kirjeldus) + ')\'>💬' + (kArv ? ' ' + kArv : '') + '</button>'
           + '<div class="kaart-noole">›</div></div></div>';
       }).join('') + '</div>';
     }

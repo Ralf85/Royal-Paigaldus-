@@ -55,6 +55,7 @@
   .teade.viga { background: #7f1d1d; color: #fca5a5; }
   .teade.ok { background: #14532d; color: #86efac; }
 </style>
+  <script src="/dialoog.js"></script>
 </head>
 <body>
 <header>
@@ -202,7 +203,7 @@ async function sponsoridHtml() {
           <div><label>Märkused</label><input id="sp-markused-${s.sponsor_id}" value="${escapeHtml(s.markused || '')}" onchange="muudaSponsorMarkused(${s.sponsor_id}, this.value)" placeholder="nt too bännerid kontorist"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn hall small" onclick="muudaSponsorNimi(${s.sponsor_id}, '${escapeHtml(s.nimi).replace(/'/g,"\\'")}', '${escapeHtml(s.kontakt||'').replace(/'/g,"\\'")}')">✏️ Muuda nime/kontakti</button>
+          <button class="btn hall small" onclick="muudaSponsorNimi(${s.sponsor_id}, '${escapeHtml(String(s.nimi||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', '${escapeHtml(String(s.kontakt||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')">✏️ Muuda nime/kontakti</button>
         </div>
       ` : ''}
     </div>`;
@@ -247,9 +248,9 @@ async function muudaSponsorMarkused(sponsorId, markused) {
 }
 
 async function muudaSponsorNimi(sponsorId, vanaNimi, vanaKontakt) {
-  const uusNimi = prompt('Sponsori nimi:', vanaNimi);
+  const uusNimi = await rpKysiTeksti('Sponsori nimi:', vanaNimi);
   if (!uusNimi || !uusNimi.trim()) return;
-  const uusKontakt = prompt('Kontakt:', vanaKontakt);
+  const uusKontakt = await rpKysiTeksti('Kontakt:', vanaKontakt);
   await api('/admin/sponsorid/' + sponsorId, { method: 'PUT', body: JSON.stringify({ nimi: uusNimi.trim(), kontakt: uusKontakt || '' }) });
   await laadiHaldus();
 }
@@ -309,7 +310,7 @@ async function lisaTegevus() {
 }
 
 async function kustutaTegevus(id) {
-  if (!confirm('Kustutada see tegevus?')) return;
+  if (!await rpKysi('Kustutada see tegevus?')) return;
   await api('/admin/tegevused/' + id, { method: 'DELETE' });
   await laadiHaldus();
 }
