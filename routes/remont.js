@@ -399,10 +399,45 @@ router.get('/sessioon', async (req, res) => {
   res.json({ ok: true, roll: await leiaRoll(req) });
 });
 
+// ── TÖÖJÕU TEGELIK KULU (ainult admin) ────────────────────────────────────
+// Iga töökirje kulu = tunnid × töötaja tunnitasu (kirje muu_tunnitasu või töötaja tasu selles ettevõttes).
+// Jaotus minu/naabri vahel tuleb samast protsendist, mis koguAndmed() juba arvutas (t.naabri_protsent).
+async function arvutaTooKulu(d) {
+  const r = await pool.query(
+    `SELECT t.id, COALESCE(t.muu_tunnitasu, we.tunnitasu) AS tasu
+     FROM tookirjed t
+     LEFT JOIN worker_ettevotted we ON (we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id)
+     WHERE t.ettevote_id = $1`,
+    [d.ettevote_id]
+  );
+  const tasud = {};
+  r.rows.forEach(x => { tasud[x.id] = x.tasu === null ? null : parseFloat(x.tasu); });
+
+  const k = { tunnid: 0, kulu: 0, minu_tunnid: 0, minu_kulu: 0, naabri_tunnid: 0, naabri_kulu: 0,
+              maaramata_tunnid: 0, maaramata_kulu: 0, hinnata_kirjeid: 0 };
+  d.tood.forEach(t => {
+    const tunnid = parseFloat(t.tunnid) || 0;
+    const tasu = tasud[t.id];
+    if (tasu === null || tasu === undefined || !(tasu > 0)) k.hinnata_kirjeid++;
+    const kulu = tunnid * (tasu > 0 ? tasu : 0);
+    k.tunnid += tunnid; k.kulu += kulu;
+    if (t.naabri_protsent === null) { k.maaramata_tunnid += tunnid; k.maaramata_kulu += kulu; return; }
+    const p = t.naabri_protsent / 100;
+    k.naabri_tunnid += tunnid * p; k.naabri_kulu += kulu * p;
+    k.minu_tunnid += tunnid * (1 - p); k.minu_kulu += kulu * (1 - p);
+  });
+  Object.keys(k).forEach(x => { if (x !== 'hinnata_kirjeid') k[x] = r2(k[x]); });
+  return k;
+}
+
 // ── VAATAMINE (admin + naaber) ────────────────────────────────────────────
 router.get('/andmed', noudaVaatajat, async (req, res) => {
   const d = await koguAndmed();
   const onAdmin = req.remontRoll === 'admin';
+  if (onAdmin) {
+    // Tööjõu tegelik kulu (töötajate tunnitasu järgi) — AINULT adminile, naabrile seda ei saadeta.
+    try { d.tooKulu = await arvutaTooKulu(d); } catch (e) { d.tooKulu = null; }
+  }
   if (!onAdmin) {
     delete d.naabri_pin;
     delete d.ettevote_id;

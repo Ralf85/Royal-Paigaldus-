@@ -218,6 +218,10 @@
   .kogu-osa.m .kogu-osa-pea b { color: var(--mina); } .kogu-osa.n .kogu-osa-pea b { color: var(--naaber); }
   .kogu-osa-summa { font-size: 19px; font-weight: 800; margin-top: 8px; }
   .kogu-osa-all { font-size: 11px; color: #7c8494; margin-top: 3px; }
+  .kasum { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; background: rgba(74,222,128,0.08); border: 0.5px solid rgba(74,222,128,0.3); border-radius: 10px; padding: 11px 13px; }
+  .kasum-silt { font-size: 13px; font-weight: 700; color: #86efac; }
+  .kasum-all { font-size: 11px; color: #8b93a1; margin-top: 3px; }
+  .kasum-summa { font-size: 22px; font-weight: 800; color: var(--tasutud); white-space: nowrap; }
   .kogu-markus { font-size: 12px; color: #8b93a1; margin-top: 10px; }
   @media (max-width: 520px) { .kogu-osad { grid-template-columns: 1fr; } .kogu-summa { font-size: 24px; } }
 
@@ -573,45 +577,56 @@ var IKOON_TOO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 var IKOON_MATERJAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg>';
 var IKOON_TASUTUD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="8 12.5 11 15.5 16 9.5"/></svg>';
 
-// Projekti kogumaksumus — ainult adminile (Kerttu vaates/eelvaates peidus).
-// Töö väärtus = tunnid × tunnihind (sama hind mõlema osa kohta), materjalid tšeki summas.
-// Määramata jaotusega kirjed on eraldi, sest neid ei saa veel kummalegi omistada.
+// Projekti maksumus ja kasum — ainult adminile (Kerttu vaates/eelvaates peidus; server saadab
+// tööjõu tegeliku kulu A.tooKulu ainult adminile).
+//   Tööjõu tegelik kulu = tunnid × töötajale makstav tunnitasu (nt 16 €/h)
+//   Kerttu maksab töö eest projekti tunnihinnaga (nt 27 €/h)
+//   Kasum Kerttu tundidelt = Kerttu maksab töö eest − selle töö tegelik kulu
 function kogumaksumusHtml() {
-  var s = A.seaded, k = A.kokku, hind = Number(s.tunnihind) || 0;
-  var maaramataH = 0;
-  A.tood.forEach(function (t) { if (t.naabri_protsent === null) maaramataH += Number(t.tunnid) || 0; });
-  var tooKokku = (Number(k.tunnid) || 0) * hind;
-  var nToo = Number(k.naabri_too) || 0;
-  var mToo = Math.max(0, ((Number(k.tunnid) || 0) - (Number(k.naabri_tunnid) || 0) - maaramataH) * hind);
-  var maaramataToo = maaramataH * hind;
+  var s = A.seaded, k = A.kokku, tk = A.tooKulu;
+  if (!tk) return '';
+  var hind = Number(s.tunnihind) || 0;
   var nMat = Number(k.naabri_materjal) || 0;
   var mMat = Number(k.minu_materjal != null ? k.minu_materjal : (Number(k.materjal) || 0) - nMat) || 0;
-  var kokku = tooKokku + (Number(k.materjal) || 0);
-  var mOsa = mToo + mMat, nOsa = nToo + nMat;
+  var mOsa = tk.minu_kulu + mMat;            // minu osa tegelik kulu
+  var nOsa = tk.naabri_kulu + nMat;          // Kerttu osa tegelik kulu
+  var kokku = tk.kulu + (Number(k.materjal) || 0);
+  var nMaksab = (Number(k.naabri_too) || 0) + nMat;   // mida Kerttu tasub (töö projekti hinnaga + materjal)
+  var kasum = (Number(k.naabri_too) || 0) - tk.naabri_kulu;
+  var netoKulu = mOsa - kasum;
+  var kesk = tk.naabri_tunnid > 0 ? tk.naabri_kulu / tk.naabri_tunnid : (tk.tunnid > 0 ? tk.kulu / tk.tunnid : 0);
   var pr = function (v) { return kokku > 0 ? v / kokku * 100 : 0; };
   var prTekst = function (v) { return arv(Math.round(pr(v))) + '%'; };
 
   return '<div class="kogu">'
-    + '<div class="kogu-pea"><div><div class="saldo-silt">Projekti kogumaksumus</div>'
+    + '<div class="kogu-pea"><div><div class="saldo-silt">Projekti tegelik maksumus</div>'
     + '<div class="kogu-summa">' + raha(kokku) + '</div>'
-    + '<div class="saldo-all">Töö ' + raha(tooKokku) + ' (' + arv(k.tunnid) + ' h × ' + raha(hind) + ') + materjalid ' + raha(k.materjal) + '</div></div>'
+    + '<div class="saldo-all">Tööjõud ' + raha(tk.kulu) + ' (' + arv(tk.tunnid) + ' h, töötajate tunnitasu järgi) + materjalid ' + raha(k.materjal) + '</div></div>'
     + '<span class="mark">ainult sulle</span></div>'
     + '<div class="kogu-riba">'
     + (mOsa > 0 ? '<i style="width:' + pr(mOsa).toFixed(2) + '%;background:var(--mina)"></i>' : '')
     + (nOsa > 0 ? '<i style="width:' + pr(nOsa).toFixed(2) + '%;background:var(--naaber)"></i>' : '')
-    + (maaramataToo > 0 ? '<i style="width:' + pr(maaramataToo).toFixed(2) + '%;background:#3a4150"></i>' : '')
+    + (tk.maaramata_kulu > 0 ? '<i style="width:' + pr(tk.maaramata_kulu).toFixed(2) + '%;background:#3a4150"></i>' : '')
     + '</div>'
     + '<div class="kogu-osad">'
     + '<div class="kogu-osa m"><div class="kogu-osa-pea">' + isikHtml('m') + '<b>' + prTekst(mOsa) + '</b></div>'
     + '<div class="kogu-osa-summa">' + raha(mOsa) + '</div>'
-    + '<div class="kogu-osa-all">töö ' + raha(mToo) + ' · materjal ' + raha(mMat) + '</div></div>'
+    + '<div class="kogu-osa-all">tööjõud ' + raha(tk.minu_kulu) + ' (' + arv(tk.minu_tunnid) + ' h) · materjal ' + raha(mMat) + '</div></div>'
     + '<div class="kogu-osa n"><div class="kogu-osa-pea">' + isikHtml('n') + '<b>' + prTekst(nOsa) + '</b></div>'
     + '<div class="kogu-osa-summa">' + raha(nOsa) + '</div>'
-    + '<div class="kogu-osa-all">töö ' + raha(nToo) + ' · materjal ' + raha(nMat) + '</div></div>'
+    + '<div class="kogu-osa-all">tööjõud ' + raha(tk.naabri_kulu) + ' (' + arv(tk.naabri_tunnid) + ' h) · materjal ' + raha(nMat) + '</div>'
+    + '<div class="kogu-osa-all">' + esc(s.naabri_nimi) + ' maksab sulle: <b style="color:var(--naaber)">' + raha(nMaksab) + '</b> (töö ' + raha(hind) + '/h)</div></div>'
     + '</div>'
-    + (maaramataToo > 0 ? '<div class="kogu-markus">+ ' + raha(maaramataToo) + ' tööd (' + arv(maaramataH) + ' h) jaotus määramata — pole kummagi osas.</div>' : '')
+    + '<div class="kasum">'
+    + '<div><div class="kasum-silt">Kasum ' + esc(s.naabri_nimi) + ' töötundidelt</div>'
+    + '<div class="kasum-all">' + arv(tk.naabri_tunnid) + ' h × (' + raha(hind) + ' − ' + raha(kesk) + ') = ' + raha(k.naabri_too) + ' − ' + raha(tk.naabri_kulu) + '</div></div>'
+    + '<div class="kasum-summa">' + (kasum >= 0 ? '+' : '') + raha(kasum) + '</div></div>'
+    + '<div class="arve-rida" style="margin-top:8px"><span>Sinu ehituse netokulu (sinu osa − kasum ' + esc(s.naabri_nimi) + ' tundidelt)</span><b>' + raha(netoKulu) + '</b></div>'
+    + (tk.maaramata_tunnid > 0 ? '<div class="kogu-markus">+ ' + raha(tk.maaramata_kulu) + ' tööjõukulu (' + arv(tk.maaramata_tunnid) + ' h) jaotus määramata — pole kummagi osas.</div>' : '')
+    + (tk.hinnata_kirjeid > 0 ? '<div class="kogu-markus" style="color:#fcd34d">⚠ ' + tk.hinnata_kirjeid + ' töökirjel puudub töötaja tunnitasu — nende kulu on arvestatud 0 €. Määra tasu admini Töötajad lehel.</div>' : '')
     + '</div>';
 }
+
 
 function joonistaYlevaade() {
   var s = A.seaded, k = A.kokku;
