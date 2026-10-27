@@ -183,6 +183,15 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
       teenitud += parseFloat(e.summa);
     });
 
+    // Jooksva kuu Rally Estonia ja X-seeria kulud — et "Teenitud" klapiks admini kokkuvõttega
+    const muudKulud = await pool.query(
+      `SELECT
+         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3), 0) +
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3), 0) AS kokku`,
+      [wid, aasta, kuu]
+    );
+    teenitud += parseFloat(muudKulud.rows[0].kokku) || 0;
+
     const kogutunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
 
     // Jooksva kuu maksed (kuvamiseks)

@@ -113,6 +113,12 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
 // Kustuta oma vahetus (töötajale)
 router.delete('/:id', noudaSisslogimist, async (req, res) => {
   try {
+    // Lukustatud päeva vahetust ei saa töötaja ise kustutada (sama reegel mis lisamisel)
+    const lukk = await pool.query(
+      `SELECT p.lukustatud FROM merekohvik_graafik g JOIN merekohvik_paevad p ON p.kuupaev = g.kuupaev WHERE g.id=$1`,
+      [req.params.id]
+    );
+    if (lukk.rows.length && lukk.rows[0].lukustatud) return res.json({ ok: false, veateade: 'See päev on lukustatud' });
     const r = await pool.query(
       'DELETE FROM merekohvik_graafik WHERE id=$1 AND worker_id=$2 RETURNING id',
       [req.params.id, req.session.workerId]
@@ -192,13 +198,15 @@ router.delete('/admin/:id', noudaGraafikAdmin, async (req, res) => {
 });
 
 // Admin: muuda vahetust
-router.put('/admin/:id', noudaAdmin, async (req, res) => {
-  const { worker_id, algus, lopp } = req.body;
+// (graafikuadmin saab samuti muuta — lisamine ja kustutamine olid juba noudaGraafikAdmin all)
+router.put('/admin/:id', noudaGraafikAdmin, async (req, res) => {
+  const { worker_id, algus, lopp, kuupaev } = req.body;
   const markus = req.body['märkus'] || req.body.markus || '';
   try {
+    // kuupaev salvestatakse ainult siis, kui see on kaasas (varem jäeti kuupäeva muutmine vaikselt vahele)
     await pool.query(
-      `UPDATE merekohvik_graafik SET worker_id=$1, algus=$2, lopp=$3, "märkus"=$4 WHERE id=$5`,
-      [worker_id, algus, lopp, markus, req.params.id]
+      `UPDATE merekohvik_graafik SET worker_id=$1, algus=$2, lopp=$3, "märkus"=$4, kuupaev=COALESCE($6::date, kuupaev) WHERE id=$5`,
+      [worker_id, algus, lopp, markus, req.params.id, kuupaev || null]
     );
     res.json({ ok: true });
   } catch (err) {

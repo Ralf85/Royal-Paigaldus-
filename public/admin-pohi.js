@@ -2612,7 +2612,7 @@ function avaaMuutaModal(k) {
   document.getElementById('muuta-algus').value=k.algus.slice(0,5);
   document.getElementById('muuta-lopp').value=k.lopp.slice(0,5);
   document.getElementById('muuta-kuupaev').value=k.kuupaev.slice(0,10);
-  document.getElementById('muuta-lisakulu').value=k.lisakulu||0;
+  document.getElementById('muuta-lisakulu').value=k.lisakulu_summa||k.lisakulu||0;
   document.getElementById('muuta-lisakulu-sel').value=k.lisakulu_selgitus||'';
   document.getElementById('muuta-komm').value=k.kommentaar||'';
   document.getElementById('muutaModal').style.display='flex';
@@ -2626,14 +2626,17 @@ async function salvestaMuutaKirje() {
   const lisakulu=document.getElementById('muuta-lisakulu').value||0;
   const lisakulu_selgitus=document.getElementById('muuta-lisakulu-sel').value;
   const kommentaar=document.getElementById('muuta-komm').value;
-  await api(`/api/admin/kirjed/${id}`,{method:'PUT',body:JSON.stringify({algus,lopp,kuupaev,lisakulu,lisakulu_selgitus,kommentaar})});
+  // NB: serveri aadress on /tookirjed/:id (varem kutsuti olematut /kirjed/:id — muutmine ei salvestunud)
+  const r = await api(`/api/admin/tookirjed/${id}`,{method:'PUT',body:JSON.stringify({algus,lopp,kuupaev,lisakulu_summa:lisakulu,lisakulu_selgitus,kommentaar})});
+  if (!r || !r.ok) { teata((r && r.veateade) || 'Salvestamine ebaõnnestus'); return; }
   document.getElementById('muutaModal').style.display='none';
   laadiKokkuvote();
 }
 
 async function adminKustutaKirje(id) {
   if(!await kysi('Kustuta see töökirje?')) return;
-  await api(`/api/admin/kirjed/${id}`,{method:'DELETE'});
+  const r = await api(`/api/admin/tookirjed/${id}`,{method:'DELETE'});
+  if (!r || !r.ok) { teata((r && r.veateade) || 'Kustutamine ebaõnnestus'); return; }
   laadiKokkuvote();
 }
 

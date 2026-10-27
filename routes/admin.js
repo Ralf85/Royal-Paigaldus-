@@ -135,16 +135,27 @@ router.put('/tootajad/:id', noudaAdmin, async (req, res) => {
 });
 
 router.delete('/tootajad/:id', noudaAdmin, async (req, res) => {
+  // Kõik ühes tehingus: kui töötajat ei saa kustutada (nt tal on Merekohviku vahetusi või X-seeria
+  // korvide märkeid, mis viitavad talle), ei kustu ka tema tunnid ega maksed poolikult ära.
+  const klient = await pool.connect();
   try {
-    await pool.query('DELETE FROM tookirjed WHERE worker_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM tulevased_tood WHERE worker_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM maksed WHERE worker_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM worker_ettevotted WHERE worker_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
-    await pool.query('DELETE FROM workers WHERE id=$1', [req.params.id]);
+    await klient.query('BEGIN');
+    await klient.query('DELETE FROM tookirjed WHERE worker_id=$1', [req.params.id]);
+    await klient.query('DELETE FROM tulevased_tood WHERE worker_id=$1', [req.params.id]);
+    await klient.query('DELETE FROM maksed WHERE worker_id=$1', [req.params.id]);
+    await klient.query('DELETE FROM worker_ettevotted WHERE worker_id=$1', [req.params.id]);
+    await klient.query('DELETE FROM worker_sessions WHERE worker_id=$1', [req.params.id]);
+    await klient.query('DELETE FROM workers WHERE id=$1', [req.params.id]);
+    await klient.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
+    await klient.query('ROLLBACK').catch(() => {});
+    if (err.code === '23503') {
+      return res.json({ ok: false, veateade: 'Seda töötajat ei saa kustutada, sest tema nimel on muid andmeid (nt Merekohviku graafik või X-seeria). Arhiveeri ta selle asemel — midagi ei kustutatud.' });
+    }
     res.status(500).json({ ok: false, veateade: err.message });
+  } finally {
+    klient.release();
   }
 });
 
@@ -267,7 +278,12 @@ router.post('/objektid', noudaAdmin, async (req, res) => {
 
 router.put('/objektid/:id', noudaAdmin, async (req, res) => {
   const { nimi, aktiivne, pood_number } = req.body;
-  await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2, pood_number=$3 WHERE id=$4', [nimi, aktiivne, pood_number || null, req.params.id]);
+  // pood_number muudetakse ainult siis, kui see päringus kaasas on — muidu jääb alles (admini objektide tabel saadab ainult nime ja aktiivsuse)
+  if (Object.prototype.hasOwnProperty.call(req.body, 'pood_number')) {
+    await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2, pood_number=$3 WHERE id=$4', [nimi, aktiivne, pood_number || null, req.params.id]);
+  } else {
+    await pool.query('UPDATE objektid SET nimi=$1, aktiivne=$2 WHERE id=$3', [nimi, aktiivne, req.params.id]);
+  }
   res.json({ ok: true });
 });
 
@@ -398,9 +414,13 @@ router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
     const [lh, lm] = lopp.split(':').map(Number);
     let minutid = (lh * 60 + lm) - (ah * 60 + am);
     if (minutid < 0) minutid += 1440;
-    const tunnid = minutid / 60;
+    let tunnid = minutid / 60;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     const vana = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
+    if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    // Cramo lõunapaus — sama reegel mis töötaja lisamisel/muutmisel (routes/tood.js)
+    const et = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [vana.rows[0].ettevote_id]);
+    if ((et.rows[0]?.tyyp || '') === 'cramo' && tunnid >= 6) tunnid = tunnid - 0.5;
     await pool.query(
       `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5, lisakulu_summa=$6, lisakulu_selgitus=$7 WHERE id=$8`,
       [kuupaev, algus, lopp, tunnid, kommentaar||'', parseFloat(lisakulu_summa)||0, lisakulu_selgitus||'', req.params.id]

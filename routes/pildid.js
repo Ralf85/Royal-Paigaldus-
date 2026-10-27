@@ -86,6 +86,11 @@ router.get('/tookirje/:tookirjeId', async (req, res) => {
   const id = parseInt(req.params.tookirjeId, 10);
   if (!Number.isInteger(id)) return res.json([]);
   try {
+    // Töötaja näeb ainult oma töökirje pilte; admin kõiki
+    if (!req.session.isAdmin) {
+      const om = await pool.query('SELECT 1 FROM tookirjed WHERE id=$1 AND worker_id=$2', [id, req.session.workerId]);
+      if (!om.rows.length) return res.status(403).json([]);
+    }
     const r = await pool.query('SELECT * FROM tookirje_pildid WHERE tookirje_id=$1 ORDER BY loodud', [id]);
     res.json(r.rows);
   } catch (err) {
