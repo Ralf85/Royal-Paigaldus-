@@ -489,13 +489,17 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
   const { aasta, kuu } = req.query;
   const kuupaevPiir = `${aasta}-${String(kuu).padStart(2, '0')}-01`;
 
+  // Varem tehti iga töötaja kohta 9 päringut järjest (10 töötajaga ~90). Nüüd on päringuid kokku 4,
+  // kõik töötajad korraga (GROUP BY worker_id); arvutusreeglid on samad mis enne.
+  // Kuu filter: kuupaev >= kuu 1. päev ja < järgmise kuu 1. päev (sama mis EXTRACT(YEAR/MONTH), aga kasutab indeksit).
   const workers = await pool.query('SELECT * FROM workers WHERE aktiivne=true ORDER BY nimi');
-  const andmed = [];
+  const ids = workers.rows.map(w => w.id);
+  if (!ids.length) return res.json([]);
 
-  for (const w of workers.rows) {
+  const [kirjedRes, kuuRes, kogRes] = await Promise.all([
     // Jooksva kuu kirjed (kuvamiseks)
-    const kirjed = await pool.query(
-      `SELECT t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
+    pool.query(
+      `SELECT t.worker_id, t.id, t.tunnid, t.kuupaev, t.algus, t.lopp, t.kommentaar,
               e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp, COALESCE(o.nimi,'') as objekt_nimi,
               COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) as tunnitasu,
               COALESCE(we.tunnitasu, 0) as vaikimisi_tunnitasu,
@@ -508,87 +512,61 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
        JOIN ettevotted e ON t.ettevote_id=e.id
        LEFT JOIN objektid o ON t.objekt_id=o.id
        LEFT JOIN worker_ettevotted we ON (we.worker_id=t.worker_id AND we.ettevote_id=t.ettevote_id)
-       WHERE t.worker_id=$1 AND EXTRACT(YEAR FROM t.kuupaev)=$2 AND EXTRACT(MONTH FROM t.kuupaev)=$3
-       ORDER BY t.kuupaev`,
-      [w.id, aasta, kuu]
-    );
+       WHERE t.worker_id = ANY($1::int[]) AND t.kuupaev >= $2::date AND t.kuupaev < $2::date + INTERVAL '1 month'
+       ORDER BY t.kuupaev, t.id`,
+      [ids, kuupaevPiir]
+    ),
+    // Jooksva kuu kulud ja maksed töötaja kaupa
+    pool.query(
+      `SELECT w.id AS worker_id,
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud x WHERE x.worker_id=w.id AND x.kuupaev >= $2::date AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS edgf,
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud x WHERE x.worker_id=w.id AND x.kuupaev >= $2::date AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS xseeria,
+         COALESCE((SELECT SUM(summa) FROM lisakulud x WHERE x.worker_id=w.id AND x.kuupaev >= $2::date AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS vabad,
+         COALESCE((SELECT SUM(summa) FROM re_kulud x WHERE x.worker_id=w.id AND x.kuupaev >= $2::date AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS re,
+         COALESCE((SELECT SUM(summa) FROM maksed x WHERE x.worker_id=w.id AND x.kuupaev >= $2::date AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS makstud
+       FROM workers w WHERE w.id = ANY($1::int[])`,
+      [ids, kuupaevPiir]
+    ),
+    // KUMULATIIVNE SAADA VEEL: kõik teenitud ja makstud kuni selle kuu lõpuni (kaasa arvatud)
+    pool.query(
+      `SELECT w.id AS worker_id,
+         COALESCE((SELECT SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0))
+                   FROM tookirjed tk LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
+                   WHERE tk.worker_id=w.id AND tk.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(km_raha) FROM tookirjed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM lisakulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM edgf_kulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM re_kulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
+         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS teenitud,
+         COALESCE((SELECT SUM(summa) FROM maksed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS makstud
+       FROM workers w WHERE w.id = ANY($1::int[])`,
+      [ids, kuupaevPiir]
+    )
+  ]);
 
-    const tunnid = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid), 0);
-    const teenitud = kirjed.rows.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
-    const km_raha_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
-    const lisakulu_kokku = kirjed.rows.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
+  const kirjedW = {}, kuuW = {}, kogW = {};
+  kirjedRes.rows.forEach(r => { (kirjedW[r.worker_id] = kirjedW[r.worker_id] || []).push(r); });
+  kuuRes.rows.forEach(r => { kuuW[r.worker_id] = r; });
+  kogRes.rows.forEach(r => { kogW[r.worker_id] = r; });
 
-    // Jooksva kuu EDGF kulud
-    const edgfKulud = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM edgf_kulud
-       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
-      [w.id, aasta, kuu]
-    );
-    const edgf_kokku = parseFloat(edgfKulud.rows[0].kokku);
-
-    // Jooksva kuu X-seeria töötaja isiklikud kulud (Minu kulud — kütus, toit, tööriistad jne)
-    const xseeriaKulud = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM xseeria_omakulud
-       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
-      [w.id, aasta, kuu]
-    );
-    const xseeria_kokku = parseFloat(xseeriaKulud.rows[0].kokku);
-
-    // Jooksva kuu vabad lisakulud
-    const lisakulud = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM lisakulud
-       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
-      [w.id, aasta, kuu]
-    );
-    const vabad_lisakulud = parseFloat(lisakulud.rows[0].kokku);
-
-    // Jooksva kuu Rally Estonia kulud
-    const reKulud = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM re_kulud
-       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
-      [w.id, aasta, kuu]
-    );
-    const re_kokku = parseFloat(reKulud.rows[0].kokku);
-
+  const andmed = workers.rows.map(w => {
+    const kirjed = kirjedW[w.id] || [];
+    const k = kuuW[w.id] || {};
+    const g = kogW[w.id] || {};
+    const tunnid = kirjed.reduce((s, r) => s + parseFloat(r.tunnid), 0);
+    const teenitud = kirjed.reduce((s, r) => s + parseFloat(r.tunnid) * parseFloat(r.tunnitasu), 0);
+    const km_raha_kokku = kirjed.reduce((s, r) => s + parseFloat(r.km_raha || 0), 0);
+    const lisakulu_kokku = kirjed.reduce((s, r) => s + parseFloat(r.lisakulu_summa || 0), 0);
+    const edgf_kokku = parseFloat(k.edgf) || 0;
+    const xseeria_kokku = parseFloat(k.xseeria) || 0;
+    const vabad_lisakulud = parseFloat(k.vabad) || 0;
+    const re_kokku = parseFloat(k.re) || 0;
+    const makstud = parseFloat(k.makstud) || 0;
     const kogusumma = teenitud + km_raha_kokku + lisakulu_kokku + edgf_kokku + re_kokku + xseeria_kokku + vabad_lisakulud;
-
-    // Jooksva kuu maksed (kuvamiseks)
-    const maksed = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
-       WHERE worker_id=$1 AND EXTRACT(YEAR FROM kuupaev)=$2 AND EXTRACT(MONTH FROM kuupaev)=$3`,
-      [w.id, aasta, kuu]
-    );
-    const makstud = parseFloat(maksed.rows[0].kokku);
-
-    // ── KUMULATIIVNE SAADA VEEL ──────────────────────────────────
-    // Kõik teenitud kuni selle kuu lõpuni (kaasa arvatud)
-    const kogTeenitudRes = await pool.query(
-      `SELECT
-         COALESCE(SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0)), 0) +
-         COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
-       AS kokku
-       FROM tookirjed tk
-       LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
-       WHERE tk.worker_id=$1 AND tk.kuupaev < $2::date + INTERVAL '1 month'`,
-      [w.id, kuupaevPiir]
-    );
-
-    // Kõik maksed kuni selle kuu lõpuni (kaasa arvatud)
-    const kogMakstudRes = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
-       WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'`,
-      [w.id, kuupaevPiir]
-    );
-
-    const kogTeenitud = parseFloat(kogTeenitudRes.rows[0].kokku) || 0;
-    const kogMakstud = parseFloat(kogMakstudRes.rows[0].kokku) || 0;
-
-    andmed.push({
+    const kogTeenitud = parseFloat(g.teenitud) || 0;
+    const kogMakstud = parseFloat(g.makstud) || 0;
+    return {
       id: w.id,
       nimi: w.nimi,
       tunnid: tunnid.toFixed(2),
@@ -602,9 +580,9 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
       kogusumma: kogusumma.toFixed(2),
       makstud: makstud.toFixed(2),
       saadaVeel: (kogTeenitud - kogMakstud).toFixed(2),
-      kirjed: kirjed.rows
-    });
-  }
+      kirjed: kirjed.map(r => { const { worker_id, ...rest } = r; return rest; })
+    };
+  });
   res.json(andmed);
 });
 

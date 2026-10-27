@@ -921,6 +921,26 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS login_katsed_ip_idx ON login_katsed (ip, tyyp, aeg);`);
     await client.query(`DELETE FROM login_katsed WHERE aeg < NOW() - INTERVAL '1 day';`);
 
+    // Indeksid sagedamini filtreeritavatele veergudele (kokkuvõte, töötaja vaade, Lidli fotovaade).
+    // IF NOT EXISTS — ohutu iga käivitusega; üks puuduv tabel ei takista teisi.
+    const indeksid = [
+      'CREATE INDEX IF NOT EXISTS tookirjed_worker_kp_idx ON tookirjed (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS tookirjed_ettevote_kp_idx ON tookirjed (ettevote_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS tookirjed_lidl_idx ON tookirjed (lidl_projekt_id, objekt_id)',
+      'CREATE INDEX IF NOT EXISTS tookirje_pildid_kirje_idx ON tookirje_pildid (tookirje_id)',
+      'CREATE INDEX IF NOT EXISTS maksed_worker_kp_idx ON maksed (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS lisakulud_worker_kp_idx ON lisakulud (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS edgf_kulud_worker_kp_idx ON edgf_kulud (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS re_kulud_worker_kp_idx ON re_kulud (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS xseeria_omakulud_worker_kp_idx ON xseeria_omakulud (worker_id, kuupaev)',
+      'CREATE INDEX IF NOT EXISTS merekohvik_graafik_kp_idx ON merekohvik_graafik (kuupaev)',
+      'CREATE INDEX IF NOT EXISTS audit_log_loodud_idx ON audit_log (loodud)',
+      'CREATE INDEX IF NOT EXISTS worker_ettevotted_we_idx ON worker_ettevotted (worker_id, ettevote_id)'
+    ];
+    for (const sql of indeksid) {
+      try { await client.query(sql); } catch (e) { console.warn('Indeksi loomine jäi vahele:', e.message); }
+    }
+
     console.log('✅ Andmebaas valmis');
   } finally {
     client.release();
