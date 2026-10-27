@@ -1393,13 +1393,13 @@
       }
     })();
     function tagasiAdminni() {
-      // See vahekaart avati admini enda poolt window.open()-iga — sulgemine viib tagasi
-      // admini vahekaardile, mille sessioon polnud siin kunagi puudutatud.
-      window.close();
-      // Kui brauser ei luba sulgemist (nt kaart avati mitte skriptiga), anname käsitsi juhise.
-      setTimeout(function() {
-        alert('Seda vahekaarti ei saanud automaatselt sulgeda — sulge see käsitsi ja mine tagasi admin-vahekaardile.');
-      }, 300);
+      // "Vaheta roll" avas selle vaate kas uues vahekaardis (siis sulgeme selle) või samas aknas
+      // (kui brauser blokeeris uue akna) — siis viime otse admini vaatesse. Admini sisselogimine
+      // (adminToken) ei olnud siin kunagi puudutatud, töötaja ajutine võti eemaldatakse.
+      sessionStorage.removeItem('vahetatudAdminist');
+      localStorage.removeItem('workerToken');
+      try { window.close(); } catch (e) {}
+      setTimeout(function() { if (!window.closed) window.location.href = '/admin'; }, 250);
     }
 
     async function registreeriPush(){

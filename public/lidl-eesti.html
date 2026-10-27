@@ -300,10 +300,13 @@
       }
     })();
     function tagasiAdminni() {
-      window.close();
-      setTimeout(function() {
-        alert('Seda vahekaarti ei saanud automaatselt sulgeda — sulge see käsitsi ja mine tagasi admin-vahekaardile.');
-      }, 300);
+      // "Vaheta roll" avas selle vaate kas uues vahekaardis (siis sulgeme selle) või samas aknas
+      // (kui brauser blokeeris uue akna) — siis viime otse admini vaatesse. Admini sisselogimine
+      // (adminToken) ei olnud siin kunagi puudutatud, töötaja ajutine võti eemaldatakse.
+      sessionStorage.removeItem('vahetatudAdminist');
+      localStorage.removeItem('workerToken');
+      try { window.close(); } catch (e) {}
+      setTimeout(function() { if (!window.closed) window.location.href = '/admin'; }, 250);
     }
 
     function uuendaURL(push) {
