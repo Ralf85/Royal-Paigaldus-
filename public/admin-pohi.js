@@ -974,10 +974,20 @@ function vrRenderList() {
 }
 
 async function vrVahetaTootaja(id) {
+  // Safari blokeerib window.open-i, kui see kutsutakse alles pärast serveri vastust (pole enam "kasutaja klikk").
+  // Seepärast avame tühja akna KOHE klikiga ja suuname selle aadressile, kui token on käes.
+  const aken = window.open('', '_blank');
+  if (aken) { try { aken.document.title = 'Vahetan rolli…'; aken.document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px;color:#555">Vahetan rolli…</p>'; } catch (e) {} }
   const r = await api(`/api/admin/vaheta-roll/${id}`, { method: 'POST' });
-  if (!r || !r.ok) { alert((r && r.veateade) || 'Rolli vahetamine ebaõnnestus'); return; }
+  if (!r || !r.ok) {
+    if (aken) aken.close();
+    alert((r && r.veateade) || 'Rolli vahetamine ebaõnnestus');
+    return;
+  }
   vrSuljeModal();
-  window.open('/tootaja?vaheta_token=' + encodeURIComponent(r.token), '_blank');
+  const url = '/tootaja?vaheta_token=' + encodeURIComponent(r.token);
+  if (aken && !aken.closed) aken.location.href = url;
+  else window.location.href = url; // hüpikaknad keelatud — avame samas aknas (admini sisselogimine jääb alles)
 }
 
 function avaMobiiliMenuu() {

@@ -252,6 +252,10 @@
   table.mt-read td.p { text-align: right; padding-left: 14px; white-space: nowrap; }
   table.mt-read .m { color: var(--mina); } table.mt-read .n { color: var(--naaber); }
   @media (max-width: 520px) { .mt-det { flex-direction: column; } .mt-pilt { width: 100%; height: 160px; } }
+  tr.mt-kinnita td { background: #1c1a10; padding: 10px 12px; border-bottom: 0.5px solid rgba(224,184,78,0.35); }
+  .kinnita { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: #cbd2dc; }
+  .kinnita input { width: 100px; padding: 6px 9px; font-size: 15px; }
+  .kinnita-teade { color: #f87171; font-size: 12px; }
   .kogu-markus { font-size: 12px; color: #8b93a1; margin-top: 10px; }
   @media (max-width: 520px) { .kogu-osad { grid-template-columns: 1fr; } .kogu-summa { font-size: 24px; } }
 
@@ -854,26 +858,51 @@ function joonistaTood() {
 var kuluAvatud = null;
 function kuluAvaSulge(id) { kuluAvatud = kuluAvatud === id ? null : id; joonistaKulud(); }
 
-async function kuluArvetesLylita(id, el) {
+// Linnuke ei kasuta brauseri prompt/confirm aknaid (Safari võib need vaikselt ära jätta) —
+// selle asemel avaneb rea all väike kinnituspaneel.
+var kuluKinnita = null;   // { id, lisa }
+function kuluArvetesLylita(id, el) {
   var k = A.kulud.find(function (x) { return x.id === id; });
   if (!k) return;
-  var lisa = el.checked;
-  var keha = { arvetesse: lisa };
-  if (lisa) {
-    var soovitus = Number(k.kaibemaks) > 0 ? Number(k.kaibemaks) : Math.round(k.summa / 1.24 * 0.24 * 100) / 100;
-    var vastus = prompt('„' + k.kirjeldus + '" ' + raha(k.summa) + ' → Royali arvetesse.\n\nKäibemaks tšekil (€):', String(soovitus).replace('.', ','));
-    if (vastus === null) { el.checked = false; return; }
-    var km = loeArv(vastus);
-    if (!Number.isFinite(km) || km < 0 || km >= k.summa) { alert('Kontrolli käibemaksu summat'); el.checked = false; return; }
+  el.checked = !!k.arvetes;          // linnuke muutub alles pärast kinnitust
+  kuluKinnita = { id: id, lisa: !k.arvetes };
+  joonistaKulud();
+  var sisend = document.getElementById('kinnitaKm');
+  if (sisend) { sisend.focus(); sisend.select(); }
+}
+function kuluKinnitaTyhista() { kuluKinnita = null; joonistaKulud(); }
+async function kuluKinnitaSalvesta() {
+  if (!kuluKinnita) return;
+  var k = A.kulud.find(function (x) { return x.id === kuluKinnita.id; });
+  var keha = { arvetesse: kuluKinnita.lisa };
+  var teadeEl = document.getElementById('kinnitaTeade');
+  if (kuluKinnita.lisa) {
+    var km = loeArv(document.getElementById('kinnitaKm').value);
+    if (!Number.isFinite(km) || km < 0 || km >= k.summa) { teadeEl.textContent = 'Kontrolli käibemaksu summat'; return; }
     keha.kaibemaks = km;
-  } else {
-    if (!confirm('Võtan „' + k.kirjeldus + '" (' + raha(k.summa) + ') Royali arvetest välja?\n\nTšekk ja selle fail jäävad siia alles.')) { el.checked = true; return; }
   }
-  el.disabled = true;
-  var r = await api('/kulud/' + id + '/arvetesse', { method: 'POST', body: JSON.stringify(keha) });
-  if (!r.ok) { el.disabled = false; el.checked = !lisa; alert(r.veateade || 'Ei õnnestunud'); return; }
+  var nupp = document.getElementById('kinnitaNupp');
+  nupp.disabled = true; nupp.textContent = 'Salvestan…';
+  var r = await api('/kulud/' + k.id + '/arvetesse', { method: 'POST', body: JSON.stringify(keha) });
+  if (!r.ok) { nupp.disabled = false; nupp.textContent = kuluKinnita.lisa ? 'Lisa arvetesse' : 'Võta välja'; teadeEl.textContent = r.veateade || 'Ei õnnestunud'; return; }
+  kuluKinnita = null;
   await laadi();
 }
+function kuluKinnitaHtml(k, veerge) {
+  var lisa = kuluKinnita.lisa;
+  var soovitus = Number(k.kaibemaks) > 0 ? Number(k.kaibemaks) : Math.round(k.summa / 1.24 * 0.24 * 100) / 100;
+  return '<tr class="mt-kinnita"><td colspan="' + veerge + '"><div class="kinnita">'
+    + (lisa
+      ? '<span><b>' + esc(k.kirjeldus) + '</b> ' + raha(k.summa) + ' → Royali arvetesse. Käibemaks tšekil:</span>'
+        + '<input type="text" inputmode="decimal" id="kinnitaKm" value="' + esc(String(soovitus).replace('.', ',')) + '" onkeydown="if(event.key===\'Enter\')kuluKinnitaSalvesta()"> €'
+        + '<button class="btn vaike kuld" id="kinnitaNupp" onclick="kuluKinnitaSalvesta()">Lisa arvetesse</button>'
+      : '<span>Võtan <b>' + esc(k.kirjeldus) + '</b> (' + raha(k.summa) + ') Royali arvetest välja? Tšekk ja fail jäävad siia alles.</span>'
+        + '<button class="btn vaike punane" id="kinnitaNupp" onclick="kuluKinnitaSalvesta()">Võta välja</button>')
+    + '<button class="btn vaike" onclick="kuluKinnitaTyhista()">Tühista</button>'
+    + '<span class="kinnita-teade" id="kinnitaTeade"></span>'
+    + '</div></td></tr>';
+}
+
 
 function joonistaKulud() {
   var s = A.seaded;
@@ -922,6 +951,7 @@ function joonistaKulud() {
         + '</td>';
     }
     html += '</tr>';
+    if (admin && kuluKinnita && kuluKinnita.id === k.id) html += kuluKinnitaHtml(k, veerge);
     if (avatud) html += '<tr class="mt-detail"><td colspan="' + veerge + '">' + kuluDetailHtml(k) + '</td></tr>';
   });
   html += '</tbody><tfoot><tr><td colspan="2">KOKKU</td><td class="p">' + raha(kokku) + '</td>'
