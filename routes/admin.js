@@ -444,6 +444,18 @@ router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
     const kirje = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
     if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
     await pool.query('DELETE FROM tookirjed WHERE id=$1', [req.params.id]);
+    const k = kirje.rows[0];
+
+    // Lidli poe seis (valmis / puudu) märgiti koos töökirjega — kui selle projekti + poe kohta
+    // ühtegi kirjet enam pole, eemaldame ka märke, et fotovaade ei näitaks kustutatud tööd valmis/puudu.
+    if (k.lidl_projekt_id && k.objekt_id) {
+      try {
+        await pool.query(
+          `DELETE FROM lidl_poe_seis s WHERE s.projekt_id=$1 AND s.objekt_id=$2
+             AND NOT EXISTS (SELECT 1 FROM tookirjed t WHERE t.lidl_projekt_id=$1 AND t.objekt_id=$2)`,
+          [k.lidl_projekt_id, k.objekt_id]);
+      } catch (e) { /* tabelit pole veel */ }
+    }
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [null, 'ADMIN_KUSTUTAS_TOOKIRJE', JSON.stringify({ kirje_id: req.params.id, tunnid: kirje.rows[0].tunnid }), req.ip]
