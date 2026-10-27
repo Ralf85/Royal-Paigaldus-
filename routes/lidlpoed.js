@@ -58,6 +58,14 @@ async function initLidlPoed() {
       UNIQUE (projekt_id, objekt_id)
     );
   `);
+  // Ühekordne koristus: enne 27.10.2026 21:10 (UTC) parandust jäid kustutatud testikirjete poe märked alles.
+  // Eemaldame need märked, mille projekti + poe kohta pole ühtegi töökirjet ja mis on tehtud enne seda aega.
+  // (Hilisemad märked, ka admini käsitsi pandud ilma töökirjeta, jäävad puutumata.)
+  await pool.query(`
+    DELETE FROM lidl_poe_seis s
+    WHERE s.muudetud < TIMESTAMP '2026-10-27 21:10:00'
+      AND NOT EXISTS (SELECT 1 FROM tookirjed t WHERE t.lidl_projekt_id = s.projekt_id AND t.objekt_id = s.objekt_id)
+  `);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS tahtaeg DATE;`);
   await pool.query(`ALTER TABLE lidl_projektid ADD COLUMN IF NOT EXISTS markus TEXT;`);
 }
