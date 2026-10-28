@@ -1288,8 +1288,9 @@ async function avKiirValiFail(file) {
     document.getElementById('av-laadi-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
     document.getElementById('av-laadi-vorm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
-    naitaTeade('av-kiir-teade', 'ok', '📥 Tuvastasin: SISSETULEV tšekk/arve — täidan vormi allpool, kontrolli üle!');
+    naitaTeade('av-kiir-teade', 'ok', '📥 Tuvastasin: SISSETULEV tšekk/arve' + (r.muuja_nimi ? ' (' + r.muuja_nimi + ' kulu)' : '') + ' — täidan vormi allpool, kontrolli üle!');
     avAvaLisaKuluModal();
+    avAiMuujaId = r.muuja_id || null;
     if (r.kuupaev) document.getElementById('as-kuupaev').value = r.kuupaev;
     if (r.tahtaeg) document.getElementById('as-tahtaeg').value = r.tahtaeg;
     if (r.kokku) document.getElementById('as-summa').value = r.kokku;
@@ -1304,6 +1305,7 @@ async function avKiirValiFail(file) {
 
 let avSisseFail = null;
 let avSisseList = [];
+let avAiMuujaId = null; // AI tuvastatud meie ettevõte (ostja) — läheb uue kulu juurde
 
 function avSisseDropzoneSeadista() {
   const zone = document.getElementById('av-sisse-dropzone');
@@ -1338,7 +1340,8 @@ async function avLoeSisseFail(file) {
   if (r.summa) document.getElementById('as-kaibemaks').value = r.kaibemaks || 0;
   if (r.ettevote) document.getElementById('as-kirjeldus').value = r.ettevote;
   if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
-  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil — kontrolli üle ja vajuta Salvesta!');
+  avAiMuujaId = r.muuja_id || null;
+  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil' + (r.muuja_nimi ? ' · ' + r.muuja_nimi + ' kulu' : '') + ' — kontrolli üle ja vajuta Salvesta!');
   rpAiKmTeade('as-teade', r);
 }
 
@@ -1545,11 +1548,13 @@ async function avSalvestaSisse() {
   fd.append('summa', document.getElementById('as-summa').value || 0);
   fd.append('kaibemaks', document.getElementById('as-kaibemaks').value || 0);
   if (avSisseFail) fd.append('fail', avSisseFail);
+  if (!avSisseMuudaId && avAiMuujaId) fd.append('muuja_id', avAiMuujaId);
   const r = avSisseMuudaId
     ? await api(`/api/arved/sisse/${avSisseMuudaId}`, { method: 'PUT', body: fd })
     : await api('/api/arved/sisse', { method: 'POST', body: fd });
   if (!r.ok) return naitaTeade('as-teade', 'viga', r.veateade || 'Salvestamine ebaõnnestus');
   naitaTeade('as-teade', 'ok', '✅ Salvestatud!');
+  avAiMuujaId = null;
   avTuhistaSisseMuutmine();
   await laadiSisseTabel();
   setTimeout(avSuljeLisaKuluModal, 900);

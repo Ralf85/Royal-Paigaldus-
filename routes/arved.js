@@ -603,6 +603,7 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
 });
 router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus } = req.body;
+  const muujaId = parseInt(req.body.muuja_id, 10) || null; // AI tuvastatud meie ettevõte (valikuline)
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   // Väldi täiesti tühjade kirjete tekkimist (nt kogemata Salvesta vajutamine ilma faili/summata).
   if (!req.file && !(parseFloat(summa) || 0) && !(kirjeldus || '').trim()) {
@@ -627,6 +628,10 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, ['makstud','ootel'].includes(staatus) ? staatus : 'ootel', fail_url, fail_public_id, fail_resource_type]
     );
+    if (muujaId) {
+      try { await pool.query('UPDATE arve_sisse SET muuja_id=$1 WHERE id=$2', [muujaId, r.rows[0].id]); r.rows[0].muuja_id = muujaId; }
+      catch (e) { console.warn('Kulu müüja määramine ebaõnnestus:', e.message); }
+    }
     res.json({ ok: true, kirje: r.rows[0] });
   } catch (err) {
     console.error(err);
@@ -715,22 +720,48 @@ router.get('/sisse/zip', noudaArvedLubatud, async (req, res) => {
   }
 });
 
+// ── MEIE ETTEVÕTTED AI LUGEJA JAOKS ──────────────────────────────────────
+// Varem teadis AI ainult Royal Paigaldust. Teise oma ettevõtte (nt Five Under Series) tšekil võis ta
+// meie enda ettevõtte panna "müüjaks" ja kulu läks Royali alla. Nüüd saab AI kõigi müüjate (arve_muujad)
+// nimekirja ja ütleb, milline neist on dokumendil meie pool; server seob selle muuja_id-ga.
+async function meieEttevotted() {
+  try {
+    const r = await pool.query('SELECT id, ettevote_nimi, rg_kood FROM arve_muujad ORDER BY vaikimisi DESC, id');
+    if (r.rows.length) return r.rows;
+  } catch (e) { /* tabelit pole */ }
+  return [{ id: null, ettevote_nimi: 'Royal Paigaldus OÜ', rg_kood: ROYAL_RG_KOOD }];
+}
+function meieTekst(list) {
+  return list.map(m => `"${m.ettevote_nimi}"${m.rg_kood ? ` (registrikood ${m.rg_kood})` : ''}`).join(', ');
+}
+function nimeTuum(s) {
+  return String(s || '').toLowerCase().replace(/\b(oü|ou|as|mtü|fie|uü|tü|sa)\b/g, '').replace(/[^a-z0-9õäöüšž]+/g, '');
+}
+// Kas tekst on mõni meie enda ettevõte? Tagastab selle kirje või null.
+function leiaMeie(tekst, list) {
+  const t = nimeTuum(tekst);
+  if (t.length < 3) return null;
+  return list.find(m => { const n = nimeTuum(m.ettevote_nimi); return n.length >= 3 && (t.includes(n) || n.includes(t)); }) || null;
+}
+
 // ── AI ARVE LUGEJA (Claude vision — loeb pildilt/PDF-ilt ettevõtte/summa/käibemaksu/kuupäeva) ──
 // Ainult eelvaade — ei salvesta midagi, admin vaatab tulemuse üle ja vajutab ise "Salvesta".
 router.post('/sisse/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
   try {
-    const juhis = `Sa vaatad ühte OSTUARVET või kulutšekki. See dokument on väljastatud MEIE ettevõttele "Royal Paigaldus OÜ" (registrikood 16256983) — MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
-Loe dokumendilt välja MÜÜJA andmed — see on teine osapool, kellele me maksame (tavaliselt dokumendi ülaosas logo juures, või väljadel "Müüja", "Väljastaja", "Saatja", "Teenusepakkuja", või kelle pangakontole makse tehakse). ÄRA KUNAGI kirjuta väljale "ettevote" sõnu "Royal Paigaldus" — see oleme meie ise, ostja, mitte müüja!
+    const meie = await meieEttevotted();
+    const juhis = `Sa vaatad ühte OSTUARVET või kulutšekki. See dokument on väljastatud ühele MEIE ettevõtetest. Meie ettevõtted on: ${meieTekst(meie)}. MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
+Loe dokumendilt välja MÜÜJA andmed — see on teine osapool, kellele me maksame (tavaliselt dokumendi ülaosas logo juures, või väljadel "Müüja", "Väljastaja", "Saatja", "Teenusepakkuja", või kelle pangakontole makse tehakse). ÄRA KUNAGI kirjuta väljale "ettevote" ühegi meie ettevõtte nime — need oleme meie ise, ostja, mitte müüja!
 Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
-"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI Royal Paigaldus)", "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)" ning allpool kirjeldatud summaväljad.
+"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI meie ettevõte)", "meie_ettevote": "see meie ettevõtte nimi ülaltoodud nimekirjast täpselt samal kujul, kes on dokumendil ostja (nimi või registrikood dokumendil); kui ostjat pole näha (nt tavaline poetšekk), tühi string", "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)" ning allpool kirjeldatud summaväljad.
 Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
     const t = await loeDokument(req, juhis, { summad: true });
     if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
     const väljad = t.valjad;
     // Turvavõrk: kui AI eksis ja tagastas meie enda ettevõtte nime (ostja, mitte müüja), tühjenda see väli —
     // parem tühi väli, mida käsitsi täita, kui vale/eksitav "müüja" nimi.
-    if (väljad.ettevote && /royal[\s-]*paigaldus/i.test(väljad.ettevote)) väljad.ettevote = '';
+    if (väljad.ettevote && (/royal[\s-]*paigaldus/i.test(väljad.ettevote) || leiaMeie(väljad.ettevote, meie))) väljad.ettevote = '';
+    const meieLeitud = leiaMeie(väljad.meie_ettevote, meie);
     // Proovi meie oma ettevõtete nimekirjast (Cramo/Lidl/Merekohvik/Muu) sobivat automaatselt valida,
     // kui loetud müüja nimi sisaldab mõnda meie ettevõtte lühinime (nt "Cramo Estonia AS" → CRAMO).
     let ettevoteId = null;
@@ -749,7 +780,9 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
       km_kontroll: t.summad.km_kontroll,
       kuupaev: puhasKuupaev(väljad.kuupaev),
       tahtaeg: puhasKuupaev(väljad.tahtaeg),
-      ettevote_id: ettevoteId
+      ettevote_id: ettevoteId,
+      muuja_id: meieLeitud ? meieLeitud.id : null,
+      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : ''
     });
   } catch (err) {
     console.error(err);
@@ -762,20 +795,23 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
 router.post('/loe-suund', noudaAdmin, aiFailid(uploadSisse), async (req, res) => {
   if (!req.file) return res.json({ ok: false, veateade: 'Faili ei leitud' });
   try {
-    const juhis = `Sa vaatad üht arvet, tšekki või kulutšekki, mis puudutab ettevõtet "Royal Paigaldus OÜ" (registrikood 16256983).
-Esimene ja kõige tähtsam samm: tuvasta, KUMB POOL Royal Paigaldus OÜ sellel dokumendil on:
-- Kui Royal Paigaldus OÜ ise VÄLJASTAS/ESITAS selle arve kellelegi teisele (Royal Paigaldus on MÜÜJA) → "suund"="valja".
-- Kui dokument on väljastatud Royal Paigaldusele mõne TEISE ettevõtte poolt, st Royal Paigaldus OSTIS/MAKSIS (Royal Paigaldus on OSTJA) → "suund"="sisse". Tavaline poetšekk on alati "sisse".
+    const meie = await meieEttevotted();
+    const juhis = `Sa vaatad üht arvet, tšekki või kulutšekki, mis puudutab ühte MEIE ettevõtetest. Meie ettevõtted on: ${meieTekst(meie)}.
+Esimene ja kõige tähtsam samm: tuvasta, KUMB POOL meie ettevõte sellel dokumendil on:
+- Kui meie ettevõte ise VÄLJASTAS/ESITAS selle arve kellelegi teisele (meie ettevõte on MÜÜJA) → "suund"="valja".
+- Kui dokument on väljastatud meie ettevõttele mõne TEISE ettevõtte poolt, st meie OSTSIME/MAKSIME (meie ettevõte on OSTJA) → "suund"="sisse". Tavaline poetšekk on alati "sisse".
 Seejärel:
 - kui suund="valja": väljale "vastaspool" kirjuta OSTJA (kliendi) nimi, kellele arve esitati; proovi lugeda ka arve number väljale "number".
-- kui suund="sisse": väljale "vastaspool" kirjuta MÜÜJA nimi, kellelt me ostsime. ÄRA KUNAGI kirjuta väljale "vastaspool" sõnu "Royal Paigaldus" — see oleme meie ise!
+- kui suund="sisse": väljale "vastaspool" kirjuta MÜÜJA nimi, kellelt me ostsime. ÄRA KUNAGI kirjuta väljale "vastaspool" ühegi meie ettevõtte nime — need oleme meie ise!
+- väljale "meie_ettevote" kirjuta see meie ettevõtte nimi ülaltoodud nimekirjast täpselt samal kujul, kes on dokumendil meie pool (müüja või ostja); kui seda pole näha (nt tavaline poetšekk), tühi string.
 Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
-"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)" ning allpool kirjeldatud summaväljad.
+"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "meie_ettevote": "meie ettevõtte nimi nimekirjast või tühi string", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)" ning allpool kirjeldatud summaväljad.
 Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
     const t = await loeDokument(req, juhis, { summad: true });
     if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
     const väljad = t.valjad;
-    if (väljad.vastaspool && /royal[\s-]*paigaldus/i.test(väljad.vastaspool)) väljad.vastaspool = '';
+    if (väljad.vastaspool && (/royal[\s-]*paigaldus/i.test(väljad.vastaspool) || leiaMeie(väljad.vastaspool, meie))) väljad.vastaspool = '';
+    const meieLeitud = leiaMeie(väljad.meie_ettevote, meie);
     let ettevoteId = null;
     if (väljad.vastaspool) {
       const nimi = String(väljad.vastaspool).toUpperCase();
@@ -794,7 +830,9 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
       kaibemaks: t.summad.kaibemaks,
       kokku: t.summad.kokku,
       km_kontroll: t.summad.km_kontroll,
-      ettevote_id: ettevoteId
+      ettevote_id: ettevoteId,
+      muuja_id: meieLeitud ? meieLeitud.id : null,
+      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : ''
     });
   } catch (err) {
     console.error(err);
