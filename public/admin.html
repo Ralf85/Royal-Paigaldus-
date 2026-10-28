@@ -266,6 +266,18 @@
     </div>
   </div>
 
+  <div class="tootaja-modal-overlay" id="pvModal">
+    <div class="tootaja-modal-sisu" style="max-width:920px">
+      <div class="tm-hdr"><span>🏦 Panga väljavõte → arved makstuks</span><span class="tm-sulge" onclick="pvSulge()">✕</span></div>
+      <div style="padding:14px 20px 20px">
+        <div style="font-size:12px;color:var(--hall);margin-bottom:10px">Laadi internetipangast alla konto väljavõte <b>CSV</b>-failina (LHV, Swedbank, SEB, Coop) ja vali see siin. Fail loetakse ainult sinu brauseris. Laekumised sobitatakse maksmata müügiarvetega viitenumbri, arve numbri või maksja nime ja summa järgi. Makstuks märgitakse ainult linnukesega read.</div>
+        <input type="file" id="pv-fail" accept=".csv,text/csv,text/plain" onchange="pvLoeFail(this)">
+        <div id="pv-tulemus"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="nupp kull" id="pv-nupp" style="display:none" onclick="pvKinnita()"></button></div>
+        <div class="teade" id="pv-teade"></div>
+      </div>
+    </div>
+  </div>
   <div class="tootaja-modal-overlay" id="mkKoikModal">
     <div class="tootaja-modal-sisu" style="max-width:640px">
       <div class="tm-hdr"><span>💸 Maksa kõik korraga</span><span class="tm-sulge" onclick="mkSuljeKoikModal()">✕</span></div>
@@ -1115,6 +1127,7 @@
           <input type="date" id="av-filt-algus" style="font-size:11px;padding:5px 8px;width:auto" onchange="avFiltreeriKuupaevad()" title="ZIP allalaadimiseks: alates">
           <input type="date" id="av-filt-lopp" style="font-size:11px;padding:5px 8px;width:auto" onchange="avFiltreeriKuupaevad()" title="ZIP allalaadimiseks: kuni">
           <button type="button" class="nupp hall" id="av-laadi-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleLaadiVorm()">⬆️ Lae vana arve üles</button>
+          <button type="button" class="nupp hall" style="font-size:11px;padding:5px 12px" onclick="pvAva()" title="Lae panga väljavõte (CSV) — laekumised märgitakse arvetele makstuks">🏦 Panga väljavõte</button>
           <button type="button" class="nupp hall" id="av-sumup-nupp" style="font-size:11px;padding:5px 12px" onclick="avToggleSumupVorm()">📥 SumUp aruanne</button>
           <button type="button" class="nupp hall" id="av-zip-nupp" style="font-size:11px;padding:5px 12px;display:none" onclick="avLaadiArvedZip()">⬇️ Laadi valitud alla (ZIP)</button>
           <button type="button" class="nupp hall" style="font-size:11px;padding:5px 12px" onclick="avLaadiKoikArvedZip()">⬇️ Laadi KÕIK alla (ZIP)</button>

@@ -1646,3 +1646,171 @@ async function avLaadiOaLogo(muujaId, input) {
 }
 
 init();
+
+// ── PANGAVÄLJAVÕTE → ARVED MAKSTUKS ─────────────────────────────────────────
+// Panga CSV (LHV, Swedbank, SEB, Coop) loetakse brauseris — faili serverisse ei saadeta.
+// Laekumised (raha sisse) sobitatakse maksmata müügiarvetega: 1) viitenumber, 2) arve number selgituses,
+// 3) maksja nimi + täpne summa (nõrk, vaikimisi märkimata). Makstuks märgitakse ainult linnukesega read.
+let pvRead = [];
+
+function pvAva() {
+  pvRead = [];
+  document.getElementById('pv-fail').value = '';
+  document.getElementById('pv-tulemus').innerHTML = '';
+  document.getElementById('pv-nupp').style.display = 'none';
+  document.getElementById('pv-teade').style.display = 'none';
+  document.getElementById('pvModal').classList.add('avatud');
+}
+function pvSulge() { document.getElementById('pvModal').classList.remove('avatud'); }
+
+async function pvLoeFail(input) {
+  const fail = input.files && input.files[0];
+  if (!fail) return;
+  const puhver = await fail.arrayBuffer();
+  let tekst = new TextDecoder('utf-8').decode(puhver);
+  // Vanemad pangad annavad Windows-1257 kodeeringus faili — siis oleksid täpitähed asendusmärgid
+  if (tekst.includes('�')) { try { tekst = new TextDecoder('windows-1257').decode(puhver); } catch (e) {} }
+  const tehingud = pvParsiCsv(tekst);
+  if (!tehingud) {
+    document.getElementById('pv-tulemus').innerHTML = '<div style="color:var(--punane);padding:12px 0">Ei tundnud faili ära. Laadi pangast alla väljavõte <b>CSV</b>-vormingus (LHV, Swedbank, SEB või Coop).</div>';
+    return;
+  }
+  if (!avArvedList.length) await laadiArvedTabel();
+  pvRead = pvSobita(tehingud);
+  pvJoonista(tehingud.length);
+}
+
+// CSV rida väljadeks (jutumärgid, semikoolon või koma)
+function pvCsvRida(rida, eraldaja) {
+  const v = []; let cur = '', jutt = false;
+  for (let i = 0; i < rida.length; i++) {
+    const c = rida[i];
+    if (jutt) {
+      if (c === '"' && rida[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') jutt = false;
+      else cur += c;
+    } else if (c === '"') jutt = true;
+    else if (c === eraldaja) { v.push(cur); cur = ''; }
+    else cur += c;
+  }
+  v.push(cur);
+  return v.map(x => x.trim());
+}
+function pvArv(s) {
+  let t = String(s || '').replace(/\s| /g, '');
+  if (t.includes(',') && t.includes('.')) t = t.replace(/\./g, '').replace(',', '.');
+  else t = t.replace(',', '.');
+  const n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+function pvKp(s) {
+  const t = String(s || '').trim();
+  let m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(t);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : t;
+}
+function pvParsiCsv(tekst) {
+  const read = tekst.replace(/^﻿/, '').split(/\r?\n/).filter(r => r.trim());
+  if (read.length < 2) return null;
+  const eraldaja = (read[0].match(/;/g) || []).length >= (read[0].match(/,/g) || []).length ? ';' : ',';
+  const pais = pvCsvRida(read[0], eraldaja).map(h => h.toLowerCase());
+  const leia = (...mustrid) => pais.findIndex(h => mustrid.some(m => m.test(h)));
+  const iKp = leia(/kuup/, /^date/, /booking date/);
+  const iSumma = leia(/^summa/, /^amount/);
+  const iDk = leia(/deebet\/kreedit/, /^d\/c/, /^d\/k/, /debit\/credit/);
+  const iViide = leia(/viitenumber/, /^viide/, /reference number/);
+  const iSelg = leia(/selgitus/, /^description/, /details/);
+  // Maksja nimi: LHV-l on ka "Saaja/maksja konto" — eelistatakse veergu, kus on "nimi", ja konto veerg jäetakse välja
+  let iNimi = pais.findIndex(h => /(saaja|maksja).*nimi|nimi.*(saaja|maksja)|beneficiary|payer|counterparty/.test(h));
+  if (iNimi < 0) iNimi = pais.findIndex(h => /saaja\s*\/\s*maksja|maksja\s*\/\s*saaja/.test(h) && !/konto|account|pank|bank/.test(h));
+  const iTyyp = leia(/reat/);
+  if (iKp < 0 || iSumma < 0) return null;
+  const tulem = [];
+  for (let r = 1; r < read.length; r++) {
+    const v = pvCsvRida(read[r], eraldaja);
+    if (iTyyp >= 0 && v[iTyyp] && v[iTyyp] !== '20') continue; // Swedbank: ainult tehingud, mitte saldo read
+    const summa = pvArv(v[iSumma]);
+    if (summa == null || summa === 0) continue;
+    const dk = iDk >= 0 ? String(v[iDk] || '').toUpperCase() : '';
+    const sisse = dk ? (dk === 'C' || dk === 'K') : summa > 0;
+    if (!sisse) continue;
+    tulem.push({
+      kp: pvKp(v[iKp]), summa: Math.abs(summa),
+      viide: iViide >= 0 ? String(v[iViide] || '') : '',
+      selgitus: iSelg >= 0 ? String(v[iSelg] || '') : '',
+      nimi: iNimi >= 0 ? String(v[iNimi] || '') : ''
+    });
+  }
+  return tulem;
+}
+function pvSobita(tehingud) {
+  const vaba = avArvedList.filter(a => a.staatus !== 'makstud' && !a.kreedit_algne_arve_id && parseFloat(a.kokku) > 0
+    && !avArvedList.some(x => x.kreedit_algne_arve_id === a.id));
+  const nr = s => String(s || '').replace(/\D/g, '').replace(/^0+/, '');
+  const tihe = s => String(s || '').toLowerCase().replace(/[\s\-_/.]/g, '');
+  const kasutatud = new Set();
+  return tehingud.map(t => {
+    let arve = null, pohjus = '', kindel = false;
+    const viide = nr(t.viide) || nr((/\b(\d{6,20})\b/.exec(t.selgitus) || [])[1]);
+    if (viide) {
+      arve = vaba.find(a => !kasutatud.has(a.id) && nr(a.viitenumber) === viide);
+      if (arve) { pohjus = 'viitenumber'; kindel = true; }
+    }
+    if (!arve) {
+      const selg = tihe(t.selgitus + ' ' + t.viide);
+      arve = vaba.find(a => !kasutatud.has(a.id) && a.number && tihe(a.number).length >= 4 && selg.includes(tihe(a.number)));
+      if (arve) { pohjus = 'arve nr selgituses'; kindel = true; }
+    }
+    if (!arve && t.nimi) {
+      const nimi = tihe(t.nimi);
+      arve = vaba.find(a => !kasutatud.has(a.id) && Math.abs(parseFloat(a.kokku) - t.summa) < 0.005
+        && nimi.length >= 3 && (tihe(a.ostja_nimi).includes(nimi.slice(0, 8)) || nimi.includes(tihe(a.ostja_nimi).slice(0, 8))));
+      if (arve) pohjus = 'nimi + summa (kontrolli)';
+    }
+    if (arve) kasutatud.add(arve.id);
+    const summaErineb = arve && Math.abs(parseFloat(arve.kokku) - t.summa) >= 0.005;
+    return { ...t, arve, pohjus, summaErineb, valitud: !!arve && kindel && !summaErineb };
+  });
+}
+function pvJoonista(kokku) {
+  const leitud = pvRead.filter(r => r.arve);
+  const div = document.getElementById('pv-tulemus');
+  if (!pvRead.length) { div.innerHTML = '<div style="padding:12px 0;color:var(--hall)">Failis polnud ühtegi laekumist (raha sisse).</div>'; return; }
+  div.innerHTML = `<div style="font-size:13px;margin:10px 0">Laekumisi: <b>${pvRead.length}</b> · neist arvega sobitus: <b>${leitud.length}</b></div>
+    <div style="overflow-x:auto;max-height:50vh;overflow-y:auto"><table class="mk-tabel"><thead><tr><th></th><th>Kuupäev</th><th>Maksja</th><th class="mk-th-summa">Laekus</th><th>Viide / selgitus</th><th>Arve</th><th class="mk-th-summa">Arve summa</th></tr></thead><tbody>`
+    + pvRead.map((r, i) => `<tr style="${r.arve ? '' : 'opacity:.5'}">
+        <td>${r.arve ? `<input type="checkbox" style="width:auto" ${r.valitud ? 'checked' : ''} onchange="pvRead[${i}].valitud=this.checked;pvUuendaNupp()">` : ''}</td>
+        <td style="white-space:nowrap">${formatKp(r.kp)}</td>
+        <td>${tmEsc(r.nimi)}</td>
+        <td class="mk-summa">${avFmtEur(r.summa)}</td>
+        <td style="font-size:12px;color:var(--hall)">${tmEsc([r.viide, r.selgitus].filter(Boolean).join(' · ')).slice(0, 80)}</td>
+        <td>${r.arve ? `<b>${tmEsc(r.arve.number)}</b> <span style="font-size:11px;color:var(--hall)">${tmEsc(r.arve.ostja_nimi)} · ${r.pohjus}</span>` : '<span style="color:var(--hall)">— ei leitud</span>'}</td>
+        <td class="mk-summa">${r.arve ? avFmtEur(r.arve.kokku) + (r.summaErineb ? ' <span style="color:#f87171;font-size:11px" title="Laekunud summa erineb arve summast">≠</span>' : '') : ''}</td>
+      </tr>`).join('')
+    + '</tbody></table></div>'
+    + (pvRead.some(r => r.summaErineb) ? '<div style="font-size:12px;color:#f87171;margin-top:6px">≠ = laekunud summa erineb arve summast (nt osamakse). Need read pole vaikimisi märgitud.</div>' : '');
+  pvUuendaNupp();
+}
+function pvUuendaNupp() {
+  const n = pvRead.filter(r => r.arve && r.valitud).length;
+  const nupp = document.getElementById('pv-nupp');
+  nupp.style.display = n ? '' : 'none';
+  nupp.textContent = `✅ Märgi ${n} arvet makstuks`;
+}
+async function pvKinnita() {
+  const valitud = pvRead.filter(r => r.arve && r.valitud);
+  if (!valitud.length) return;
+  if (!await kysi(`Märgid ${valitud.length} arvet makstuks?\n\n` + valitud.map(r => `${r.arve.number} — ${avFmtEur(r.summa)} (${formatKp(r.kp)})`).join('\n'))) return;
+  const nupp = document.getElementById('pv-nupp');
+  nupp.disabled = true;
+  let ok = 0;
+  for (const r of valitud) {
+    const v = await api(`/api/arved/${r.arve.id}/staatus`, { method: 'PUT', body: JSON.stringify({ staatus: 'makstud' }) });
+    if (v && v.ok) ok++;
+  }
+  nupp.disabled = false;
+  await laadiArvedTabel();
+  pvSulge();
+  teata(`✅ ${ok} arvet märgitud makstuks` + (ok < valitud.length ? ` (${valitud.length - ok} ebaõnnestus)` : ''));
+}
