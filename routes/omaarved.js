@@ -326,13 +326,10 @@ router.post('/', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
   }
 });
 
+// Väljastatud arvet ei kustutata (numbrisse jääks auk). Ükski nupp seda ei kasutanud; vana kood on alles allpool kommentaaris.
 router.delete('/:id', noudaSisslogimist, noudaOmaarveLubatud, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM omaarved WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
-  }
+  res.status(403).json({ ok: false, veateade: 'Väljastatud arvet ei saa kustutada' });
+  // await pool.query('DELETE FROM omaarved WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
 });
 
 // ── PDF GENEREERIMINE (müüja = töötaja enda rekvisiidid) ─────────────────

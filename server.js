@@ -148,6 +148,8 @@ app.get('/graafik-admin-login', (req, res) => res.sendFile(path.join(__dirname, 
 // poodide fotokorpuseks) — vana /kristo aadress jääb alles ja suunab uuele, et miski katki ei läheks.
 app.get('/lidl-eesti', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-eesti.html')));
 app.get('/kristo', (req, res) => res.redirect('/lidl-eesti'));
+app.get('/kristo.html', (req, res) => res.redirect('/lidl-eesti'));
+app.get(['/xseeria-admin', '/xseeria-admin.html'], (req, res) => res.redirect('/xseeria-haldus'));
 // Lidl Latvia: töötaja fotode üleslaadimine ja galerii + Läti admini oma leht (oma PIN).
 app.get('/lidl-latvia', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia.html')));
 app.get('/lidl-latvia-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'lidl-latvia-admin.html')));

@@ -136,8 +136,11 @@ function r_ettevoteVahetud() {
 
 async function laadiRaportWorkers(ettevoteId) {
   const objektid = await api(`/api/tood/objektid/${ettevoteId}`);
-  const workersMap = {};
-  (Array.isArray(objektid)?objektid:[]).forEach(()=>{});
+  const oSel = document.getElementById('r-objekt');
+  if (oSel) {
+    oSel.innerHTML = '<option value="">— Kõik objektid —</option>' + (Array.isArray(objektid) ? objektid : [])
+      .map(o => `<option value="${o.id}">${tmEsc(o.nimi)}</option>`).join('');
+  }
   const workers = await api('/api/admin/tootajad');
   const div = document.getElementById('r-workers');
   div.innerHTML = (Array.isArray(workers)?workers:[]).filter(w=>w.aktiivne).map(w=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;background:var(--bg2);border:0.5px solid var(--sisend-piir);border-radius:8px;padding:6px 12px"><input type="checkbox" value="${w.id}" class="r-worker-cb" style="width:auto" checked> ${tmEsc(w.nimi)}</label>`).join('');

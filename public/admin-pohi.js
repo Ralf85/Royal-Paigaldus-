@@ -1371,7 +1371,7 @@ function dashKuluSelgitus(w) {
   return tmEsc(osad.length ? osad.join(' · ') : 'Kulud');
 }
 
-let kvUlevaadeAvatud = localStorage.getItem('kvUlevaadeAvatud') === '1';
+let kvUlevaadeAvatud = localStorage.getItem('kvUlevaadeAvatud') !== '0';
 function kvToggleUlevaade() {
   kvUlevaadeAvatud = !kvUlevaadeAvatud;
   localStorage.setItem('kvUlevaadeAvatud', kvUlevaadeAvatud ? '1' : '0');
@@ -2054,8 +2054,12 @@ async function tjLaadiMoodulid(workerId) {
   });
   if (document.getElementById('tj-moodulid-sisu') !== div) return; // vahepeal valiti teine töötaja/vaheleht
   tjMoodulidRead = read;
+  const LOPPENUD_MOODULID = ['edgf', 're'];
   const grupid = {};
-  read.forEach((m, i) => { (grupid[m.grupp] = grupid[m.grupp] || []).push({ ...m, idx: i }); });
+  read.forEach((m, i) => {
+    if (LOPPENUD_MOODULID.includes(m.kood) && !m.lubatud && !m.viga) return;
+    (grupid[m.grupp] = grupid[m.grupp] || []).push({ ...m, idx: i });
+  });
   div.innerHTML = Object.entries(grupid).map(([grupp, moodulid]) => `
     <div class="tj-sektsioon-pealkiri">${tmEsc(grupp)}</div>
     ${moodulid.map(m => `
