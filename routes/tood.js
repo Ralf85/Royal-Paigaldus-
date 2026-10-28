@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const { onKuuSuletud, SULETUD_TEADE } = require('../kuulukk');
+const { kogTeenitudSql, kogMakstudSql, tunnidKellaajast, cramoLounapaus } = require('../saldo');
 
 function noudaSisslogimist(req, res, next) {
   if (!req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
@@ -57,19 +58,15 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
   try {
     if (await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
-    const [ah, am] = algus.split(':').map(Number);
-    const [lh, lm] = lopp.split(':').map(Number);
-    let minutid = (lh * 60 + lm) - (ah * 60 + am);
-    if (minutid < 0) minutid += 1440;
-    let tunnid = minutid / 60;
+    const aeg = tunnidKellaajast(algus, lopp);
+    const minutid = aeg.minutid;
+    let tunnid = aeg.tunnid;
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     if (tunnid > 16) return res.json({ ok: false, veateade: 'Üle 16 tunni? Kontrolli kellaaegu' });
 
     const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
-    if (tyyp === 'cramo' && tunnid >= 6) {
-      tunnid = tunnid - 0.5;
-    }
+    tunnid = cramoLounapaus(tunnid, tyyp);
 
     const km = parseFloat(kilomeetrid) || 0;
     const km_raha = km > 0 ? (km / 100 * 12) : 0;
@@ -221,25 +218,13 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
     const kuupaevPiir = `${aasta}-${String(kuu).padStart(2, '0')}-01`;
 
     const kogTeenitudRes = await pool.query(
-      `SELECT
-         COALESCE(SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0)), 0) +
-         COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'), 0)
-       AS kokku
-       FROM tookirjed tk
-       LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
-       WHERE tk.worker_id=$1 AND tk.kuupaev < $2::date + INTERVAL '1 month'`,
+      `SELECT ${kogTeenitudSql('$1', v => `${v} < $2::date + INTERVAL '1 month'`)} AS kokku`,
       [wid, kuupaevPiir]
     );
 
     // Kõik maksed kuni selle kuu lõpuni (kaasa arvatud)
     const kogMakstudRes = await pool.query(
-      `SELECT COALESCE(SUM(summa),0) as kokku FROM maksed
-       WHERE worker_id=$1 AND kuupaev < $2::date + INTERVAL '1 month'`,
+      `SELECT ${kogMakstudSql('$1', v => `${v} < $2::date + INTERVAL '1 month'`)} AS kokku`,
       [wid, kuupaevPiir]
     );
 
@@ -363,18 +348,14 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
     // Suletud kuu: ei saa muuta kirjet, mis on suletud kuus, ega tõsta kirjet suletud kuusse
     if (await onKuuSuletud(vana.rows[0].kuupaev) || await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
 
-    const [ah, am] = algus.split(':').map(Number);
-    const [lh, lm] = lopp.split(':').map(Number);
-    let minutid = (lh * 60 + lm) - (ah * 60 + am);
-    if (minutid < 0) minutid += 1440;
-    let tunnid = minutid / 60;
+    let { tunnid } = tunnidKellaajast(algus, lopp);
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     if (tunnid > 16) return res.json({ ok: false, veateade: 'Üle 16 tunni? Kontrolli kellaaegu' });
 
     // Cramo lõunapaus
     const ettevoteInfo = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [vana.rows[0].ettevote_id]);
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
-    if (tyyp === 'cramo' && tunnid >= 6) tunnid = tunnid - 0.5;
+    tunnid = cramoLounapaus(tunnid, tyyp);
 
     const km = parseFloat(kilomeetrid) || 0;
     const km_raha = km > 0 ? (km / 100 * 12) : 0;

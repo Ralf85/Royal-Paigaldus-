@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { Parser } = require('json2csv');
 const { csvFail, csvArv, csvKuupaev, onKuupaev, loeAastaKuu, failiPais } = require('../csvabi');
 const { saadaTeavitus } = require('./push');
+const { kogTeenitudSql, kogMakstudSql, tunnidKellaajast, cramoLounapaus } = require('../saldo');
 const { Resend } = require('resend');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
@@ -529,17 +530,13 @@ router.delete('/tulevased/:id', noudaAdmin, async (req, res) => {
 router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
   const { kuupaev, algus, lopp, kommentaar, lisakulu_summa, lisakulu_selgitus } = req.body;
   try {
-    const [ah, am] = algus.split(':').map(Number);
-    const [lh, lm] = lopp.split(':').map(Number);
-    let minutid = (lh * 60 + lm) - (ah * 60 + am);
-    if (minutid < 0) minutid += 1440;
-    let tunnid = minutid / 60;
+    let { tunnid } = tunnidKellaajast(algus, lopp);
     if (tunnid <= 0) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
     const vana = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);
     if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
     // Cramo lõunapaus — sama reegel mis töötaja lisamisel/muutmisel (routes/tood.js)
     const et = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [vana.rows[0].ettevote_id]);
-    if ((et.rows[0]?.tyyp || '') === 'cramo' && tunnid >= 6) tunnid = tunnid - 0.5;
+    tunnid = cramoLounapaus(tunnid, et.rows[0]?.tyyp || '');
     await pool.query(
       `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5, lisakulu_summa=$6, lisakulu_selgitus=$7 WHERE id=$8`,
       [kuupaev, algus, lopp, tunnid, kommentaar||'', parseFloat(lisakulu_summa)||0, lisakulu_selgitus||'', req.params.id]
@@ -649,16 +646,8 @@ router.get('/kokkuvote', noudaAdmin, async (req, res) => {
     // KUMULATIIVNE SAADA VEEL: kõik teenitud ja makstud kuni selle kuu lõpuni (kaasa arvatud)
     pool.query(
       `SELECT w.id AS worker_id,
-         COALESCE((SELECT SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0))
-                   FROM tookirjed tk LEFT JOIN worker_ettevotted we ON (we.worker_id = tk.worker_id AND we.ettevote_id = tk.ettevote_id)
-                   WHERE tk.worker_id=w.id AND tk.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(km_raha) FROM tookirjed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM lisakulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM edgf_kulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM re_kulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) +
-         COALESCE((SELECT SUM(summa) FROM xseeria_omakulud x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS teenitud,
-         COALESCE((SELECT SUM(summa) FROM maksed x WHERE x.worker_id=w.id AND x.kuupaev < $2::date + INTERVAL '1 month'), 0) AS makstud
+         ${kogTeenitudSql('w.id', v => `${v} < $2::date + INTERVAL '1 month'`)} AS teenitud,
+         ${kogMakstudSql('w.id', v => `${v} < $2::date + INTERVAL '1 month'`)} AS makstud
        FROM workers w WHERE w.id = ANY($1::int[])`,
       [ids, kuupaevPiir]
     )
@@ -1188,21 +1177,11 @@ async function laeTootajaAndmed(worker_id, algus, lopp) {
 
   // Kogu aja seis kuni lõppkuupäevani (sama loogika, mis /kokkuvote kasutab kumulatiivse saldo jaoks)
   const kogTeenitudRes = await pool.query(
-    `SELECT
-       COALESCE((SELECT SUM(tk.tunnid * COALESCE(tk.muu_tunnitasu, we.tunnitasu, 0))
-                  FROM tookirjed tk LEFT JOIN worker_ettevotted we ON (we.worker_id=tk.worker_id AND we.ettevote_id=tk.ettevote_id)
-                  WHERE tk.worker_id=$1 AND tk.kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(km_raha) FROM tookirjed WHERE worker_id=$1 AND kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(lisakulu_summa) FROM tookirjed WHERE worker_id=$1 AND kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(summa) FROM lisakulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(summa) FROM edgf_kulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(summa) FROM re_kulud WHERE worker_id=$1 AND kuupaev <= $2), 0) +
-       COALESCE((SELECT SUM(summa) FROM xseeria_omakulud WHERE worker_id=$1 AND kuupaev <= $2), 0)
-     AS kokku`,
+    `SELECT ${kogTeenitudSql('$1', v => `${v} <= $2`)} AS kokku`,
     [worker_id, lopp]
   );
   const kogMakstudRes = await pool.query(
-    `SELECT COALESCE(SUM(summa),0) AS kokku FROM maksed WHERE worker_id=$1 AND kuupaev <= $2`,
+    `SELECT ${kogMakstudSql('$1', v => `${v} <= $2`)} AS kokku`,
     [worker_id, lopp]
   );
   const kogTeenitud = parseFloat(kogTeenitudRes.rows[0].kokku) || 0;
