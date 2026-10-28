@@ -1031,6 +1031,9 @@ function avJoonistaArvedTabel() {
           <button type="button" onclick="avAvaArvePdf(${a.id}, 'laadi')" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></button>
           ${!a.fail_url && !a.kreedit_algne_arve_id && !avArvedList.some(x => x.kreedit_algne_arve_id === a.id)
             ? `<button type="button" onclick="avMuudaArve(${a.id})" class="av-tegevus-ikoon" title="Muuda arvet (sama number)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>` : ''}
+          ${!a.kreedit_algne_arve_id && parseFloat(a.kokku) > 0 && !avArvedList.some(x => x.kreedit_algne_arve_id === a.id)
+            ? `<button type="button" onclick="avTeeKreeditarve(${a.id})" class="av-tegevus-ikoon" title="Tee kreeditarve (tühistab arve, algne jääb alles)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>` : ''}
+          ${a.kreedit_algne_arve_id ? `<span title="Kreeditarve arvele ${tmEsc((avArvedList.find(x => x.id === a.kreedit_algne_arve_id) || {}).number || '')}" style="font-size:10px;font-weight:700;color:#f87171;align-self:center">KR</span>` : ''}
           <button onclick="avKustutaArve(${a.id})" class="av-tegevus-ikoon kustuta" title="Kustuta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
         </td>
       </tr>`;
@@ -1813,4 +1816,16 @@ async function pvKinnita() {
   await laadiArvedTabel();
   pvSulge();
   teata(`✅ ${ok} arvet märgitud makstuks` + (ok < valitud.length ? ` (${valitud.length - ok} ebaõnnestus)` : ''));
+}
+
+// ── KREEDITARVE ─────────────────────────────────────────────────────────────
+async function avTeeKreeditarve(id) {
+  const a = avArvedList.find(x => x.id === id);
+  if (!a) return;
+  const pohjus = await kysiTeksti(`Kreeditarve arvele ${a.number} (${avFmtEur(a.kokku)}, ${a.ostja_nimi}).\n\nTehakse uus arve sama summaga miinusega. Algne arve jääb alles.\n\nPõhjus (trükitakse kreeditarvele, võib jätta tühjaks):`, '');
+  if (pohjus === null) return;
+  const r = await api(`/api/arved/${id}/kreeditarve`, { method: 'POST', body: JSON.stringify({ pohjus }) });
+  if (!r || !r.ok) { teata((r && r.veateade) || 'Ei õnnestunud'); return; }
+  await laadiArvedTabel();
+  teata(`✅ Kreeditarve ${r.number} tehtud. PDF-i saad avada nimekirjast 👁 nupuga.`);
 }

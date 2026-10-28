@@ -903,6 +903,7 @@ async function lisaValjaArveZipi(archive, olek, arve, muujaCache, kaust) {
   const nimi = zipNimi(olek, `${nimiAlus}.pdf`, kaust);
   if (!muuja) { olek.puudu.push(`${nimi} — arvel pole müüja andmeid, PDF-i ei saanud teha`); return false; }
   const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
+  await lisaKreeditViide(arve);
   archive.append(renderArvePdf(muuja, arve, readR.rows, logoBuf), { name: nimi });
   return true;
 }
@@ -1415,6 +1416,68 @@ router.put('/:id/staatus', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── KREEDITARVE: väljastatud arve tühistamine ilma seda kustutamata ──────────
+// Uus arve sama müüja numbriseeriaga, read ja summad miinusega, viide algsele arvele
+// (kreedit_algne_arve_id). Algne arve jääb alles. Kreeditarvet ja juba krediteeritud arvet uuesti krediteerida ei saa.
+router.post('/:id(\\d+)/kreeditarve', noudaAdmin, async (req, res) => {
+  const pohjus = String((req.body && req.body.pohjus) || '').trim().slice(0, 500);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const a = await client.query('SELECT * FROM arved WHERE id=$1 FOR UPDATE', [req.params.id]);
+    const arve = a.rows[0];
+    if (!arve) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: 'Arvet ei leitud' }); }
+    if (arve.kreedit_algne_arve_id) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: 'See on juba kreeditarve.' }); }
+    const olemas = await client.query('SELECT number FROM arved WHERE kreedit_algne_arve_id=$1', [arve.id]);
+    if (olemas.rows.length) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: `Sellele arvele on juba kreeditarve ${olemas.rows[0].number}.` }); }
+    if (!(parseFloat(arve.kokku) > 0)) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: 'Nullsummaga arvet ei saa krediteerida.' }); }
+    let muujaId = arve.muuja_id;
+    if (!muujaId) {
+      const v = await client.query('SELECT id FROM arve_muujad WHERE vaikimisi=true LIMIT 1');
+      muujaId = v.rows[0] && v.rows[0].id;
+    }
+    if (!muujaId) { await client.query('ROLLBACK'); return res.json({ ok: false, veateade: 'Arvel pole müüjat — vali enne arvele müüja.' }); }
+
+    await tagaNumbriSkeem();
+    const kp = new Date();
+    const number = await reserveeriMuujaNumber(client, muujaId, kp);
+    const neg = v => -Math.abs(parseFloat(v) || 0);
+    const ins = await client.query(
+      `INSERT INTO arved (number, kuupaev, maksetahtaeg, viitenumber, ettevote_id, ostja_nimi, ostja_aadress, ostja_rg_kood, ostja_kmkr,
+         kontaktisik, po_number, viide_tyyp, algus, lopp, summa_km_ta, kaibemaks_protsent, kaibemaks, kokku, muuja_id,
+         kreedit_algne_arve_id, kreedit_pohjus, staatus)
+       VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'makstud') RETURNING id`,
+      [number, kp, viitenumberNumbrist(number), arve.ettevote_id, arve.ostja_nimi, arve.ostja_aadress, arve.ostja_rg_kood, arve.ostja_kmkr,
+       arve.kontaktisik, arve.po_number, arve.viide_tyyp, arve.algus, arve.lopp,
+       neg(arve.summa_km_ta), arve.kaibemaks_protsent, neg(arve.kaibemaks), neg(arve.kokku), muujaId, arve.id, pohjus || null]
+    );
+    const uusId = ins.rows[0].id;
+    const read = await client.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [arve.id]);
+    if (read.rows.length) {
+      for (const r of read.rows) {
+        await client.query(
+          `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [uusId, r.jrk_nr, r.kirjeldus, -Math.abs(parseFloat(r.kogus) || 0), r.uhik, r.hind, neg(r.summa)]
+        );
+      }
+    } else {
+      // Üles laaditud arvel ridu pole — üks rida kogu summaga
+      await client.query(
+        `INSERT INTO arve_read (arve_id, jrk_nr, kirjeldus, kogus, uhik, hind, summa) VALUES ($1,1,$2,-1,'tk',$3,$4)`,
+        [uusId, `Arve nr ${arve.number} tühistamine`, Math.abs(parseFloat(arve.summa_km_ta) || 0), neg(arve.summa_km_ta)]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, id: uusId, number });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Kreeditarve:', err);
+    res.status(500).json({ ok: false, veateade: 'Kreeditarvet ei õnnestunud teha: ' + err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ── KUSTUTAMINE ──────────────────────────────────────────────────────────
 router.delete('/:id', noudaAdmin, async (req, res) => {
   try {
@@ -1431,7 +1494,17 @@ router.delete('/:id', noudaAdmin, async (req, res) => {
 
 // ── PDF GENEREERIMINE (jagatud abifunktsioon — kasutab nii üksiku PDF-i vaade kui ZIP-ina allalaadimine) ──
 // valikud.eelvaade = true -> igale lehele hall vesimärk "EELVAADE" (arvet pole veel salvestatud).
+// Kreeditarve PDF-il näidatakse, millist arvet see tühistab
+async function lisaKreeditViide(arve) {
+  if (!arve || !arve.kreedit_algne_arve_id) return;
+  try {
+    const r = await pool.query('SELECT number, kuupaev FROM arved WHERE id=$1', [arve.kreedit_algne_arve_id]);
+    if (r.rows.length) arve.kreedit_algne = r.rows[0];
+  } catch (e) { /* PDF tuleb ka ilma viiteta */ }
+}
+
 function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
+    const onKreedit = !!arve.kreedit_algne_arve_id;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
     if (valikud && valikud.eelvaade) {
       const vesimark = () => {
@@ -1477,18 +1550,25 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
     let ry = MARGIN;
     doc.rect(rightColX, ry, rightColW, 20).fill('#cfe2f3');
     doc.fillColor('#000').font('Helvetica-Bold').fontSize(10)
-      .text(`Arve nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
+      .text(`${onKreedit ? 'Kreeditarve' : 'Arve'} nr ${arve.number}`, rightColX, ry + 5, { width: rightColW, align: 'center' });
     ry += 30;
     doc.font('Helvetica').fontSize(9);
+    if (onKreedit && arve.kreedit_algne) {
+      doc.font('Helvetica-Bold').text(`Arvele nr ${arve.kreedit_algne.number} (${fmtKp(arve.kreedit_algne.kuupaev)})`, rightColX, ry, { width: rightColW, align: 'right' });
+      doc.font('Helvetica');
+      ry += 15;
+    }
     const paar = (label, val) => {
       doc.text(label, rightColX, ry, { width: rightColW * 0.5 });
       doc.text(val, rightColX, ry, { width: rightColW, align: 'right' });
       ry += 13;
     };
     paar('Kuupäev', fmtKp(arve.kuupaev));
-    paar('Maksetähtpäev', fmtKp(arve.maksetahtaeg));
-    paar('Viitenumber', arve.viitenumber);
-    paar('Viivis', '0,05% päevas');
+    if (!onKreedit) {
+      paar('Maksetähtpäev', fmtKp(arve.maksetahtaeg));
+      paar('Viitenumber', arve.viitenumber);
+      paar('Viivis', '0,05% päevas');
+    }
     ry += 8;
     doc.font('Helvetica-Bold').fontSize(10).text(muuja.ettevote_nimi, rightColX, ry, { width: rightColW, align: 'right' }); ry += 14;
     doc.font('Helvetica').fontSize(9);
@@ -1559,7 +1639,12 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
     totRight(`Käibemaks ${parseFloat(arve.kaibemaks_protsent)}%`, fmtEur(arve.kaibemaks), false);
     doc.moveTo(leftX, y).lineTo(leftX + CONTENT_W, y).strokeColor('#000000').stroke();
     y += 6;
-    totRight('Arve kokku (EUR)', fmtEur(arve.kokku), true);
+    totRight(onKreedit ? 'Kreeditarve kokku (EUR)' : 'Arve kokku (EUR)', fmtEur(arve.kokku), true);
+    if (onKreedit && arve.kreedit_pohjus) {
+      y += 8;
+      doc.font('Helvetica').fontSize(9).text('Põhjus: ' + arve.kreedit_pohjus, leftX, y, { width: CONTENT_W });
+      y += doc.heightOfString('Põhjus: ' + arve.kreedit_pohjus, { width: CONTENT_W }) + 2;
+    }
 
     if (arve.po_number) {
       y += 10;
@@ -1592,6 +1677,7 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
     if (!muuja) return res.status(500).send('Arve müüja-ettevõtet ei leitud');
     let logoBuf = null;
     if (muuja.logo_url) { try { logoBuf = await fetchImageBuffer(muuja.logo_url); } catch (e) {} }
+    await lisaKreeditViide(arve);
     const doc = renderArvePdf(muuja, arve, readR.rows, logoBuf);
     // Failinimi näitab ainult arve numbrit, mitte müüja-ettevõtte nime — sest arveid tehakse
     // mitme erineva ettevõtte (mitte ainult Royal Paigalduse) alt ja vana kõvakodeeritud nimi eksitas.

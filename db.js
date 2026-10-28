@@ -924,6 +924,9 @@ async function initDB() {
     // X-seeria võistlust ei kustutata (koos sellega kaoksid töötajate omakulud ja saldo muutuks) — see arhiveeritakse
     await client.query(`ALTER TABLE xseeria_events ADD COLUMN IF NOT EXISTS arhiveeritud BOOLEAN DEFAULT false`);
 
+    // Kreeditarve põhjus (trükitakse kreeditarve PDF-ile)
+    await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS kreedit_pohjus TEXT`);
+
     // Kuu sulgemine (vt kuulukk.js)
     await client.query(`
       CREATE TABLE IF NOT EXISTS kuu_lukud (
