@@ -112,6 +112,18 @@
     .poe-seis-nupud button.valmis.sees { background: rgba(74,222,128,0.16); border-color: #4ade80; color: #86efac; }
     .poe-seis-nupud button.puudu.sees { background: rgba(251,191,36,0.16); border-color: #fbbf24; color: #fcd34d; }
     .poe-seis textarea { width: 100%; margin-top: 8px; min-height: 64px; background: #0d0f13; border: 1px solid #2b3039; border-radius: 8px; color: inherit; padding: 9px 11px; font-size: 15px; font-family: inherit; resize: vertical; }
+    .kopeeri-nupp { width: 100%; background: transparent; border: 1px dashed #3a4150; color: #9aa3b2; border-radius: 10px; padding: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; margin-bottom: 12px; }
+    .lisavaljad { border: 1px solid #2b3039; border-radius: 12px; margin-bottom: 12px; }
+    .lisavaljad > summary { cursor: pointer; padding: 12px 14px; font-size: 14px; font-weight: 600; color: #cbd2dc; list-style: none; }
+    .lisavaljad > summary::-webkit-details-marker { display: none; }
+    .lisavaljad > summary::before { content: '▸ '; color: #9aa3b2; }
+    .lisavaljad[open] > summary::before { content: '▾ '; }
+    .lisavaljad-sisu { padding: 0 14px 2px; }
+    .lisavaljad-kokkuvote { font-weight: 400; color: #9aa3b2; font-size: 13px; }
+    .kuu-nupp { background: transparent; border: 1px solid #2b3039; color: #cbd2dc; border-radius: 8px; padding: 4px 10px; font-size: 14px; cursor: pointer; font-family: inherit; }
+    .kuu-nupp:disabled { opacity: .3; cursor: default; }
+    .foto-uuesti { margin-top: 8px; font-size: 13px; color: #fcd34d; line-height: 1.5; }
+    .foto-uuesti a { color: #9aa3b2; text-decoration: underline; cursor: pointer; }
     .poe-seis-varem { font-size: 12px; color: #9aa3b2; margin-top: 8px; line-height: 1.45; }
   </style>
   <script src="/dialoog.js"></script>
@@ -190,6 +202,16 @@
     <div class="lisa-kaart">
       <div class="lisa-hdr">➕ Lisa töökirje</div>
       <div class="lisa-body">
+        <button type="button" class="kopeeri-nupp" id="kopeeri-nupp" style="display:none" onclick="kopeeriEelmine()">↺ Täida eelmise kirje järgi</button>
+        <!-- Lidl projekti valik (fotode kaustastruktuuri jaoks) — enne poodi, sest projekt tõstab oma poed nimekirjas ette -->
+        <div class="vorm-rida" id="lidl-projekt-grupp" style="display:none">
+          <div class="vorm-grupp">
+            <label>Projekt</label>
+            <select class="kirjeldus-select" id="lidl-projekt-select">
+              <option value="">— Vali projekt —</option>
+            </select>
+          </div>
+        </div>
         <div class="vorm-rida col2">
           <div class="vorm-grupp">
             <label>Kuupäev</label>
@@ -213,15 +235,6 @@
             </select>
           </div>
         </div>
-        <!-- Lidl projekti valik (fotode kaustastruktuuri jaoks) -->
-        <div class="vorm-rida" id="lidl-projekt-grupp" style="display:none">
-          <div class="vorm-grupp">
-            <label>Projekt</label>
-            <select class="kirjeldus-select" id="lidl-projekt-select">
-              <option value="">— Vali projekt —</option>
-            </select>
-          </div>
-        </div>
         <!-- Lidl: kas töö selles poes on 100% valmis? (näidatakse, kui projekt ja pood on valitud) -->
         <div class="vorm-rida" id="poe-seis-grupp" style="display:none">
           <div class="poe-seis">
@@ -234,7 +247,10 @@
             <div class="poe-seis-varem" id="poe-seis-varem"></div>
           </div>
         </div>
-        <!-- Kommentaar töötajale -->
+        <!-- Kommentaar, km ja lisakulu — kokku klapitud, et vorm oleks lühem (avatud olek jäetakse meelde) -->
+        <details class="lisavaljad" id="lisavaljad">
+        <summary>Kommentaar, km, lisakulu <span class="lisavaljad-kokkuvote" id="lisavaljad-kokkuvote"></span></summary>
+        <div class="lisavaljad-sisu">
         <div class="vorm-rida">
           <div class="vorm-grupp">
             <label>Kommentaar (vabatahtlik)</label>
@@ -248,6 +264,8 @@
         <div class="vorm-rida" id="lisakulu-sel-rida" style="display:none">
           <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="lisakulu-sel" placeholder="nt. sõidukulud, tööriistad..."></div>
         </div>
+        </div>
+        </details>
         <!-- Fotod -->
         <div class="foto-ala">
           <div class="foto-nupud">
@@ -263,6 +281,7 @@
           <div class="foto-eelvaade" id="foto-eelvaade">
             <div class="foto-grid" id="foto-grid"></div>
             <div class="foto-info" id="foto-info"></div>
+            <div class="foto-uuesti" id="foto-uuesti" style="display:none"></div>
           </div>
         </div>
         <!-- Progress -->
@@ -275,7 +294,11 @@
     </div>
     <!-- Kirjete nimekiri -->
     <div class="kirjed-hdr">
-      <span class="kirjed-pealkiri">Selle kuu kirjed</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <button type="button" class="kuu-nupp" id="kuu-tagasi" onclick="vahetaKuud(-1)" title="Eelmine kuu">‹</button>
+        <span class="kirjed-pealkiri" id="kirjed-pealkiri">Selle kuu kirjed</span>
+        <button type="button" class="kuu-nupp" id="kuu-edasi" onclick="vahetaKuud(1)" title="Järgmine kuu" disabled>›</button>
+      </span>
       <span class="kirjed-kokku" id="kirjed-kokku"></span>
     </div>
     <div id="kirjed-sisu"><div class="tyhi">Laadimine...</div></div>
@@ -294,6 +317,9 @@
     var salvestamine = false;
     var lidlProjektid = [];
     var koikObjektid = [];
+    var kuuNihe = 0;            // 0 = jooksev kuu, -1 = eelmine jne (kirjete nimekiri)
+    var viimaneKirje = null;    // "Täida eelmise kirje järgi" jaoks
+    var pooleliKirjeId = null;  // kui osa pilte jäi üles laadimata, saadetakse need sellele kirjele uuesti
     function api(url, opts) {
       opts = opts || {};
       opts.headers = opts.headers || {};
@@ -379,12 +405,23 @@
         if (urlObjekt) {
           var oSel = document.getElementById('objekt');
           oSel.value = urlObjekt;
+          uuendaPoeSeisuPlokk();
+        }
+        // Kui töötajal on ainult üks projekt, on see kohe valitud
+        if (!urlProjekt && lidlProjektid.length === 1) {
+          document.getElementById('lidl-projekt-select').value = lidlProjektid[0].id;
+          await jarjestaObjektidProjektiJargi(String(lidlProjektid[0].id));
         }
       }
       // Lisakulu
       document.getElementById('lisakulu').addEventListener('input', function() {
         document.getElementById('lisakulu-sel-rida').style.display = parseFloat(this.value) > 0 ? 'block' : 'none';
       });
+      // Lisaväljade plokk: avatud/suletud olek jäetakse meelde; suletuna näidatakse sisestatud väärtusi pealkirjas
+      var lv = document.getElementById('lisavaljad');
+      try { if (localStorage.getItem('tt_lisavaljad_lahti') === '1') lv.open = true; } catch(e) {}
+      lv.addEventListener('toggle', function() { try { localStorage.setItem('tt_lisavaljad_lahti', lv.open ? '1' : '0'); } catch(e) {} });
+      ['kommentaar', 'km', 'lisakulu'].forEach(function(id) { document.getElementById(id).addEventListener('input', uuendaLisavaljadKokkuvote); });
       // Fotod
       document.getElementById('foto-kaamera').addEventListener('change', function() { lisaFotod(this.files); });
       document.getElementById('foto-album').addEventListener('change', function() { lisaFotod(this.files); });
@@ -516,6 +553,101 @@
       sel.value = valitud;
       uuendaPoeSeisuPlokk();
     }
+    function uuendaLisavaljadKokkuvote() {
+      var osad = [];
+      var km = parseFloat(document.getElementById('km').value) || 0;
+      var lk = parseFloat(document.getElementById('lisakulu').value) || 0;
+      if (document.getElementById('kommentaar').value.trim()) osad.push('kommentaar');
+      if (km > 0) osad.push(km + ' km');
+      if (lk > 0) osad.push(lk.toFixed(2) + ' €');
+      document.getElementById('lisavaljad-kokkuvote').textContent = osad.length ? '· ' + osad.join(', ') : '';
+    }
+    // "Täida eelmise kirje järgi": kellaajad, projekt, pood ja km viimasest kirjest. Kuupäev jääb tänaseks.
+    async function kopeeriEelmine() {
+      var k = viimaneKirje;
+      if (!k) return;
+      if (k.algus) document.getElementById('algus').value = k.algus.slice(0, 5);
+      if (k.lopp) document.getElementById('lopp').value = k.lopp.slice(0, 5);
+      if (etteVoteTyyp === 'lidl' && k.lidl_projekt_id) {
+        var lpSel = document.getElementById('lidl-projekt-select');
+        lpSel.value = String(k.lidl_projekt_id);
+        if (lpSel.value === String(k.lidl_projekt_id)) await jarjestaObjektidProjektiJargi(lpSel.value);
+      }
+      if (k.objekt_id) {
+        var oSel = document.getElementById('objekt');
+        oSel.value = String(k.objekt_id);
+        if (oSel.value !== String(k.objekt_id)) oSel.value = '';
+        uuendaPoeSeisuPlokk();
+      }
+      var km = parseFloat(k.kilomeetrid || 0);
+      document.getElementById('km').value = km > 0 ? km : '0';
+      if (km > 0) document.getElementById('lisavaljad').open = true;
+      uuendaLisavaljadKokkuvote();
+      naitaTeade('↺ Täidetud ' + new Date(k.kuupaev).toLocaleDateString('et-EE') + ' kirje järgi — kontrolli üle ja salvesta', 'ok');
+    }
+    function vahetaKuud(samm) {
+      kuuNihe = Math.min(0, Math.max(-12, kuuNihe + samm));
+      laadiKirjed();
+    }
+    // Laeb pildid kirjele ükshaaval. Tagastab need failid, mis üles ei läinud (et saaks uuesti proovida).
+    async function laePildid(kirjeId, failid, nupp, algProtsent) {
+      var ebaonnestus = [];
+      var kokku = failid.length;
+      for (var i = 0; i < kokku; i++) {
+        nupp.textContent = '📷 ' + (i+1) + '/' + kokku + ' pilti...';
+        setProgress('Laadin pilti ' + (i+1) + '/' + kokku + '...', algProtsent + Math.round((100 - algProtsent) * i / kokku));
+        try {
+          var kompressitud = await kompresseeriFoto(failid[i]);
+          var fd = new FormData();
+          fd.append('kirje_id', kirjeId);
+          fd.append('pildid', kompressitud);
+          var piltR = await fetch('/api/pildid/lisa', { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd });
+          if (!piltR.ok) { console.error('Pildi laadimine ebaõnnestus:', i+1); ebaonnestus.push(failid[i]); }
+        } catch(e) {
+          console.error('Pildi viga:', e);
+          ebaonnestus.push(failid[i]);
+        }
+      }
+      return ebaonnestus;
+    }
+    function naitaPooleliPildid() {
+      var el = document.getElementById('foto-uuesti');
+      var nupp = document.getElementById('salvesta-nupp');
+      if (pooleliKirjeId && valitudFotod.length) {
+        el.style.display = 'block';
+        el.innerHTML = '⚠️ ' + valitudFotod.length + ' pilti jäi üles laadimata (kirje ise on salvestatud). Vajuta all olevat nuppu, et need uuesti saata. <a onclick="loobuPooleliPiltidest()">Loobu</a>';
+        nupp.textContent = '📷 Saada puuduvad pildid (' + valitudFotod.length + ')';
+      } else {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        if (!salvestamine) nupp.textContent = 'Salvesta kirje';
+      }
+    }
+    function loobuPooleliPiltidest() {
+      pooleliKirjeId = null;
+      valitudFotod = [];
+      uuendaFotoEelvaade();
+      naitaPooleliPildid();
+    }
+    async function saadaPuuduvadPildid() {
+      salvestamine = true;
+      var nupp = document.getElementById('salvesta-nupp');
+      nupp.disabled = true;
+      nupp.className = 'salvesta-nupp laadib';
+      var failid = valitudFotod.slice();
+      var ebaonnestus = await laePildid(pooleliKirjeId, failid, nupp, 0);
+      var onnestus = failid.length - ebaonnestus.length;
+      valitudFotod = ebaonnestus;
+      if (!ebaonnestus.length) pooleliKirjeId = null;
+      uuendaFotoEelvaade();
+      setProgress(null, null);
+      salvestamine = false;
+      nupp.disabled = false;
+      nupp.className = 'salvesta-nupp';
+      naitaPooleliPildid();
+      naitaTeade(ebaonnestus.length ? '⚠️ ' + onnestus + ' pilti lisatud, ' + ebaonnestus.length + ' jäi ikka üles laadimata — proovi hiljem uuesti (nt parema levi juures)' : '✅ Kõik ' + onnestus + ' pilti lisatud', ebaonnestus.length ? 'viga' : 'ok');
+      await laadiKirjed();
+    }
     // ── FOTOD ────────────────────────────────────────────────
     function lisaFotod(files) {
          var uued = Array.from(files).slice(0, 20 - valitudFotod.length);
@@ -570,6 +702,7 @@
     // ── SALVESTA ─────────────────────────────────────────────
     async function lisaKirje() {
       if (salvestamine) return;
+      if (pooleliKirjeId && valitudFotod.length) return saadaPuuduvadPildid();
       var kuupaev = document.getElementById('kuupaev').value;
       var algus = document.getElementById('algus').value;
       var lopp = document.getElementById('lopp').value;
@@ -629,6 +762,14 @@
           return;
         }
         setProgress('Töökirje salvestatud! (' + r.tunnid + 'h)', 30);
+        // Poe seis enne pilte — kui piltide üleslaadimine katkeb (levi kaob), on seis juba kirjas
+        var seisuViga = false;
+        if (seisuSaatmine) {
+          try {
+            var sr = await api('/api/lidl-poed/seis', { method: 'POST', body: JSON.stringify(seisuSaatmine) });
+            if (!sr || !sr.ok) { seisuViga = true; console.error('Poe seisu salvestamine ebaõnnestus:', sr && sr.veateade); }
+          } catch(e) { seisuViga = true; console.error('Poe seisu viga:', e); }
+        }
         // Lae fotod üles
         var fotodKoopia = valitudFotod.slice();
         valitudFotod = [];
@@ -636,53 +777,46 @@
         document.getElementById('foto-album').value = '';
         document.getElementById('foto-eelvaade').style.display = 'none';
         document.getElementById('foto-grid').innerHTML = '';
+        var ebaonnestunud = [];
         if (fotodKoopia.length && r.kirjeId) {
-          var kokku = fotodKoopia.length;
-          for (var i = 0; i < kokku; i++) {
-            nupp.textContent = '📷 ' + (i+1) + '/' + kokku + ' pilti...';
-            setProgress('Laadin pilti ' + (i+1) + '/' + kokku + '...', 30 + Math.round(70 * i / kokku));
-            try {
-              var kompressitud = await kompresseeriFoto(fotodKoopia[i]);
-              var fd = new FormData();
-              fd.append('kirje_id', r.kirjeId);
-              fd.append('pildid', kompressitud);
-              var piltR = await fetch('/api/pildid/lisa', {
-                method: 'POST',
-                headers: { 'x-session-token': TOKEN },
-                body: fd
-              });
-              if (!piltR.ok) {
-                console.error('Pildi laadimine ebaõnnestus:', i+1);
-              }
-            } catch(e) {
-              console.error('Pildi viga:', e);
-            }
-          }
+          ebaonnestunud = await laePildid(r.kirjeId, fotodKoopia, nupp, 30);
         }
-        if (seisuSaatmine) {
-          try {
-            var sr = await api('/api/lidl-poed/seis', { method: 'POST', body: JSON.stringify(seisuSaatmine) });
-            if (!sr || !sr.ok) console.error('Poe seisu salvestamine ebaõnnestus:', sr && sr.veateade);
-          } catch(e) { console.error('Poe seisu viga:', e); }
-        }
-        setProgress('✅ Kõik salvestatud!', 100);
+        setProgress(ebaonnestunud.length ? '⚠️ Kirje salvestatud, osa pilte jäi üles laadimata' : '✅ Kõik salvestatud!', 100);
         // Puhasta vorm
         document.getElementById('km').value = '0';
         document.getElementById('lisakulu').value = '0';
         document.getElementById('lisakulu-sel').value = '';
         document.getElementById('lisakulu-sel-rida').style.display = 'none';
         document.getElementById('kirjeldus-select').value = '';
-        document.getElementById('lidl-projekt-select').value = '';
-        if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(''); }
+        // Ühe projektiga töötajal jääb projekt valituks
+        var jaavProjekt = lidlProjektid.length === 1 ? String(lidlProjektid[0].id) : '';
+        document.getElementById('lidl-projekt-select').value = jaavProjekt;
+        if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(jaavProjekt); }
         document.getElementById('kommentaar').value = '';
-        var teadeTekst = '✅ Salvestatud! ' + r.tunnid + 'h';
-        if (fotodKoopia.length) teadeTekst += ' · ' + fotodKoopia.length + ' pilti lisatud';
+        uuendaLisavaljadKokkuvote();
+        var teadeTekst = (ebaonnestunud.length || seisuViga ? '⚠️ Kirje salvestatud: ' : '✅ Salvestatud! ') + r.tunnid + 'h';
+        if (fotodKoopia.length) teadeTekst += ' · ' + (fotodKoopia.length - ebaonnestunud.length) + '/' + fotodKoopia.length + ' pilti lisatud';
         if (r.lounaPaus) teadeTekst += ' · lõunapaus arvestatud';
-        naitaTeade(teadeTekst, 'ok');
+        if (seisuViga) teadeTekst += ' · ⚠️ poe seis jäi salvestamata, märgi see kirje muutmise aknas';
+        naitaTeade(teadeTekst, ebaonnestunud.length || seisuViga ? 'viga' : 'ok');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        kuuNihe = 0;
+        await laadiKirjed();
+        if (ebaonnestunud.length) {
+          // Kirje on olemas — ebaõnnestunud pildid jäävad vormi alles ja nupp saadab need sellele samale kirjele
+          pooleliKirjeId = r.kirjeId;
+          valitudFotod = ebaonnestunud;
+          uuendaFotoEelvaade();
+          setProgress(null, null);
+          nupp.disabled = false;
+          nupp.className = 'salvesta-nupp';
+          salvestamine = false;
+          naitaPooleliPildid();
+          document.getElementById('foto-uuesti').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
         nupp.className = 'salvesta-nupp valmis';
         nupp.textContent = '✅ Salvestatud!';
-        await laadiKirjed();
         setTimeout(function() {
           setProgress(null, null);
           nupp.disabled = false;
@@ -702,18 +836,31 @@
     }
     // ── KIRJED ───────────────────────────────────────────────
     async function laadiKirjed() {
-      var t = new Date();
+      var nyyd = new Date();
+      var t = new Date(nyyd.getFullYear(), nyyd.getMonth() + kuuNihe, 1);
+      var KUUD_T = ['Jaanuar','Veebruar','Märts','Aprill','Mai','Juuni','Juuli','August','September','Oktoober','November','Detsember'];
+      document.getElementById('kirjed-pealkiri').textContent = kuuNihe === 0 ? 'Selle kuu kirjed' : KUUD_T[t.getMonth()] + ' ' + t.getFullYear();
+      document.getElementById('kuu-edasi').disabled = kuuNihe >= 0;
+      document.getElementById('kuu-tagasi').disabled = kuuNihe <= -12;
+      var tyhiTekst = kuuNihe === 0 ? 'Selle kuu kirjeid pole' : 'Selle kuu kohta kirjeid pole';
       var vastus = await api('/api/tood/kokkuvote?aasta=' + t.getFullYear() + '&kuu=' + (t.getMonth()+1));
       var div = document.getElementById('kirjed-sisu');
       var kirjedEl = document.getElementById('kirjed-kokku');
       if (!vastus.ok || !vastus.kirjed) {
-        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        div.innerHTML = '<div class="tyhi">' + tyhiTekst + '</div>';
         kirjedEl.textContent = '';
         return;
       }
       var kirjed = vastus.kirjed.filter(function(k) { return String(k.ettevote_id) === String(ettevoteId); });
+      if (kuuNihe === 0) {
+        // Viimane kirje (kuupäeva, siis id järgi) — "Täida eelmise kirje järgi" nupu jaoks
+        viimaneKirje = kirjed.slice().sort(function(a, b) {
+          return String(b.kuupaev).localeCompare(String(a.kuupaev)) || (b.id - a.id);
+        })[0] || null;
+        document.getElementById('kopeeri-nupp').style.display = viimaneKirje ? 'block' : 'none';
+      }
       if (!kirjed.length) {
-        div.innerHTML = '<div class="tyhi">Selle kuu kirjeid pole</div>';
+        div.innerHTML = '<div class="tyhi">' + tyhiTekst + '</div>';
         kirjedEl.textContent = '';
         return;
       }
