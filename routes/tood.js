@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { onKuuSuletud, SULETUD_TEADE } = require('../kuulukk');
 
 function noudaSisslogimist(req, res, next) {
   if (!req.session.workerId) return res.status(401).json({ ok: false, veateade: 'Palun logi sisse' });
@@ -55,6 +56,7 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
   try {
+    if (await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
     const [ah, am] = algus.split(':').map(Number);
     const [lh, lm] = lopp.split(':').map(Number);
     let minutid = (lh * 60 + lm) - (ah * 60 + am);
@@ -109,6 +111,7 @@ router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
     );
     if (!kirje.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
     const k = kirje.rows[0];
+    if (await onKuuSuletud(k.kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
 
     const r = await pool.query(
       `DELETE FROM tookirjed WHERE id=$1 AND worker_id=$2 RETURNING id`,
@@ -306,6 +309,7 @@ router.post('/lisakulu/lisa', noudaSisslogimist, async (req, res) => {
     return res.json({ ok: false, veateade: 'Summa peab olema positiivne arv' });
   }
   try {
+    if (await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
     await pool.query(
       `INSERT INTO lisakulud (worker_id, kuupaev, summa, selgitus) VALUES ($1, $2, $3, $4)`,
       [req.session.workerId, kuupaev, s, selgitus]
@@ -334,6 +338,8 @@ router.get('/lisakulu/kuu', noudaSisslogimist, async (req, res) => {
 
 router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
   try {
+    const olemas = await pool.query('SELECT kuupaev FROM lisakulud WHERE id=$1 AND worker_id=$2', [req.params.id, req.session.workerId]);
+    if (olemas.rows.length && await onKuuSuletud(olemas.rows[0].kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
     const r = await pool.query(
       `DELETE FROM lisakulud WHERE id=$1 AND worker_id=$2 RETURNING id`,
       [req.params.id, req.session.workerId]
@@ -354,6 +360,8 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
       [req.params.id, req.session.workerId]
     );
     if (!vana.rows.length) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    // Suletud kuu: ei saa muuta kirjet, mis on suletud kuus, ega tõsta kirjet suletud kuusse
+    if (await onKuuSuletud(vana.rows[0].kuupaev) || await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
 
     const [ah, am] = algus.split(':').map(Number);
     const [lh, lm] = lopp.split(':').map(Number);

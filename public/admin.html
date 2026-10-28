@@ -182,6 +182,7 @@
           <select id="kv-aasta"></select>
           <button class="nupp kull" onclick="laadiKokkuvote()">Rakenda filtrid</button>
           <a class="raport-nupp" href="#" onclick="laadiCSV(event)">⬇ Ekspordi CSV</a>
+          <button class="nupp hall" id="kv-lukk-nupp" style="display:none" onclick="kvLukkVaheta()" title="Suletud kuu kirjeid ei saa töötajad enam lisada, muuta ega kustutada. Admin saab ikka muuta."></button>
         </div>
         <div id="kokkuvote-tootajad-kaardid"></div>
         <div class="kaart tj-arhiiv-kaart" style="margin-top:0">
@@ -226,7 +227,7 @@
   </div>
   <div class="sektsioon" id="tab1">
     <div class="kaart" style="margin-bottom:16px">
-      <div class="kaart-hdr">➕ Lisa makse</div>
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>➕ Lisa makse</span><button type="button" class="nupp roheline" style="font-size:13px;padding:7px 12px" onclick="mkAvaKoikModal()">💸 Maksa kõik</button></div>
       <div class="kaart-body">
         <div class="mk-lisa-rida">
           <div class="mk-lisa-grupp" style="flex:1.3"><label>Töötaja</label><select id="makse-worker" onchange="mkTootajaMuutus()"></select></div>
@@ -261,6 +262,24 @@
     </div>
   </div>
 
+  <div class="tootaja-modal-overlay" id="mkKoikModal">
+    <div class="tootaja-modal-sisu" style="max-width:640px">
+      <div class="tm-hdr"><span>💸 Maksa kõik korraga</span><span class="tm-sulge" onclick="mkSuljeKoikModal()">✕</span></div>
+      <div style="padding:14px 20px 20px">
+      <div style="font-size:12px;color:var(--hall);margin-bottom:10px">Nimekirjas on töötajad, kellel on praegu saada (kogu aja saldo kuni selle kuu lõpuni). Märgi, kellele maksad; summat saab muuta. Kõik maksed lähevad kirja korraga.</div>
+      <div id="mk-koik-read" style="max-height:50vh;overflow-y:auto"></div>
+      <div class="vorm-rida col2" style="margin-top:12px">
+        <div class="vorm-grupp"><label>Kuupäev</label><input type="date" id="mk-koik-kuupaev"></div>
+        <div class="vorm-grupp"><label>Kommentaar</label><input type="text" id="mk-koik-komm" placeholder="nt Oktoobri palk"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px">
+        <div style="font-size:14px">Kokku: <strong id="mk-koik-summa">0,00 €</strong> <span id="mk-koik-arv" style="color:var(--hall);font-size:12px"></span></div>
+        <button class="nupp kull" id="mk-koik-nupp" onclick="mkSalvestaKoik()">💾 Salvesta maksed</button>
+      </div>
+      <div class="teade" id="mk-koik-teade"></div>
+      </div>
+    </div>
+  </div>
   <div class="tootaja-modal-overlay" id="mkMuudaModal">
     <div class="tootaja-modal-sisu" style="max-width:560px">
       <div class="tm-hdr"><span>✏️ Muuda makset</span><span class="tm-sulge" onclick="mkSuljeMuudaModal()">✕</span></div>

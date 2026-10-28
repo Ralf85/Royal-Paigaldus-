@@ -219,6 +219,11 @@ async function laadiRaportExcel() {
 // ── AUDIT LOGI ─────────────────────────────────────────────────
 const AUDIT_TEGEVUSED = {
   ANDMED_ALLA_LAETUD: 'laadis alla andmete varukoopia',
+  MAKSE_LISATUD: 'admin lisas makse',
+  MAKSE_MUUDETUD: 'admin muutis makset',
+  MAKSE_KUSTUTATUD: 'admin tühistas makse',
+  KUU_SULETUD: 'admin sulges kuu',
+  KUU_AVATUD: 'admin avas kuu',
   sisse_logi: 'logis sisse',
   valja_logi: 'logis välja',
   lisa_kirje: 'lisas töökirje',

@@ -308,27 +308,98 @@ router.get('/maksed', async (req, res) => {
   res.json(r.rows);
 });
 
+// Maksete muudatused lähevad tegevuste logisse (worker_id = töötaja, kellele maksti), et oleks jälg.
+async function makseLogi(db, req, workerId, tegevus, details) {
+  try {
+    await db.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [workerId || null, tegevus, JSON.stringify(details), req.ip || null]
+    );
+  } catch (e) { console.warn('Makse logimine ebaõnnestus:', e.message); }
+}
+function makseKokkuvote(m) {
+  if (!m) return null;
+  const kp = m.kuupaev instanceof Date
+    ? m.kuupaev.getFullYear() + '-' + String(m.kuupaev.getMonth() + 1).padStart(2, '0') + '-' + String(m.kuupaev.getDate()).padStart(2, '0')
+    : String(m.kuupaev || '').slice(0, 10);
+  return { makse_id: m.id, worker_id: m.worker_id, summa: parseFloat(m.summa).toFixed(2), kuupaev: kp, kommentaar: m.kommentaar || '', ettevote_id: m.ettevote_id || null };
+}
+
 router.post('/maksed', noudaAdmin, async (req, res) => {
   const { worker_id, summa, kuupaev, kommentaar, ettevote_id } = req.body;
-  await pool.query(
-    'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar, ettevote_id) VALUES ($1,$2,$3,$4,$5)',
+  const r = await pool.query(
+    'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar, ettevote_id) VALUES ($1,$2,$3,$4,$5) RETURNING *',
     [worker_id, summa, kuupaev, kommentaar || '', ettevote_id || null]
   );
+  await makseLogi(pool, req, worker_id, 'MAKSE_LISATUD', makseKokkuvote(r.rows[0]));
   res.json({ ok: true });
+});
+
+// "Maksa kõik": mitu makset korraga, kõik või mitte ükski (tehing)
+router.post('/maksed/mitu', noudaAdmin, async (req, res) => {
+  const { kuupaev, kommentaar, maksed } = req.body || {};
+  if (!onKuupaev(kuupaev)) return res.status(400).json({ ok: false, veateade: 'Vali kuupäev' });
+  if (!Array.isArray(maksed) || !maksed.length) return res.status(400).json({ ok: false, veateade: 'Ühtegi makset pole valitud' });
+  const read = [];
+  for (const m of maksed) {
+    const wid = parseInt(m.worker_id, 10);
+    const summa = Math.round(parseFloat(m.summa) * 100) / 100;
+    if (!wid || !isFinite(summa) || summa <= 0) return res.status(400).json({ ok: false, veateade: 'Vigane summa' });
+    read.push({ wid, summa, ettevote_id: m.ettevote_id ? parseInt(m.ettevote_id, 10) || null : null });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const r of read) {
+      const ins = await client.query(
+        'INSERT INTO maksed (worker_id, summa, kuupaev, kommentaar, ettevote_id) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+        [r.wid, r.summa, kuupaev, kommentaar || '', r.ettevote_id]
+      );
+      await makseLogi(client, req, r.wid, 'MAKSE_LISATUD', { ...makseKokkuvote(ins.rows[0]), korraga: true });
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, lisatud: read.length, kokku: read.reduce((s, r) => s + r.summa, 0).toFixed(2) });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Maksa kõik viga:', e.message);
+    res.status(500).json({ ok: false, veateade: 'Makseid ei salvestatud (ükski makse ei läinud kirja). Proovi uuesti.' });
+  } finally {
+    client.release();
+  }
 });
 
 router.patch('/maksed/:id', noudaAdmin, async (req, res) => {
   const { worker_id, summa, kuupaev, kommentaar, ettevote_id } = req.body;
-  await pool.query(
-    'UPDATE maksed SET worker_id=$1, summa=$2, kuupaev=$3, kommentaar=$4, ettevote_id=$5 WHERE id=$6',
+  const vana = await pool.query('SELECT * FROM maksed WHERE id=$1', [req.params.id]);
+  const r = await pool.query(
+    'UPDATE maksed SET worker_id=$1, summa=$2, kuupaev=$3, kommentaar=$4, ettevote_id=$5 WHERE id=$6 RETURNING *',
     [worker_id, summa, kuupaev, kommentaar || '', ettevote_id || null, req.params.id]
   );
+  if (r.rows.length) await makseLogi(pool, req, worker_id, 'MAKSE_MUUDETUD', { vana: makseKokkuvote(vana.rows[0]), uus: makseKokkuvote(r.rows[0]) });
   res.json({ ok: true });
 });
 
 router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
-  await pool.query('DELETE FROM maksed WHERE id=$1', [req.params.id]);
+  const r = await pool.query('DELETE FROM maksed WHERE id=$1 RETURNING *', [req.params.id]);
+  if (r.rows.length) await makseLogi(pool, req, r.rows[0].worker_id, 'MAKSE_KUSTUTATUD', makseKokkuvote(r.rows[0]));
   res.json({ ok: true });
+});
+
+// ── KUU SULGEMINE ──────────────────────────────────────────────────
+router.get('/kuu-lukud', noudaAdmin, async (req, res) => {
+  const r = await pool.query('SELECT aasta, kuu, lukustatud FROM kuu_lukud ORDER BY aasta DESC, kuu DESC');
+  res.json({ ok: true, lukud: r.rows });
+});
+
+router.post('/kuu-lukk', noudaAdmin, async (req, res) => {
+  const aasta = parseInt(req.body && req.body.aasta, 10);
+  const kuu = parseInt(req.body && req.body.kuu, 10);
+  const lukus = !!(req.body && req.body.lukus);
+  if (!(aasta >= 2020 && aasta <= 2100) || !(kuu >= 1 && kuu <= 12)) return res.status(400).json({ ok: false, veateade: 'Vigane kuu' });
+  if (lukus) await pool.query('INSERT INTO kuu_lukud (aasta, kuu) VALUES ($1, $2) ON CONFLICT DO NOTHING', [aasta, kuu]);
+  else await pool.query('DELETE FROM kuu_lukud WHERE aasta=$1 AND kuu=$2', [aasta, kuu]);
+  await makseLogi(pool, req, null, lukus ? 'KUU_SULETUD' : 'KUU_AVATUD', { aasta, kuu });
+  res.json({ ok: true, lukus });
 });
 
 // ── TULEVASED TÖÖD ────────────────────────────────────────────────

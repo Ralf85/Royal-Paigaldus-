@@ -921,6 +921,16 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS login_katsed_ip_idx ON login_katsed (ip, tyyp, aeg);`);
     await client.query(`DELETE FROM login_katsed WHERE aeg < NOW() - INTERVAL '1 day';`);
 
+    // Kuu sulgemine (vt kuulukk.js)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kuu_lukud (
+        aasta INTEGER NOT NULL,
+        kuu INTEGER NOT NULL,
+        lukustatud TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (aasta, kuu)
+      )
+    `);
+
     // Indeksid sagedamini filtreeritavatele veergudele (kokkuvõte, töötaja vaade, Lidli fotovaade).
     // IF NOT EXISTS — ohutu iga käivitusega; üks puuduv tabel ei takista teisi.
     const indeksid = [

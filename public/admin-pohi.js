@@ -1167,6 +1167,7 @@ async function laadiKokkuvote() {
   kuvaTootajaKaardid(dashViimatiLaaditud);
   renderKokkuvoteTable();
   laadiEmtaKaart(parseInt(kuu, 10), parseInt(aasta, 10));
+  kvLukkUuenda(parseInt(aasta, 10), parseInt(kuu, 10));
 }
 
 // ── EMTA tasu kaart ─────────────────────────────────────────────────
@@ -2658,4 +2659,99 @@ async function salvestaMuuTasu(kirjeId) {
   if(!tasu||parseFloat(tasu)<=0) return alert('Sisesta korrektne tunnitasu');
   await api(`/api/admin/kirjed/${kirjeId}/muu-tasu`,{method:'PUT',body:JSON.stringify({tunnitasu:tasu})});
   laadiKokkuvote();
+}
+
+// ── KUU SULGEMINE ──────────────────────────────────────────────────
+let kvLukkOlek = { aasta: null, kuu: null, lukus: false };
+async function kvLukkUuenda(aasta, kuu) {
+  const nupp = document.getElementById('kv-lukk-nupp');
+  if (!nupp) return;
+  const r = await api('/api/admin/kuu-lukud');
+  const lukus = !!(r && r.ok && Array.isArray(r.lukud) && r.lukud.some(l => l.aasta === aasta && l.kuu === kuu));
+  kvLukkOlek = { aasta, kuu, lukus };
+  nupp.style.display = '';
+  nupp.textContent = lukus ? '🔒 Kuu suletud — ava' : '🔓 Sulge kuu';
+  nupp.className = lukus ? 'nupp roheline' : 'nupp hall';
+}
+async function kvLukkVaheta() {
+  const { aasta, kuu, lukus } = kvLukkOlek;
+  if (!aasta || !kuu) return;
+  const KUUD_NIM = ['jaanuar','veebruar','märts','aprill','mai','juuni','juuli','august','september','oktoober','november','detsember'];
+  const nimi = KUUD_NIM[kuu - 1] + ' ' + aasta;
+  const kysimus = lukus
+    ? 'Avad ' + nimi + '? Töötajad saavad siis selle kuu kirjeid jälle lisada, muuta ja kustutada.'
+    : 'Sulged ' + nimi + '? Töötajad ei saa siis selle kuu töökirjeid ega lisakulusid enam lisada, muuta ega kustutada. Sina saad adminina ikka muuta. Kuu saab hiljem uuesti avada.';
+  if (!await kysi(kysimus)) return;
+  const r = await api('/api/admin/kuu-lukk', { method: 'POST', body: JSON.stringify({ aasta, kuu, lukus: !lukus }) });
+  if (!r || !r.ok) { teata((r && r.veateade) || 'Ei õnnestunud'); return; }
+  kvLukkUuenda(aasta, kuu);
+}
+
+// ── MAKSA KÕIK ─────────────────────────────────────────────────────
+let mkKoikRead = [];
+async function mkAvaKoikModal() {
+  const t = new Date();
+  document.getElementById('mk-koik-kuupaev').value = kpISO(t);
+  document.getElementById('mk-koik-komm').value = '';
+  document.getElementById('mk-koik-teade').style.display = 'none';
+  const div = document.getElementById('mk-koik-read');
+  div.innerHTML = '<div style="padding:16px;color:var(--hall)">Laadimine...</div>';
+  document.getElementById('mkKoikModal').classList.add('avatud');
+  const r = await api(`/api/admin/kokkuvote?aasta=${t.getFullYear()}&kuu=${t.getMonth() + 1}`);
+  mkKoikRead = (Array.isArray(r) ? r : [])
+    .map(w => ({ id: w.id, nimi: w.nimi, saldo: Math.round(parseFloat(w.saadaVeel) * 100) / 100 }))
+    .filter(w => w.saldo > 0)
+    .sort((a, b) => b.saldo - a.saldo);
+  if (!mkKoikRead.length) {
+    div.innerHTML = '<div style="padding:16px;color:var(--hall)">Kõik on makstud — kellelgi pole hetkel saada. 🎉</div>';
+    mkKoikArvuta();
+    return;
+  }
+  div.innerHTML = '<table class="mk-tabel"><thead><tr><th style="width:32px"></th><th>Töötaja</th><th class="mk-th-summa">Saada</th><th class="mk-th-summa">Maksan (€)</th></tr></thead><tbody>'
+    + mkKoikRead.map((w, i) => `<tr>
+        <td><input type="checkbox" class="mk-koik-cb" data-i="${i}" checked onchange="mkKoikArvuta()" style="width:auto"></td>
+        <td>${mkEsc(w.nimi)}</td>
+        <td class="mk-summa">${w.saldo.toFixed(2)} €</td>
+        <td style="text-align:right"><input type="number" class="mk-koik-summa" data-i="${i}" value="${w.saldo.toFixed(2)}" step="0.01" min="0" oninput="mkKoikArvuta()" style="width:110px;text-align:right"></td>
+      </tr>`).join('')
+    + '</tbody></table>';
+  mkKoikArvuta();
+}
+function mkKoikValitud() {
+  const valitud = [];
+  document.querySelectorAll('.mk-koik-cb').forEach(cb => {
+    if (!cb.checked) return;
+    const i = parseInt(cb.dataset.i, 10);
+    const sisend = document.querySelector('.mk-koik-summa[data-i="' + i + '"]');
+    const summa = Math.round(parseFloat(sisend && sisend.value) * 100) / 100;
+    if (summa > 0) valitud.push({ worker_id: mkKoikRead[i].id, nimi: mkKoikRead[i].nimi, summa });
+  });
+  return valitud;
+}
+function mkKoikArvuta() {
+  const valitud = mkKoikValitud();
+  const kokku = valitud.reduce((s, m) => s + m.summa, 0);
+  document.getElementById('mk-koik-summa').textContent = kokku.toLocaleString('et-EE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  document.getElementById('mk-koik-arv').textContent = valitud.length ? '· ' + valitud.length + ' töötajat' : '';
+  document.getElementById('mk-koik-nupp').disabled = !valitud.length;
+}
+function mkSuljeKoikModal() { document.getElementById('mkKoikModal').classList.remove('avatud'); }
+document.getElementById('mkKoikModal')?.addEventListener('click', function(e){ if (e.target === this) mkSuljeKoikModal(); });
+async function mkSalvestaKoik() {
+  const valitud = mkKoikValitud();
+  const kuupaev = document.getElementById('mk-koik-kuupaev').value;
+  const kommentaar = document.getElementById('mk-koik-komm').value;
+  if (!valitud.length) return;
+  if (!kuupaev) return naitaTeade('mk-koik-teade', 'viga', 'Vali kuupäev');
+  const kokku = valitud.reduce((s, m) => s + m.summa, 0);
+  if (!await kysi('Salvestad ' + valitud.length + ' makset kokku ' + kokku.toFixed(2) + ' €?\n\n' + valitud.map(m => m.nimi + ': ' + m.summa.toFixed(2) + ' €').join('\n'))) return;
+  const nupp = document.getElementById('mk-koik-nupp');
+  nupp.disabled = true;
+  const r = await api('/api/admin/maksed/mitu', { method: 'POST', body: JSON.stringify({ kuupaev, kommentaar, maksed: valitud.map(m => ({ worker_id: m.worker_id, summa: m.summa })) }) });
+  nupp.disabled = false;
+  if (!r || !r.ok) return naitaTeade('mk-koik-teade', 'viga', (r && r.veateade) || 'Ei õnnestunud');
+  mkKvSaldodCache = null;
+  mkSuljeKoikModal();
+  await laadiMaksed();
+  teata('✅ ' + r.lisatud + ' makset salvestatud, kokku ' + r.kokku + ' €');
 }
