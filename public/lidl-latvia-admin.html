@@ -295,7 +295,14 @@ start();
 
 async function start() {
   if (!token) { showLogin(); return; }
-  const s = await api('/session');
+  let s = await api('/session');
+  // Vana/aegunud Läti admini võti (lvAdminToken) ei tohi peaadminit välja jätta: proovi siis peaadmini võtmega.
+  if ((!s.ok || !s.loggedIn) && localStorage.getItem('lvAdminToken') && localStorage.getItem('adminToken')
+      && token !== localStorage.getItem('adminToken')) {
+    localStorage.removeItem('lvAdminToken');
+    token = localStorage.getItem('adminToken');
+    s = await api('/session');
+  }
   if (!s.ok || !s.loggedIn || (s.role !== 'lv_admin' && s.role !== 'admin')) { showLogin(); return; }
   isMainAdmin = (s.role === 'admin');
   document.getElementById('whoAmI').textContent = (s.name || '') + (isMainAdmin ? ' (main admin)' : '');
