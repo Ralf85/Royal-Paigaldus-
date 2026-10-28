@@ -138,7 +138,7 @@ router.get('/tootajad-valikuks', noudaMoneMoodulOigus(['xseeria_sponsorid', 'xse
 
 // Kõik võistlused (töötaja valib ise, mitte automaatne "aktiivne")
 router.get('/events', noudaLubatud, async (req, res) => {
-  const r = await pool.query('SELECT * FROM xseeria_events ORDER BY aktiivne DESC, kuupaev DESC');
+  const r = await pool.query('SELECT * FROM xseeria_events WHERE arhiveeritud IS NOT TRUE ORDER BY aktiivne DESC, kuupaev DESC');
   res.json({ ok: true, events: r.rows });
 });
 
@@ -267,7 +267,8 @@ router.delete('/korvid/:id/rajakaart', noudaLubatud, async (req, res) => {
 // Event'ide nimekirja tohivad lugeda ka moodulipõhise õigusega töötajad (sponsori/tegevuste
 // haldajad), kuna nad peavad enne saama valida, millise võistluse alla midagi lisada.
 router.get('/admin/events', noudaMoneMoodulOigus(['xseeria_sponsorid', 'xseeria_tegevused'], 'vaata'), async (req, res) => {
-  const r = await pool.query('SELECT * FROM xseeria_events ORDER BY kuupaev DESC');
+  // Admin näeb ka arhiveeritud võistlusi (lõpus, hallina), et neid saaks taastada
+  const r = await pool.query('SELECT * FROM xseeria_events ORDER BY arhiveeritud IS TRUE, kuupaev DESC');
   res.json({ ok: true, events: r.rows });
 });
 
@@ -298,8 +299,13 @@ router.put('/admin/events/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// "Kustuta" = arhiveeri: andmed (pargid, korvid, kulud, töötajate omakulud) jäävad alles, töötajad võistlust enam ei näe.
 router.delete('/admin/events/:id', noudaAdmin, async (req, res) => {
-  await pool.query('DELETE FROM xseeria_events WHERE id=$1', [req.params.id]);
+  await pool.query('UPDATE xseeria_events SET arhiveeritud = true, aktiivne = false WHERE id=$1', [req.params.id]);
+  res.json({ ok: true, arhiveeritud: true });
+});
+router.post('/admin/events/:id/taasta', noudaAdmin, async (req, res) => {
+  await pool.query('UPDATE xseeria_events SET arhiveeritud = false WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 

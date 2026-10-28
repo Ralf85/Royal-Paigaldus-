@@ -921,6 +921,9 @@ async function initDB() {
     await client.query(`CREATE INDEX IF NOT EXISTS login_katsed_ip_idx ON login_katsed (ip, tyyp, aeg);`);
     await client.query(`DELETE FROM login_katsed WHERE aeg < NOW() - INTERVAL '1 day';`);
 
+    // X-seeria võistlust ei kustutata (koos sellega kaoksid töötajate omakulud ja saldo muutuks) — see arhiveeritakse
+    await client.query(`ALTER TABLE xseeria_events ADD COLUMN IF NOT EXISTS arhiveeritud BOOLEAN DEFAULT false`);
+
     // Kuu sulgemine (vt kuulukk.js)
     await client.query(`
       CREATE TABLE IF NOT EXISTS kuu_lukud (

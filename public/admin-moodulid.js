@@ -256,13 +256,49 @@ const AUDIT_TEGEVUSED = {
 
 async function laadiAuditLogi() {
   const div = document.getElementById('auditLogiSisu');
-  const d = await api('/api/admin/audit-log');
-  if (!Array.isArray(d) || !d.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Tegevusi pole veel</div>'; return; }
+  const tSel = document.getElementById('audit-tootaja');
+  const pSel = document.getElementById('audit-piir');
+  if (tSel && tSel.options.length <= 1) {
+    const w = await api('/api/admin/tootajad');
+    (Array.isArray(w) ? w : []).forEach(x => { const o = document.createElement('option'); o.value = x.id; o.textContent = x.nimi + (x.aktiivne ? '' : ' (endine)'); tSel.appendChild(o); });
+  }
+  const q = new URLSearchParams();
+  if (tSel && tSel.value) q.set('worker_id', tSel.value);
+  q.set('limit', (pSel && pSel.value) || '500');
+  const d = await api('/api/admin/audit-log?' + q.toString());
+  if (!Array.isArray(d) || !d.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Tegevusi pole</div>'; return; }
   div.innerHTML = '<div style="padding:8px 18px">' + d.map(a => {
     const aeg = a.loodud ? new Date(a.loodud).toLocaleString('et-EE') : '—';
     const tegevusTekst = AUDIT_TEGEVUSED[a.tegevus] || (a.tegevus ? String(a.tegevus).toLowerCase().replace(/_/g, ' ') : '—');
-    return `<div class="tegevus-rida"><div class="tegevus-dot"></div><div><div class="tegevus-tekst"><b>${escapeHtmlXs(a.worker_nimi || 'Admin')}</b> — ${escapeHtmlXs(tegevusTekst)}</div><div class="tegevus-aeg">${aeg}</div></div></div>`;
+    const det = auditDetailid(a);
+    return `<div class="tegevus-rida"><div class="tegevus-dot"></div><div><div class="tegevus-tekst"><b>${escapeHtmlXs(a.worker_nimi || 'Admin')}</b> — ${escapeHtmlXs(tegevusTekst)}</div>${det ? `<div style="font-size:12px;color:var(--tekst3,#9aa3b2);margin-top:2px">${escapeHtmlXs(det)}</div>` : ''}<div class="tegevus-aeg">${aeg}</div></div></div>`;
   }).join('') + '</div>';
+}
+
+// Logirea detailid loetavaks: "12.10. 08:00–16:00 → 08:00–17:00 (8 → 9 h)", maksete summad jne.
+function auditDetailid(a) {
+  let d;
+  try { d = typeof a.details === 'string' ? JSON.parse(a.details) : a.details; } catch (e) { return ''; }
+  if (!d || typeof d !== 'object') return '';
+  const kp = v => { if (!v) return ''; const s = String(v).slice(0, 10).split('-'); if (s.length === 3 && !String(v).includes('T')) return s[2] + '.' + s[1] + '.' + s[0]; const x = new Date(v); return isNaN(x) ? '' : x.toLocaleDateString('et-EE'); };
+  const aeg = (al, lo) => (al && lo) ? String(al).slice(0, 5) + '–' + String(lo).slice(0, 5) : '';
+  const h = v => v == null ? '' : (Math.round(parseFloat(v) * 100) / 100) + ' h';
+  const eur = v => v == null ? '' : parseFloat(v).toFixed(2) + ' €';
+  if (d.vana && d.uus && (d.vana.summa != null || d.uus.summa != null)) {
+    return [eur(d.vana.summa) + ' → ' + eur(d.uus.summa), d.vana.kuupaev !== d.uus.kuupaev ? kp(d.vana.kuupaev) + ' → ' + kp(d.uus.kuupaev) : kp(d.uus.kuupaev), d.uus.kommentaar].filter(Boolean).join(' · ');
+  }
+  if (d.vana && d.uus) {
+    const k1 = kp(d.vana.kuupaev), k2 = kp(d.uus.kuupaev);
+    return [(k1 && k2 && k1 !== k2) ? k1 + ' → ' + k2 : (k2 || k1), aeg(d.vana.algus, d.vana.lopp) + ' → ' + aeg(d.uus.algus, d.uus.lopp), '(' + h(d.vana.tunnid) + ' → ' + h(d.uus.tunnid) + ')'].filter(Boolean).join(' ');
+  }
+  if (d.vana_algus || d.vana_tunnid) {
+    const k1 = kp(d.vana_kuupaev), k2 = kp(d.kuupaev);
+    return [(k1 && k2 && k1 !== k2) ? k1 + ' → ' + k2 : k2, aeg(d.vana_algus, d.vana_lopp) + ' → ' + aeg(d.algus, d.lopp), '(' + h(d.vana_tunnid) + ' → ' + h(d.tunnid) + ')'].filter(Boolean).join(' ');
+  }
+  if (d.summa != null) return [eur(d.summa), kp(d.kuupaev), d.kommentaar, d.korraga ? '(Maksa kõik)' : ''].filter(Boolean).join(' · ');
+  if (d.aasta && d.kuu) return String(d.kuu).padStart(2, '0') + '.' + d.aasta;
+  const osad = [kp(d.kuupaev), aeg(d.algus, d.lopp), d.tunnid != null ? h(d.tunnid) : '', d.ettevote || '', d.objekt || ''].filter(Boolean);
+  return osad.join(' · ');
 }
 
 function escapeHtmlXs(s) {
@@ -453,14 +489,14 @@ async function xsLaadiEvents() {
   xsEvents = d.events || [];
   const box = document.getElementById('xs-eventpick');
   box.innerHTML = xsEvents.map(e => `
-    <div class="xs-event-tile ${e.id === xsAktiivneEventId ? 'ak' : ''}" onclick="xsVahetaEvent(${e.id})">
+    <div class="xs-event-tile ${e.id === xsAktiivneEventId ? 'ak' : ''}" onclick="xsVahetaEvent(${e.id})"${e.arhiveeritud ? ' style="opacity:.45" title="Arhiivis — töötajad seda ei näe"' : ''}>
       ${e.kaas_foto_url
         ? `<img src="${e.kaas_foto_url}" alt="${e.nimi.replace(/"/g,'&quot;')}">`
         : `<div class="xs-event-tile-placeholder">🥏</div>`}
       <button class="xs-event-tile-foto-nupp" title="Vaheta pilt" onclick="event.stopPropagation();xsAvaKaasFotoValija(${e.id})">📷</button>
       <div class="xs-event-tile-caption">
         <div class="xs-event-tile-nimi">${e.nimi}</div>
-        <div class="xs-event-tile-kp">${String(e.kuupaev).slice(0,10)}</div>
+        <div class="xs-event-tile-kp">${String(e.kuupaev).slice(0,10)}${e.arhiveeritud ? ' · arhiivis' : ''}</div>
       </div>
     </div>`
   ).join('') || '<span style="font-size:12px;color:var(--hall)">Võistlusi pole veel.</span>';
@@ -488,6 +524,11 @@ async function xsLaadiEvents() {
     document.getElementById('xs-teg-event-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-sp-event-nimi').textContent = ev ? ev.nimi : '';
     document.getElementById('xs-kulu-event-nimi').textContent = ev ? ev.nimi : '';
+    const kustutaNupp = document.getElementById('xs-ev-kustuta-nupp');
+    if (kustutaNupp) {
+      kustutaNupp.textContent = ev && ev.arhiveeritud ? '↩ Taasta võistlus' : '🗄 Arhiveeri võistlus';
+      kustutaNupp.className = ev && ev.arhiveeritud ? 'nupp roheline' : 'nupp punane';
+    }
     if (ev) {
       editKaart.style.display = 'block';
       document.getElementById('xs-ev-edit-nimi').value = ev.nimi;
@@ -583,9 +624,14 @@ async function xsSalvestaEvent() {
 async function xsKustutaEvent() {
   if (!xsAktiivneEventId) return;
   const ev = xsEvents.find(e => e.id === xsAktiivneEventId);
-  if (!await kysi(`Kustutada võistlus "${ev ? ev.nimi : ''}" koos KÕIGI selle parkide ja korvidega? Seda ei saa tagasi võtta.`)) return;
+  if (ev && ev.arhiveeritud) {
+    if (!await kysi(`Taastad võistluse "${ev.nimi}"? Töötajad näevad seda jälle.`)) return;
+    await api('/api/xseeria/admin/events/' + xsAktiivneEventId + '/taasta', { method: 'POST' });
+    await xsLaadiEvents();
+    return;
+  }
+  if (!await kysi(`Arhiveerid võistluse "${ev ? ev.nimi : ''}"? Töötajad seda enam ei näe. Pargid, korvid, kulud ja töötajate omakulud jäävad alles ning saldo ei muutu. Hiljem saab taastada.`)) return;
   await api('/api/xseeria/admin/events/' + xsAktiivneEventId, { method: 'DELETE' });
-  xsAktiivneEventId = null;
   await xsLaadiEvents();
 }
 

@@ -194,6 +194,12 @@ router.post('/vaheta-roll/:id', noudaAdmin, async (req, res) => {
       return res.status(400).json({ ok: false, veateade: 'Ainult aktiivsete, arhiveerimata töötajate vahel saab rolli vahetada' });
     }
     const token = await req.saveSession({ workerId: worker.id, workerNimi: worker.nimi });
+    // Rollivahetuse sessioon kehtib 12 tundi. Sessiooni kehtivust kontrollitakse server.js-is kujul
+    // "loodud > NOW() - 180 päeva" (WORKER_SESSIOON_PAEVI) — loomise aeg nihutatakse nii, et alles jääb 12 h.
+    await pool.query(
+      `UPDATE worker_sessions SET loodud = NOW() - INTERVAL '180 days' + INTERVAL '12 hours' WHERE token=$1`,
+      [token]
+    );
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [worker.id, 'ADMIN_VAHETAS_ROLLI', JSON.stringify({ nimi: worker.nimi }), req.ip]
@@ -540,10 +546,10 @@ router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
     );
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
-      [null, 'ADMIN_MUUTIS_TOOKIRJET', JSON.stringify({
+      [vana.rows[0].worker_id || null, 'ADMIN_MUUTIS_TOOKIRJET', JSON.stringify({
         kirje_id: req.params.id,
-        vana: { algus: vana.rows[0]?.algus, lopp: vana.rows[0]?.lopp, tunnid: vana.rows[0]?.tunnid },
-        uus: { algus, lopp, tunnid: tunnid.toFixed(2) }
+        vana: { kuupaev: vana.rows[0]?.kuupaev, algus: vana.rows[0]?.algus, lopp: vana.rows[0]?.lopp, tunnid: vana.rows[0]?.tunnid },
+        uus: { kuupaev, algus, lopp, tunnid: tunnid.toFixed(2) }
       }), req.ip]
     );
     res.json({ ok: true, tunnid: tunnid.toFixed(2) });
@@ -571,7 +577,7 @@ router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
     }
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
-      [null, 'ADMIN_KUSTUTAS_TOOKIRJE', JSON.stringify({ kirje_id: req.params.id, tunnid: kirje.rows[0].tunnid }), req.ip]
+      [k.worker_id || null, 'ADMIN_KUSTUTAS_TOOKIRJE', JSON.stringify({ kirje_id: req.params.id, kuupaev: k.kuupaev, algus: k.algus, lopp: k.lopp, tunnid: k.tunnid }), req.ip]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -1638,12 +1644,19 @@ module.exports = router;
 // ── AUDIT LOG ─────────────────────────────────────────────────────
 
 router.get('/audit-log', noudaAdmin, async (req, res) => {
+  // ?worker_id=5 — ainult selle töötaja tegevused; ?limit=500 (vaikimisi 500, max 3000)
+  const params = [];
+  let kus = '';
+  if (req.query.worker_id && /^\d+$/.test(String(req.query.worker_id))) { params.push(parseInt(req.query.worker_id, 10)); kus = 'WHERE a.worker_id = $1'; }
+  const piir = Math.min(3000, Math.max(1, parseInt(req.query.limit, 10) || 500));
   const r = await pool.query(
     `SELECT a.*, w.nimi as worker_nimi
      FROM audit_log a
      LEFT JOIN workers w ON a.worker_id=w.id
+     ${kus}
      ORDER BY a.loodud DESC
-     LIMIT 3000`
+     LIMIT ${piir}`,
+    params
   );
   res.json(r.rows);
 });

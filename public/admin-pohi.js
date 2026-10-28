@@ -1858,7 +1858,7 @@ function tjRenderList() {
     const onXs = !!tjKoikXs[w.id];
     return `<tr class="tj-tabeli-rida${tjValitudId===w.id?' aktiivne-valik':''}" onclick="tjValiTootaja(${w.id})">
       <td style="font-weight:600"><span class="tabel-avatar" style="background:${vc}">${tootajaAvatar(w)}</span>${tmEsc(w.nimi)}</td>
-      <td style="color:var(--hall);font-size:12px">${w.pin}</td>
+      <td style="color:var(--hall);font-size:12px">${pinPeidetud(w.pin)}</td>
       <td>${nimed.length ? nimed.slice(0,2).map(n=>`<span class="tj-badge">${n}</span>`).join('') + (nimed.length>2?`<span class="tj-badge">+${nimed.length-2}</span>`:'') : '<span style="color:var(--hall);font-size:11px">—</span>'}${onXs?'<span class="tj-badge" style="color:var(--sinine)">🥏 X-seeria</span>':''}</td>
       <td><span class="staatus-pill ${w.aktiivne?'roheline':'hall'}">${w.aktiivne?'Aktiivne':'Mitteaktiivne'}</span></td>
       <td style="text-align:right;color:var(--hall)">›</td>
@@ -1952,7 +1952,7 @@ function tjRenderDetailTabSisu(w, we) {
     const onXs = !!tjKoikXs[w.id], onArved = !!tjKoikArved[w.id], onOmaarved = !!tjKoikOmaarved[w.id];
     return `
       <div class="tj-info-tiilid">
-        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">PIN-kood</div><div class="tj-info-tiil-val">${w.pin}</div></div>
+        <div class="tj-info-tiil"><div class="tj-info-tiil-silt">PIN-kood</div><div class="tj-info-tiil-val">${pinPeidetud(w.pin)}</div></div>
         <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Staatus</div><div class="tj-info-tiil-val" style="color:${w.aktiivne?'var(--roheline)':'var(--hall)'}">${w.aktiivne?'Aktiivne':'Mitteaktiivne'}</div></div>
         <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Registreeritud</div><div class="tj-info-tiil-val" style="font-size:12px">${w.loodud ? new Date(w.loodud).toLocaleDateString('et-EE') : '—'}</div></div>
         <div class="tj-info-tiil"><div class="tj-info-tiil-silt">Ettevõtte seoseid</div><div class="tj-info-tiil-val">${we.length}</div></div>
@@ -2791,4 +2791,11 @@ async function salvestaKateHind(id, vaartus) {
   const r = await api(`/api/admin/ettevotted/${id}/tunnihind`, { method: 'PUT', body: JSON.stringify({ hind: vaartus.trim() }) });
   if (!r || !r.ok) { teata((r && r.veateade) || 'Ei õnnestunud salvestada'); return; }
   if (kateViimane.aasta) laadiKate(kateViimane.aasta, kateViimane.kuu);
+}
+
+// PIN-kood on nimekirjas peidetud (nt kui ekraan on teistele näha). Vajutus näitab; otsing PIN-i järgi töötab edasi.
+function pinPeidetud(pin) {
+  const p = tmEsc(pin || '');
+  if (!p) return '—';
+  return `<span class="pin-peidetud" title="Näita PIN-koodi" style="cursor:pointer;letter-spacing:2px" onclick="event.stopPropagation();this.textContent=this.dataset.pin;this.style.letterSpacing='';this.onclick=null" data-pin="${p}">••••</span>`;
 }

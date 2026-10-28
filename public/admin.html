@@ -417,7 +417,12 @@
       </div>
     </div>
     <div class="kaart">
-      <div class="kaart-hdr">🔍 Tegevuste logi</div>
+      <div class="kaart-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>🔍 Tegevuste logi</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          <select id="audit-tootaja" onchange="laadiAuditLogi()" style="width:auto;font-size:13px;padding:6px 8px"><option value="">Kõik</option></select>
+          <select id="audit-piir" onchange="laadiAuditLogi()" style="width:auto;font-size:13px;padding:6px 8px"><option value="200">200 rida</option><option value="500" selected>500 rida</option><option value="3000">3000 rida</option></select>
+        </span>
+      </div>
       <div id="auditLogiSisu"><div style="padding:24px;text-align:center;color:var(--hall)">Laadimine...</div></div>
     </div>
   </div>
@@ -810,7 +815,7 @@
           </div>
           <div style="display:flex;gap:8px;margin-top:8px">
             <button class="nupp kull" onclick="xsSalvestaEvent()">Salvesta muudatused</button>
-            <button class="nupp punane" onclick="xsKustutaEvent()">🗑 Kustuta võistlus</button>
+            <button class="nupp punane" id="xs-ev-kustuta-nupp" onclick="xsKustutaEvent()">🗄 Arhiveeri võistlus</button>
           </div>
           <div class="teade" id="xs-ev-edit-teade"></div>
         </div>
