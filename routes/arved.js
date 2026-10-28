@@ -378,6 +378,36 @@ router.delete('/valikud/:id', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── ARVETA TUNNID KÕIGI KLIENTIDE KOHTA (Arvete lehe kaardid) ──
+// Sama reegel mis /viimane: kliendi kehtivate arvete (kreeditarved ja krediteeritud välja) suurim
+// perioodi lõpp; arveta = selle järel kuni tänaseni tehtud töökirjed.
+router.get('/arveta', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      WITH kaetud AS (
+        SELECT a.ettevote_id, MAX(COALESCE(a.lopp, a.kuupaev)) AS kuni
+        FROM arved a
+        WHERE a.ettevote_id IS NOT NULL AND a.kreedit_algne_arve_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM arved k WHERE k.kreedit_algne_arve_id = a.id)
+        GROUP BY a.ettevote_id
+      )
+      SELECT e.id, e.nimi, to_char(k.kuni,'YYYY-MM-DD') AS kaetud_kuni,
+             COUNT(t.id)::int AS kirjeid, COALESCE(SUM(t.tunnid),0) AS tunnid,
+             to_char(MIN(t.kuupaev),'YYYY-MM-DD') AS esimene, to_char(MAX(t.kuupaev),'YYYY-MM-DD') AS viimane
+      FROM ettevotted e
+      LEFT JOIN kaetud k ON k.ettevote_id = e.id
+      JOIN tookirjed t ON t.ettevote_id = e.id AND (k.kuni IS NULL OR t.kuupaev > k.kuni) AND t.kuupaev <= CURRENT_DATE
+      WHERE e.aktiivne = true
+      GROUP BY e.id, e.nimi, k.kuni
+      HAVING COUNT(t.id) > 0
+      ORDER BY SUM(t.tunnid) DESC`);
+    res.json({ ok: true, read: r.rows.map(x => ({ ...x, tunnid: Math.round(parseFloat(x.tunnid) * 100) / 100 })) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
 // ── AUTOTÄITMINE: valmis read valitud ettevõtte+perioodi töökirjete põhjal ──
 // viis=koond  -> üks rida kogutundide (levinuima tunnitasuga) + üks rida km transpordi kohta (nagu senine Lidli raport)
 // viis=tootajad -> üks rida töötaja kohta, kogus=tema tunnid, hind=tema tunnitasu selle ettevõtte juures (nagu Cramo arved)

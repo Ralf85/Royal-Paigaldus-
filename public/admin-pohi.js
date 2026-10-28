@@ -1168,6 +1168,7 @@ async function laadiKokkuvote() {
   renderKokkuvoteTable();
   laadiEmtaKaart(parseInt(kuu, 10), parseInt(aasta, 10));
   kvLukkUuenda(parseInt(aasta, 10), parseInt(kuu, 10));
+  laadiKate(aasta, kuu);
 }
 
 // ── EMTA tasu kaart ─────────────────────────────────────────────────
@@ -2754,4 +2755,40 @@ async function mkSalvestaKoik() {
   mkSuljeKoikModal();
   await laadiMaksed();
   teata('✅ ' + r.lisatud + ' makset salvestatud, kokku ' + r.kokku + ' €');
+}
+
+// ── KATE KLIENTIDE KAUPA ───────────────────────────────────────────
+let kateViimane = { aasta: null, kuu: null };
+async function laadiKate(aasta, kuu) {
+  const div = document.getElementById('kateKast');
+  if (!div) return;
+  kateViimane = { aasta, kuu };
+  const r = await api(`/api/admin/kate?aasta=${aasta}&kuu=${kuu}`);
+  const read = (r && r.ok && Array.isArray(r.read)) ? r.read : [];
+  if (!read.length) { div.innerHTML = '<div style="color:var(--hall);font-size:13px">Sel kuul pole töökirjeid.</div>'; return; }
+  const sum = k => read.reduce((s, x) => s + (parseFloat(x[k]) || 0), 0);
+  const koikHinnaga = read.every(x => x.hind != null);
+  const kateKokku = read.reduce((s, x) => s + (x.kate == null ? 0 : parseFloat(x.kate)), 0);
+  div.innerHTML = `<div style="overflow-x:auto"><table class="dash-tabel"><thead><tr>
+      <th>Klient</th><th class="num">Tunnid</th><th class="num">Arve hind €/h</th><th class="num">Arvele (km-ta)</th>
+      <th class="num">Töötajate tasu</th><th class="num" title="Kilomeetrid ja töökirjete lisakulud">Km + kulud</th><th class="num">Kate €</th></tr></thead><tbody>`
+    + read.map(x => `<tr>
+        <td>${tmEsc(x.nimi)}</td>
+        <td class="num">${fH(x.tunnid)}</td>
+        <td class="num"><input type="text" inputmode="decimal" value="${x.hind == null ? '' : String(x.hind).replace('.', ',')}" placeholder="määra" style="width:80px;text-align:right;padding:4px 6px" onchange="salvestaKateHind(${x.id}, this.value)"></td>
+        <td class="num">${x.arvele == null ? '<span style="color:var(--hall)">—</span>' : fEur(x.arvele)}</td>
+        <td class="num">${fEur(x.tasu)}</td>
+        <td class="num">${fEur(x.kulud)}</td>
+        <td class="num" style="font-weight:700;color:${x.kate == null ? 'var(--hall)' : (parseFloat(x.kate) >= 0 ? 'var(--roheline)' : 'var(--punane)')}">${x.kate == null ? '—' : fEur(x.kate)}</td>
+      </tr>`).join('')
+    + `<tr style="font-weight:700"><td>KOKKU</td><td class="num">${fH(sum('tunnid'))}</td><td></td>
+        <td class="num">${fEur(sum('arvele'))}</td><td class="num">${fEur(sum('tasu'))}</td><td class="num">${fEur(sum('kulud'))}</td>
+        <td class="num">${fEur(kateKokku)}${koikHinnaga ? '' : ' <span style="font-weight:400;color:var(--hall);font-size:11px">(ilma hinnata klientideta)</span>'}</td></tr>`
+    + '</tbody></table></div>'
+    + '<div style="font-size:12px;color:var(--hall);margin-top:8px">Kate = arvele − töötajate tasu − km ja kulud. Arve hind on käibemaksuta tunnihind, mida klient maksab; see jääb meelde. Arvete käibemaks siin ei kajastu.</div>';
+}
+async function salvestaKateHind(id, vaartus) {
+  const r = await api(`/api/admin/ettevotted/${id}/tunnihind`, { method: 'PUT', body: JSON.stringify({ hind: vaartus.trim() }) });
+  if (!r || !r.ok) { teata((r && r.veateade) || 'Ei õnnestunud salvestada'); return; }
+  if (kateViimane.aasta) laadiKate(kateViimane.aasta, kateViimane.kuu);
 }

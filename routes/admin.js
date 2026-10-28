@@ -385,6 +385,48 @@ router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── KATE KLIENTIDE KAUPA ───────────────────────────────────────────
+// Valitud kuu tunnid ettevõtte (kliendi) kaupa: arvele = tunnid × kliendi tunnihind (ettevotted.arve_tunnihind),
+// töötajate tasu = tunnid × töötaja tunnitasu (sama reegel mis kokkuvõttes). Km-hüvitis ja kulud eraldi veerus.
+router.get('/kate', noudaAdmin, async (req, res) => {
+  const ak = loeAastaKuu(req.query.aasta, req.query.kuu);
+  if (!ak) return res.status(400).json({ ok: false, veateade: 'Vigane kuu' });
+  const algus = `${ak.aasta}-${String(ak.kuu).padStart(2, '0')}-01`;
+  const r = await pool.query(
+    `SELECT e.id, e.nimi, e.tyyp, e.arve_tunnihind,
+            COALESCE(SUM(t.tunnid), 0) AS tunnid,
+            COALESCE(SUM(t.tunnid * COALESCE(t.muu_tunnitasu, we.tunnitasu, 0)), 0) AS tasu,
+            COALESCE(SUM(COALESCE(t.km_raha, 0) + COALESCE(t.lisakulu_summa, 0)), 0) AS kulud,
+            COUNT(t.id)::int AS kirjeid
+     FROM ettevotted e
+     JOIN tookirjed t ON t.ettevote_id = e.id AND t.kuupaev >= $1::date AND t.kuupaev < $1::date + INTERVAL '1 month'
+     LEFT JOIN worker_ettevotted we ON we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id
+     GROUP BY e.id ORDER BY SUM(t.tunnid) DESC`,
+    [algus]
+  );
+  res.json({ ok: true, read: r.rows.map(x => {
+    const tunnid = parseFloat(x.tunnid) || 0;
+    const hind = x.arve_tunnihind == null ? null : parseFloat(x.arve_tunnihind);
+    const tasu = parseFloat(x.tasu) || 0;
+    const kulud = parseFloat(x.kulud) || 0;
+    const arvele = hind == null ? null : tunnid * hind;
+    return {
+      id: x.id, nimi: x.nimi, tyyp: x.tyyp, kirjeid: x.kirjeid,
+      tunnid: tunnid.toFixed(2), hind: hind == null ? null : hind.toFixed(2),
+      arvele: arvele == null ? null : arvele.toFixed(2), tasu: tasu.toFixed(2), kulud: kulud.toFixed(2),
+      kate: arvele == null ? null : (arvele - tasu - kulud).toFixed(2)
+    };
+  }) });
+});
+
+router.put('/ettevotted/:id/tunnihind', noudaAdmin, async (req, res) => {
+  const raw = req.body && req.body.hind;
+  const hind = raw === '' || raw == null ? null : parseFloat(String(raw).replace(',', '.'));
+  if (hind !== null && !(hind >= 0 && hind < 1000)) return res.status(400).json({ ok: false, veateade: 'Kontrolli tunnihinda' });
+  await pool.query('UPDATE ettevotted SET arve_tunnihind=$1 WHERE id=$2', [hind, req.params.id]);
+  res.json({ ok: true });
+});
+
 // ── KUU SULGEMINE ──────────────────────────────────────────────────
 router.get('/kuu-lukud', noudaAdmin, async (req, res) => {
   const r = await pool.query('SELECT aasta, kuu, lukustatud FROM kuu_lukud ORDER BY aasta DESC, kuu DESC');
@@ -441,7 +483,7 @@ router.post('/tulevased', noudaAdmin, async (req, res) => {
     if (workerEmail) {
       try {
         await getResend().emails.send({
-          from: 'Royal Paigaldus <onboarding@resend.dev>',
+          from: `Royal Paigaldus <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`,
           to: workerEmail,
           subject: '📅 Uus töö lisatud!',
           html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">

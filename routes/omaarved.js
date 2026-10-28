@@ -506,7 +506,7 @@ router.post('/:id/saada-email', noudaSisslogimist, noudaOmaarveLubatud, async (r
     const pdfBuffer = Buffer.concat(chunks);
 
     await getResend().emails.send({
-      from: `${muuja.ettevote_nimi} <onboarding@resend.dev>`,
+      from: `${muuja.ettevote_nimi} <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`, // RESEND_FROM = kinnitatud domeeni aadress, nt arved@royalco.ee
       to: sihtEpost,
       subject: `Arve nr ${arve.number}`,
       html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">

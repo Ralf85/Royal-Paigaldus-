@@ -195,6 +195,10 @@
           </div>
         </div>
         <div class="kaart" style="margin-top:16px">
+          <div class="kaart-hdr">💼 Kate klientide kaupa <span style="font-weight:400;color:var(--hall);font-size:12px">· valitud kuu</span></div>
+          <div class="kaart-body" id="kateKast"><div style="color:var(--hall);font-size:13px">Laadimine...</div></div>
+        </div>
+        <div class="kaart" style="margin-top:16px">
           <div class="kaart-hdr">🔎 Töötaja detailraport (Excel)</div>
           <div class="kaart-body">
             <div style="font-size:12px;color:var(--hall);margin-bottom:12px">Vali töötaja ja periood — saad Exceli kõigi tema töötundide (koos tunnitasu ja summaga iga kirje kohta), EDGF/Rally Estonia/X-seeria/vabade kulude ning maksetega, pluss kogu perioodi ja kogu aja saldo (palju veel võlgu). Töökirjete lehel on ka hoiatusveerg, kui sama päeva kirjed eri objektidel ajaliselt kattuvad.</div>
@@ -980,6 +984,7 @@
     </div>
   </div>
   <div class="sektsioon" id="tab12">
+    <div class="arved-stat-rida" id="av-arveta-kaardid" style="margin-bottom:16px;display:none"></div>
     <div class="kaart" style="margin-bottom:16px">
       <div class="kaart-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-bottom:14px">
         <div id="av-kiir-dropzone" style="flex:1;min-width:280px;display:flex;align-items:center;gap:12px;border:2px dashed var(--sisend-piir);border-radius:10px;padding:14px 16px;cursor:pointer">
@@ -1037,6 +1042,7 @@
             <div><div class="stat-kaart-label" id="km-vahe-silt" style="font-size:9px">Vahe</div><div class="stat-kaart-val" id="km-vahe" style="font-size:18px">0,00 €</div></div>
           </div>
         </div>
+        <div style="font-size:12px;color:var(--hall);margin-top:10px">ℹ️ Siin on kõigi müüjate käibemaks kokku liidetud. Maksuametile tasumiseks vaata käibemaksu ettevõtte kaupa: <a href="#" onclick="avatTab(13);return false" style="color:var(--kuld)">Ettevõtted →</a></div>
       </div>
     </div>
 

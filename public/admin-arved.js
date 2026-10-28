@@ -814,7 +814,38 @@ let avStaatusFilter = 'koik';
 let avMuujaFilter = 'koik';
 let avArvedValitud = new Set();
 
+// Maksmata müügiarve, mille maksetähtaeg on möödas: punane silt "X p üle tähtaja" (kreeditarvetel mitte)
+function avTahtajaSilt(a) {
+  if (a.staatus === 'makstud' || !a.maksetahtaeg || a.kreedit_algne_arve_id || parseFloat(a.kokku) <= 0) return '';
+  if (avArvedList.some(x => x.kreedit_algne_arve_id === a.id)) return '';
+  const tahtaeg = new Date(String(a.maksetahtaeg).slice(0, 10) + 'T00:00:00');
+  const tana = new Date(kpISO(new Date()) + 'T00:00:00');
+  const paevi = Math.round((tana - tahtaeg) / 86400000);
+  if (paevi <= 0) return '';
+  return ` <span title="Maksetähtaeg oli ${formatKp(a.maksetahtaeg)}" style="display:inline-block;margin-left:4px;font-size:11px;font-weight:700;color:#f87171;background:rgba(248,113,113,.12);border-radius:6px;padding:2px 6px;white-space:nowrap">${paevi} p üle tähtaja</span>`;
+}
+
+// Arveta tunnid kliendi kaupa (töökirjed pärast viimase arve perioodi lõppu)
+async function laadiArvetaKaardid() {
+  const div = document.getElementById('av-arveta-kaardid');
+  if (!div) return;
+  const r = await api('/api/arved/arveta');
+  const read = (r && r.ok && Array.isArray(r.read)) ? r.read : [];
+  if (!read.length) { div.innerHTML = ''; div.style.display = 'none'; return; }
+  div.style.display = '';
+  div.innerHTML = read.map(x => `
+    <div class="stat-kaart" title="${x.kaetud_kuni ? 'Arvetega kaetud kuni ' + formatKp(x.kaetud_kuni) : 'Sellele kliendile pole veel arvet tehtud'}">
+      <div class="stat-kaart-ikoon" style="background:rgba(229,154,22,.14);color:var(--oranz)">⏳</div>
+      <div>
+        <div class="stat-kaart-label">${tmEsc(x.nimi)}: arveta</div>
+        <div class="stat-kaart-val" style="font-size:18px">${avEurTekst(x.tunnid)} h</div>
+        <div style="font-size:11px;color:var(--hall);margin-top:2px">${x.kirjeid} kirjet · ${formatKp(x.esimene)} – ${formatKp(x.viimane)}</div>
+      </div>
+    </div>`).join('');
+}
+
 async function laadiArvedTabel() {
+  laadiArvetaKaardid();
   const arved = await api('/api/arved');
   avArvedList = Array.isArray(arved) ? arved : [];
   avArvedValitud.clear();
@@ -992,7 +1023,7 @@ function avJoonistaArvedTabel() {
         </td>
         <td>${tmEsc(a.ostja_nimi)}${a.ettevote_nimi ? ` <span style="color:var(--hall);font-size:11px">(${tmEsc(a.ettevote_nimi)})</span>` : ''}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(a.kokku)}</td>
-        <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span></td>
+        <td><span class="staatus-pill ${a.staatus==='makstud'?'roheline':'oranz'}" style="cursor:pointer" onclick="avMuudaStaatus(${a.id},'${a.staatus==='makstud'?'maksmata':'makstud'}')">${a.staatus==='makstud'?'Makstud':'Maksmata'}</span>${avTahtajaSilt(a)}</td>
         <td style="display:flex;gap:6px">
           ${a.fail_url
             ? `<a href="${avFailUrl(a.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
