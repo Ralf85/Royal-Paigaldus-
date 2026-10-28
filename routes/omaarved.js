@@ -508,6 +508,8 @@ router.post('/:id/saada-email', noudaSisslogimist, noudaOmaarveLubatud, async (r
     await getResend().emails.send({
       from: `${muuja.ettevote_nimi} <${process.env.RESEND_FROM || 'onboarding@resend.dev'}>`, // RESEND_FROM = kinnitatud domeeni aadress, nt arved@royalco.ee
       to: sihtEpost,
+      // Kliendi "Vasta" läheb arve väljastaja enda e-postile (rekvisiitides), mitte saatja aadressile
+      ...(muuja.epost && /@/.test(muuja.epost) ? { reply_to: muuja.epost.trim() } : {}),
       subject: `Arve nr ${arve.number}`,
       html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto">
         <h2>Arve nr ${arve.number}</h2>
