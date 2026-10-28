@@ -281,6 +281,11 @@
     <div id="kirjed-sisu"><div class="tyhi">Laadimine...</div></div>
   </div>
   <script>
+  // Galeriis laetakse väike eelvaade (Cloudinary teeb ise), suur pilt avaneb klikiga. Telefonis tunduvalt kiirem.
+  function pisipilt(url) {
+    if (!url || url.indexOf("res.cloudinary.com") < 0 || url.indexOf("/image/upload/") < 0) return url;
+    return url.replace("/image/upload/", "/image/upload/c_fill,w_400,h_400,q_auto,f_auto/");
+  }
     var KUUD_L = ['jaan','veeb','märts','apr','mai','juu','juul','aug','sept','okt','nov','dets'];
     var TOKEN = localStorage.getItem('workerToken') || '';
     var ettevoteId = null;
@@ -736,7 +741,7 @@
         if (k.kommentaar) tags += '<span class="kirje-tag kirjeldus">' + k.kommentaar + '</span>';
         var pildid = pildidMap[k.id] || [];
         var pildiHTML = pildid.length ? '<div class="kirje-pildid">' + pildid.slice(0,6).map(function(p) {
-          return '<img src="' + p.url + '" class="kirje-pilt" onclick="window.open(\'' + p.url + '\',\'_blank\')" loading="lazy">';
+          return '<img src="' + pisipilt(p.url) + '" class="kirje-pilt" onclick="window.open(\'' + p.url + '\',\'_blank\')" loading="lazy">';
         }).join('') + (pildid.length > 6 ? '<span style="font-size:11px;color:#555;align-self:center">+' + (pildid.length-6) + '</span>' : '') + '</div>' : '';
         return '<div class="kirje-kaart">'
           + '<div class="kirje-hdr">'
@@ -799,7 +804,7 @@
       var pildid = (r.ok && r.pildid) ? r.pildid : [];
       if (!pildid.length) { el.innerHTML = '<div style="font-size:12px;color:#555">Pilte pole veel lisatud.</div>'; return; }
       el.innerHTML = pildid.map(function(p) {
-        return '<a href="' + p.url + '" target="_blank"><img src="' + p.url + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer"></a>';
+        return '<a href="' + p.url + '" target="_blank"><img src="' + pisipilt(p.url) + '" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer"></a>';
       }).join('');
     }
     async function muutaLisaFotod(files) {

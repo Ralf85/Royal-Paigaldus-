@@ -245,6 +245,11 @@
   </div>
   <script src="/failid.js"></script>
   <script>
+  // Galeriis laetakse väike eelvaade (Cloudinary teeb ise), suur pilt avaneb klikiga. Telefonis tunduvalt kiirem.
+  function pisipilt(url) {
+    if (!url || url.indexOf("res.cloudinary.com") < 0 || url.indexOf("/image/upload/") < 0) return url;
+    return url.replace("/image/upload/", "/image/upload/c_fill,w_400,h_400,q_auto,f_auto/");
+  }
     var TOKEN = localStorage.getItem('workerToken') || '';
     var tase = 1;
     // vaade: 'pood' = Poed → Projektid → Pildid (algne vaade, muutmata)
@@ -587,7 +592,7 @@
       riba.style.display = 'flex';
       document.getElementById('foto-arv').textContent = praegusedPildid.length + ' pilti';
       sisu.innerHTML = seisHtml + '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
-        return '<img src="' + p.url + '" loading="lazy" onclick="avaSuur(' + i + ')">';
+        return '<img src="' + pisipilt(p.url) + '" loading="lazy" onclick="avaSuur(' + i + ')">';
       }).join('') + '</div>';
     }
 
@@ -622,7 +627,7 @@
           + '<span style="font-size:11px;color:#7a8290;white-space:nowrap">' + k.piltide_arv + ' pilti</span>'
           + '</div>'
           + '<div class="foto-grid">' + k.pildid.map(function(p, pi) {
-            return '<img src="' + p.url + '" loading="lazy" onclick="avaSuurKrono(' + ki + ',' + pi + ')">';
+            return '<img src="' + pisipilt(p.url) + '" loading="lazy" onclick="avaSuurKrono(' + ki + ',' + pi + ')">';
           }).join('') + '</div>'
           + '</div>';
       }).join('');
@@ -677,7 +682,7 @@
       riba.style.display = 'flex';
       document.getElementById('foto-arv').textContent = praegusedPildid.length + ' pilti';
       sisu.innerHTML = '<div class="foto-grid">' + praegusedPildid.map(function(p, i) {
-        return '<img src="' + p.url + '" loading="lazy" onclick="avaSuur(' + i + ')">';
+        return '<img src="' + pisipilt(p.url) + '" loading="lazy" onclick="avaSuur(' + i + ')">';
       }).join('') + '</div>';
     }
 

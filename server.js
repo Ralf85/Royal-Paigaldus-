@@ -44,6 +44,8 @@ const WORKER_SESSIOON_PAEVI = 180;
 const GRAAFIK_ADMIN_SESSIOON_PAEVI = 30;
 // Vaikimisi piir on 100 KB — suurem Exceli raport (sajad read saadetakse ühe päringuna) ei mahtunud ära
 // ja raport andis vea. 5 MB on piisav varu.
+// Tekst (HTML, JS, CSS, JSON) saadetakse kokkupakituna — telefonis laeb kiiremini. Pildid/ZIP-id jäävad puutumata.
+app.use(require('compression')());
 app.use(express.json({ limit: '5mb' }));
 function puhastaTekst(obj, sygavus) {
   if (sygavus > 6) return;

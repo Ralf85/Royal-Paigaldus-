@@ -5,6 +5,8 @@
 //   var nimi = await rpKysiTeksti('Nimi:', 'vaikimisi');   // null = katkestati
 //   rpTeata('Salvestatud');
 (function () {
+  // Läti lehed on inglise keeles (lang="en") — siis ka nupud inglise keeles.
+  var ingl = (document.documentElement.lang || '').toLowerCase().indexOf('en') === 0;
   function looAken(tekst, tyyp, vaikimisi, jahTekst) {
     return new Promise(function (valmis) {
       var kate = document.createElement('div');
@@ -34,14 +36,14 @@
       var katkestus = tyyp === 'tekst' ? null : false;
       if (tyyp !== 'teade') {
         var ei = document.createElement('button');
-        ei.type = 'button'; ei.textContent = 'Tühista';
+        ei.type = 'button'; ei.textContent = ingl ? 'Cancel' : 'Tühista';
         ei.setAttribute('style', nupuStiil + 'background:#1e2128;color:#cbd2dc');
         ei.onclick = function () { sulge(katkestus); };
         nupud.appendChild(ei);
       }
       var jah = document.createElement('button');
       jah.type = 'button';
-      jah.textContent = jahTekst || (tyyp === 'kysimus' ? 'Jah' : 'OK');
+      jah.textContent = jahTekst || (tyyp === 'kysimus' ? (ingl ? 'Yes' : 'Jah') : 'OK');
       jah.setAttribute('style', nupuStiil + 'background:#c9a84c;border-color:#c9a84c;color:#14110a');
       jah.onclick = function () { sulge(tyyp === 'tekst' ? sisend.value : true); };
       nupud.appendChild(jah);

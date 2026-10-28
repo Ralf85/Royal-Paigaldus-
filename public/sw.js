@@ -3,8 +3,8 @@ self.addEventListener('push', function(event) {
   const title = data.title || 'Royal Paigaldus';
   const options = {
     body: data.body || 'Uus teavitus',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     vibrate: [200, 100, 200],
     data: data.url || '/',
     actions: [

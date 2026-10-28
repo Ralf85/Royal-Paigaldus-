@@ -248,6 +248,11 @@
 
 <script src="/failid.js"></script>
 <script>
+  // Galeriis laetakse väike eelvaade (Cloudinary teeb ise), suur pilt avaneb klikiga. Telefonis tunduvalt kiirem.
+  function pisipilt(url) {
+    if (!url || url.indexOf("res.cloudinary.com") < 0 || url.indexOf("/image/upload/") < 0) return url;
+    return url.replace("/image/upload/", "/image/upload/c_fill,w_400,h_400,q_auto,f_auto/");
+  }
 // ── Token: Läti admin logib siin lehel oma PIN-iga (lvAdminToken). Kui lehe avab Royal Paigalduse
 // peaadmin, kasutame tema olemasolevat adminToken'it ja näitame lisaks "Latvia admins" paneeli.
 let token = localStorage.getItem('lvAdminToken') || localStorage.getItem('adminToken') || '';
@@ -429,7 +434,7 @@ async function openProjectStorePhotos(storeId, number, name) {
     `<div style="margin-bottom:12px"><a class="btn small" href="#" onclick="rpLaeFail('/api/latvia/gallery/zip/${storeId}?project_id=${pProject.id}', token, 'photos.zip', { inglise: true });return false;" style="text-decoration:none">⬇ Download these photos (ZIP)</a></div>` +
     '<div class="photo-grid">' + r.photos.map(p => `
       <div class="photo-item">
-        <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
+        <img src="${pisipilt(p.url)}" onclick="openLightbox('${p.url}')" alt="">
         <button class="photo-del" title="Delete photo" onclick="deleteProjectPhoto(${p.id})">✕</button>
         <div class="photo-cap">${fmtDate(p.work_date)}${p.worker_name ? ' · ' + esc(p.worker_name) : ''}</div>
       </div>`).join('') + '</div>';
@@ -497,7 +502,7 @@ async function openGalleryPhotos(projectId, projectName) {
     `<div style="margin-bottom:12px"><a class="btn small" href="#" onclick="rpLaeFail('/api/latvia/gallery/zip/${gStore.id}?project_id=${projectId}', token, 'photos.zip', { inglise: true });return false;" style="text-decoration:none">⬇ Download this project (ZIP)</a></div>` +
     '<div class="photo-grid">' + r.photos.map(p => `
       <div class="photo-item">
-        <img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
+        <img src="${pisipilt(p.url)}" onclick="openLightbox('${p.url}')" alt="">
         <button class="photo-del" title="Delete photo" onclick="deletePhoto(${p.id})">✕</button>
         <div class="photo-cap">${fmtDate(p.work_date)}${p.worker_name ? ' · ' + esc(p.worker_name) : ''}</div>
       </div>`).join('') + '</div>';
@@ -542,7 +547,7 @@ async function loadTimeline() {
           </div>
           <span class="pill">${e.photo_count} photo(s)</span>
         </div>
-        <div class="tl-thumbs">${photos.map(p => `<img src="${p.url}" onclick="openLightbox('${p.url}')" alt="">`).join('')}</div>
+        <div class="tl-thumbs">${photos.map(p => `<img src="${pisipilt(p.url)}" onclick="openLightbox('${p.url}')" alt="">`).join('')}</div>
       </div>`;
   }).join('');
 }
