@@ -215,6 +215,7 @@ async function laadiRaportExcel() {
 
 // ── AUDIT LOGI ─────────────────────────────────────────────────
 const AUDIT_TEGEVUSED = {
+  ANDMED_ALLA_LAETUD: 'laadis alla andmete varukoopia',
   sisse_logi: 'logis sisse',
   valja_logi: 'logis välja',
   lisa_kirje: 'lisas töökirje',
@@ -1387,3 +1388,25 @@ async function xsKustutaKulu(id) {
   await xsLaadiKulud();
 }
 
+
+// ── ANDMETE VARUKOOPIA ─────────────────────────────────────────────
+async function laeVarukoopia() {
+  const nupp = document.getElementById('varukoopiaNupp');
+  const vanaTekst = nupp.textContent;
+  nupp.disabled = true; nupp.textContent = 'Koostan...';
+  try {
+    const r = await fetch('/api/admin/varukoopia', { headers: { 'x-session-token': TOKEN } });
+    if (!r.ok) throw new Error('Server vastas veaga (' + r.status + ')');
+    const blob = await r.blob();
+    const nimi = ((r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || 'Royal_paigaldus_andmed.zip';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nimi;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    alert('Allalaadimine ebaõnnestus: ' + e.message);
+  } finally {
+    nupp.disabled = false; nupp.textContent = vanaTekst;
+  }
+}

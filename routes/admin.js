@@ -1535,6 +1535,43 @@ router.get('/audit-log', noudaAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
+// ── ANDMETE ALLALAADIMINE (varukoopia) ─────────────────────────────
+// Kõik andmebaasi tabelid ühe ZIP-failina, iga tabel eraldi JSON-failina.
+// Sisselogimise sessioonid, FaceID võtmed, push-tellimused ja sisselogimiskatsed jäetakse välja
+// (need ei ole äriandmed ja failis oleksid need turvarisk). Pilte ZIP-i ei panda — need on Cloudinarys, failis on nende aadressid.
+router.get('/varukoopia', noudaAdmin, async (req, res) => {
+  const archiver = require('archiver');
+  const valja = /(_sessions|_webauthn)$|^login_katsed$|^push_subscriptions$|^session$/;
+  const tabelid = (await pool.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`
+  )).rows.map(r => r.table_name).filter(t => !valja.test(t));
+
+  const d = new Date();
+  const kp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="Royal_paigaldus_andmed_${kp}.zip"`);
+  const zip = archiver('zip', { zlib: { level: 6 } });
+  zip.on('error', e => { console.error('Varukoopia ZIP viga:', e.message); res.destroy(e); });
+  zip.pipe(res);
+
+  const kokkuvote = { loodud: d.toISOString(), tabelid: {} };
+  for (const t of tabelid) {
+    // Tabelinimi tuleb andmebaasi enda nimekirjast, mitte kasutajalt; jutumärgid igaks juhuks.
+    const r = await pool.query(`SELECT * FROM "${t.replace(/"/g, '""')}"`);
+    kokkuvote.tabelid[t] = r.rows.length;
+    zip.append(JSON.stringify(r.rows, null, 1), { name: `${t}.json` });
+  }
+  zip.append(JSON.stringify(kokkuvote, null, 2), { name: '_sisukord.json' });
+  await zip.finalize();
+  try {
+    await pool.query(
+      `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+      [null, 'ANDMED_ALLA_LAETUD', `${tabelid.length} tabelit`, req.ip || null]
+    );
+  } catch (e) { /* logi puudumine ei takista allalaadimist */ }
+});
+
 // ── FILTER RAPORT ─────────────────────────────────────────────────
 
 // Raporti perioodi kontroll: vigane kuupäev või ID andis varem andmebaasi vea (HTTP 500).
