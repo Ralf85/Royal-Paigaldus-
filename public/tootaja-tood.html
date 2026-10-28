@@ -122,11 +122,15 @@
     .lisavaljad-kokkuvote { font-weight: 400; color: #9aa3b2; font-size: 13px; }
     .kuu-nupp { background: transparent; border: 1px solid #2b3039; color: #cbd2dc; border-radius: 8px; padding: 4px 10px; font-size: 14px; cursor: pointer; font-family: inherit; }
     .kuu-nupp:disabled { opacity: .3; cursor: default; }
+    .ootel-riba { display: none; background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.35); color: #bfdbfe; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; line-height: 1.5; }
+    .ootel-riba button { background: #60a5fa; color: #0d0f13; border: none; border-radius: 8px; padding: 7px 12px; font-weight: 700; font-family: inherit; cursor: pointer; margin-top: 8px; margin-right: 6px; }
+    .ootel-riba button.loobu { background: transparent; color: #9aa3b2; border: 1px solid #3a4150; }
     .foto-uuesti { margin-top: 8px; font-size: 13px; color: #fcd34d; line-height: 1.5; }
     .foto-uuesti a { color: #9aa3b2; text-decoration: underline; cursor: pointer; }
     .poe-seis-varem { font-size: 12px; color: #9aa3b2; margin-top: 8px; line-height: 1.45; }
   </style>
   <script src="/dialoog.js"></script>
+  <script src="/ootel.js"></script>
 </head>
 <body>
   <div class="topbar">
@@ -202,6 +206,7 @@
     <div class="lisa-kaart">
       <div class="lisa-hdr">➕ Lisa töökirje</div>
       <div class="lisa-body">
+        <div class="ootel-riba" id="ootel-riba"></div>
         <button type="button" class="kopeeri-nupp" id="kopeeri-nupp" style="display:none" onclick="kopeeriEelmine()">↺ Täida eelmise kirje järgi</button>
         <!-- Lidl projekti valik (fotode kaustastruktuuri jaoks) — enne poodi, sest projekt tõstab oma poed nimekirjas ette -->
         <div class="vorm-rida" id="lidl-projekt-grupp" style="display:none">
@@ -426,6 +431,8 @@
       document.getElementById('foto-kaamera').addEventListener('change', function() { lisaFotod(this.files); });
       document.getElementById('foto-album').addEventListener('change', function() { lisaFotod(this.files); });
       await laadiKirjed();
+      naitaOotel();
+      saadaOotel();
     }
     async function laadiKirjeldused() {
       try {
@@ -741,17 +748,39 @@
       nupp.className = 'salvesta-nupp laadib';
       nupp.textContent = '⏳ Salvestab...';
       setProgress('Salvestab töökirjet...', 10);
+      var kirjeKeha = {
+        ettevote_id: ettevoteId, objekt_id: objekt_id,
+        kuupaev: kuupaev, algus: algus, lopp: lopp,
+        kommentaar: loplikKommentaar,
+        kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel,
+        lidl_projekt_id: lidlProjektId,
+        klient_id: window.rpKlientId ? rpKlientId() : null
+      };
       try {
-        var r = await api('/api/tood/lisa', {
-          method: 'POST',
-          body: JSON.stringify({
-            ettevote_id: ettevoteId, objekt_id: objekt_id,
-            kuupaev: kuupaev, algus: algus, lopp: lopp,
-            kommentaar: loplikKommentaar,
-            kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel,
-            lidl_projekt_id: lidlProjektId
-          })
-        });
+        var r;
+        try {
+          if (navigator.onLine === false) throw new TypeError('Levi pole');
+          r = await api('/api/tood/lisa', { method: 'POST', body: JSON.stringify(kirjeKeha) });
+        } catch (vorguViga) {
+          // Levi pole või server ei vastanud — kirje jääb telefoni ootama (kui brauser seda toetab)
+          if (!(vorguViga instanceof TypeError || vorguViga instanceof SyntaxError) || !window.rpOotel || !rpOotel.toetatud || !kirjeKeha.klient_id) throw vorguViga;
+          setProgress('Levi pole — salvestan telefoni ootele...', 50);
+          await paneOotele(kirjeKeha, seisuSaatmine, valitudFotod.slice());
+          valitudFotod = [];
+          document.getElementById('foto-kaamera').value = '';
+          document.getElementById('foto-album').value = '';
+          document.getElementById('foto-eelvaade').style.display = 'none';
+          document.getElementById('foto-grid').innerHTML = '';
+          puhastaVorm();
+          setProgress(null, null);
+          naitaTeade('📶 Levi pole — kirje jäi telefoni ootama ja saadetakse ise, kui levi tagasi tuleb. Ära seda lehte sulge.', 'ok');
+          salvestamine = false;
+          nupp.disabled = false;
+          nupp.className = 'salvesta-nupp';
+          nupp.textContent = 'Salvesta kirje';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
         if (!r.ok) {
           naitaTeade('❌ ' + (r.veateade || 'Viga salvestamisel'), 'viga');
           setProgress(null, null);
@@ -782,18 +811,7 @@
           ebaonnestunud = await laePildid(r.kirjeId, fotodKoopia, nupp, 30);
         }
         setProgress(ebaonnestunud.length ? '⚠️ Kirje salvestatud, osa pilte jäi üles laadimata' : '✅ Kõik salvestatud!', 100);
-        // Puhasta vorm
-        document.getElementById('km').value = '0';
-        document.getElementById('lisakulu').value = '0';
-        document.getElementById('lisakulu-sel').value = '';
-        document.getElementById('lisakulu-sel-rida').style.display = 'none';
-        document.getElementById('kirjeldus-select').value = '';
-        // Ühe projektiga töötajal jääb projekt valituks
-        var jaavProjekt = lidlProjektid.length === 1 ? String(lidlProjektid[0].id) : '';
-        document.getElementById('lidl-projekt-select').value = jaavProjekt;
-        if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(jaavProjekt); }
-        document.getElementById('kommentaar').value = '';
-        uuendaLisavaljadKokkuvote();
+        puhastaVorm();
         var teadeTekst = (ebaonnestunud.length || seisuViga ? '⚠️ Kirje salvestatud: ' : '✅ Salvestatud! ') + r.tunnid + 'h';
         if (fotodKoopia.length) teadeTekst += ' · ' + (fotodKoopia.length - ebaonnestunud.length) + '/' + fotodKoopia.length + ' pilti lisatud';
         if (r.lounaPaus) teadeTekst += ' · lõunapaus arvestatud';
@@ -834,6 +852,99 @@
         nupp.textContent = 'Salvesta kirje';
       }
     }
+    function puhastaVorm() {
+      document.getElementById('km').value = '0';
+      document.getElementById('lisakulu').value = '0';
+      document.getElementById('lisakulu-sel').value = '';
+      document.getElementById('lisakulu-sel-rida').style.display = 'none';
+      document.getElementById('kirjeldus-select').value = '';
+      // Ühe projektiga töötajal jääb projekt valituks
+      var jaavProjekt = lidlProjektid.length === 1 ? String(lidlProjektid[0].id) : '';
+      document.getElementById('lidl-projekt-select').value = jaavProjekt;
+      if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(jaavProjekt); }
+      document.getElementById('kommentaar').value = '';
+      uuendaLisavaljadKokkuvote();
+    }
+
+    // ── OOTEJÄRJEKORD (nõrk levi) ────────────────────────────
+    async function paneOotele(keha, seis, failid) {
+      var pildid = [];
+      for (var i = 0; i < failid.length; i++) {
+        try {
+          var f = await kompresseeriFoto(failid[i]);
+          pildid.push({ nimi: f.name, tyyp: f.type, andmed: await f.arrayBuffer() });
+        } catch (e) { console.error('Pildi ootele panek ebaõnnestus', e); }
+      }
+      await rpOotel.salvesta({ klient_id: keha.klient_id, ettevote_id: String(ettevoteId), keha: keha, seis: seis, pildid: pildid, kirjeId: null, viga: null, lisatud: Date.now() });
+      naitaOotel();
+    }
+    var ootelSaadab = false;
+    async function saadaOotel() {
+      if (ootelSaadab || !window.rpOotel || !rpOotel.toetatud || navigator.onLine === false) return;
+      ootelSaadab = true;
+      var saadetud = 0;
+      try {
+        var koik = await rpOotel.koik();
+        for (var i = 0; i < koik.length; i++) {
+          var k = koik[i];
+          if (k.viga) continue; // server keeldus — ootab töötaja otsust
+          try {
+            if (!k.kirjeId) {
+              var r = await api('/api/tood/lisa', { method: 'POST', body: JSON.stringify(k.keha) });
+              if (!r.ok) { k.viga = r.veateade || 'Server ei võtnud kirjet vastu'; await rpOotel.salvesta(k); continue; }
+              k.kirjeId = r.kirjeId;
+              await rpOotel.salvesta(k);
+              if (k.seis) { try { await api('/api/lidl-poed/seis', { method: 'POST', body: JSON.stringify(k.seis) }); } catch (e) {} }
+            }
+            var alles = [];
+            for (var j = 0; j < k.pildid.length; j++) {
+              var p = k.pildid[j];
+              try {
+                var fd = new FormData();
+                fd.append('kirje_id', k.kirjeId);
+                fd.append('pildid', new File([p.andmed], p.nimi || 'pilt.jpg', { type: p.tyyp || 'image/jpeg' }));
+                var pr = await fetch('/api/pildid/lisa', { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd });
+                if (!pr.ok) alles.push(p);
+              } catch (e) { alles.push(p); }
+            }
+            if (alles.length) { k.pildid = alles; await rpOotel.salvesta(k); }
+            else { await rpOotel.eemalda(k.klient_id); saadetud++; }
+          } catch (e) {
+            break; // levi kadus uuesti — proovime hiljem
+          }
+        }
+      } catch (e) { console.error('Ootejärjekord:', e); }
+      ootelSaadab = false;
+      await naitaOotel();
+      if (saadetud) { naitaTeade('✅ ' + saadetud + ' ootel kirjet saadetud', 'ok'); kuuNihe = 0; laadiKirjed(); }
+    }
+    async function naitaOotel() {
+      var riba = document.getElementById('ootel-riba');
+      if (!riba || !window.rpOotel || !rpOotel.toetatud) return;
+      var koik = [];
+      try { koik = (await rpOotel.koik()).filter(function (k) { return k.ettevote_id === String(ettevoteId); }); } catch (e) {}
+      if (!koik.length) { riba.style.display = 'none'; riba.innerHTML = ''; return; }
+      var vead = koik.filter(function (k) { return k.viga; });
+      var html = '📶 <b>' + koik.length + '</b> kirje' + (koik.length === 1 ? '' : 't') + ' ootab saatmist'
+        + ' (' + koik.map(function (k) { return esc(String(k.keha.kuupaev).split('-').reverse().slice(0, 2).join('.') + ' ' + k.keha.algus + '–' + k.keha.lopp) + (k.pildid.length ? ' · ' + k.pildid.length + ' pilti' : ''); }).join('; ') + ').'
+        + ' Saadetakse ise, kui levi tagasi tuleb.';
+      vead.forEach(function (k) {
+        html += '<div style="margin-top:8px;color:#fca5a5">⚠️ ' + esc(k.keha.kuupaev) + ': ' + esc(k.viga) + '</div>'
+          + '<button type="button" class="loobu" onclick="loobuOotel(\'' + esc(k.klient_id) + '\')">Loobu sellest kirjest</button>';
+      });
+      if (koik.length > vead.length) html += '<div><button type="button" onclick="saadaOotel()">Proovi kohe saata</button></div>';
+      riba.innerHTML = html;
+      riba.style.display = 'block';
+    }
+    async function loobuOotel(id) {
+      if (!await rpKysi('Loobud sellest ootel kirjest? See kustutatakse telefonist ja serverisse seda ei saadeta.')) return;
+      await rpOotel.eemalda(id);
+      naitaOotel();
+    }
+    window.addEventListener('online', function () { saadaOotel(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) saadaOotel(); });
+    setInterval(saadaOotel, 60000);
+
     // ── KIRJED ───────────────────────────────────────────────
     async function laadiKirjed() {
       var nyyd = new Date();

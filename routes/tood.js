@@ -56,7 +56,13 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 // Lisa töökirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
+  const klientId = req.body.klient_id ? String(req.body.klient_id).slice(0, 40) : null;
   try {
+    // Sama kirje saadeti juba (telefon ei saanud vastust kätte ja proovis uuesti) — tagasta olemasolev
+    if (klientId) {
+      const olemas = await pool.query('SELECT id, tunnid FROM tookirjed WHERE worker_id=$1 AND klient_id=$2', [req.session.workerId, klientId]);
+      if (olemas.rows.length) return res.json({ ok: true, tunnid: parseFloat(olemas.rows[0].tunnid).toFixed(2), kirjeId: olemas.rows[0].id, korduv: true });
+    }
     if (await onKuuSuletud(kuupaev)) return res.json({ ok: false, veateade: SULETUD_TEADE });
     const aeg = tunnidKellaajast(algus, lopp);
     const minutid = aeg.minutid;
@@ -74,9 +80,9 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     const lisakulu_sel = lisakulu_selgitus || '';
 
     const result = await pool.query(
-      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel, lidl_projekt_id || null]
+      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, klient_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel, lidl_projekt_id || null, klientId]
     );
     const kirjeId = result.rows[0].id;
 

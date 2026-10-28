@@ -927,6 +927,10 @@ async function initDB() {
     // Kreeditarve põhjus (trükitakse kreeditarve PDF-ile)
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS kreedit_pohjus TEXT`);
 
+    // Töökirje kordussaatmise kaitse (ootejärjekord nõrga levi jaoks, vt public/ootel.js)
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS klient_id VARCHAR(40)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS tookirjed_klient_id_idx ON tookirjed (worker_id, klient_id) WHERE klient_id IS NOT NULL`);
+
     // Kuu sulgemine (vt kuulukk.js)
     await client.query(`
       CREATE TABLE IF NOT EXISTS kuu_lukud (
