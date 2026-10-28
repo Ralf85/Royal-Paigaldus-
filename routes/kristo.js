@@ -315,6 +315,180 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
   }
 });
 
+// ── PROJEKTI EXCEL (ülevaatamiseks inimestele, kes rakendust ei kasuta) ─────
+// Üks fail: leht "Ülevaade" (projekt, PO, seis kokku), "Poed" (iga pood: seis, kommentaar, käigud,
+// töötajad, pildid, Kristo kommentaarid) ja "Pildid" (iga pildi link). Tunde ega raha failis pole.
+// Admin (ka ilma töötaja sessioonita) või Kristo
+function noudaAdminVoiKristo(req, res, next) {
+  if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) return next();
+  return res.status(req.session.workerId ? 403 : 401).json({ ok: false, veateade: req.session.workerId ? 'Ligipääs keelatud' : 'Logi sisse' });
+}
+router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
+  const kirjeldus = String(req.query.kirjeldus || '').trim();
+  if (!kirjeldus) return res.status(400).json({ ok: false, veateade: 'Projekt määramata' });
+  try {
+    const ExcelJS = require('exceljs');
+    const { failiPais } = require('../csvabi');
+
+    const pr = await pool.query(`SELECT * FROM lidl_projektid WHERE nimi = $1 ORDER BY id LIMIT 1`, [kirjeldus]);
+    const projekt = pr.rows[0] || null;
+    const projektId = projekt ? projekt.id : null;
+    let maaratud = false;
+    if (projektId) {
+      try {
+        const m = await pool.query('SELECT 1 FROM lidl_projekt_poed WHERE projekt_id = $1 LIMIT 1', [projektId]);
+        maaratud = m.rows.length > 0;
+      } catch (e) { /* tabelit pole */ }
+    }
+    const infoR = await pool.query('SELECT * FROM lidl_projekti_info WHERE kirjeldus = $1', [kirjeldus]).catch(() => ({ rows: [] }));
+    const info = infoR.rows[0] || {};
+
+    // Poed: projektile määratud poed (või kõik aktiivsed Lidli poed) + kõik poed, kus selle projekti tööd on tehtud
+    const poed = (await pool.query(
+      `WITH too AS (
+         SELECT t.objekt_id,
+                MIN(t.kuupaev) AS esimene, MAX(t.kuupaev) AS viimane,
+                COUNT(DISTINCT t.id)::int AS kaike,
+                string_agg(DISTINCT w.nimi, ', ') AS tootajad
+         FROM tookirjed t
+         JOIN workers w ON w.id = t.worker_id
+         ${LP_JOIN}
+         WHERE ${KIRJELDUS_VOTI} = $1 AND t.objekt_id IS NOT NULL
+         GROUP BY t.objekt_id
+       ), pildid AS (
+         SELECT t.objekt_id, COUNT(DISTINCT p.id)::int AS n
+         FROM tookirje_pildid p JOIN tookirjed t ON t.id = p.tookirje_id
+         ${LP_JOIN}
+         WHERE ${KIRJELDUS_VOTI} = $1
+         GROUP BY t.objekt_id
+       ), kom AS (
+         SELECT objekt_id, string_agg(to_char(loodud, 'DD.MM.YYYY') || ': ' || tekst, E'\\n' ORDER BY loodud) AS tekst
+         FROM kristo_kommentaarid WHERE kirjeldus = $1 GROUP BY objekt_id
+       )
+       SELECT o.id, o.nimi, too.esimene, too.viimane, COALESCE(too.kaike, 0) AS kaike, too.tootajad,
+              COALESCE(pildid.n, 0) AS pilte, kom.tekst AS kristo,
+              s.seis, s.kommentaar AS seis_kommentaar, s.muutja AS seis_muutja, s.muudetud AS seis_muudetud
+       FROM objektid o
+       JOIN ettevotted e ON e.id = o.ettevote_id
+       LEFT JOIN too ON too.objekt_id = o.id
+       LEFT JOIN pildid ON pildid.objekt_id = o.id
+       LEFT JOIN kom ON kom.objekt_id = o.id
+       LEFT JOIN lidl_poe_seis s ON s.objekt_id = o.id AND s.projekt_id = $2::int
+       WHERE e.nimi = 'LIDL' AND (
+         too.objekt_id IS NOT NULL OR s.id IS NOT NULL OR
+         (o.aktiivne = true AND ($3::boolean = false OR o.id IN (SELECT objekt_id FROM lidl_projekt_poed WHERE projekt_id = $2::int)))
+       )
+       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi`,
+      [kirjeldus, projektId, maaratud]
+    )).rows;
+
+    const pildid = (await pool.query(
+      `SELECT o.nimi AS pood, t.kuupaev, w.nimi AS tootaja, p.url
+       FROM tookirje_pildid p
+       JOIN tookirjed t ON t.id = p.tookirje_id
+       JOIN objektid o ON o.id = t.objekt_id
+       JOIN workers w ON w.id = t.worker_id
+       ${LP_JOIN}
+       WHERE ${KIRJELDUS_VOTI} = $1
+       ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi, t.kuupaev, p.id`,
+      [kirjeldus]
+    )).rows;
+
+    const seisTekst = p => p.seis === 'puudu' ? '! Midagi puudu'
+      : (p.seis === 'valmis' ? '✓ Valmis' : (p.pilte > 0 ? '✓ Tehtud' : 'Tegemata'));
+    const valmis = poed.filter(p => p.seis === 'valmis' || (p.pilte > 0 && p.seis !== 'puudu')).length;
+    const puudu = poed.filter(p => p.seis === 'puudu').length;
+    const kp = d => d ? new Date(d) : null;
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Royal Paigaldus';
+    const PEA = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+    const peaFont = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+    // ── Leht 1: Ülevaade
+    const u = wb.addWorksheet('Ülevaade');
+    u.columns = [{ width: 26 }, { width: 60 }];
+    u.addRow(['Lidl projekt', kirjeldus]).font = { bold: true, size: 14 };
+    const tana = new Date();
+    [
+      ['PO number', info.po_number || ''],
+      ['Projekti number', info.projekt_number || ''],
+      ['Tähtaeg', projekt && projekt.tahtaeg ? kp(projekt.tahtaeg) : ''],
+      ['Märkus', info.markus || (projekt && projekt.markus) || ''],
+      ['', ''],
+      ['Poode kokku', poed.length],
+      ['✓ Valmis', valmis],
+      ['! Midagi puudu', puudu],
+      ['Tegemata', poed.length - valmis - puudu],
+      ['Pilte kokku', pildid.length],
+      ['', ''],
+      ['Koostatud', tana],
+      ['Koostaja', 'Royal Paigaldus OÜ · info@royalco.ee']
+    ].forEach(r => u.addRow(r));
+    u.getColumn(1).font = { bold: true };
+    u.eachRow(r => { r.getCell(2).alignment = { horizontal: 'left', wrapText: true }; });
+    u.getCell('B4').numFmt = 'dd.mm.yyyy';
+    u.getCell('B13').numFmt = 'dd.mm.yyyy hh:mm';
+
+    // ── Leht 2: Poed
+    const ws = wb.addWorksheet('Poed', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [
+      { header: 'Pood', key: 'pood', width: 28 },
+      { header: 'Seis', key: 'seis', width: 16 },
+      { header: 'Seisu kommentaar', key: 'kommentaar', width: 42 },
+      { header: 'Seisu märkis', key: 'muutja', width: 16 },
+      { header: 'Märgitud', key: 'muudetud', width: 12 },
+      { header: 'Esimene käik', key: 'esimene', width: 13 },
+      { header: 'Viimane käik', key: 'viimane', width: 13 },
+      { header: 'Käike', key: 'kaike', width: 8 },
+      { header: 'Töötajad', key: 'tootajad', width: 26 },
+      { header: 'Pilte', key: 'pilte', width: 8 },
+      { header: 'Kristo kommentaarid', key: 'kristo', width: 42 }
+    ];
+    poed.forEach(p => {
+      const r = ws.addRow({
+        pood: p.nimi, seis: seisTekst(p), kommentaar: p.seis_kommentaar || '',
+        muutja: p.seis_muutja || '', muudetud: kp(p.seis_muudetud),
+        esimene: kp(p.esimene), viimane: kp(p.viimane), kaike: p.kaike || null,
+        tootajad: p.tootajad || '', pilte: p.pilte || null, kristo: p.kristo || ''
+      });
+      const varv = p.seis === 'puudu' ? 'FFFEF3C7' : (seisTekst(p).startsWith('✓') ? 'FFDCFCE7' : null);
+      if (varv) r.getCell('seis').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: varv } };
+      ['muudetud', 'esimene', 'viimane'].forEach(k => { r.getCell(k).numFmt = 'dd.mm.yyyy'; });
+      ['kommentaar', 'kristo', 'tootajad'].forEach(k => { r.getCell(k).alignment = { wrapText: true, vertical: 'top' }; });
+      r.alignment = { vertical: 'top' };
+    });
+    ws.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
+
+    // ── Leht 3: Pildid (lingid avanevad brauseris ilma sisselogimiseta)
+    const wp = wb.addWorksheet('Pildid', { views: [{ state: 'frozen', ySplit: 1 }] });
+    wp.columns = [
+      { header: 'Pood', key: 'pood', width: 28 },
+      { header: 'Kuupäev', key: 'kp', width: 12 },
+      { header: 'Töötaja', key: 'tootaja', width: 18 },
+      { header: 'Pilt', key: 'pilt', width: 14 }
+    ];
+    pildid.forEach(p => {
+      const r = wp.addRow({ pood: p.pood, kp: kp(p.kuupaev), tootaja: p.tootaja, pilt: { text: 'Ava pilt', hyperlink: p.url } });
+      r.getCell('kp').numFmt = 'dd.mm.yyyy';
+      r.getCell('pilt').font = { color: { argb: 'FF2563EB' }, underline: true };
+    });
+    wp.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
+    if (pildid.length) wp.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
+
+    const nimi = `Lidl ${kirjeldus} ${tana.getDate()}.${tana.getMonth() + 1}.${tana.getFullYear()}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', failiPais(nimi));
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Projekti Excel:', err);
+    if (!res.headersSent) res.status(500).json({ ok: false, veateade: 'Exceli koostamine ebaõnnestus' });
+    else res.end();
+  }
+});
+
 // ── KRONOLOOGIA: kõik tööd (kõigist poodidest) ühes voos, uusim üleslaetud pilt enne.
 // Mõeldud hommikuseks "mis eile tehti ja kus käidi" ülevaateks, ilma poodide kaupa kaevamata.
 router.get('/kronoloogia', noudaFotoVaade, async (req, res) => {

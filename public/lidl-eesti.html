@@ -98,6 +98,7 @@
     .kaetus { display: flex; align-items: center; gap: 12px; background: #13161c; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; flex-wrap: wrap; }
     .kaetus b { color: #FFF200; }
     .kaetus-riba { flex: 1; min-width: 120px; height: 7px; background: #1e2128; border-radius: 5px; overflow: hidden; }
+    .excel-nupp { margin-left: auto; background: #FFF200; color: #0d0f13; border: none; border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
     .kaetus-riba i { display: block; height: 100%; background: linear-gradient(90deg, #002060, #FFF200); }
     .tyhi { padding: 60px 20px; text-align: center; color: #3a3d45; font-size: 13px; }
     .laadimine { padding: 60px 20px; text-align: center; color: #7a8290; font-size: 13px; }
@@ -491,6 +492,7 @@
         + '<div class="kaetus-riba"><i style="width:' + pct + '%"></i></div>'
         + (puudu ? '<span style="color:#fcd34d;font-weight:700">! ' + puudu + ' poes puudu</span>' : '')
         + '<span style="color:#7a8290">' + (r.kokku - r.tehtud - puudu) + ' veel tegemata</span>'
+        + (!PIIRATUD ? '<button type="button" class="excel-nupp" onclick="laeProjektiExcel()" title="Üks fail ülevaatamiseks: poed, seis, kommentaarid, piltide lingid">⬇ Excel</button>' : '')
         + '</div>';
       sisu.innerHTML = kaetus + '<div class="poe-grid">' + r.poed.map(function(p) {
         var osad = poeNimiOsad(p.objekt_nimi);
@@ -514,6 +516,11 @@
       }).join('') + '</div>';
     }
 
+    // Projekti Excel (admin ja Kristo): kõik poed, seis, kommentaarid ja piltide lingid ühes failis
+    function laeProjektiExcel() {
+      if (!valitudKirjeldus) return;
+      rpLaeFail('/api/kristo/projekt-excel?kirjeldus=' + encodeURIComponent(valitudKirjeldus), TOKEN, 'Lidl ' + valitudKirjeldus + '.xlsx');
+    }
     // JSON väärtus ühekordsete jutumärkidega onclick='...' atribuudi sisse (nimi apostroofiga ei lõhu nuppu)
     function jsA(x) { return JSON.stringify(x).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); }
     function escH(s) {
