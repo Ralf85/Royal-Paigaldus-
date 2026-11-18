@@ -318,7 +318,8 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
 // ── PROJEKTI EXCEL (ülevaatamiseks inimestele, kes rakendust ei kasuta) ─────
 // Üks fail: leht "Ülevaade" (projekt, PO, seis kokku), "Poed" (iga pood: seis, kommentaar, käigud,
 // töötajad, pildid, Kristo kommentaarid) ja "Pildid" (iga pildi link). Tunde ega raha failis pole.
-// ?kulud=1 (admin ja Lidl Eesti konto — nagu kogu see fail; tavatöötajad Excelit ei saa): lisaks lehed "Maksumus poodide kaupa" ja "Käigud" — tunnid, km ja maksumus
+// ?kulud=1 (admin ja Lidl Eesti konto — nagu kogu see fail; tavatöötajad Excelit ei saa): lisaks leht "Käigud"
+// ja "Poed" lehel veerg L "Poe kulu kokku €" — tunnid, km ja maksumus
 // Lidli hindadega (27 €/h + 0,50 €/km, km-ta ja KM-ga). Sisemisi kulusid (palk jms) failis pole.
 const LIDL_TUNNIHIND = 27;   // €/h käibemaksuta (sama mis routes/arved.js FIKS_TUNNIHINNAD)
 const LIDL_KM_HIND = 0.5;    // €/km käibemaksuta (arve "Transport" rida)
@@ -327,7 +328,8 @@ function noudaAdminVoiKristo(req, res, next) {
   if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) return next();
   return res.status(req.session.workerId ? 403 : 401).json({ ok: false, veateade: req.session.workerId ? 'Ligipääs keelatud' : 'Logi sisse' });
 }
-// Maksumuse lehed projekti Excelisse (nupp "Excel + maksumus", admin ja Lidl Eesti konto). Kõik summad on Lidlile
+// Maksumus projekti Excelisse (nupp "Excel + maksumus", admin ja Lidl Eesti konto): leht "Käigud" ja
+// "Poed" lehe veerg L "Poe kulu kokku €". Kõik summad on Lidlile
 // esitatavad hinnad (27 €/h + 0,50 €/km, km-ta ja koos 24% KM-ga) — Royal Paigalduse sisemisi kulusid
 // (töötajate palk, km-hüvitis) failis EI OLE. Tagastab kokkuvõtte "Ülevaade" lehe jaoks.
 const KM_MAAR = 24;
@@ -362,51 +364,19 @@ async function lisaKuluLehed(wb, kirjeldus, poed, st) {
     ['tunnid', 'km', 'too', 'transport'].forEach(v => { p[v] += k[v]; });
   });
 
-  const wk = wb.addWorksheet('Maksumus poodide kaupa', { views: [{ state: 'frozen', ySplit: 1 }] });
-  wk.columns = [
-    { header: 'Pood', key: 'pood', width: 26 },
-    { header: 'Seis', key: 'seis', width: 12 },
-    { header: 'Käike (päevi)', key: 'kaike', width: 11 },
-    { header: 'Töötajad', key: 'tootajad', width: 24 },
-    { header: 'Tunnid', key: 'tunnid', width: 9 },
-    { header: 'Km', key: 'km', width: 8 },
-    { header: `Tööd € (${LIDL_TUNNIHIND} €/h)`, key: 'too', width: 13 },
-    { header: `Transport € (${String(LIDL_KM_HIND).replace('.', ',')} €/km)`, key: 'transport', width: 14 },
-    { header: 'Kokku € (km-ta)', key: 'kmta', width: 13 },
-    { header: `Kokku € (KM ${KM_MAAR}%)`, key: 'kmga', width: 13 },
-    { header: 'Käigu kohta € (km-ta)', key: 'kaik', width: 13 }
-  ];
-  const RAHA = ['too', 'transport', 'kmta', 'kmga', 'kaik'];
+  // Poe kaupa kokku (Lidli hindadega, km-ta) — läheb "Poed" lehe veergu L "Poe kulu kokku €"
   const kokku = { kaike: 0, tunnid: 0, km: 0, too: 0, transport: 0, kmta: 0, kmga: 0 };
+  const poeKulu = new Map();
   let poodeTooga = 0;
-  poed.forEach((pd, i) => {
+  poed.forEach(pd => {
     const p = poeKaupa.get(pd.id);
-    const seis = pd.seis === 'puudu' ? '! Puudu' : (pd.seis === 'valmis' || pd.pilte > 0 ? '✓ Valmis' : 'Tegemata');
-    if (!p) { wk.addRow({ pood: pd.nimi, seis, kaike: 0 }).font = { color: { argb: 'FF9CA3AF' } }; return; }
+    if (!p) return;
     poodeTooga++;
     const kmta = r2(p.too + p.transport);
-    const rida = {
-      pood: pd.nimi, seis, kaike: p.paevad.size, tootajad: Array.from(p.tootajad).join(', '),
-      tunnid: r2(p.tunnid), km: r2(p.km), too: r2(p.too), transport: r2(p.transport),
-      kmta, kmga: r2(kmta * (1 + KM_MAAR / 100)), kaik: p.paevad.size ? r2(kmta / p.paevad.size) : 0
-    };
-    Object.keys(kokku).forEach(v => { kokku[v] += rida[v] || 0; });
-    const r = wk.addRow(rida);
-    RAHA.forEach(v => { r.getCell(v).numFmt = '#,##0.00'; });
-    r.getCell('kmta').font = { bold: true };
-    if (i % 2 === 1) r.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } }; });
-    if (rida.kaike > 1) r.getCell('kaike').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }; // mitu käiku — silma
+    poeKulu.set(pd.id, kmta);
+    kokku.kaike += p.paevad.size; kokku.tunnid += p.tunnid; kokku.km += p.km;
+    kokku.too += p.too; kokku.transport += p.transport; kokku.kmta += kmta; kokku.kmga += r2(kmta * (1 + KM_MAAR / 100));
   });
-  const kr = wk.addRow({ pood: 'KOKKU', kaike: kokku.kaike, tunnid: r2(kokku.tunnid), km: r2(kokku.km), too: r2(kokku.too),
-    transport: r2(kokku.transport), kmta: r2(kokku.kmta), kmga: r2(kokku.kmga), kaik: kokku.kaike ? r2(kokku.kmta / kokku.kaike) : 0 });
-  kr.eachCell({ includeEmpty: true }, c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } }; });
-  RAHA.forEach(v => { kr.getCell(v).numFmt = '#,##0.00'; });
-  wk.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; c.alignment = { wrapText: true, vertical: 'middle' }; });
-  wk.getRow(1).height = 30;
-  wk.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: wk.columns.length } };
-  wk.addRow([]);
-  wk.addRow([`Hinnad: tööd ${LIDL_TUNNIHIND} €/h, transport ${String(LIDL_KM_HIND).replace('.', ',')} €/km, käibemaksuta; KM ${KM_MAAR}%. Kollane "Käike" = poes käidud mitu päeva.`])
-    .getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
 
   const ylevaade = [
     ['Poode, kus tööd tehtud', poodeTooga],
@@ -448,7 +418,7 @@ async function lisaKuluLehed(wb, kirjeldus, poed, st) {
   });
   wd.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
   if (kirjed.length) wd.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: wd.columns.length } };
-  return ylevaade;
+  return { ylevaade, poeKulu };
 }
 
 // ── "Ülevaade" leht dokumendi moodi: Royal Paigalduse ja Lidli logo päises, ruudustik peidetud,
@@ -643,15 +613,15 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
     const tana = new Date();
 
     // ── (Ainult admin) Kulud poodide kaupa + Käigud
-    const kuluKokkuvote = kuludega ? await lisaKuluLehed(wb, kirjeldus, poed, { PEA, peaFont, kp }) : null;
+    const maksumus = kuludega ? await lisaKuluLehed(wb, kirjeldus, poed, { PEA, peaFont, kp }) : null;
 
     joonistaYlevaade(wb, u, {
       kirjeldus, info, kuludega,
       tahtaeg: projekt && projekt.tahtaeg ? kp(projekt.tahtaeg) : '',
       markus: info.markus || (projekt && projekt.markus) || '',
       poode: poed.length, valmis, puudu, pilte: pildid.length,
-      kulud: kuluKokkuvote, koostatud: tana,
-      lehed: (kuludega ? ['Maksumus poodide kaupa', 'Käigud'] : []).concat(['Poed', 'Pildid'])
+      kulud: maksumus && maksumus.ylevaade, koostatud: tana,
+      lehed: (kuludega ? ['Käigud'] : []).concat(['Poed', 'Pildid'])
     });
 
     // ── Leht 2: Poed
@@ -668,20 +638,29 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
       { header: 'Töötajad', key: 'tootajad', width: 26 },
       { header: 'Pilte', key: 'pilte', width: 8 },
       { header: 'Kristo kommentaarid', key: 'kristo', width: 42 }
-    ];
+    ].concat(maksumus ? [{ header: 'Poe kulu kokku € (km-ta)', key: 'kulu', width: 16 }] : []);
     poed.forEach(p => {
       const r = ws.addRow({
         pood: p.nimi, seis: seisTekst(p), kommentaar: p.seis_kommentaar || '',
         muutja: p.seis_muutja || '', muudetud: kp(p.seis_muudetud),
         esimene: kp(p.esimene), viimane: kp(p.viimane), kaike: p.kaike || null,
-        tootajad: p.tootajad || '', pilte: p.pilte || null, kristo: p.kristo || ''
+        tootajad: p.tootajad || '', pilte: p.pilte || null, kristo: p.kristo || '',
+        kulu: maksumus ? (maksumus.poeKulu.get(p.id) || null) : undefined
       });
+      if (maksumus) { r.getCell('kulu').numFmt = '#,##0.00 "€"'; r.getCell('kulu').font = { bold: true }; }
       const varv = p.seis === 'puudu' ? 'FFFEF3C7' : (seisTekst(p).startsWith('✓') ? 'FFDCFCE7' : null);
       if (varv) r.getCell('seis').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: varv } };
       ['muudetud', 'esimene', 'viimane'].forEach(k => { r.getCell(k).numFmt = 'dd.mm.yyyy'; });
       ['kommentaar', 'kristo', 'tootajad'].forEach(k => { r.getCell(k).alignment = { wrapText: true, vertical: 'top' }; });
       r.alignment = { vertical: 'top' };
     });
+    if (maksumus) {
+      const summa = Array.from(maksumus.poeKulu.values()).reduce((a, b) => a + b, 0);
+      const kr = ws.addRow({ pood: 'KOKKU', kulu: Math.round(summa * 100) / 100 });
+      kr.eachCell({ includeEmpty: true }, c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } }; });
+      kr.getCell('kulu').numFmt = '#,##0.00 "€"';
+      ws.getRow(1).getCell('kulu').alignment = { wrapText: true, vertical: 'middle' };
+    }
     ws.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
 
