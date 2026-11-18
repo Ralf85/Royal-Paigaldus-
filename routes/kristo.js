@@ -318,9 +318,8 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
 // ── PROJEKTI EXCEL (ülevaatamiseks inimestele, kes rakendust ei kasuta) ─────
 // Üks fail: leht "Ülevaade" (projekt, PO, seis kokku), "Poed" (iga pood: seis, kommentaar, käigud,
 // töötajad, pildid, Kristo kommentaarid) ja "Pildid" (iga pildi link). Tunde ega raha failis pole.
-// ?kulud=1 (AINULT admin): lisaks lehed "Kulud poodide kaupa" ja "Käigud" — töötunnid, km, arve väärtus
-// (Lidl 27 €/h + 0,50 €/km) ja Royal Paigalduse tegelik kulu (palk + km-hüvitis + lisakulud) poe kohta.
-// Seda faili Lidlile ei jagata — Kristo kulusid ei näe.
+// ?kulud=1 (AINULT admin): lisaks lehed "Maksumus poodide kaupa" ja "Käigud" — tunnid, km ja maksumus
+// Lidli hindadega (27 €/h + 0,50 €/km, km-ta ja KM-ga). Sisemisi kulusid (palk jms) failis pole.
 const LIDL_TUNNIHIND = 27;   // €/h käibemaksuta (sama mis routes/arved.js FIKS_TUNNIHINNAD)
 const LIDL_KM_HIND = 0.5;    // €/km käibemaksuta (arve "Transport" rida)
 // Admin (ka ilma töötaja sessioonita) või Kristo
@@ -328,107 +327,99 @@ function noudaAdminVoiKristo(req, res, next) {
   if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) return next();
   return res.status(req.session.workerId ? 403 : 401).json({ ok: false, veateade: req.session.workerId ? 'Ligipääs keelatud' : 'Logi sisse' });
 }
-// Kululehed projekti Excelisse (ainult admin). u = "Ülevaade" leht, kuhu lisatakse kokkuvõte.
+// Maksumuse lehed projekti Excelisse (nupp "Excel + maksumus", ainult admin). Kõik summad on Lidlile
+// esitatavad hinnad (27 €/h + 0,50 €/km, km-ta ja koos 24% KM-ga) — Royal Paigalduse sisemisi kulusid
+// (töötajate palk, km-hüvitis) failis EI OLE. Tagastab kokkuvõtte "Ülevaade" lehe jaoks.
+const KM_MAAR = 24;
 async function lisaKuluLehed(wb, kirjeldus, poed, st) {
   const { PEA, peaFont, kp } = st;
   const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
   const kirjed = (await pool.query(
     `SELECT t.id, t.objekt_id, o.nimi AS pood, t.kuupaev, w.nimi AS tootaja,
             to_char(t.algus, 'HH24:MI') AS algus, to_char(t.lopp, 'HH24:MI') AS lopp,
-            COALESCE(t.tunnid, 0) AS tunnid, COALESCE(t.kilomeetrid, 0) AS km, COALESCE(t.km_raha, 0) AS km_raha,
-            COALESCE(t.lisakulu_summa, 0) AS lisakulu, t.lisakulu_selgitus,
-            COALESCE(t.muu_tunnitasu, we.tunnitasu, 0) AS tunnitasu, t.kommentaar
+            COALESCE(t.tunnid, 0) AS tunnid, COALESCE(t.kilomeetrid, 0) AS km, t.kommentaar
      FROM tookirjed t
      JOIN workers w ON w.id = t.worker_id
      JOIN objektid o ON o.id = t.objekt_id
-     LEFT JOIN worker_ettevotted we ON we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id
      ${LP_JOIN}
      WHERE ${KIRJELDUS_VOTI} = $1 AND t.objekt_id IS NOT NULL
      ORDER BY NULLIF(regexp_replace(o.nimi, '^(\\d+).*$', '\\1'), o.nimi)::int NULLS LAST, o.nimi, t.kuupaev, t.algus`,
     [kirjeldus]
   )).rows.map(k => {
     const tunnid = parseFloat(k.tunnid) || 0, km = parseFloat(k.km) || 0;
-    const palk = r2(tunnid * (parseFloat(k.tunnitasu) || 0));
-    const kmRaha = r2(parseFloat(k.km_raha) || 0), lisakulu = r2(parseFloat(k.lisakulu) || 0);
-    const arveToo = r2(tunnid * LIDL_TUNNIHIND), arveKm = r2(km * LIDL_KM_HIND);
-    return Object.assign(k, { tunnid, km, palk, kmRaha, lisakulu, arveToo, arveKm,
-      arve: r2(arveToo + arveKm), kulu: r2(palk + kmRaha + lisakulu) });
+    const too = r2(tunnid * LIDL_TUNNIHIND), transport = r2(km * LIDL_KM_HIND);
+    const kmta = r2(too + transport);
+    return Object.assign(k, { tunnid, km, too, transport, kmta, kmga: r2(kmta * (1 + KM_MAAR / 100)) });
   });
 
   // Poe kaupa kokku
   const poeKaupa = new Map();
   kirjed.forEach(k => {
     let p = poeKaupa.get(k.objekt_id);
-    if (!p) { p = { paevad: new Set(), tootajad: new Set(), kirjeid: 0, tunnid: 0, km: 0, arveToo: 0, arveKm: 0, palk: 0, kmRaha: 0, lisakulu: 0 }; poeKaupa.set(k.objekt_id, p); }
+    if (!p) { p = { paevad: new Set(), tootajad: new Set(), tunnid: 0, km: 0, too: 0, transport: 0 }; poeKaupa.set(k.objekt_id, p); }
     p.paevad.add(String(k.kuupaev && k.kuupaev.toISOString ? k.kuupaev.toISOString().slice(0, 10) : k.kuupaev));
-    p.tootajad.add(k.tootaja); p.kirjeid++;
-    ['tunnid', 'km', 'arveToo', 'arveKm', 'palk', 'kmRaha', 'lisakulu'].forEach(v => { p[v] += k[v]; });
+    p.tootajad.add(k.tootaja);
+    ['tunnid', 'km', 'too', 'transport'].forEach(v => { p[v] += k[v]; });
   });
 
-  const wk = wb.addWorksheet('Kulud poodide kaupa', { views: [{ state: 'frozen', ySplit: 1 }] });
+  const wk = wb.addWorksheet('Maksumus poodide kaupa', { views: [{ state: 'frozen', ySplit: 1 }] });
   wk.columns = [
     { header: 'Pood', key: 'pood', width: 26 },
-    { header: 'Seis', key: 'seis', width: 13 },
+    { header: 'Seis', key: 'seis', width: 12 },
     { header: 'Käike (päevi)', key: 'kaike', width: 11 },
     { header: 'Töötajad', key: 'tootajad', width: 24 },
     { header: 'Tunnid', key: 'tunnid', width: 9 },
     { header: 'Km', key: 'km', width: 8 },
-    { header: 'Arve: tööd €', key: 'arveToo', width: 12 },
-    { header: 'Arve: transport €', key: 'arveKm', width: 13 },
-    { header: 'Arve kokku €', key: 'arve', width: 12 },
-    { header: 'Palk €', key: 'palk', width: 10 },
-    { header: 'Km-hüvitis €', key: 'kmRaha', width: 11 },
-    { header: 'Lisakulud €', key: 'lisakulu', width: 11 },
-    { header: 'Kulu kokku €', key: 'kulu', width: 12 },
-    { header: 'Kate €', key: 'kate', width: 11 },
-    { header: 'Kulu käigu kohta €', key: 'kuluKaik', width: 13 }
+    { header: `Tööd € (${LIDL_TUNNIHIND} €/h)`, key: 'too', width: 13 },
+    { header: `Transport € (${String(LIDL_KM_HIND).replace('.', ',')} €/km)`, key: 'transport', width: 14 },
+    { header: 'Kokku € (km-ta)', key: 'kmta', width: 13 },
+    { header: `Kokku € (KM ${KM_MAAR}%)`, key: 'kmga', width: 13 },
+    { header: 'Käigu kohta € (km-ta)', key: 'kaik', width: 13 }
   ];
-  const RAHA = ['arveToo', 'arveKm', 'arve', 'palk', 'kmRaha', 'lisakulu', 'kulu', 'kate', 'kuluKaik'];
-  const kokku = { kaike: 0, tunnid: 0, km: 0, arveToo: 0, arveKm: 0, arve: 0, palk: 0, kmRaha: 0, lisakulu: 0, kulu: 0, kate: 0 };
+  const RAHA = ['too', 'transport', 'kmta', 'kmga', 'kaik'];
+  const kokku = { kaike: 0, tunnid: 0, km: 0, too: 0, transport: 0, kmta: 0, kmga: 0 };
   let poodeTooga = 0;
   poed.forEach((pd, i) => {
     const p = poeKaupa.get(pd.id);
     const seis = pd.seis === 'puudu' ? '! Puudu' : (pd.seis === 'valmis' || pd.pilte > 0 ? '✓ Valmis' : 'Tegemata');
     if (!p) { wk.addRow({ pood: pd.nimi, seis, kaike: 0 }).font = { color: { argb: 'FF9CA3AF' } }; return; }
     poodeTooga++;
-    const arve = r2(p.arveToo + p.arveKm), kulu = r2(p.palk + p.kmRaha + p.lisakulu);
+    const kmta = r2(p.too + p.transport);
     const rida = {
       pood: pd.nimi, seis, kaike: p.paevad.size, tootajad: Array.from(p.tootajad).join(', '),
-      tunnid: r2(p.tunnid), km: r2(p.km), arveToo: r2(p.arveToo), arveKm: r2(p.arveKm), arve,
-      palk: r2(p.palk), kmRaha: r2(p.kmRaha), lisakulu: r2(p.lisakulu), kulu, kate: r2(arve - kulu),
-      kuluKaik: p.paevad.size ? r2(kulu / p.paevad.size) : 0
+      tunnid: r2(p.tunnid), km: r2(p.km), too: r2(p.too), transport: r2(p.transport),
+      kmta, kmga: r2(kmta * (1 + KM_MAAR / 100)), kaik: p.paevad.size ? r2(kmta / p.paevad.size) : 0
     };
     Object.keys(kokku).forEach(v => { kokku[v] += rida[v] || 0; });
     const r = wk.addRow(rida);
     RAHA.forEach(v => { r.getCell(v).numFmt = '#,##0.00'; });
+    r.getCell('kmta').font = { bold: true };
+    if (i % 2 === 1) r.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } }; });
     if (rida.kaike > 1) r.getCell('kaike').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } }; // mitu käiku — silma
-    if (rida.kate < 0) r.getCell('kate').font = { bold: true, color: { argb: 'FFDC2626' } };
-    if (i % 2 === 1) r.eachCell({ includeEmpty: true }, c => { if (!c.fill || c.fill.pattern !== 'solid') c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } }; });
   });
-  const kr = wk.addRow({ pood: 'KOKKU', kaike: kokku.kaike, tunnid: r2(kokku.tunnid), km: r2(kokku.km), arveToo: r2(kokku.arveToo), arveKm: r2(kokku.arveKm),
-    arve: r2(kokku.arve), palk: r2(kokku.palk), kmRaha: r2(kokku.kmRaha), lisakulu: r2(kokku.lisakulu), kulu: r2(kokku.kulu), kate: r2(kokku.kate),
-    kuluKaik: kokku.kaike ? r2(kokku.kulu / kokku.kaike) : 0 });
+  const kr = wk.addRow({ pood: 'KOKKU', kaike: kokku.kaike, tunnid: r2(kokku.tunnid), km: r2(kokku.km), too: r2(kokku.too),
+    transport: r2(kokku.transport), kmta: r2(kokku.kmta), kmga: r2(kokku.kmga), kaik: kokku.kaike ? r2(kokku.kmta / kokku.kaike) : 0 });
   kr.eachCell({ includeEmpty: true }, c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } }; });
   RAHA.forEach(v => { kr.getCell(v).numFmt = '#,##0.00'; });
   wk.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; c.alignment = { wrapText: true, vertical: 'middle' }; });
   wk.getRow(1).height = 30;
   wk.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: wk.columns.length } };
   wk.addRow([]);
-  wk.addRow([`Arve väärtus: tunnid × ${LIDL_TUNNIHIND} €/h + km × ${String(LIDL_KM_HIND).replace('.', ',')} €/km (käibemaksuta). Kulu: töötaja tunnitasu × tunnid + km-hüvitis + töökirje lisakulud. Kollane "Käike" = poes käidud mitu päeva.`])
+  wk.addRow([`Hinnad: tööd ${LIDL_TUNNIHIND} €/h, transport ${String(LIDL_KM_HIND).replace('.', ',')} €/km, käibemaksuta; KM ${KM_MAAR}%. Kollane "Käike" = poes käidud mitu päeva.`])
     .getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
 
-  // Kokkuvõte "Ülevaade" lehele (joonistab projekti-Exceli ülevaate funktsioon)
   const ylevaade = [
     ['Poode, kus tööd tehtud', poodeTooga],
     ['Käike kokku (poe-päevi)', kokku.kaike],
     ['Mitu käiku vajanud poode', Array.from(poeKaupa.values()).filter(p => p.paevad.size > 1).length],
     ['Tunnid kokku', r2(kokku.tunnid)],
     ['Km kokku', r2(kokku.km)],
-    ['Arve väärtus kokku €', r2(kokku.arve)],
-    ['Kulu kokku €', r2(kokku.kulu)],
-    ['Kate €', r2(kokku.kate)],
-    ['Keskmine kulu poe kohta €', poodeTooga ? r2(kokku.kulu / poodeTooga) : 0],
-    ['Keskmine kulu käigu kohta €', kokku.kaike ? r2(kokku.kulu / kokku.kaike) : 0]
+    ['Tööd €', r2(kokku.too)],
+    ['Transport €', r2(kokku.transport)],
+    ['Kokku (km-ta) €', r2(kokku.kmta)],
+    [`Kokku (KM ${KM_MAAR}%) €`, r2(kokku.kmga)],
+    ['Keskmiselt poe kohta (km-ta) €', poodeTooga ? r2(kokku.kmta / poodeTooga) : 0],
+    ['Keskmiselt käigu kohta (km-ta) €', kokku.kaike ? r2(kokku.kmta / kokku.kaike) : 0]
   ];
 
   // Käigud: iga töökirje eraldi
@@ -440,21 +431,19 @@ async function lisaKuluLehed(wb, kirjeldus, poed, st) {
     { header: 'Aeg', key: 'aeg', width: 12 },
     { header: 'Tunnid', key: 'tunnid', width: 8 },
     { header: 'Km', key: 'km', width: 7 },
-    { header: 'Arve €', key: 'arve', width: 10 },
-    { header: 'Palk €', key: 'palk', width: 10 },
-    { header: 'Km-hüvitis €', key: 'kmRaha', width: 11 },
-    { header: 'Lisakulu €', key: 'lisakulu', width: 10 },
-    { header: 'Kulu kokku €', key: 'kulu', width: 11 },
+    { header: 'Tööd €', key: 'too', width: 10 },
+    { header: 'Transport €', key: 'transport', width: 11 },
+    { header: 'Kokku € (km-ta)', key: 'kmta', width: 13 },
+    { header: `Kokku € (KM ${KM_MAAR}%)`, key: 'kmga', width: 13 },
     { header: 'Kommentaar', key: 'kommentaar', width: 40 }
   ];
   kirjed.forEach(k => {
     const r = wd.addRow({
       pood: k.pood, kp: kp(k.kuupaev), tootaja: k.tootaja, aeg: (k.algus || '') + '–' + (k.lopp || ''),
-      tunnid: k.tunnid, km: k.km, arve: k.arve, palk: k.palk, kmRaha: k.kmRaha, lisakulu: k.lisakulu, kulu: k.kulu,
-      kommentaar: [k.kommentaar, k.lisakulu_selgitus].filter(Boolean).join(' · ')
+      tunnid: k.tunnid, km: k.km, too: k.too, transport: k.transport, kmta: k.kmta, kmga: k.kmga, kommentaar: k.kommentaar || ''
     });
     r.getCell('kp').numFmt = 'dd.mm.yyyy';
-    ['arve', 'palk', 'kmRaha', 'lisakulu', 'kulu'].forEach(v => { r.getCell(v).numFmt = '#,##0.00'; });
+    ['too', 'transport', 'kmta', 'kmga'].forEach(v => { r.getCell(v).numFmt = '#,##0.00'; });
     r.getCell('kommentaar').alignment = { wrapText: true, vertical: 'top' };
   });
   wd.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
@@ -489,8 +478,8 @@ function joonistaYlevaade(wb, u, a) {
 
   // Pealkiri
   u.getRow(8).height = 18;
-  u.getCell('B8').value = a.kuludega ? 'PROJEKTI ÜLEVAADE — SISEKASUTUSEKS' : 'PROJEKTI ÜLEVAADE';
-  u.getCell('B8').font = { size: 10, bold: true, color: { argb: a.kuludega ? 'FFDC2626' : HALL } };
+  u.getCell('B8').value = 'PROJEKTI ÜLEVAADE';
+  u.getCell('B8').font = { size: 10, bold: true, color: { argb: HALL } };
   u.mergeCells('B9:C9');
   u.getRow(9).height = 30;
   u.getCell('B9').value = a.kirjeldus;
@@ -539,11 +528,10 @@ function joonistaYlevaade(wb, u, a) {
   rida++;
 
   if (a.kulud) {
-    plokk('KULUD (AINULT SISEKASUTUSEKS — LIDLILE MITTE SAATA)');
+    plokk('MAKSUMUS');
     a.kulud.forEach(([silt, v]) => {
-      const raha = /€/.test(silt);
-      vaartus(silt.replace(/ €$/, ''), v, raha ? { numFmt: '#,##0.00 "€"', paks: /kokku|Kate/.test(silt),
-        varv: /Kate/.test(silt) ? (v < 0 ? 'FFDC2626' : 'FF15803D') : undefined } : {});
+      const raha = /€$/.test(silt);
+      vaartus(silt.replace(/ €$/, ''), v, raha ? { numFmt: '#,##0.00 "€"', paks: /^Kokku/.test(silt) } : {});
     });
     rida++;
   }
@@ -571,7 +559,7 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
   const kirjeldus = String(req.query.kirjeldus || '').trim();
   if (!kirjeldus) return res.status(400).json({ ok: false, veateade: 'Projekt määramata' });
   const kuludega = req.query.kulud === '1';
-  if (kuludega && !req.session.isAdmin) return res.status(403).json({ ok: false, veateade: 'Kulud on ainult adminile' });
+  if (kuludega && !req.session.isAdmin) return res.status(403).json({ ok: false, veateade: 'Maksumusega fail on ainult adminile' });
   try {
     const ExcelJS = require('exceljs');
     const { failiPais } = require('../csvabi');
@@ -664,7 +652,7 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
       markus: info.markus || (projekt && projekt.markus) || '',
       poode: poed.length, valmis, puudu, pilte: pildid.length,
       kulud: kuluKokkuvote, koostatud: tana,
-      lehed: (kuludega ? ['Kulud poodide kaupa', 'Käigud'] : []).concat(['Poed', 'Pildid'])
+      lehed: (kuludega ? ['Maksumus poodide kaupa', 'Käigud'] : []).concat(['Poed', 'Pildid'])
     });
 
     // ── Leht 2: Poed
@@ -714,7 +702,7 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
     wp.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
     if (pildid.length) wp.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
 
-    const nimi = `Lidl ${kirjeldus}${kuludega ? ' KULUD' : ''} ${tana.getDate()}.${tana.getMonth() + 1}.${tana.getFullYear()}.xlsx`;
+    const nimi = `Lidl ${kirjeldus}${kuludega ? ' maksumus' : ''} ${tana.getDate()}.${tana.getMonth() + 1}.${tana.getFullYear()}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', failiPais(nimi));
     await wb.xlsx.write(res);
