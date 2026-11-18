@@ -222,7 +222,8 @@
           + (s.lopp_foto ? '<a href="' + esc(s.lopp_foto) + '" target="_blank">📷 lõpp</a>' : '');
         return '<div class="soit"><div style="flex:1;min-width:0">'
           + '<div class="p">' + kp(s.kuupaev) + ' <span class="pr ' + s.projekt + '">' + esc(s.projekti_nimi) + (s.juht ? ' · ' + esc(s.juht) : '') + '</span>' + (s.lahti ? ' <span class="mark">käib</span>' : '') + '</div>'
-          + '<div class="m">' + tuhanded(s.algus_km) + ' → ' + (s.lahti ? '…' : tuhanded(s.lopp_km)) + ' km' + (s.markus ? ' · ' + esc(s.markus) : '') + '</div>'
+          + '<div class="m">' + (s.algus_km === null ? 'km sisestatud käsitsi' : tuhanded(s.algus_km) + ' → ' + (s.lahti ? '…' : tuhanded(s.lopp_km)) + ' km')
+          + (s.soiduk === 'rent' ? ' · 🚚 rendikaubik' : '') + (s.markus ? ' · ' + esc(s.markus) : '') + '</div>'
           + (fotod ? '<div style="margin-top:3px">' + fotod + '</div>' : '')
           + '</div><div class="km">' + (s.lahti ? '' : tuhanded(s.km) + ' km') + '</div>'
           + '<button class="x" onclick="kustuta(' + s.id + ')" aria-label="Kustuta">✕</button></div>';

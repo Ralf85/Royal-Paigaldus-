@@ -17,6 +17,9 @@ const { aiFailid, loeDokument } = require('../ailugeja');
 //    Päevatasu läheb üks kord projekti ja kuupäeva kohta (sama päeva mitu sõitu = üks päevatasu).
 //  * "Isiklik" sõidul kirjutatakse juhi nimi. Varem kasutatud nimed pakutakse ise ette (võetakse
 //    varasematest sõitudest — eraldi nimekirja pole vaja).
+//  * Admin saab sõite ka käsitsi lisada (/kaubik-admin): kuupäev või vahemik (iga päev = päevatasu),
+//    km otse või odomeetri näidud, oma kaubik või RENDIKAUBIK (rendikaubiku näidud ei mõjuta oma kaubiku
+//    näidu kontrolli). Läbisõit = lõpunäit − algnäit, kui näidud on olemas, muidu km_kasitsi.
 //  * Ligipääs: ainult töötajad tabelis kaubik_lubatud. Algul ainult Ralf (testiks), teisi saab lisada
 //    lehel /kaubik-admin.
 //  * Lidli arvele: arve autotäitmine (routes/arved.js /autotaita) lisab AINULT Lidli projekti sõidud ja
@@ -95,6 +98,12 @@ async function looTabelid() {
     -- Projekt (lidl/cramo/xseeria/isiklik) ja isikliku sõidu juhi nimi. Vanad read = Lidl.
     ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS projekt VARCHAR(20) NOT NULL DEFAULT 'lidl';
     ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS juht VARCHAR(100);
+    -- Admini käsitsi lisatud sõidud: võib olla ainult km (ilma näitudeta) ja rendikaubikuga (oma näidud,
+    -- mis ei mõjuta oma kaubiku "viimase näidu" kontrolli).
+    ALTER TABLE kaubik_paevik ALTER COLUMN algus_km DROP NOT NULL;
+    ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS km_kasitsi INTEGER;
+    ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS soiduk VARCHAR(10) NOT NULL DEFAULT 'oma';
+    ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS lisas_admin BOOLEAN NOT NULL DEFAULT false;
     CREATE TABLE IF NOT EXISTS kaubik_hinnad (
       projekt VARCHAR(20) PRIMARY KEY,
       paevahind DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -171,7 +180,9 @@ async function kustutaPilt(id) {
 
 // Viimane teadaolev odomeetri näit (suurim sisestatud näit) — uus algnäit ei tohi olla sellest väiksem.
 async function viimaneNait() {
-  const r = await pool.query(`SELECT MAX(GREATEST(algus_km, COALESCE(lopp_km, 0))) AS nait FROM kaubik_paevik`);
+  const r = await pool.query(
+    `SELECT MAX(GREATEST(algus_km, COALESCE(lopp_km, 0))) AS nait FROM kaubik_paevik WHERE soiduk='oma' AND algus_km IS NOT NULL`
+  );
   return r.rows[0].nait === null ? null : parseInt(r.rows[0].nait, 10);
 }
 
@@ -184,25 +195,34 @@ async function juhid() {
   return r.rows.map(x => x.juht);
 }
 
+// Sõidu km: näitude vahe, kui mõlemad näidud on olemas, muidu käsitsi sisestatud km. null = sõit veel käib.
+function soiduKm(x) {
+  if (x.algus_km !== null && x.algus_km !== undefined && x.lopp_km !== null && x.lopp_km !== undefined) return x.lopp_km - x.algus_km;
+  if (x.km_kasitsi !== null && x.km_kasitsi !== undefined) return x.km_kasitsi;
+  return null;
+}
+
 function reaVorm(x) {
-  const km = x.lopp_km === null ? null : x.lopp_km - x.algus_km;
+  const km = soiduKm(x);
   return {
     id: x.id, kuupaev: x.kuupaev, worker_id: x.worker_id, tootaja: x.tootaja || null,
     projekt: x.projekt, projekti_nimi: projektiNimi(x.projekt), juht: x.juht || '',
     algus_km: x.algus_km, lopp_km: x.lopp_km, km,
+    km_kasitsi: x.km_kasitsi === undefined ? null : x.km_kasitsi,
+    soiduk: x.soiduk || 'oma', lisas_admin: !!x.lisas_admin,
     algus_foto: x.algus_foto_url, lopp_foto: x.lopp_foto_url, markus: x.markus || '',
-    lahti: x.lopp_km === null
+    lahti: km === null
   };
 }
 
 // Kokkuvõte perioodi kohta projektide kaupa. Päevatasu üks kord projekti + kuupäeva kohta (lõpetatud sõit).
 function kokkuvote(read, s) {
   const h = hinnadKoodiga(s);
-  const lopetatud = read.filter(x => x.lopp_km !== null);
+  const lopetatud = read.filter(x => soiduKm(x) !== null);
   const projektid = s.projektid.map(p => {
     const omad = lopetatud.filter(x => x.projekt === p.kood);
     const paevad = new Set(omad.map(x => x.kuupaev)).size;
-    const km = omad.reduce((sum, x) => sum + (x.lopp_km - x.algus_km), 0);
+    const km = omad.reduce((sum, x) => sum + soiduKm(x), 0);
     const paevaTulu = r2(paevad * h[p.kood].paevahind);
     const kmTulu = r2(km * h[p.kood].km_hind);
     return { kood: p.kood, nimi: p.nimi, soite: omad.length, paevad, km, paeva_tulu: paevaTulu, km_tulu: kmTulu, kokku: r2(paevaTulu + kmTulu) };
@@ -210,7 +230,7 @@ function kokkuvote(read, s) {
   return {
     projektid,
     paevad: new Set(lopetatud.map(x => x.kuupaev)).size, // erinevad päevad, mil kaubik üldse sõitis
-    km: lopetatud.reduce((sum, x) => sum + (x.lopp_km - x.algus_km), 0),
+    km: lopetatud.reduce((sum, x) => sum + soiduKm(x), 0),
     paeva_tulu: r2(projektid.reduce((sum, p) => sum + p.paeva_tulu, 0)),
     km_tulu: r2(projektid.reduce((sum, p) => sum + p.km_tulu, 0)),
     kokku: r2(projektid.reduce((sum, p) => sum + p.kokku, 0))
@@ -272,7 +292,7 @@ router.get('/minu', noudaTootajat, async (req, res) => {
   const s = await seaded();
   const lahtine = await pool.query(
     `SELECT p.*, to_char(p.kuupaev,'YYYY-MM-DD') AS kuupaev FROM kaubik_paevik p
-     WHERE p.worker_id=$1 AND p.lopp_km IS NULL ORDER BY p.loodud DESC LIMIT 1`,
+     WHERE p.worker_id=$1 AND p.lopp_km IS NULL AND p.km_kasitsi IS NULL AND p.algus_km IS NOT NULL ORDER BY p.loodud DESC LIMIT 1`,
     [req.session.workerId]
   );
   const viimased = await pool.query(
@@ -321,7 +341,8 @@ router.post('/algus', noudaTootajat, uploadPilt.single('foto'), async (req, res)
   if (pr.viga) return res.json({ ok: false, veateade: pr.viga });
   const nait = taisarv(b.nait);
   if (!Number.isFinite(nait) || nait <= 0) return res.json({ ok: false, veateade: 'Sisesta odomeetri näit (täisarv, km)' });
-  const lahtine = await pool.query(`SELECT id FROM kaubik_paevik WHERE worker_id=$1 AND lopp_km IS NULL`, [req.session.workerId]);
+  const lahtine = await pool.query(
+    `SELECT id FROM kaubik_paevik WHERE worker_id=$1 AND lopp_km IS NULL AND km_kasitsi IS NULL AND algus_km IS NOT NULL`, [req.session.workerId]);
   if (lahtine.rows.length) return res.json({ ok: false, veateade: 'Sul on eelmine sõit veel lõpetamata — sisesta enne selle lõpunäit.' });
   const eelmine = await viimaneNait();
   if (eelmine !== null && nait < eelmine) {
@@ -348,7 +369,7 @@ router.post('/lopp/:id', noudaTootajat, uploadPilt.single('foto'), async (req, r
   const v = await pool.query(`SELECT * FROM kaubik_paevik WHERE id=$1 AND worker_id=$2`, [id, req.session.workerId]);
   if (!v.rows.length) return res.json({ ok: false, veateade: 'Sõitu ei leitud' });
   const k = v.rows[0];
-  if (k.lopp_km !== null) return res.json({ ok: false, veateade: 'See sõit on juba lõpetatud' });
+  if (soiduKm(k) !== null || k.algus_km === null) return res.json({ ok: false, veateade: 'See sõit on juba lõpetatud' });
   const nait = taisarv(b.nait);
   if (!Number.isFinite(nait)) return res.json({ ok: false, veateade: 'Sisesta lõpunäit (täisarv, km)' });
   if (nait < k.algus_km) return res.json({ ok: false, veateade: `Lõpunäit ei saa olla väiksem kui algnäit (${k.algus_km} km)` });
@@ -442,22 +463,80 @@ router.get('/admin/paevik', noudaAdmin, async (req, res) => {
   res.json({ ok: true, seaded: s, read: read.map(reaVorm), kokku: kokkuvote(read, s), viimane_nait: await viimaneNait(), juhid: await juhid() });
 });
 
-// Admin saab sõitu parandada (nt AI luges valesti, vale projekt).
+// Loeb admini vormist läbisõidu: näidud (algus+lopp), ainult algus (sõit käib) või ainult km.
+// Tagastab { algus, lopp, km } (puuduvad = null) või { viga }.
+function loeLabisoit(b) {
+  const tyhi = (v) => v === '' || v === null || v === undefined;
+  const algus = tyhi(b.algus_km) ? null : taisarv(b.algus_km);
+  const lopp = tyhi(b.lopp_km) ? null : taisarv(b.lopp_km);
+  const km = tyhi(b.km) ? null : taisarv(b.km);
+  if (algus !== null && !Number.isFinite(algus)) return { viga: 'Vigane algnäit' };
+  if (lopp !== null && !Number.isFinite(lopp)) return { viga: 'Vigane lõpunäit' };
+  if (km !== null && !Number.isFinite(km)) return { viga: 'Vigane km (täisarv)' };
+  if (algus !== null && lopp !== null) {
+    if (lopp < algus) return { viga: 'Lõpunäit peab olema algnäidust suurem' };
+    return { algus, lopp, km: null };
+  }
+  if (lopp !== null) return { viga: 'Sisesta ka algnäit' };
+  if (km !== null) return { algus: null, lopp: null, km };
+  if (algus !== null) return { algus, lopp: null, km: null }; // sõit veel käib
+  return { viga: 'Sisesta km või odomeetri näidud' };
+}
+
+// ── ADMIN: SÕIDU KÄSITSI LISAMINE ──
+// Keha: { kuupaev, kuupaev_kuni?, projekt, juht?, soiduk: 'oma'|'rent', worker_id?, km? | algus_km+lopp_km, markus? }
+// Vahemiku puhul tehakse rida iga päeva kohta (iga päev = päevatasu). Km/näidud lähevad ESIMESE päeva reale,
+// ülejäänud päevadel 0 km (märkusega) — nii tuleb kogusumma õige ja päevatasu iga päeva eest.
+router.post('/admin/soit', noudaAdmin, async (req, res) => {
+  const b = req.body || {};
+  if (!onKuupaev(b.kuupaev)) return res.json({ ok: false, veateade: 'Vali kuupäev' });
+  const kuni = onKuupaev(b.kuupaev_kuni) ? b.kuupaev_kuni : b.kuupaev;
+  if (kuni < b.kuupaev) return res.json({ ok: false, veateade: '"Kuni" kuupäev on enne algust' });
+  const paevad = [];
+  for (let d = new Date(b.kuupaev + 'T12:00:00Z'); d <= new Date(kuni + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+    paevad.push(d.toISOString().slice(0, 10));
+    if (paevad.length > 31) return res.json({ ok: false, veateade: 'Vahemik võib olla kuni 31 päeva' });
+  }
+  const pr = loeProjekt(b);
+  if (pr.viga) return res.json({ ok: false, veateade: pr.viga });
+  const ls = loeLabisoit(b);
+  if (ls.viga) return res.json({ ok: false, veateade: ls.viga });
+  const soiduk = b.soiduk === 'rent' ? 'rent' : 'oma';
+  const workerId = parseInt(b.worker_id, 10) || null;
+  const markus = puhas(b.markus, 250);
+  const vahemik = paevad.length > 1 ? `${paevad[0].slice(8, 10)}.${paevad[0].slice(5, 7)}–${kuni.slice(8, 10)}.${kuni.slice(5, 7)}` : '';
+  const ids = [];
+  for (let i = 0; i < paevad.length; i++) {
+    const esimene = i === 0;
+    const reaMarkus = esimene
+      ? [markus, vahemik ? `km kogu perioodi ${vahemik} kohta` : ''].filter(Boolean).join(' · ')
+      : [markus, `sama sõit ${vahemik}, km esimesel päeval`].filter(Boolean).join(' · ');
+    const r = await pool.query(
+      `INSERT INTO kaubik_paevik (worker_id, kuupaev, projekt, juht, algus_km, lopp_km, km_kasitsi, soiduk, markus, lisas_admin, lopetatud)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true, CASE WHEN $6::int IS NULL AND $7::int IS NULL THEN NULL ELSE NOW() END) RETURNING id`,
+      [workerId, paevad[i], pr.projekt, pr.juht,
+        esimene ? ls.algus : null, esimene ? ls.lopp : null, esimene ? ls.km : 0,
+        soiduk, reaMarkus || null]
+    );
+    ids.push(r.rows[0].id);
+  }
+  res.json({ ok: true, ids, paevi: paevad.length });
+});
+
+// Admin saab sõitu parandada (nt AI luges valesti, vale projekt, rendikaubik).
 router.put('/admin/soit/:id', noudaAdmin, async (req, res) => {
   const b = req.body || {};
   const id = parseInt(req.params.id, 10) || 0;
-  const algus = taisarv(b.algus_km);
-  const lopp = (b.lopp_km === '' || b.lopp_km === null || b.lopp_km === undefined) ? null : taisarv(b.lopp_km);
   if (!onKuupaev(b.kuupaev)) return res.json({ ok: false, veateade: 'Vigane kuupäev' });
   const pr = loeProjekt(b);
   if (pr.viga) return res.json({ ok: false, veateade: pr.viga });
-  if (!Number.isFinite(algus)) return res.json({ ok: false, veateade: 'Vigane algnäit' });
-  if (lopp !== null && (!Number.isFinite(lopp) || lopp < algus)) return res.json({ ok: false, veateade: 'Lõpunäit peab olema algnäidust suurem' });
+  const ls = loeLabisoit(b);
+  if (ls.viga) return res.json({ ok: false, veateade: ls.viga });
   const r = await pool.query(
-    `UPDATE kaubik_paevik SET kuupaev=$1, algus_km=$2, lopp_km=$3, markus=$4, projekt=$5, juht=$6,
-       lopetatud = CASE WHEN $3::int IS NULL THEN NULL ELSE COALESCE(lopetatud, NOW()) END
-     WHERE id=$7`,
-    [b.kuupaev, algus, lopp, puhas(b.markus, 300) || null, pr.projekt, pr.juht, id]
+    `UPDATE kaubik_paevik SET kuupaev=$1, algus_km=$2, lopp_km=$3, km_kasitsi=$4, markus=$5, projekt=$6, juht=$7, soiduk=$8,
+       lopetatud = CASE WHEN $3::int IS NULL AND $4::int IS NULL THEN NULL ELSE COALESCE(lopetatud, NOW()) END
+     WHERE id=$9`,
+    [b.kuupaev, ls.algus, ls.lopp, ls.km, puhas(b.markus, 300) || null, pr.projekt, pr.juht, b.soiduk === 'rent' ? 'rent' : 'oma', id]
   );
   if (!r.rowCount) return res.json({ ok: false, veateade: 'Sõitu ei leitud' });
   res.json({ ok: true });
@@ -505,13 +584,14 @@ router.get('/admin/excel', noudaAdmin, async (req, res) => {
   let rida = 4;
   read.forEach((x, i) => {
     const hp = h[x.projekt] || { paevahind: 0, km_hind: 0 };
-    const km = x.lopp_km === null ? null : x.lopp_km - x.algus_km;
+    const km = soiduKm(x);
     let paevaTasu = 0;
     const voti = x.projekt + '|' + x.kuupaev;
     if (km !== null && !tasutud.has(voti)) { tasutud.add(voti); paevaTasu = hp.paevahind; }
     const kmTasu = km === null ? 0 : r2(km * hp.km_hind);
     const r = ws.getRow(rida++);
-    r.values = [kp(x.kuupaev), projektiNimi(x.projekt), x.tootaja || '', x.juht || '', x.algus_km, x.lopp_km === null ? 'lõpetamata' : x.lopp_km,
+    r.values = [kp(x.kuupaev), projektiNimi(x.projekt) + (x.soiduk === 'rent' ? ' (rendikaubik)' : ''), x.tootaja || '', x.juht || '',
+      x.algus_km === null ? '' : x.algus_km, km === null ? 'lõpetamata' : (x.lopp_km === null ? '' : x.lopp_km),
       km === null ? '' : km, km === null ? '' : paevaTasu, km === null ? '' : kmTasu, km === null ? '' : r2(paevaTasu + kmTasu), x.markus || ''];
     if (i % 2 === 1) r.eachCell({ includeEmpty: true }, c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }; });
     [8, 9, 10].forEach(n => { r.getCell(n).numFmt = '#,##0.00'; });

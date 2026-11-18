@@ -65,6 +65,14 @@
   .pr { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: rgba(96,165,250,0.15); color: var(--sinine); white-space: nowrap; }
   .pr.isiklik { background: rgba(201,168,76,0.15); color: var(--kuld); }
   .koond td { font-size: 13px; }
+  .pr.rent { background: rgba(251,146,60,0.15); color: var(--oranz); }
+  .kolm { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .neli { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 760px) { .kolm, .neli { grid-template-columns: 1fr 1fr; } }
+  .valikud { display: flex; gap: 6px; flex-wrap: wrap; }
+  .valikud button { background: var(--bg3); border: 2px solid var(--piir); border-radius: 10px; padding: 8px 12px; color: var(--tekst); font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .valikud button.valitud { border-color: var(--sinine); background: rgba(96,165,250,0.15); }
+  .eelvaade { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(74,222,128,0.08); color: var(--roheline); font-size: 13.5px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -94,6 +102,38 @@
       <div class="abi" style="margin-bottom:6px">Linnukesega töötajatel ilmub pealehele plaat „KAUBIK“.</div>
       <div id="tootajad"><div class="abi">Laadin…</div></div>
     </div>
+  </div>
+
+  <div class="kaart">
+    <h2>➕ Lisa sõit käsitsi</h2>
+    <div class="abi">Nt rendikaubik või päevad, mil spidomeetrit ei pildistatud. Vahemiku puhul arvestatakse päevatasu <b>iga päeva</b> eest, km lähevad kogu perioodi kohta.</div>
+    <div class="neli">
+      <div><label class="silt">Kuupäev</label><input type="date" id="k-kp" oninput="kEelvaade()"></div>
+      <div><label class="silt">Kuni (mitu päeva, valikuline)</label><input type="date" id="k-kuni" oninput="kEelvaade()"></div>
+      <div><label class="silt">Projekt</label><select id="k-projekt" onchange="kProjekt()"></select></div>
+      <div><label class="silt">Töötaja (valikuline)</label><select id="k-tootaja"><option value="">—</option></select></div>
+    </div>
+    <div id="k-juhtKast" style="display:none"><label class="silt">Juht (isiklik sõit)</label><input id="k-juht" list="kJuhid" placeholder="Kes sõitis"><datalist id="kJuhid"></datalist></div>
+    <label class="silt">Kaubik</label>
+    <div class="valikud" id="k-soiduk">
+      <button type="button" data-v="oma" onclick="kVali('soiduk','oma')">🚐 Oma kaubik</button>
+      <button type="button" data-v="rent" onclick="kVali('soiduk','rent')">🚚 Rendikaubik</button>
+    </div>
+    <label class="silt">Läbisõit</label>
+    <div class="valikud" id="k-viis">
+      <button type="button" data-v="km" onclick="kVali('viis','km')">Ainult km</button>
+      <button type="button" data-v="naidud" onclick="kVali('viis','naidud')">Odomeetri näidud</button>
+    </div>
+    <div class="kolm" style="margin-top:4px">
+      <div id="k-kmKast"><label class="silt">Km kokku</label><input id="k-km" inputmode="numeric" placeholder="nt 412" oninput="kEelvaade()"></div>
+      <div id="k-algusKast" style="display:none"><label class="silt">Algnäit</label><input id="k-algus" inputmode="numeric" oninput="kEelvaade()"></div>
+      <div id="k-loppKast" style="display:none"><label class="silt">Lõpunäit</label><input id="k-lopp" inputmode="numeric" oninput="kEelvaade()"></div>
+    </div>
+    <label class="silt">Märkus (valikuline)</label>
+    <input id="k-markus" placeholder="nt rendikaubik, Lidl Rakvere">
+    <div id="k-eelvaade" class="eelvaade" style="display:none"></div>
+    <div style="margin-top:12px"><button class="nupp" onclick="kLisa()">Lisa sõit</button></div>
+    <div id="k-teade" class="teade"></div>
   </div>
 
   <div class="kaart">
@@ -134,6 +174,7 @@
     var TOKEN = localStorage.getItem('adminToken') || '';
     if (localStorage.getItem('teema') === 'hele') document.body.classList.add('hele');
     var read = [], muudetav = null, projektid = [], juhid = [];
+    var kVal = { soiduk: 'oma', viis: 'km' };
 
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
     function kp(s) { var o = String(s || '').split('-'); return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : s; }
@@ -172,6 +213,9 @@
           + '<td><input id="h-paev-' + p.kood + '" inputmode="decimal" value="' + String(p.paevahind).replace('.', ',') + '"></td>'
           + '<td><input id="h-km-' + p.kood + '" inputmode="decimal" value="' + String(p.km_hind).replace('.', ',') + '"></td></tr>';
       }).join('');
+      var kp2 = document.getElementById('k-projekt');
+      if (!kp2.options.length) projektid.forEach(function (p) { var o = document.createElement('option'); o.value = p.kood; o.textContent = p.nimi; kp2.appendChild(o); });
+      kVali('soiduk', kVal.soiduk); kVali('viis', kVal.viis); kProjekt();
       var sel = document.getElementById('f-projekt');
       if (sel.options.length === 1) projektid.forEach(function (p) { var o = document.createElement('option'); o.value = p.kood; o.textContent = p.nimi; sel.appendChild(o); });
       document.getElementById('s-arvele').checked = r.seaded.arvele;
@@ -193,6 +237,8 @@
       var r = await api('/admin/lubatud');
       var el = document.getElementById('tootajad');
       if (!r.ok) { el.innerHTML = '<div class="abi">Laadimine ebaõnnestus</div>'; return; }
+      var ks = document.getElementById('k-tootaja');
+      if (ks.options.length === 1) r.tootajad.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.nimi; ks.appendChild(o); });
       el.innerHTML = r.tootajad.map(function (t) {
         return '<label class="tootaja"><span>' + esc(t.nimi) + '</span><input type="checkbox" ' + (t.lubatud ? 'checked' : '') + ' onchange="muudaLubatud(' + t.id + ', this.checked)"></label>';
       }).join('') || '<div class="abi">Aktiivseid töötajaid pole</div>';
@@ -208,6 +254,7 @@
       if (!r.ok) { teade('p-teade', r.veateade || 'Laadimine ebaõnnestus'); return; }
       teade('p-teade', '');
       read = r.read; muudetav = null; juhid = r.juhid || [];
+      document.getElementById('kJuhid').innerHTML = juhid.map(function (j) { return '<option value="' + esc(j) + '">'; }).join('');
       if (!projektid.length) projektid = r.seaded.projektid;
       var koond = r.kokku.projektid.filter(function (p) { return p.soite > 0; });
       document.getElementById('koond').innerHTML = koond.map(function (p) {
@@ -235,14 +282,15 @@
             + '</select><input id="m-juht" list="juhidList" placeholder="Juht" value="' + esc(s.juht) + '" style="margin-top:4px;' + (s.projekt === 'isiklik' ? '' : 'display:none') + '">'
             + '<datalist id="juhidList">' + juhid.map(function (j) { return '<option value="' + esc(j) + '">'; }).join('') + '</datalist></td>'
             + '<td>' + esc(s.tootaja) + '</td>'
-            + '<td><input id="m-algus" inputmode="numeric" value="' + s.algus_km + '" style="width:95px"></td>'
-            + '<td><input id="m-lopp" inputmode="numeric" value="' + (s.lopp_km === null ? '' : s.lopp_km) + '" style="width:95px"></td>'
-            + '<td></td><td>' + fotod + '</td><td><input id="m-markus" value="' + esc(s.markus) + '"></td>'
+            + '<td><input id="m-algus" inputmode="numeric" placeholder="algus" value="' + (s.algus_km === null ? '' : s.algus_km) + '" style="width:95px"></td>'
+            + '<td><input id="m-lopp" inputmode="numeric" placeholder="lõpp" value="' + (s.lopp_km === null ? '' : s.lopp_km) + '" style="width:95px"></td>'
+            + '<td><input id="m-km" inputmode="numeric" placeholder="km" title="Ainult km (kui näite pole)" value="' + (s.km_kasitsi === null ? '' : s.km_kasitsi) + '" style="width:70px"></td>'
+            + '<td><select id="m-soiduk"><option value="oma"' + (s.soiduk !== 'rent' ? ' selected' : '') + '>Oma</option><option value="rent"' + (s.soiduk === 'rent' ? ' selected' : '') + '>Rendi</option></select> ' + fotod + '</td><td><input id="m-markus" value="' + esc(s.markus) + '"></td>'
             + '<td style="white-space:nowrap"><button class="nupp vaike" onclick="salvestaRida(' + s.id + ')">💾</button> <button class="nupp vaike hall" onclick="muudetav=null;joonista()">✕</button></td></tr>';
         }
-        return '<tr><td>' + kp(s.kuupaev) + '</td><td><span class="pr ' + s.projekt + '">' + esc(s.projekti_nimi) + '</span>' + (s.juht ? '<div class="abi">' + esc(s.juht) + '</div>' : '') + '</td><td>' + esc(s.tootaja || '—') + '</td>'
+        return '<tr><td>' + kp(s.kuupaev) + '</td><td><span class="pr ' + s.projekt + '">' + esc(s.projekti_nimi) + '</span>' + (s.soiduk === 'rent' ? ' <span class="pr rent">🚚 rendi</span>' : '') + (s.juht ? '<div class="abi">' + esc(s.juht) + '</div>' : '') + '</td><td>' + esc(s.tootaja || '—') + '</td>'
           + '<td class="n">' + tuhanded(s.algus_km) + '</td>'
-          + '<td class="n">' + (s.lahti ? '<span class="lahti">käib</span>' : tuhanded(s.lopp_km)) + '</td>'
+          + '<td class="n">' + (s.lahti ? '<span class="lahti">käib</span>' : (s.lopp_km === null ? '<span class="abi">käsitsi</span>' : tuhanded(s.lopp_km))) + '</td>'
           + '<td class="n"><b>' + (s.lahti ? '' : tuhanded(s.km)) + '</b></td>'
           + '<td>' + fotod + '</td><td>' + esc(s.markus) + '</td>'
           + '<td style="white-space:nowrap"><button class="nupp vaike hall" onclick="muudetav=' + s.id + ';joonista()">✏️</button> <button class="nupp vaike punane" onclick="kustuta(' + s.id + ')">🗑</button></td></tr>';
@@ -254,6 +302,8 @@
         kuupaev: document.getElementById('m-kp').value,
         algus_km: document.getElementById('m-algus').value,
         lopp_km: document.getElementById('m-lopp').value,
+        km: document.getElementById('m-algus').value.trim() && document.getElementById('m-lopp').value.trim() ? '' : document.getElementById('m-km').value,
+        soiduk: document.getElementById('m-soiduk').value,
         markus: document.getElementById('m-markus').value,
         projekt: document.getElementById('m-projekt').value,
         juht: document.getElementById('m-juht').value
@@ -267,6 +317,65 @@
       if (!r.ok) { teade('p-teade', r.veateade || 'Kustutamine ebaõnnestus'); return; }
       laadiPaevik();
     }
+    // ── Käsitsi lisamine ──
+    function kVali(mis, v) {
+      kVal[mis] = v;
+      document.querySelectorAll('#k-' + mis + ' button').forEach(function (b) { b.classList.toggle('valitud', b.dataset.v === v); });
+      if (mis === 'viis') {
+        document.getElementById('k-kmKast').style.display = v === 'km' ? '' : 'none';
+        document.getElementById('k-algusKast').style.display = v === 'naidud' ? '' : 'none';
+        document.getElementById('k-loppKast').style.display = v === 'naidud' ? '' : 'none';
+      }
+      kEelvaade();
+    }
+    function kProjekt() {
+      document.getElementById('k-juhtKast').style.display = document.getElementById('k-projekt').value === 'isiklik' ? '' : 'none';
+      kEelvaade();
+    }
+    function kArv(id) { var v = String(document.getElementById(id).value || '').replace(/[\s.,]/g, ''); return /^\d+$/.test(v) ? parseInt(v, 10) : NaN; }
+    function kPaevi() {
+      var a = document.getElementById('k-kp').value, l = document.getElementById('k-kuni').value || a;
+      if (!a) return 0;
+      var n = Math.round((new Date(l + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000) + 1;
+      return n > 0 ? n : 0;
+    }
+    function kKm() {
+      if (kVal.viis === 'km') return kArv('k-km');
+      var a = kArv('k-algus'), l = kArv('k-lopp');
+      return isFinite(a) && isFinite(l) && l >= a ? l - a : NaN;
+    }
+    function kEelvaade() {
+      var el = document.getElementById('k-eelvaade');
+      var p = projektid.filter(function (x) { return x.kood === document.getElementById('k-projekt').value; })[0];
+      var paevi = kPaevi(), km = kKm();
+      if (!p || !paevi || !isFinite(km)) { el.style.display = 'none'; return; }
+      var tulu = paevi * p.paevahind + km * p.km_hind;
+      el.style.display = 'block';
+      el.textContent = p.nimi + ': ' + paevi + ' päev' + (paevi > 1 ? 'a' : '') + ' × ' + eur(p.paevahind) + ' + ' + tuhanded(km) + ' km × ' + String(p.km_hind).replace('.', ',') + ' € = ' + eur(tulu) + ' (km-ta)';
+    }
+    async function kLisa() {
+      var keha = {
+        kuupaev: document.getElementById('k-kp').value,
+        kuupaev_kuni: document.getElementById('k-kuni').value,
+        projekt: document.getElementById('k-projekt').value,
+        juht: document.getElementById('k-juht').value,
+        worker_id: document.getElementById('k-tootaja').value,
+        soiduk: kVal.soiduk,
+        markus: document.getElementById('k-markus').value
+      };
+      if (kVal.viis === 'km') keha.km = document.getElementById('k-km').value;
+      else { keha.algus_km = document.getElementById('k-algus').value; keha.lopp_km = document.getElementById('k-lopp').value; }
+      var r = await api('/admin/soit', { method: 'POST', body: JSON.stringify(keha) });
+      if (!r.ok) { teade('k-teade', r.veateade || 'Lisamine ebaõnnestus'); return; }
+      teade('k-teade', '✓ Lisatud (' + r.paevi + ' päev' + (r.paevi > 1 ? 'a' : '') + ')', 'ok');
+      ['k-km', 'k-algus', 'k-lopp', 'k-markus', 'k-kuni'].forEach(function (id) { document.getElementById(id).value = ''; });
+      document.getElementById('k-eelvaade').style.display = 'none';
+      // Näitame lisatud perioodi kuud
+      var d = new Date(keha.kuupaev + 'T00:00:00');
+      seaKuu(d.getFullYear(), d.getMonth());
+      laadiPaevik();
+    }
+
     function laeExcel() {
       var a = document.getElementById('f-algus').value, l = document.getElementById('f-lopp').value;
       window.location = '/api/kaubik/admin/excel?algus=' + a + '&lopp=' + l + '&projekt=' + document.getElementById('f-projekt').value + '&_token=' + encodeURIComponent(TOKEN);
@@ -276,6 +385,7 @@
       if (!TOKEN) { window.location = '/admin-login'; return; }
       var t = new Date();
       seaKuu(t.getFullYear(), t.getMonth());
+      document.getElementById('k-kp').value = iso(t);
       laadiSeaded(); laadiTootajad(); laadiPaevik();
     })();
   </script>
