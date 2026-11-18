@@ -318,8 +318,7 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
 // ── PROJEKTI EXCEL (ülevaatamiseks inimestele, kes rakendust ei kasuta) ─────
 // Üks fail: leht "Ülevaade" (projekt, PO, seis kokku), "Poed" (iga pood: seis, kommentaar, käigud,
 // töötajad, pildid, Kristo kommentaarid) ja "Pildid" (iga pildi link). Tunde ega raha failis pole.
-// ?kulud=1 (admin ja Lidl Eesti konto — nagu kogu see fail; tavatöötajad Excelit ei saa): lisaks leht "Käigud"
-// ja "Poed" lehel veerg L "Poe kulu kokku €" — tunnid, km ja maksumus
+// ?kulud=1 (admin ja Lidl Eesti konto — nagu kogu see fail; tavatöötajad Excelit ei saa): lisaks "Poed" lehel veerg L "Poe kulu kokku €" — tunnid, km ja maksumus
 // Lidli hindadega (27 €/h + 0,50 €/km, km-ta ja KM-ga). Sisemisi kulusid (palk jms) failis pole.
 const LIDL_TUNNIHIND = 27;   // €/h käibemaksuta (sama mis routes/arved.js FIKS_TUNNIHINNAD)
 const LIDL_KM_HIND = 0.5;    // €/km käibemaksuta (arve "Transport" rida)
@@ -328,8 +327,8 @@ function noudaAdminVoiKristo(req, res, next) {
   if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) return next();
   return res.status(req.session.workerId ? 403 : 401).json({ ok: false, veateade: req.session.workerId ? 'Ligipääs keelatud' : 'Logi sisse' });
 }
-// Maksumus projekti Excelisse (nupp "Excel + maksumus", admin ja Lidl Eesti konto): leht "Käigud" ja
-// "Poed" lehe veerg L "Poe kulu kokku €". Kõik summad on Lidlile
+// Maksumus projekti Excelisse (Exceli nupp, admin ja Lidl Eesti konto): "Poed" lehe veerg L
+// "Poe kulu kokku €" + kokkuvõte "Ülevaade" lehel. Kõik summad on Lidlile
 // esitatavad hinnad (27 €/h + 0,50 €/km, km-ta ja koos 24% KM-ga) — Royal Paigalduse sisemisi kulusid
 // (töötajate palk, km-hüvitis) failis EI OLE. Tagastab kokkuvõtte "Ülevaade" lehe jaoks.
 const KM_MAAR = 24;
@@ -392,32 +391,6 @@ async function lisaKuluLehed(wb, kirjeldus, poed, st) {
     ['Keskmiselt käigu kohta (km-ta) €', kokku.kaike ? r2(kokku.kmta / kokku.kaike) : 0]
   ];
 
-  // Käigud: iga töökirje eraldi
-  const wd = wb.addWorksheet('Käigud', { views: [{ state: 'frozen', ySplit: 1 }] });
-  wd.columns = [
-    { header: 'Pood', key: 'pood', width: 26 },
-    { header: 'Kuupäev', key: 'kp', width: 11 },
-    { header: 'Töötaja', key: 'tootaja', width: 18 },
-    { header: 'Aeg', key: 'aeg', width: 12 },
-    { header: 'Tunnid', key: 'tunnid', width: 8 },
-    { header: 'Km', key: 'km', width: 7 },
-    { header: 'Tööd €', key: 'too', width: 10 },
-    { header: 'Transport €', key: 'transport', width: 11 },
-    { header: 'Kokku € (km-ta)', key: 'kmta', width: 13 },
-    { header: `Kokku € (KM ${KM_MAAR}%)`, key: 'kmga', width: 13 },
-    { header: 'Kommentaar', key: 'kommentaar', width: 40 }
-  ];
-  kirjed.forEach(k => {
-    const r = wd.addRow({
-      pood: k.pood, kp: kp(k.kuupaev), tootaja: k.tootaja, aeg: (k.algus || '') + '–' + (k.lopp || ''),
-      tunnid: k.tunnid, km: k.km, too: k.too, transport: k.transport, kmta: k.kmta, kmga: k.kmga, kommentaar: k.kommentaar || ''
-    });
-    r.getCell('kp').numFmt = 'dd.mm.yyyy';
-    ['too', 'transport', 'kmta', 'kmga'].forEach(v => { r.getCell(v).numFmt = '#,##0.00'; });
-    r.getCell('kommentaar').alignment = { wrapText: true, vertical: 'top' };
-  });
-  wd.getRow(1).eachCell(c => { c.fill = PEA; c.font = peaFont; });
-  if (kirjed.length) wd.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: wd.columns.length } };
   return { ylevaade, poeKulu };
 }
 
@@ -612,7 +585,7 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
     const u = wb.addWorksheet('Ülevaade');
     const tana = new Date();
 
-    // ── (Ainult admin) Kulud poodide kaupa + Käigud
+    // ── Maksumus (Lidli hindadega): poe kulu "Poed" lehe veergu L + kokkuvõte "Ülevaade" lehele
     const maksumus = kuludega ? await lisaKuluLehed(wb, kirjeldus, poed, { PEA, peaFont, kp }) : null;
 
     joonistaYlevaade(wb, u, {
@@ -621,7 +594,7 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
       markus: info.markus || (projekt && projekt.markus) || '',
       poode: poed.length, valmis, puudu, pilte: pildid.length,
       kulud: maksumus && maksumus.ylevaade, koostatud: tana,
-      lehed: (kuludega ? ['Käigud'] : []).concat(['Poed', 'Pildid'])
+      lehed: ['Poed', 'Pildid']
     });
 
     // ── Leht 2: Poed
