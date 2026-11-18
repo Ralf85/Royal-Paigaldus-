@@ -101,6 +101,11 @@
     .emp-label.telje10 { color: #e5c76b; }
     body.hele .emp-card.telje10 { background: #fbf5e3; border-color: #e3cf91; }
     body.hele .emp-label.telje10 { color: #8a6a14; }
+    .emp-card.kaubik { background: #0f1d33; border-color: #1e3a66; cursor: pointer; }
+    .emp-logo.kaubik { background: #60a5fa; border-radius: 9px; }
+    .emp-label.kaubik { color: #93c5fd; }
+    body.hele .emp-card.kaubik { background: #eaf2ff; border-color: #b9d3fb; }
+    body.hele .emp-label.kaubik { color: #1d4ed8; }
     .emp-card.latvia { background: #1f0a0d; border-color: #7c1d24; cursor: pointer; }
     .emp-logo { width: 40px; height: 40px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
     .emp-logo.lidl { background: #FFF200; border-radius: 50%; }
@@ -579,6 +584,7 @@
     var onArved = false;
     var onPadel = false;
     var onTelje10Tsekk = false;
+    var onKaubik = false;
     var onOmaArved = false;
     var onLatvia = false;
     var TOKEN = localStorage.getItem('workerToken') || '';
@@ -717,7 +723,7 @@
       // NB: ligipääsu kontrollid PEAVAD lõppema enne laadiEttevotted() käivitamist — plaatide
       // HTML koostatakse onXseeria/onArved/onPadel/onLatvia lippude põhjal. Kui need jooksevad
       // paralleelselt, jõuab joonistamine vahel enne vastust valmis ja moodul jääb plaadita.
-      await Promise.all([kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), kontrolliLatvia(), kontrolliTelje10Tsekk()]);
+      await Promise.all([kontrolliProjektid(), kontrolliXseeria(), kontrolliArved(), kontrolliOmaArved(), kontrolliPadel(), kontrolliLatvia(), kontrolliTelje10Tsekk(), kontrolliKaubik()]);
       await Promise.all([laadiEttevotted(), laadiTulevasedTood(), laadiLaekumised(), laadiToopaevik(), laadiLisakulud(), kontrolliMerekohvik(), laadiMinuTeated(), laadiLidlTulevasedProjektid(), laadiLidlPildiLigipaas()]);
     }
 
@@ -762,6 +768,20 @@
     // TELJE 10 tšekid — töötaja lisab tšeki, AI loeb read, töötaja märgib Telje 10 read ja makseviisi.
     async function kontrolliTelje10Tsekk() {
       try { var v = await api('/api/remont/tootaja/kontroll'); onTelje10Tsekk = !!(v && v.lubatud); } catch(e) { onTelje10Tsekk = false; }
+    }
+
+    // KAUBIK — sõidupäevik. Plaat ainult töötajatele, kellel on ligipääs (algul ainult Ralf).
+    async function kontrolliKaubik() {
+      try { var v = await api('/api/kaubik/kontroll'); onKaubik = !!(v && v.lubatud); } catch(e) { onKaubik = false; }
+    }
+
+    function kaubikKaartHtml(extraAttr) {
+      if (!onKaubik) return '';
+      return '<a class="emp-card kaubik" href="/kaubik" ' + (extraAttr || '') + '>'
+        + '<div class="emp-logo kaubik"><span style="font-size:18px">🚐</span></div>'
+        + '<div class="emp-label kaubik">KAUBIK</div>'
+        + '<div class="emp-tunnid">📋</div>'
+        + '<div class="emp-tunnid-sub">sõidupäevik</div></a>';
     }
 
     async function kontrolliPadel() {
@@ -815,7 +835,8 @@
             + '<div class="emp-label telje10">TELJE 10 TŠEKK</div>'
             + '<div class="emp-tunnid">📷</div>'
             + '<div class="emp-tunnid-sub">lisa tšekk</div></a>' : '')
-          + latviaKaartHtml('style="grid-column:1"');
+          + latviaKaartHtml('style="grid-column:1"')
+          + kaubikKaartHtml('style="grid-column:1"');
         return;
       }
       var tunnidFirma = {};
@@ -873,7 +894,8 @@
         + '<div class="emp-label telje10">TELJE 10 TŠEKK</div>'
         + '<div class="emp-tunnid">📷</div>'
         + '<div class="emp-tunnid-sub">lisa tšekk</div></a>' : '')
-      + latviaKaartHtml('');
+      + latviaKaartHtml('')
+      + kaubikKaartHtml('');
     }
 
     async function laadiMinuTeated() {

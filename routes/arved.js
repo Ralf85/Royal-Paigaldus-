@@ -470,6 +470,12 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     const tyyp = eR.rows.length ? eR.rows[0].tyyp : null;
     if (FIKS_TUNNIHINNAD[tyyp]) hind = FIKS_TUNNIHINNAD[tyyp];
     if (!hind) return res.json({ ok: false, veateade: 'Sisesta korrektne esitushind' });
+    // KAUBIK: Lidli arvele lisanduvad kaubiku rendi read (päevad × päevahind + km × km-hind),
+    // aga ainult siis, kui /kaubik-admin lehel on "Lisa Lidli arvele" sisse lülitatud (vt routes/kaubik.js).
+    let kaubikuRead = [];
+    if (tyyp === 'lidl') {
+      try { kaubikuRead = await require('./kaubik').arveRead(algus, lopp); } catch (e) { console.error('Kaubiku arveread:', e.message); }
+    }
       if (viis === 'objektid') {
       const r = await pool.query(
         `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
@@ -496,7 +502,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
           read.push({ kirjeldus: `Transport (${row.objekt_nimi})`, kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
         }
       });
-      return res.json({ ok: true, read });
+      return res.json({ ok: true, read: read.concat(kaubikuRead) });
     }
 
     if (viis === 'tootajad') {
@@ -515,7 +521,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
         return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
       });
-      return res.json({ ok: true, read });
+      return res.json({ ok: true, read: read.concat(kaubikuRead) });
     }
 
     const tR = await pool.query(
@@ -527,7 +533,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     const read = [];
     if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
     if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-    res.json({ ok: true, read });
+    res.json({ ok: true, read: read.concat(kaubikuRead) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });

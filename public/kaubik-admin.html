@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Kaubik (admin)</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+<meta name="theme-color" content="#0d0f13">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --piir: rgba(255,255,255,0.08);
+    --tekst: #e2e8f0; --tekst2: #bbb; --tekst3: #7a8290;
+    --kuld: #c9a84c; --roheline: #4ade80; --oranz: #fb923c; --punane: #f87171; --sinine: #60a5fa;
+  }
+  body.hele {
+    --bg: #f4f5f7; --bg2: #ffffff; --bg3: #eef0f3; --piir: rgba(0,0,0,0.10);
+    --tekst: #111827; --tekst2: #374151; --tekst3: #6b7280;
+    --kuld: #a5832a; --roheline: #15803d; --oranz: #c2410c; --punane: #b91c1c; --sinine: #1d4ed8;
+  }
+  body { background: var(--bg); color: var(--tekst); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 18px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 800; }
+  h1 span { color: var(--sinine); }
+  a.tagasi { color: var(--tekst2); text-decoration: none; font-size: 13px; display: inline-block; margin: 4px 0 16px; }
+  .ruudustik { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .ruudustik { grid-template-columns: 1fr; } }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .kaart h2 { font-size: 14px; font-weight: 800; margin-bottom: 10px; }
+  .abi { font-size: 12px; color: var(--tekst3); line-height: 1.45; }
+  label.silt { display: block; font-size: 11px; color: var(--tekst3); text-transform: uppercase; letter-spacing: 0.5px; margin: 8px 0 4px; }
+  input, select { background: var(--bg3); border: 0.5px solid var(--piir); color: var(--tekst); border-radius: 8px; padding: 9px; font-size: 14px; width: 100%; font-family: inherit; }
+  .kaks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lyliti { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px; border-radius: 10px; background: var(--bg3); cursor: pointer; }
+  .lyliti input { width: 22px; height: 22px; flex: none; accent-color: #60a5fa; margin-top: 1px; }
+  .lyliti b { font-size: 13.5px; }
+  .nupp { background: var(--sinine); color: #06142b; border: none; border-radius: 9px; padding: 10px 14px; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .nupp.hall { background: var(--bg3); color: var(--tekst); border: 0.5px solid var(--piir); }
+  .nupp.vaike { padding: 5px 9px; font-size: 12px; font-weight: 700; }
+  .nupp.punane { background: transparent; color: var(--punane); border: 0.5px solid var(--punane); }
+  .teade { font-size: 13px; margin-top: 8px; min-height: 16px; }
+  .teade.ok { color: var(--roheline); } .teade.viga { color: var(--punane); }
+  .tootaja { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 0.5px solid var(--piir); font-size: 14px; }
+  .tootaja:last-child { border-bottom: none; }
+  .tootaja input { width: 20px; height: 20px; accent-color: #60a5fa; }
+  .filter { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+  .filter > div { min-width: 140px; }
+  .kv { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 760px) { .kv { grid-template-columns: repeat(2, 1fr); } }
+  .kv div { background: var(--bg3); border-radius: 10px; padding: 10px; text-align: center; }
+  .kv b { display: block; font-size: 18px; font-weight: 800; }
+  .kv span { font-size: 11px; color: var(--tekst3); }
+  .kv .tulu b { color: var(--roheline); }
+  .tabel-ymbris { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; color: var(--tekst3); text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 6px; border-bottom: 1px solid var(--piir); white-space: nowrap; }
+  td { padding: 7px 6px; border-bottom: 0.5px solid var(--piir); vertical-align: middle; }
+  td.n, th.n { text-align: right; white-space: nowrap; }
+  td input { padding: 5px 6px; font-size: 13px; }
+  td a { color: var(--sinine); text-decoration: none; margin-right: 6px; }
+  .lahti { color: var(--oranz); font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1>🚐 <span>Kaubik</span> — sõidupäevik</h1>
+  <a class="tagasi" href="/admin">← Tagasi adminni</a>
+
+  <div class="ruudustik">
+    <div class="kaart">
+      <h2>⚙️ Hinnad ja seaded</h2>
+      <label class="silt">Kaubiku nimi</label>
+      <input id="s-nimi" placeholder="Kaubik">
+      <div class="kaks">
+        <div><label class="silt">Päevatasu (€, km-ta)</label><input id="s-paev" inputmode="decimal"></div>
+        <div><label class="silt">Kilomeetrihind (€/km, km-ta)</label><input id="s-km" inputmode="decimal"></div>
+      </div>
+      <label class="lyliti"><input type="checkbox" id="s-arvele">
+        <span><b>Lisa Lidli arvele</b><br><span class="abi">Sees: Lidli arve autotäitmine lisab perioodi kaubiku read („rent“ päevad × päevatasu ja „läbisõit“ km × km-hind). <b>Testimise ajal hoia väljas.</b> NB: kui töötajad panevad samad km ka töökirjele, tuleb arvele topelt transport.</span></span>
+      </label>
+      <div style="margin-top:12px"><button class="nupp" onclick="salvestaSeaded()">Salvesta seaded</button></div>
+      <div id="s-teade" class="teade"></div>
+    </div>
+
+    <div class="kaart">
+      <h2>👷 Kes näeb kaubiku moodulit</h2>
+      <div class="abi" style="margin-bottom:6px">Linnukesega töötajatel ilmub pealehele plaat „KAUBIK“.</div>
+      <div id="tootajad"><div class="abi">Laadin…</div></div>
+    </div>
+  </div>
+
+  <div class="kaart">
+    <h2>📋 Sõidud</h2>
+    <div class="filter">
+      <div><label class="silt">Algus</label><input type="date" id="f-algus"></div>
+      <div><label class="silt">Lõpp</label><input type="date" id="f-lopp"></div>
+      <button class="nupp hall" onclick="nihutaKuud(-1)">◀ Eelmine kuu</button>
+      <button class="nupp hall" onclick="nihutaKuud(1)">Järgmine kuu ▶</button>
+      <button class="nupp" onclick="laadiPaevik()">Näita</button>
+      <button class="nupp hall" onclick="laeExcel()">⬇ Excel</button>
+    </div>
+    <div class="kv">
+      <div><b id="kv-paevad">0</b><span>sõidupäeva</span></div>
+      <div><b id="kv-km">0</b><span>km</span></div>
+      <div><b id="kv-paevatulu">0 €</b><span>päevatasu</span></div>
+      <div><b id="kv-kmtulu">0 €</b><span>km tasu</span></div>
+      <div class="tulu"><b id="kv-kokku">0 €</b><span>kokku (km-ta)</span></div>
+    </div>
+    <div class="abi" id="viimane" style="margin-bottom:8px"></div>
+    <div class="tabel-ymbris">
+      <table>
+        <thead><tr><th>Kuupäev</th><th>Töötaja</th><th class="n">Algnäit</th><th class="n">Lõpunäit</th><th class="n">Km</th><th>Fotod</th><th>Märkus</th><th></th></tr></thead>
+        <tbody id="read"><tr><td colspan="8" class="abi">Laadin…</td></tr></tbody>
+      </table>
+    </div>
+    <div id="p-teade" class="teade"></div>
+  </div>
+
+  <script>
+    var TOKEN = localStorage.getItem('adminToken') || '';
+    if (localStorage.getItem('teema') === 'hele') document.body.classList.add('hele');
+    var read = [], muudetav = null;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function kp(s) { var o = String(s || '').split('-'); return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : s; }
+    function eur(n) { return (Math.round((n || 0) * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+    function tuhanded(n) { return n === null || n === undefined ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+    function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function teade(id, tekst, tyyp) { var el = document.getElementById(id); el.className = 'teade ' + (tyyp || 'viga'); el.textContent = tekst || ''; }
+
+    async function api(tee, seaded) {
+      seaded = seaded || {};
+      seaded.headers = Object.assign({ 'x-session-token': TOKEN, 'Content-Type': 'application/json' }, seaded.headers || {});
+      try {
+        var r = await fetch('/api/kaubik' + tee, seaded);
+        if (r.status === 401) { window.location = '/admin-login'; return { ok: false }; }
+        return await r.json();
+      } catch (e) { return { ok: false, veateade: 'Ühendus katkes — proovi uuesti' }; }
+    }
+
+    function seaKuu(aasta, kuu) {
+      document.getElementById('f-algus').value = iso(new Date(aasta, kuu, 1));
+      document.getElementById('f-lopp').value = iso(new Date(aasta, kuu + 1, 0));
+    }
+    function nihutaKuud(n) {
+      var a = new Date((document.getElementById('f-algus').value || iso(new Date())) + 'T00:00:00');
+      seaKuu(a.getFullYear(), a.getMonth() + n);
+      laadiPaevik();
+    }
+
+    async function laadiSeaded() {
+      var r = await api('/admin/seaded');
+      if (!r.ok) return;
+      document.getElementById('s-nimi').value = r.seaded.kaubiku_nimi;
+      document.getElementById('s-paev').value = String(r.seaded.paevahind).replace('.', ',');
+      document.getElementById('s-km').value = String(r.seaded.km_hind).replace('.', ',');
+      document.getElementById('s-arvele').checked = r.seaded.arvele;
+    }
+    async function salvestaSeaded() {
+      var r = await api('/admin/seaded', { method: 'POST', body: JSON.stringify({
+        kaubiku_nimi: document.getElementById('s-nimi').value,
+        paevahind: document.getElementById('s-paev').value,
+        km_hind: document.getElementById('s-km').value,
+        arvele: document.getElementById('s-arvele').checked
+      }) });
+      teade('s-teade', r.ok ? '✓ Salvestatud' : (r.veateade || 'Salvestamine ebaõnnestus'), r.ok ? 'ok' : 'viga');
+      if (r.ok) laadiPaevik();
+    }
+
+    async function laadiTootajad() {
+      var r = await api('/admin/lubatud');
+      var el = document.getElementById('tootajad');
+      if (!r.ok) { el.innerHTML = '<div class="abi">Laadimine ebaõnnestus</div>'; return; }
+      el.innerHTML = r.tootajad.map(function (t) {
+        return '<label class="tootaja"><span>' + esc(t.nimi) + '</span><input type="checkbox" ' + (t.lubatud ? 'checked' : '') + ' onchange="muudaLubatud(' + t.id + ', this.checked)"></label>';
+      }).join('') || '<div class="abi">Aktiivseid töötajaid pole</div>';
+    }
+    async function muudaLubatud(id, lubatud) {
+      var r = await api('/admin/lubatud/' + id, { method: 'POST', body: JSON.stringify({ lubatud: lubatud }) });
+      if (!r.ok) { alert(r.veateade || 'Muutmine ebaõnnestus'); laadiTootajad(); }
+    }
+
+    async function laadiPaevik() {
+      var a = document.getElementById('f-algus').value, l = document.getElementById('f-lopp').value;
+      var r = await api('/admin/paevik?algus=' + a + '&lopp=' + l);
+      if (!r.ok) { teade('p-teade', r.veateade || 'Laadimine ebaõnnestus'); return; }
+      teade('p-teade', '');
+      read = r.read; muudetav = null;
+      document.getElementById('kv-paevad').textContent = r.kokku.paevad;
+      document.getElementById('kv-km').textContent = tuhanded(r.kokku.km);
+      document.getElementById('kv-paevatulu').textContent = eur(r.kokku.paeva_tulu);
+      document.getElementById('kv-kmtulu').textContent = eur(r.kokku.km_tulu);
+      document.getElementById('kv-kokku').textContent = eur(r.kokku.kokku);
+      document.getElementById('viimane').textContent = r.viimane_nait ? 'Kaubiku viimane teadaolev näit: ' + tuhanded(r.viimane_nait) + ' km' : '';
+      joonista();
+    }
+
+    function joonista() {
+      var tb = document.getElementById('read');
+      if (!read.length) { tb.innerHTML = '<tr><td colspan="8" class="abi">Sel perioodil sõite pole.</td></tr>'; return; }
+      tb.innerHTML = read.map(function (s) {
+        var fotod = (s.algus_foto ? '<a href="' + esc(s.algus_foto) + '" target="_blank">📷 A</a>' : '') + (s.lopp_foto ? '<a href="' + esc(s.lopp_foto) + '" target="_blank">📷 L</a>' : '');
+        if (muudetav === s.id) {
+          return '<tr><td><input type="date" id="m-kp" value="' + s.kuupaev + '"></td><td>' + esc(s.tootaja) + '</td>'
+            + '<td><input id="m-algus" inputmode="numeric" value="' + s.algus_km + '" style="width:95px"></td>'
+            + '<td><input id="m-lopp" inputmode="numeric" value="' + (s.lopp_km === null ? '' : s.lopp_km) + '" style="width:95px"></td>'
+            + '<td></td><td>' + fotod + '</td><td><input id="m-markus" value="' + esc(s.markus) + '"></td>'
+            + '<td style="white-space:nowrap"><button class="nupp vaike" onclick="salvestaRida(' + s.id + ')">💾</button> <button class="nupp vaike hall" onclick="muudetav=null;joonista()">✕</button></td></tr>';
+        }
+        return '<tr><td>' + kp(s.kuupaev) + '</td><td>' + esc(s.tootaja || '—') + '</td>'
+          + '<td class="n">' + tuhanded(s.algus_km) + '</td>'
+          + '<td class="n">' + (s.lahti ? '<span class="lahti">käib</span>' : tuhanded(s.lopp_km)) + '</td>'
+          + '<td class="n"><b>' + (s.lahti ? '' : tuhanded(s.km)) + '</b></td>'
+          + '<td>' + fotod + '</td><td>' + esc(s.markus) + '</td>'
+          + '<td style="white-space:nowrap"><button class="nupp vaike hall" onclick="muudetav=' + s.id + ';joonista()">✏️</button> <button class="nupp vaike punane" onclick="kustuta(' + s.id + ')">🗑</button></td></tr>';
+      }).join('');
+    }
+
+    async function salvestaRida(id) {
+      var r = await api('/admin/soit/' + id, { method: 'PUT', body: JSON.stringify({
+        kuupaev: document.getElementById('m-kp').value,
+        algus_km: document.getElementById('m-algus').value,
+        lopp_km: document.getElementById('m-lopp').value,
+        markus: document.getElementById('m-markus').value
+      }) });
+      if (!r.ok) { teade('p-teade', r.veateade || 'Salvestamine ebaõnnestus'); return; }
+      laadiPaevik();
+    }
+    async function kustuta(id) {
+      if (!confirm('Kas kustutada see sõit koos fotodega?')) return;
+      var r = await api('/admin/soit/' + id, { method: 'DELETE' });
+      if (!r.ok) { teade('p-teade', r.veateade || 'Kustutamine ebaõnnestus'); return; }
+      laadiPaevik();
+    }
+    function laeExcel() {
+      var a = document.getElementById('f-algus').value, l = document.getElementById('f-lopp').value;
+      window.location = '/api/kaubik/admin/excel?algus=' + a + '&lopp=' + l + '&_token=' + encodeURIComponent(TOKEN);
+    }
+
+    (function () {
+      if (!TOKEN) { window.location = '/admin-login'; return; }
+      var t = new Date();
+      seaKuu(t.getFullYear(), t.getMonth());
+      laadiSeaded(); laadiTootajad(); laadiPaevik();
+    })();
+  </script>
+</body>
+</html>
