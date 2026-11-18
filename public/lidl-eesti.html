@@ -72,8 +72,10 @@
     .poe-kaart.tyhi:hover { border-color: rgba(255,255,255,0.08); transform: none; }
     .poe-kaart.tyhi .poe-number { color: #4a5160; }
     .poe-kaart.tyhi .poe-nimi { color: #7a8290; }
-    .poe-kaart.tehtud { border-color: rgba(74,222,128,0.35); }
-    .poe-tehtud-markk { position: absolute; top: 8px; right: 10px; font-size: 12px; color: #4ade80; }
+    /* Valmis pood: kerge roheline toon + selgem roheline äär ja ✓ ring, et eristuks ühtlasest massist */
+    .poe-kaart.tehtud { border-color: rgba(74,222,128,0.6); background: linear-gradient(180deg, rgba(74,222,128,0.09), #13161c 70%); }
+    .poe-kaart.tehtud:hover { border-color: #4ade80; }
+    .poe-tehtud-markk { position: absolute; top: 7px; right: 9px; width: 20px; height: 20px; border-radius: 50%; background: #4ade80; color: #0d0f13; font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
     /* Kaetuse riba */
     /* Poe seis: valmis (roheline ✓) / puudu (kollane !) + kommentaar */
     .poe-kaart.puudu { border-color: rgba(251,191,36,0.6); background: linear-gradient(180deg, rgba(251,191,36,0.07), #13161c 70%); }
