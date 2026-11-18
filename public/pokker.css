@@ -1,0 +1,171 @@
+/* TELJE POKKER — must ja kuldne pokkeriklubi stiil */
+:root {
+  --kuld: #D4AF37; --kuld2: #F3D27A; --kuld3: #8C6B1F;
+  --taust: #050505; --pind: #111; --pind2: #181818; --pind3: #202020; --joon: #2b2516; --joon2: #2a2a2a;
+  --tekst: #f4f1e8; --hall: #9a9486; --hall2: #6b665c; --punane: #e0524a; --roheline: #5fd38a; --sinine: #6fa8ff;
+  --r: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; background: #030303; }
+body { background: radial-gradient(ellipse at 50% -10%, #1d170a 0%, #070707 45%, #030303 100%) fixed; color: var(--tekst); min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.45; }
+a { color: var(--kuld2); }
+.num { font-variant-numeric: tabular-nums; }
+.kuldne { background: linear-gradient(180deg, var(--kuld2) 0%, var(--kuld) 50%, var(--kuld3) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.peidus { display: none !important; }
+
+/* Sisselogimine */
+#login { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 22px; }
+#login img { width: min(300px, 72vw); filter: drop-shadow(0 0 30px rgba(212,175,55,.25)); }
+#login form { width: min(320px, 100%); display: flex; flex-direction: column; gap: 12px; }
+#login input { text-align: center; font-size: 26px; letter-spacing: .4em; padding: 14px; }
+#login .viga { color: var(--punane); text-align: center; min-height: 20px; font-size: 14px; }
+#login .vihje { color: var(--hall2); font-size: 13px; text-align: center; max-width: 320px; }
+
+/* Päis ja menüü */
+header { position: sticky; top: 0; z-index: 20; background: rgba(5,5,5,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--joon); }
+.pais-rida { display: flex; align-items: center; gap: 12px; padding: 10px 16px; max-width: 1280px; margin: 0 auto; }
+.pais-rida img { height: 42px; }
+.pais-rida .bränd { font-weight: 900; letter-spacing: .14em; font-size: 18px; flex: 1; }
+.roll { font-size: 11px; font-weight: 800; letter-spacing: .12em; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--joon); color: var(--hall); }
+.roll.admin { color: var(--kuld2); border-color: var(--kuld3); }
+nav { display: flex; gap: 4px; overflow-x: auto; padding: 0 12px 8px; max-width: 1280px; margin: 0 auto; scrollbar-width: none; }
+nav::-webkit-scrollbar { display: none; }
+nav a { flex: none; text-decoration: none; color: var(--hall); font-weight: 750; font-size: 12.5px; letter-spacing: .1em; padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
+nav a:hover { color: var(--tekst); background: rgba(255,255,255,.04); }
+nav a.aktiivne { color: #000; background: linear-gradient(180deg, var(--kuld2), var(--kuld)); }
+nav a.live-link { color: #fff; background: #8f1f18; }
+main { max-width: 1280px; margin: 0 auto; padding: 18px 16px 80px; }
+
+/* Üldised elemendid */
+h1.leht { font-size: 24px; font-weight: 900; letter-spacing: .1em; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h1.leht .tagasi { font-size: 14px; letter-spacing: 0; text-decoration: none; color: var(--hall); font-weight: 600; }
+h2 { font-size: 15px; font-weight: 850; letter-spacing: .14em; color: var(--kuld2); margin-bottom: 10px; }
+.kaart { background: linear-gradient(180deg, rgba(212,175,55,.05), rgba(255,255,255,.01)), var(--pind); border: 1px solid var(--joon); border-radius: var(--r); padding: 16px; margin-bottom: 14px; }
+.kaart.tume { background: var(--pind); border-color: var(--joon2); }
+.ruudustik { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.rida { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.vahe { flex: 1; }
+.hall { color: var(--hall); }
+.vaike { font-size: 13px; }
+.tyhi { color: var(--hall); text-align: center; padding: 24px 10px; }
+
+button, .nupp { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--joon2); background: var(--pind3); color: var(--tekst);
+  padding: 9px 14px; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; transition: transform .05s, background .15s; touch-action: manipulation; }
+button:active, .nupp:active { transform: scale(.97); }
+button:disabled { opacity: .4; cursor: default; }
+.kuldnupp { background: linear-gradient(180deg, var(--kuld2), var(--kuld) 60%, #b38f2a); color: #120d00; border-color: var(--kuld); font-weight: 850; }
+.punanupp { background: #3a1311; border-color: #6d211c; color: #ffb4ad; }
+.rohenupp { background: #0f2a1a; border-color: #1f5a37; color: #9ff0bf; }
+.serv { background: transparent; }
+.suur { padding: 14px 18px; font-size: 16px; }
+.vaikenupp { padding: 5px 9px; font-size: 12.5px; border-radius: 8px; }
+
+input, select, textarea { font: inherit; background: #0a0a0a; color: var(--tekst); border: 1px solid var(--joon2); border-radius: 10px; padding: 10px 12px; width: 100%; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--kuld); }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--kuld); }
+label.v { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 750; letter-spacing: .06em; color: var(--hall); }
+label.c { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.vorm { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 11px; letter-spacing: .1em; color: var(--hall); font-weight: 800; padding: 8px 8px; border-bottom: 1px solid var(--joon); white-space: nowrap; }
+td { padding: 9px 8px; border-bottom: 1px solid #1d1d1d; }
+tr.klikk { cursor: pointer; }
+tr.klikk:hover td { background: rgba(212,175,55,.05); }
+td.r, th.r { text-align: right; }
+td.c, th.c { text-align: center; }
+.tabelikast { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.koht { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 50%; font-weight: 900; font-size: 13px; background: #1c1c1c; color: var(--hall); }
+.koht.k1 { background: linear-gradient(180deg, var(--kuld2), var(--kuld)); color: #000; }
+.koht.k2 { background: linear-gradient(180deg, #e8e8e8, #a9a9a9); color: #000; }
+.koht.k3 { background: linear-gradient(180deg, #e3a36b, #a8622c); color: #000; }
+.mangija-nimi { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #222; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 900; color: var(--kuld2); font-size: 13px; border: 1px solid var(--joon); }
+.avatar.suur { width: 96px; height: 96px; font-size: 34px; border-width: 2px; border-color: var(--kuld3); }
+.silt { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 3px 7px; border-radius: 6px; background: #222; color: var(--hall); }
+.silt.kuld { background: rgba(212,175,55,.15); color: var(--kuld2); }
+.silt.roheline { background: rgba(95,211,138,.12); color: var(--roheline); }
+.silt.punane { background: rgba(224,82,74,.14); color: #ff9c94; }
+.silt.sinine { background: rgba(111,168,255,.12); color: var(--sinine); }
+
+/* Statistika kastid */
+.statid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.stat { background: #0b0b0b; border: 1px solid var(--joon); border-radius: 12px; padding: 12px; text-align: center; }
+.stat .s { font-size: 10.5px; letter-spacing: .14em; color: var(--hall); font-weight: 800; }
+.stat .v { font-size: 22px; font-weight: 900; margin-top: 2px; }
+
+/* Juhtpult */
+.juht-kell { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; }
+.juht-kell .aeg { font-size: clamp(54px, 13vw, 96px); font-weight: 900; line-height: 1; }
+.juht-kell .aeg.peatatud { opacity: .5; }
+.juht-kell .aeg.hoiatus { -webkit-text-fill-color: #ffb4ad; }
+.juht-kell .lvl { font-size: 15px; font-weight: 900; letter-spacing: .25em; }
+.juht-kell .bl { font-size: clamp(24px, 6vw, 38px); font-weight: 900; }
+.juht-kell .jarg { color: var(--hall); font-size: 14px; }
+.juht-nupud { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 14px; }
+.juht-nupud button { min-height: 48px; }
+.mangijad-juht { display: flex; flex-direction: column; gap: 6px; }
+.mj { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: #0c0c0c; border: 1px solid #1f1f1f; flex-wrap: wrap; }
+.mj .nimi { font-weight: 800; flex: 1; min-width: 120px; display: flex; align-items: center; gap: 8px; }
+.mj .lisad { display: flex; gap: 4px; flex-wrap: wrap; }
+.mj .tegevused { display: flex; gap: 6px; flex-wrap: wrap; }
+.mj .tegevused button { min-height: 40px; min-width: 52px; padding: 6px 10px; font-size: 13px; }
+.mj.out { opacity: .55; }
+.mj.out .nimi span.n { text-decoration: line-through; }
+.periood { display: inline-block; font-weight: 800; font-size: 12px; letter-spacing: .08em; padding: 5px 10px; border-radius: 8px; }
+.periood.avatud { background: rgba(95,211,138,.12); color: var(--roheline); }
+.periood.suletud { background: #1b1b1b; color: var(--hall); }
+.periood.addon { background: rgba(212,175,55,.2); color: var(--kuld2); }
+
+/* Struktuuri redaktor */
+.struktuur td { padding: 4px 4px; }
+.struktuur input { padding: 6px 7px; font-size: 14px; min-width: 64px; }
+.struktuur tr.paus td { background: rgba(212,175,55,.06); }
+.struktuur tr.praegune td { background: rgba(95,211,138,.08); }
+
+/* Modaal */
+#modaal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.75); display: none; align-items: flex-start; justify-content: center; padding: 30px 12px; overflow-y: auto; }
+#modaal.lahti { display: flex; }
+#modaal .kast { background: #0e0e0e; border: 1px solid var(--kuld3); border-radius: 18px; width: min(720px, 100%); padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+#modaal .kast.lai { width: min(1000px, 100%); }
+#modaal .kast h3 { font-size: 17px; font-weight: 900; letter-spacing: .08em; margin-bottom: 14px; color: var(--kuld2); }
+#modaal .modaal-nupud { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(120px); background: #181308; border: 1px solid var(--kuld3); color: var(--kuld2);
+  padding: 12px 18px; border-radius: 12px; font-weight: 700; z-index: 60; transition: transform .25s, opacity .25s; opacity: 0; pointer-events: none; max-width: 90vw; text-align: center; }
+#toast.naha { transform: translateX(-50%) translateY(0); opacity: 1; }
+#toast.viga { background: #2a0f0d; border-color: #6d211c; color: #ffb4ad; }
+
+/* Avaleht */
+.kangelane { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.kangelane img { width: 150px; }
+.kangelane .tekst { flex: 1; min-width: 220px; }
+.kangelane .suurtekst { font-size: 26px; font-weight: 900; letter-spacing: .05em; }
+
+/* Mängijate ruudustik */
+.mangijakaardid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.mk { background: var(--pind); border: 1px solid var(--joon2); border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mk:hover { border-color: var(--kuld3); }
+.mk .avatar { width: 64px; height: 64px; font-size: 22px; }
+.mk .n { font-weight: 800; }
+.mk.arhiiv { opacity: .45; }
+
+/* Kuuvaade */
+.kuuvaade th.kp { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10.5px; padding: 6px 2px; height: 70px; }
+.kuuvaade td.p { text-align: center; font-size: 13px; padding: 6px 3px; }
+.kuuvaade td.p.v { background: rgba(212,175,55,.18); color: var(--kuld2); font-weight: 900; }
+.kuuvaade td.p.t { color: var(--hall2); }
+
+@media (max-width: 640px) {
+  main { padding: 14px 10px 80px; }
+  .pais-rida img { height: 34px; }
+  .pais-rida .bränd { font-size: 15px; }
+  h1.leht { font-size: 20px; }
+  .kaart { padding: 13px; }
+  th, td { padding: 7px 5px; }
+  .peida-mob { display: none; }
+  .mj .tegevused { width: 100%; }
+  .mj .tegevused button { flex: 1; }
+}

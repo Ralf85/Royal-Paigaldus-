@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Telje Pokker">
+<title>TELJE POKKER</title>
+<link rel="manifest" href="/pokker-manifest.json">
+<link rel="icon" type="image/png" href="/icons/pokker-192.png">
+<link rel="apple-touch-icon" href="/icons/pokker-192.png">
+<link rel="stylesheet" href="/pokker.css">
+</head>
+<body>
+<div id="login" class="peidus">
+  <img src="/pokker-logo.png" alt="TELJE POKKER">
+  <form onsubmit="logiSisse(event)">
+    <input type="password" id="pin" inputmode="numeric" autocomplete="current-password" placeholder="PIN" maxlength="20" autofocus>
+    <button class="kuldnupp suur" type="submit">SISENE</button>
+    <div class="viga" id="login-viga"></div>
+  </form>
+  <div class="vihje">Sisesta klubi-PIN (vaatamiseks) või admin-PIN (turniiri juhtimiseks).</div>
+</div>
+
+<div id="rakendus" class="peidus">
+  <header>
+    <div class="pais-rida">
+      <img src="/pokker-logo.png" alt="">
+      <div class="bränd kuldne">TELJE POKKER</div>
+      <span class="roll" id="roll-silt"></span>
+      <button class="vaikenupp serv" onclick="logiValja()" title="Logi välja">⎋</button>
+    </div>
+    <nav id="menyy">
+      <a href="#avaleht" data-leht="avaleht">AVALEHT</a>
+      <a href="/pokker-tv" target="_blank" class="live-link">● LIVE TV</a>
+      <a href="#turniir" data-leht="turniir">TURNIIR</a>
+      <a href="#edetabel" data-leht="edetabel">EDETABEL</a>
+      <a href="#mangijad" data-leht="mangijad">MÄNGIJAD</a>
+      <a href="#statistika" data-leht="statistika">STATISTIKA</a>
+      <a href="#ajalugu" data-leht="ajalugu">AJALUGU</a>
+      <a href="#hooajad" data-leht="hooajad">HOOAJAD</a>
+      <a href="#formaadid" data-leht="formaadid">FORMAADID</a>
+      <a href="#seaded" data-leht="seaded" class="ainult-admin">SEADISTUSED</a>
+    </nav>
+  </header>
+  <main id="sisu"></main>
+</div>
+
+<div id="modaal" onclick="if(event.target===this)sulgeModaal()"><div class="kast" id="modaal-kast"></div></div>
+<div id="toast"></div>
+
+<script src="/pokker-kell.js"></script>
+<script src="/pokker.js"></script>
+</body>
+</html>

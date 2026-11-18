@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#000000">
+<title>TELJE POKKER — LIVE</title>
+<link rel="icon" type="image/png" href="/icons/pokker-192.png">
+<style>
+  :root {
+    --kuld: #D4AF37; --kuld2: #F3D27A; --kuld3: #8C6B1F;
+    --must: #000; --pind: #0d0d0d; --pind2: #151515; --joon: #2a2414;
+    --tekst: #f4f1e8; --hall: #8a857a; --punane: #e0524a; --roheline: #5fd38a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: radial-gradient(ellipse at 60% 30%, #1a160c 0%, #050505 55%, #000 100%); color: var(--tekst);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+  .num { font-variant-numeric: tabular-nums; }
+  .kuldne { background: linear-gradient(180deg, var(--kuld2) 0%, var(--kuld) 45%, var(--kuld3) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #ekraan { display: grid; grid-template-columns: minmax(220px, 23vw) 1fr; grid-template-rows: 1fr auto; height: 100vh; gap: 1.4vh 1.6vw; padding: 2vh 2vw 3.2vh; }
+  /* Mängijad */
+  #mangijad { grid-row: 1 / 2; background: linear-gradient(180deg, rgba(212,175,55,.06), rgba(0,0,0,.2)); border: 1px solid var(--joon); border-radius: 1.4vh;
+    padding: 1.6vh 1.2vw; display: flex; flex-direction: column; min-height: 0; }
+  #mangijad h2 { font-size: 2.1vh; letter-spacing: .35em; font-weight: 800; margin-bottom: 1.2vh; }
+  #list { flex: 1; display: flex; flex-direction: column; gap: .5vh; min-height: 0; }
+  .m { flex: 1; max-height: 6.4vh; display: flex; align-items: center; gap: .8vw; padding: 0 .8vw; border-radius: .9vh;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.04); font-size: var(--fs, 2.6vh); font-weight: 650; min-height: 0; }
+  .m .nr { width: 2.2em; color: var(--kuld); font-weight: 800; text-align: right; opacity: .9; }
+  .m .nimi { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m .lisad { font-size: .62em; color: var(--kuld2); opacity: .85; letter-spacing: .04em; }
+  .m.out { background: transparent; border-color: transparent; color: #5b5750; }
+  .m.out .nimi { text-decoration: line-through; text-decoration-color: rgba(224,82,74,.6); }
+  .m.out .nr { color: #5b5750; }
+  .m .silt { font-size: .58em; font-weight: 800; letter-spacing: .12em; color: var(--punane); border: 1px solid rgba(224,82,74,.5); padding: .15em .45em; border-radius: .4em; }
+  .m.voitja { background: linear-gradient(90deg, rgba(212,175,55,.35), rgba(212,175,55,.05)); border-color: var(--kuld); }
+  /* Kell */
+  #kesk { display: flex; flex-direction: column; min-height: 0; }
+  #pais { display: flex; align-items: center; gap: 1.6vw; }
+  #pais img { height: 11vh; filter: drop-shadow(0 0 2vh rgba(212,175,55,.25)); }
+  #pais .tiitel { flex: 1; min-width: 0; }
+  #pais .tiitel h1 { font-size: 4.4vh; font-weight: 900; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pais .tiitel .alam { font-size: 2.2vh; color: var(--hall); letter-spacing: .25em; font-weight: 700; margin-top: .4vh; }
+  .live { display: inline-flex; align-items: center; gap: .6vw; font-size: 2.4vh; font-weight: 900; letter-spacing: .3em; color: #fff;
+    background: #b3261e; padding: .8vh 1.2vw; border-radius: .8vh; }
+  .live i { width: 1.4vh; height: 1.4vh; border-radius: 50%; background: #fff; animation: vilgu 1.2s infinite; }
+  .live.peatatud { background: #5c5440; }
+  .live.peatatud i { animation: none; opacity: .5; }
+  @keyframes vilgu { 50% { opacity: .2; } }
+  #kell { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 0; }
+  #level { font-size: 5.2vh; font-weight: 900; letter-spacing: .3em; }
+  #aeg { font-size: min(29vh, 19vw); font-weight: 800; line-height: .95; letter-spacing: -.01em; margin: .4vh 0 .8vh; text-shadow: 0 0 6vh rgba(212,175,55,.18); }
+  #aeg.hoiatus { color: #ffb4ad; -webkit-text-fill-color: #ffb4ad; }
+  #aeg.peatatud { opacity: .55; }
+  #riba { width: min(70vw, 120vh); height: .9vh; border-radius: 1vh; background: rgba(255,255,255,.08); overflow: hidden; margin-bottom: 2.2vh; }
+  #riba div { height: 100%; background: linear-gradient(90deg, var(--kuld3), var(--kuld2)); width: 0; transition: width .5s linear; }
+  #blindid-silt { font-size: 2.4vh; letter-spacing: .4em; color: var(--hall); font-weight: 800; }
+  #blindid { font-size: min(13vh, 8.5vw); font-weight: 900; line-height: 1.05; }
+  #ante { font-size: 3.2vh; color: var(--kuld2); font-weight: 700; min-height: 3.6vh; }
+  #jargmised { margin-top: 1.4vh; font-size: 3.2vh; color: var(--hall); font-weight: 700; letter-spacing: .05em; }
+  #jargmised b { color: var(--tekst); }
+  #pausini { margin-top: 1.2vh; font-size: 2.8vh; font-weight: 800; letter-spacing: .15em; color: var(--kuld2); }
+  #periood { margin-top: 1.4vh; display: inline-block; font-size: 2.4vh; font-weight: 800; letter-spacing: .12em; padding: .7vh 1.4vw; border-radius: .8vh; }
+  #periood.avatud { background: rgba(95,211,138,.12); color: var(--roheline); border: 1px solid rgba(95,211,138,.35); }
+  #periood.suletud { background: rgba(255,255,255,.04); color: var(--hall); border: 1px solid rgba(255,255,255,.08); }
+  #periood.addon { background: rgba(212,175,55,.18); color: var(--kuld2); border: 1px solid var(--kuld); animation: vilgu 1.6s infinite; }
+  /* Statistika */
+  #stat { grid-column: 1 / 3; display: grid; grid-template-columns: repeat(auto-fit, minmax(13vw, 1fr)); gap: 1vw; }
+  .s { background: linear-gradient(180deg, rgba(212,175,55,.08), rgba(0,0,0,.25)); border: 1px solid var(--joon); border-radius: 1.2vh; padding: 1.3vh 1vw; text-align: center; }
+  .s .silt { font-size: 1.7vh; letter-spacing: .25em; color: var(--hall); font-weight: 800; }
+  .s .v { font-size: 4.6vh; font-weight: 900; margin-top: .3vh; }
+  #jalus { position: fixed; bottom: .5vh; left: 0; right: 0; text-align: center; font-size: 1.4vh; letter-spacing: .5em; color: #4a4536; pointer-events: none; }
+  /* Paus */
+  body.paus #aeg { color: var(--kuld2); }
+  body.paus #blindid { font-size: min(16vh, 10vw); letter-spacing: .2em; }
+  /* Teated */
+  #kate { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; z-index: 10; text-align: center; padding: 4vh; }
+  #kate img { width: min(42vh, 60vw); }
+  #kate p { font-size: 2.6vh; color: var(--hall); max-width: 80vh; line-height: 1.5; }
+  #kate button { font-size: 2.6vh; font-weight: 800; letter-spacing: .15em; padding: 1.8vh 3vw; border-radius: 1vh; border: 1px solid var(--kuld);
+    background: linear-gradient(180deg, #2b230d, #120f06); color: var(--kuld2); cursor: pointer; }
+  #nupud { position: fixed; bottom: .4vh; right: 1.2vw; display: flex; gap: .6vw; opacity: 0; transition: opacity .3s; z-index: 5; }
+  body:hover #nupud { opacity: 1; }
+  #nupud button { background: rgba(0,0,0,.6); color: var(--kuld2); border: 1px solid var(--joon); border-radius: .8vh; padding: .8vh 1vw; font-size: 1.8vh; cursor: pointer; }
+  #tulemused { display: none; }
+  body.lopp #kell-sisu { display: none; }
+  body.lopp #tulemused { display: flex; flex-direction: column; align-items: center; gap: 2vh; }
+  #tulemused h2 { font-size: 6vh; font-weight: 900; letter-spacing: .25em; }
+  #tulemused .poodium { display: flex; gap: 2vw; align-items: flex-end; }
+  #tulemused .k { text-align: center; padding: 2vh 2vw; border-radius: 1.4vh; border: 1px solid var(--joon); background: rgba(212,175,55,.06); min-width: 18vw; }
+  #tulemused .k.k1 { border-color: var(--kuld); background: rgba(212,175,55,.16); padding-top: 4vh; }
+  #tulemused .k .koht { font-size: 3vh; font-weight: 900; color: var(--kuld); }
+  #tulemused .k .nimi { font-size: 4.2vh; font-weight: 900; margin: 1vh 0; }
+  #tulemused .k .lisa { font-size: 2.2vh; color: var(--hall); }
+  @media (max-aspect-ratio: 1/1) {
+    #ekraan { grid-template-columns: 1fr; grid-template-rows: auto auto auto; overflow: auto; height: auto; min-height: 100vh; }
+    html, body { overflow: auto; }
+    #mangijad { grid-row: 3; }
+    #stat { grid-column: 1; grid-row: 2; grid-template-columns: repeat(2, 1fr); }
+    #aeg { font-size: 22vw; }
+    #blindid { font-size: 11vw; }
+    .m { max-height: none; min-height: 4.4vh; flex: none; }
+    #pais img { height: 8vh; }
+  }
+</style>
+</head>
+<body>
+<div id="nupud"><button onclick="taisekraan()">⛶ Täisekraan</button><button onclick="lylitaHeli()" id="heli-nupp">🔊 Heli</button></div>
+<div id="ekraan">
+  <section id="mangijad"><h2 class="kuldne">MÄNGIJAD</h2><div id="list"></div></section>
+  <section id="kesk">
+    <div id="pais">
+      <img src="/pokker-logo.png" alt="TELJE POKKER">
+      <div class="tiitel"><h1 class="kuldne" id="nimi">TELJE POKKER</h1><div class="alam" id="formaat"></div></div>
+      <div class="live" id="live-silt"><i></i><span>LIVE</span></div>
+    </div>
+    <div id="kell">
+      <div id="kell-sisu" style="display:flex;flex-direction:column;align-items:center">
+        <div id="level" class="kuldne">LEVEL 1</div>
+        <div id="aeg" class="num kuldne">00:00</div>
+        <div id="riba"><div></div></div>
+        <div id="blindid-silt">BLINDS</div>
+        <div id="blindid" class="num">—</div>
+        <div id="ante" class="num"></div>
+        <div id="jargmised" class="num"></div>
+        <div id="pausini" class="num"></div>
+        <div id="periood"></div>
+      </div>
+      <div id="tulemused"><h2 class="kuldne">TULEMUSED</h2><div class="poodium" id="poodium"></div></div>
+    </div>
+  </section>
+  <section id="stat"></section>
+</div>
+<div id="jalus">TELJE POKKER • EST. 2015</div>
+<div id="kate" style="display:none"></div>
+<script src="/pokker-kell.js"></script>
+<script>
+  var K = window.PokkerKell;
+  var params = new URLSearchParams(location.search);
+  var VOTI = params.get('voti') || '';
+  var TURNIIR = params.get('turniir') || '';
+  var TOKENID = [];
+  try { TOKENID = [localStorage.getItem('pokkerToken'), localStorage.getItem('adminToken')].filter(Boolean); } catch (e) {}
+  var D = null, nihe = 0, heliLubatud = false, eelmineIdx = null, eelmineTurniir = null, hoiatatud = {}, viimaneOk = 0;
+
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  async function lae() {
+    var url = '/api/pokker/live' + (VOTI ? '?voti=' + encodeURIComponent(VOTI) : '') + (TURNIIR ? (VOTI ? '&' : '?') + 'turniir_id=' + encodeURIComponent(TURNIIR) : '');
+    var proovid = VOTI ? [''] : (TOKENID.length ? TOKENID : ['']);
+    for (var i = 0; i < proovid.length; i++) {
+      try {
+        var r = await fetch(url, { headers: proovid[i] ? { 'x-session-token': proovid[i] } : {}, cache: 'no-store' });
+        var d = await r.json();
+        if (r.status === 401) continue;
+        if (d.ok) {
+          if (proovid[i]) TOKENID = [proovid[i]];
+          nihe = d.nuud - Date.now();
+          D = d; viimaneOk = Date.now();
+          naitaKate(null);
+          joonistaKoik();
+          return;
+        }
+      } catch (e) { return; }
+    }
+    naitaKate('<img src="/pokker-logo.png" alt=""><p>TV-vaate avamiseks kasuta TV-linki (Seadistused → TV-link) või logi enne samas brauseris TELJE POKKERISSE sisse.</p><button onclick="location.href=\'/pokker\'">AVA TELJE POKKER</button>');
+  }
+
+  function naitaKate(html) {
+    var k = document.getElementById('kate');
+    if (!html) { if (k.dataset.tyyp !== 'heli') k.style.display = 'none'; return; }
+    k.dataset.tyyp = 'viga'; k.innerHTML = html; k.style.display = 'flex';
+  }
+
+  function joonistaKoik() {
+    if (!D.turniir) {
+      document.body.className = '';
+      document.getElementById('nimi').textContent = 'TELJE POKKER';
+      document.getElementById('formaat').textContent = 'TURNIIRI POLE KÄIMAS';
+      document.getElementById('list').innerHTML = '';
+      document.getElementById('stat').innerHTML = '';
+      document.getElementById('level').textContent = '';
+      document.getElementById('aeg').textContent = '♠';
+      document.getElementById('blindid').textContent = '';
+      ['ante', 'jargmised', 'pausini', 'periood'].forEach(function (id) { document.getElementById(id).textContent = ''; });
+      document.getElementById('periood').className = '';
+      document.getElementById('live-silt').style.display = 'none';
+      return;
+    }
+    var t = D.turniir;
+    if (eelmineTurniir !== t.id) { eelmineTurniir = t.id; eelmineIdx = null; hoiatatud = {}; }
+    document.getElementById('nimi').textContent = t.nimi;
+    document.getElementById('formaat').textContent = (t.formaadi_nimi || '').toUpperCase() + (t.punktiturniir ? '' : ' • SÕPRUSMÄNG');
+    joonistaMangijad();
+    joonistaStat();
+    var lopp = t.staatus === 'lopetatud' || t.staatus === 'kinnitatud';
+    document.body.classList.toggle('lopp', lopp);
+    if (lopp) joonistaTulemused();
+    tiks();
+  }
+
+  function joonistaMangijad() {
+    var os = D.osalejad, s = D.turniir.seaded;
+    var lopp = D.turniir.staatus === 'lopetatud' || D.turniir.staatus === 'kinnitatud';
+    var n = os.length;
+    var fs = Math.max(1.6, Math.min(2.8, 62 / Math.max(n, 1)));
+    var html = '';
+    os.forEach(function (o, i) {
+      var lisad = [];
+      if (o.rebuyd) lisad.push('R' + (o.rebuyd > 1 ? '×' + o.rebuyd : ''));
+      if (o.reentryd) lisad.push('RE' + (o.reentryd > 1 ? '×' + o.reentryd : ''));
+      if (o.addonid) lisad.push('A');
+      if (s.bounty && o.bounty_arv) lisad.push('🎯' + o.bounty_arv);
+      var koht = lopp && o.koht ? o.koht : (i + 1);
+      html += '<div class="m' + (o.valjas ? ' out' : '') + (lopp && o.koht === 1 ? ' voitja' : '') + '" style="--fs:' + fs + 'vh">' +
+        '<span class="nr num">' + koht + '.</span><span class="nimi">' + esc(o.nimi) + '</span>' +
+        (lisad.length ? '<span class="lisad">' + lisad.join(' ') + '</span>' : '') +
+        (o.valjas && !lopp ? '<span class="silt">OUT</span>' : '') + '</div>';
+    });
+    document.getElementById('list').innerHTML = html || '<div style="color:var(--hall);font-size:2.2vh">Mängijaid pole veel registreeritud</div>';
+  }
+
+  function joonistaStat() {
+    var s = D.summad, se = D.turniir.seaded, k = [];
+    k.push(['MÄNGIJAID', s.aktiivseid + ' / ' + s.mangijaid]);
+    k.push(['AVG STACK', K.arv(s.keskmine_stack)]);
+    k.push(['ŽETOONE', K.arv(s.zetoonid)]);
+    if (se.tyyp === 'rebuy') k.push(['REBUY', s.rebuyd]);
+    if (se.tyyp === 'reentry') k.push(['RE-ENTRY', s.reentryd]);
+    if (se.addon_summa > 0) k.push(['ADD-ON', s.addonid]);
+    k.push(['PRIZE POOL', K.raha(s.auhinnafond)]);
+    if (se.bounty > 0) k.push(['BOUNTY POOL', K.raha(s.bountyfond)]);
+    document.getElementById('stat').innerHTML = k.map(function (x) {
+      return '<div class="s"><div class="silt">' + x[0] + '</div><div class="v num kuldne">' + x[1] + '</div></div>';
+    }).join('');
+  }
+
+  function joonistaTulemused() {
+    var top = D.osalejad.filter(function (o) { return o.koht && o.koht <= 3; }).sort(function (a, b) { return a.koht - b.koht; });
+    var jrk = [top[1], top[0], top[2]].filter(Boolean);
+    document.getElementById('poodium').innerHTML = jrk.map(function (o) {
+      return '<div class="k k' + o.koht + '"><div class="koht">' + (o.koht === 1 ? '🏆 ' : '') + o.koht + '. KOHT</div><div class="nimi">' + esc(o.nimi) + '</div>' +
+        '<div class="lisa num">' + (D.turniir.punktiturniir ? o.punktid + ' punkti' : '') + (o.auhind ? ' • ' + K.raha(o.auhind) : '') + '</div></div>';
+    }).join('');
+    document.getElementById('live-silt').style.display = 'none';
+  }
+
+  function tiks() {
+    if (!D || !D.turniir || !D.kell) return;
+    var t = D.turniir;
+    var nuud = Date.now() + nihe;
+    var info = K.info(t.seaded, t.struktuur, D.kell.kell, nuud);
+    var el = info.element;
+    var paus = !!(el && el.paus);
+    var jookseb = info.kell.jookseb;
+    document.body.classList.toggle('paus', paus);
+    var live = document.getElementById('live-silt');
+    live.style.display = '';
+    live.className = 'live' + (jookseb ? '' : ' peatatud');
+    live.querySelector('span').textContent = t.staatus === 'ootel' && !jookseb ? 'ALGAB' : jookseb ? 'LIVE' : 'PEATATUD';
+    document.getElementById('level').textContent = paus ? (el.addon ? 'PAUS + ADD-ON' : 'PAUS') : 'LEVEL ' + info.level_nr;
+    var aegEl = document.getElementById('aeg');
+    aegEl.textContent = K.aeg(info.jaak);
+    aegEl.className = 'num kuldne' + (info.jaak <= 60000 && jookseb && !paus ? ' hoiatus' : '') + (!jookseb ? ' peatatud' : '');
+    document.querySelector('#riba div').style.width = (info.kokku ? Math.min(100, 100 * (1 - info.jaak / info.kokku)) : 0) + '%';
+    document.getElementById('blindid-silt').textContent = paus ? 'JÄRGMISENA' : 'BLINDS';
+    document.getElementById('blindid').textContent = paus ? K.blindid(info.jargmine) : K.blindid(el);
+    document.getElementById('ante').textContent = paus ? K.ante(info.jargmine) : K.ante(el);
+    var jarg = paus ? null : info.jargmine;
+    document.getElementById('jargmised').innerHTML = jarg ? 'JÄRGMISED BLINDS &nbsp;<b>' + K.blindid(jarg) + '</b>' + (jarg.ante ? ' &nbsp;<span style="font-size:.8em">(' + K.ante(jarg) + ')</span>' : '') : (paus ? '' : (info.viimane ? 'VIIMANE LEVEL' : ''));
+    document.getElementById('pausini').textContent = paus ? 'PAUSI LÕPUNI ' + K.aeg(info.jaak) : (info.pausini != null ? 'JÄRGMISE PAUSINI ' + K.aeg(info.pausini) : '');
+    var p = document.getElementById('periood');
+    if (info.addon_aeg && t.seaded.addon_summa > 0) { p.className = 'addon'; p.textContent = 'ADD-ON ' + K.raha(t.seaded.addon_summa) + ' = ' + K.arv(t.seaded.addon_stack) + ' žetooni'; }
+    else if (info.periood.tyyp) {
+      var nimi = info.periood.tyyp.toUpperCase();
+      if (info.periood.avatud) { p.className = 'avatud'; p.textContent = nimi + ' AVATUD' + (info.periood.jaak != null ? ' • VEEL ' + K.aeg(info.periood.jaak) : ''); }
+      else { p.className = 'suletud'; p.textContent = nimi + ' PERIOOD LÕPPENUD'; }
+    } else { p.className = ''; p.textContent = ''; }
+    // Helid: leveli vahetus, 1 minut enne lõppu, pausi lõpp
+    if (eelmineIdx !== null && info.kell.idx !== eelmineIdx && jookseb) {
+      if (heliLubatud && D.helid !== false) K.piiks(3, paus ? 660 : 990);
+    }
+    if (jookseb && info.jaak <= 60000 && info.jaak > 58000 && !hoiatatud[info.kell.idx]) {
+      hoiatatud[info.kell.idx] = true;
+      if (heliLubatud && D.helid !== false) K.piiks(1, 740);
+    }
+    eelmineIdx = info.kell.idx;
+  }
+
+  function taisekraan() {
+    var d = document.documentElement;
+    if (!document.fullscreenElement) (d.requestFullscreen || d.webkitRequestFullscreen || function () {}).call(d);
+    else (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+  function lylitaHeli() {
+    heliLubatud = !heliLubatud;
+    if (heliLubatud) { K.avaHelid(); K.piiks(1, 880); }
+    document.getElementById('heli-nupp').textContent = heliLubatud ? '🔊 Heli sees' : '🔇 Heli väljas';
+  }
+  // Brauserid lubavad heli alles pärast esimest puudutust — näitame alguses nuppu.
+  (function () {
+    var k = document.getElementById('kate');
+    k.dataset.tyyp = 'heli';
+    k.innerHTML = '<img src="/pokker-logo.png" alt=""><button id="alusta">▶ AVA TURNIIRIKELL</button><p>Avab täisekraani ja lülitab sisse helisignaalid (leveli vahetus, 1 minut enne lõppu).</p>';
+    k.style.display = 'flex';
+    document.getElementById('alusta').onclick = function () {
+      k.dataset.tyyp = ''; k.style.display = 'none';
+      heliLubatud = true; K.avaHelid();
+      document.getElementById('heli-nupp').textContent = '🔊 Heli sees';
+      try { taisekraan(); } catch (e) {}
+    };
+  })();
+  // Ekraan ei tohi magama jääda
+  async function arkvel() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { arkvel(); lae(); } });
+  arkvel();
+  lae();
+  setInterval(lae, 2000);
+  setInterval(tiks, 250);
+</script>
+</body>
+</html>

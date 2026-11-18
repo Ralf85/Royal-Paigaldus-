@@ -112,6 +112,11 @@ app.use(async (req, res, next) => {
   }
   next();
 });
+// TELJE POKKER: kui rakendus avatakse pokkeri oma domeenilt (nt teljepokker.ee), on avaleht kohe pokkeri leht.
+app.get('/', (req, res, next) => {
+  if (/teljepokker/i.test(req.hostname || '')) return res.sendFile(path.join(__dirname, 'public', 'pokker.html'));
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tood', require('./routes/tood'));
@@ -137,6 +142,9 @@ app.use('/api/latvia', require('./routes/latvia'));
 // TELJE 10 (koduremont) — naabriga jagatud remondi arvestus (töötunnid + tšekid jagatakse kahe osapoole vahel,
 // naaber näeb kõike oma PIN-iga lehel /remont). Oma tabelid, vt routes/remont.js.
 app.use('/api/remont', require('./routes/remont'));
+// TELJE POKKER — sõpruskonna pokkeriturniirid: turniirikell, TV-vaade, hooaja punktid ja statistika.
+// Oma tabelid (pokker_*), oma klubi-PIN (vaatamine) ja admin-PIN (juhtimine), vt routes/pokker.js.
+app.use('/api/pokker', require('./routes/pokker'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -160,6 +168,8 @@ app.get('/minu-arved', (req, res) => res.sendFile(path.join(__dirname, 'public',
 app.get('/padel', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel.html')));
 app.get('/padel-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'padel-admin.html')));
 app.get('/remont', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remont.html')));
+app.get('/pokker', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pokker.html')));
+app.get(['/pokker-tv', '/tv'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'pokker-tv.html')));
 app.get('/telje10-tsekk', (req, res) => res.sendFile(path.join(__dirname, 'public', 'telje10-tsekk.html')));
 // Tundmatu API aadress -> selge JSON-vastus (mitte HTML-leht, mida liides ei oska lugeda)
 app.use('/api', (req, res) => {
