@@ -318,7 +318,7 @@ router.get('/projekt-poed', noudaFotoVaade, async (req, res) => {
 // ── PROJEKTI EXCEL (ülevaatamiseks inimestele, kes rakendust ei kasuta) ─────
 // Üks fail: leht "Ülevaade" (projekt, PO, seis kokku), "Poed" (iga pood: seis, kommentaar, käigud,
 // töötajad, pildid, Kristo kommentaarid) ja "Pildid" (iga pildi link). Tunde ega raha failis pole.
-// ?kulud=1 (AINULT admin): lisaks lehed "Maksumus poodide kaupa" ja "Käigud" — tunnid, km ja maksumus
+// ?kulud=1 (admin ja Lidl Eesti konto — nagu kogu see fail; tavatöötajad Excelit ei saa): lisaks lehed "Maksumus poodide kaupa" ja "Käigud" — tunnid, km ja maksumus
 // Lidli hindadega (27 €/h + 0,50 €/km, km-ta ja KM-ga). Sisemisi kulusid (palk jms) failis pole.
 const LIDL_TUNNIHIND = 27;   // €/h käibemaksuta (sama mis routes/arved.js FIKS_TUNNIHINNAD)
 const LIDL_KM_HIND = 0.5;    // €/km käibemaksuta (arve "Transport" rida)
@@ -327,7 +327,7 @@ function noudaAdminVoiKristo(req, res, next) {
   if (req.session.isAdmin || req.session.workerId === KRISTO_WORKER_ID) return next();
   return res.status(req.session.workerId ? 403 : 401).json({ ok: false, veateade: req.session.workerId ? 'Ligipääs keelatud' : 'Logi sisse' });
 }
-// Maksumuse lehed projekti Excelisse (nupp "Excel + maksumus", ainult admin). Kõik summad on Lidlile
+// Maksumuse lehed projekti Excelisse (nupp "Excel + maksumus", admin ja Lidl Eesti konto). Kõik summad on Lidlile
 // esitatavad hinnad (27 €/h + 0,50 €/km, km-ta ja koos 24% KM-ga) — Royal Paigalduse sisemisi kulusid
 // (töötajate palk, km-hüvitis) failis EI OLE. Tagastab kokkuvõtte "Ülevaade" lehe jaoks.
 const KM_MAAR = 24;
@@ -559,7 +559,6 @@ router.get('/projekt-excel', noudaAdminVoiKristo, async (req, res) => {
   const kirjeldus = String(req.query.kirjeldus || '').trim();
   if (!kirjeldus) return res.status(400).json({ ok: false, veateade: 'Projekt määramata' });
   const kuludega = req.query.kulud === '1';
-  if (kuludega && !req.session.isAdmin) return res.status(403).json({ ok: false, veateade: 'Maksumusega fail on ainult adminile' });
   try {
     const ExcelJS = require('exceljs');
     const { failiPais } = require('../csvabi');
