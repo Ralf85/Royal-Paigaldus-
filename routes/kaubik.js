@@ -640,12 +640,18 @@ async function arveInfo(algus, lopp) {
   const kv = kokkuvote(soidud, s).projektid.find(p => p.kood === 'lidl');
   const lahtised = soidud.filter(x => soiduKm(x) === null).length;
   const lahtiseTeade = lahtised ? ` NB: ${lahtised} sõit on lõpetamata (lõpunäit puudu) — see ei ole arvel.` : '';
-  if (!kv.paevad) return { read: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
-  if (!s.arvele) return { read: [], teade: `🚐 Kaubiku read jäid välja (${kv.paevad} päeva, ${kv.km} km): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
+  if (!kv.paevad) return { read: [], markused: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
+  if (!s.arvele) return { read: [], markused: [], teade: `🚐 Kaubiku read jäid välja (${kv.paevad} päeva, ${kv.km} km): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
+  // Admini/töötaja märkused (ilma automaatsete vahemiku-lisanditeta) — lähevad "Transport" rea selgituseks.
+  const markused = [];
+  soidud.filter(x => soiduKm(x) !== null).forEach(x => String(x.markus || '').split(' · ').forEach(m => {
+    m = m.trim();
+    if (m && !/^km kogu perioodi|^sama sõit/.test(m) && !markused.includes(m)) markused.push(m);
+  }));
   const read = [];
   if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: kv.paevad, uhik: 'päev', hind: h.paevahind, summa: kv.paeva_tulu });
-  if (kv.km > 0 && h.km_hind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} läbisõit`, kogus: kv.km, uhik: 'km', hind: h.km_hind, summa: kv.km_tulu });
-  return { read, teade: `🚐 Lisatud kaubik: ${kv.paevad} päeva + ${kv.km} km = ${kv.kokku.toFixed(2).replace('.', ',')} € (km-ta).` + lahtiseTeade };
+  if (kv.km > 0 && h.km_hind > 0) read.push({ kirjeldus: 'Transport', kogus: kv.km, uhik: 'km', hind: h.km_hind, summa: kv.km_tulu, kaubik_km: true });
+  return { read, markused, teade: `🚐 Lisatud kaubik: ${kv.paevad} päeva + ${kv.km} km = ${kv.kokku.toFixed(2).replace('.', ',')} € (km-ta).` + lahtiseTeade };
 }
 async function arveRead(algus, lopp) { return (await arveInfo(algus, lopp)).read; }
 
