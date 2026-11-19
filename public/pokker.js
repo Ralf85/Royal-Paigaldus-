@@ -1040,11 +1040,11 @@ async function seadedLeht() {
   var d = await api('/seaded'), s = d.seaded;
   var tvLink = location.origin + '/pokker-tv?voti=' + s.tv_voti;
   var h = '<h1 class="leht kuldne">SEADISTUSED</h1>';
-  if (!s.klubi_pin || !s.admin_pin) h += '<div class="kaart" style="border-color:var(--kuld)"><b class="kuldne">Alusta siit:</b> määra klubi-PIN (sõbrad näevad tulemusi) ja admin-PIN (turniiri juhtimine). Royal Paigalduse admin pääseb alati ligi.</div>';
+  if (!s.admin_pin) h += '<div class="kaart" style="border-color:var(--kuld)"><b class="kuldne">Alusta siit:</b> määra PIN-kood. Kõik, kes PIN-i teavad, saavad turniiri juhtida. Royal Paigalduse admin pääseb alati ligi.</div>';
   h += '<div class="ruudustik"><div class="kaart"><h2>LIGIPÄÄS</h2><div class="vorm">' +
-    '<label class="v">Klubi-PIN (mängijad, vaatamine)<input id="se-klubi" value="' + esc(s.klubi_pin) + '" maxlength="20"></label>' +
-    '<label class="v">Admin-PIN (turniiri juhtimine)<input id="se-admin" value="' + esc(s.admin_pin) + '" maxlength="20"></label></div>' +
-    '<p class="hall vaike" style="margin-top:8px">PIN-i muutmine logib selle rolliga seadmed välja. 3 vale katset → 15 min lukk.</p></div>';
+    '<label class="v">PIN-kood (täisõigused)<input id="se-admin" value="' + esc(s.admin_pin) + '" maxlength="20"></label>' +
+    '<label class="v">Teine PIN-kood (valikuline, samuti täisõigused)<input id="se-klubi" value="' + esc(s.klubi_pin) + '" maxlength="20"></label></div>' +
+    '<p class="hall vaike" style="margin-top:8px">Kõik, kes PIN-i teavad, saavad turniiri juhtida ja tulemusi muuta. PIN-i muutmine logib vana PIN-iga seadmed välja. 3 vale katset → 15 min lukk.</p></div>';
   h += '<div class="kaart"><h2>📺 TV-LINK</h2><p class="hall vaike" style="margin-bottom:10px">Ava see link teleri brauseris — PIN-i pole vaja. Näitab ainult käimasolevat turniiri.</p>' +
     '<input readonly value="' + esc(tvLink) + '" onclick="this.select()"><div class="rida" style="margin-top:10px"><button onclick="navigator.clipboard.writeText(\'' + tvLink + '\').then(function(){toast(\'Kopeeritud\')})">Kopeeri</button>' +
     '<a class="nupp" href="' + esc(tvLink) + '" target="_blank">Ava</a><button class="punanupp" onclick="uusTvVoti()">Loo uus link</button></div></div></div>';

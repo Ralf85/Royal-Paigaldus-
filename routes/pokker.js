@@ -230,7 +230,8 @@ async function leiaRoll(req) {
   const r = await pool.query(
     `SELECT roll FROM pokker_sessions WHERE token=$1 AND loodud > NOW() - INTERVAL '${SESSIOON_PAEVI} days'`, [token]
   );
-  return r.rows.length ? r.rows[0].roll : null;
+  // Nov 2026: iga PIN-iga sisse loginu on admin (PIN-i teavad vaid 2–3 inimest) — ka varem klubi-PIN-iga loodud sessioonid.
+  return r.rows.length ? 'admin' : null;
 }
 async function noudaVaatajat(req, res, next) {
   req.pokkerRoll = await leiaRoll(req);
@@ -474,8 +475,8 @@ router.post('/login', async (req, res) => {
   if (!pin) return res.json({ ok: false, veateade: 'Sisesta PIN-kood' });
   const s = (await pool.query(`SELECT klubi_pin, admin_pin FROM pokker_seaded WHERE id=1`)).rows[0];
   let roll = null;
-  if (turvalineVordlus(pin, s.admin_pin || '')) roll = 'admin';
-  else if (turvalineVordlus(pin, s.klubi_pin || '')) roll = 'mangija';
+  // Mõlemad PIN-koodid annavad täisõigused (admin).
+  if (turvalineVordlus(pin, s.admin_pin || '') || turvalineVordlus(pin, s.klubi_pin || '')) roll = 'admin';
   if (!roll) {
     const alles = await margiVale(req, 'pokker');
     return res.json({ ok: false, veateade: valeTeade('Vale PIN-kood', alles) });
@@ -1308,15 +1309,17 @@ router.put('/seaded', noudaAdmin, async (req, res) => {
   const klubi = String(b.klubi_pin == null ? '' : b.klubi_pin).trim();
   const admin = String(b.admin_pin == null ? '' : b.admin_pin).trim();
   for (const p of [klubi, admin]) if (p && (p.length < 4 || p.length > 20)) return res.json({ ok: false, veateade: 'PIN peab olema 4–20 märki' });
-  if (klubi && admin && klubi === admin) return res.json({ ok: false, veateade: 'Klubi-PIN ja admin-PIN peavad olema erinevad' });
+  if (klubi && admin && klubi === admin) return res.json({ ok: false, veateade: 'Teine PIN peab olema esimesest erinev (või jäta tühjaks)' });
   // Pokkeri admin ei saa admin-PIN-i tühjaks teha (muidu lukustaks ennast välja); Royali admin saab.
-  if (!admin && !(req.session && req.session.isAdmin)) return res.json({ ok: false, veateade: 'Admin-PIN ei saa olla tühi' });
+  if (!admin && !(req.session && req.session.isAdmin)) return res.json({ ok: false, veateade: 'Põhi-PIN ei saa olla tühi' });
   const jaotus = Array.isArray(b.auhinnajaotus) ? b.auhinnajaotus.map(x => Math.max(0, nr(x))).filter(x => x > 0).slice(0, 20) : VAIKE_JAOTUS;
   await pool.query(`UPDATE pokker_seaded SET klubi_pin=$1, admin_pin=$2, punktid=$3, auhinnajaotus=$4, helid=$5 WHERE id=1`,
     [klubi || null, admin || null, JSON.stringify(puhastaPunktid(b.punktid)), JSON.stringify(jaotus), b.helid !== false]);
   // PIN-i vahetus logib selle rolliga seadmed välja
-  if ((vana.klubi_pin || '') !== klubi) await pool.query(`DELETE FROM pokker_sessions WHERE roll='mangija'`);
-  if ((vana.admin_pin || '') !== admin) await pool.query(`DELETE FROM pokker_sessions WHERE roll='admin' AND token<>$1`, [req.sessionToken || '']);
+  // PIN-i muutmisel logitakse välja kõik teised seadmed (sessioonid ei mäleta, kumma PIN-iga sisse tuldi).
+  if ((vana.klubi_pin || '') !== klubi || (vana.admin_pin || '') !== admin) {
+    await pool.query(`DELETE FROM pokker_sessions WHERE token<>$1`, [req.sessionToken || '']);
+  }
   res.json({ ok: true });
 });
 router.post('/seaded/uus-tv-voti', noudaAdmin, async (req, res) => {
