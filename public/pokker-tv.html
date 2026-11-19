@@ -298,12 +298,18 @@
       else { p.className = 'suletud'; p.textContent = nimi + ' PERIOOD LÕPPENUD'; }
     } else { p.className = ''; p.textContent = ''; }
     // Helid: leveli vahetus, 1 minut enne lõppu, pausi lõpp
+    // Leveli vahetus: lühike signaal + naishääl. Pausi algus: "Break time".
     if (eelmineIdx !== null && info.kell.idx !== eelmineIdx && jookseb) {
-      if (heliLubatud && D.helid !== false) K.piiks(3, paus ? 660 : 990);
+      if (heliLubatud && D.helid !== false) {
+        K.piiks(2, paus ? 660 : 990);
+        var lause = paus ? (el.addon ? 'Break time. Add-on time.' : 'Break time.') : 'Next level. New blinds.';
+        setTimeout(function () { K.ytle(lause); }, 800);
+      }
     }
-    if (jookseb && info.jaak <= 60000 && info.jaak > 58000 && !hoiatatud[info.kell.idx]) {
+    // 1 minut enne leveli (või pausi) lõppu: kellahelin
+    if (jookseb && info.jaak <= 60000 && info.jaak > 57000 && !hoiatatud[info.kell.idx]) {
       hoiatatud[info.kell.idx] = true;
-      if (heliLubatud && D.helid !== false) K.piiks(1, 740);
+      if (heliLubatud && D.helid !== false) K.kellahelin();
     }
     eelmineIdx = info.kell.idx;
   }
@@ -315,7 +321,7 @@
   }
   function lylitaHeli() {
     heliLubatud = !heliLubatud;
-    if (heliLubatud) { K.avaHelid(); K.piiks(1, 880); }
+    if (heliLubatud) { K.avaHelid(); K.kellahelin(); setTimeout(function () { K.ytle('Sound on.'); }, 1800); }
     document.getElementById('heli-nupp').textContent = heliLubatud ? '🔊 Heli sees' : '🔇 Heli väljas';
   }
   // Brauserid lubavad heli alles pärast esimest puudutust — näitame alguses nuppu.

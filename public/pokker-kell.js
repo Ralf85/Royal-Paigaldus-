@@ -94,6 +94,57 @@
       }
     } catch (e) {}
   }
-  function avaHelid() { try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) {} }
-  window.PokkerKell = { kestus: kestus, normaliseeri: normaliseeri, info: info, aeg: aeg, arv: arv, raha: raha, blindid: blindid, ante: ante, piiks: piiks, avaHelid: avaHelid, leveliNumber: leveliNumber, onUusLevel: onUusLevel };
+  function avaHelid() {
+    try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); ctx.resume(); } catch (e) {}
+    // Kõnesüntees tuleb "avada" kasutaja klikiga (iOS/Safari), muidu hiljem hääl ei kõla.
+    try { if (window.speechSynthesis) { var u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+  }
+  // Pehme kellahelin (ding-dong), mängitakse 2 korda — 1 minuti hoiatus
+  function kellahelin() {
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      var noodid = [[988, 0], [784, 0.45], [988, 1.1], [784, 1.55]];
+      noodid.forEach(function (n) {
+        var t0 = ctx.currentTime + n[1];
+        [1, 2.01].forEach(function (kordaja, k) {
+          var o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine'; o.frequency.value = n[0] * kordaja;
+          var tugevus = k ? 0.12 : 0.45;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(tugevus, t0 + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
+          o.connect(g); g.connect(ctx.destination);
+          o.start(t0); o.stop(t0 + 1.15);
+        });
+      });
+    } catch (e) {}
+  }
+  // Naishääl (brauseri kõnesüntees, inglise keel). Eelistame tuntud naishääli; kui neid pole, võtame mõne ingliskeelse.
+  var NAISHAALED = ['Samantha', 'Google UK English Female', 'Google US English', 'Microsoft Zira', 'Microsoft Jenny', 'Microsoft Aria', 'Microsoft Libby', 'Microsoft Sonia',
+    'Karen', 'Moira', 'Tessa', 'Serena', 'Victoria', 'Fiona', 'Allison', 'Ava', 'Susan', 'Kate', 'Female'];
+  function valiHaal() {
+    if (!window.speechSynthesis) return null;
+    var haaled = speechSynthesis.getVoices() || [];
+    var en = haaled.filter(function (v) { return /^en/i.test(v.lang); });
+    for (var i = 0; i < NAISHAALED.length; i++) {
+      var leitud = en.find(function (v) { return v.name.indexOf(NAISHAALED[i]) >= 0; });
+      if (leitud) return leitud;
+    }
+    return en[0] || null;
+  }
+  if (window.speechSynthesis) { try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function () {}; } catch (e) {} }
+  function ytle(tekst) {
+    try {
+      if (!window.speechSynthesis) return false;
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(tekst);
+      var h = valiHaal();
+      if (h) { u.voice = h; u.lang = h.lang; } else u.lang = 'en-GB';
+      u.rate = 0.95; u.pitch = 1.1; u.volume = 1;
+      speechSynthesis.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+  window.PokkerKell = { kestus: kestus, normaliseeri: normaliseeri, info: info, aeg: aeg, arv: arv, raha: raha, blindid: blindid, ante: ante, piiks: piiks, avaHelid: avaHelid, kellahelin: kellahelin, ytle: ytle, leveliNumber: leveliNumber, onUusLevel: onUusLevel };
 })();
