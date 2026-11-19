@@ -627,7 +627,7 @@ function joonistaRedaktor() {
     var nupud = '<td style="white-space:nowrap"><button class="vaikenupp" onclick="rLiiguta(' + i + ',-1)">↑</button><button class="vaikenupp" onclick="rLiiguta(' + i + ',1)">↓</button><button class="vaikenupp punanupp" onclick="rKustuta(' + i + ')">✕</button></td>';
     if (el.paus) {
       h += '<tr class="' + cls + '"><td><b class="kuldne">PAUS</b></td><td colspan="3"><label class="c"><input type="checkbox" ' + (el.addon ? 'checked' : '') + ' onchange="rMuuda(' + i + ',\'addon\',this.checked)"> Add-on</label></td><td></td>' +
-        '<td><input type="number" step="any" value="' + el.min + '" onchange="rMuuda(' + i + ',\'min\',this.value)"></td>' + nupud + '</tr>';
+        '<td><input type="number" step="any" id="r-min-' + i + '" value="' + el.min + '" oninput="rMin(' + i + ',this)"></td>' + nupud + '</tr>';
     } else {
       if (!el.jatk) lvl++;
       h += '<tr class="' + cls + '"><td class="num"><b>' + (el.jatk ? lvl + '↪' : lvl) + '</b></td>' +
@@ -636,11 +636,11 @@ function joonistaRedaktor() {
         '<td><input type="number" id="r-bb-' + i + '" value="' + (el.bb || 0) + '" oninput="rMuuda(' + i + ',\'bb\',this.value)"></td>' +
         '<td><input type="number" value="' + (el.ante || 0) + '" oninput="rMuuda(' + i + ',\'ante\',this.value)"></td>' +
         '<td class="c"><input type="checkbox" ' + (el.bba ? 'checked' : '') + ' onchange="rMuuda(' + i + ',\'bba\',this.checked)"></td>' +
-        '<td><input type="number" step="any" value="' + el.min + '" onchange="rMuuda(' + i + ',\'min\',this.value)"></td>' + nupud + '</tr>';
+        '<td><input type="number" step="any" id="r-min-' + i + '" value="' + el.min + '" oninput="rMin(' + i + ',this)"></td>' + nupud + '</tr>';
     }
   });
   h += '</table></div><div class="rida" style="margin-top:10px"><button onclick="rLisa(false)">+ Level</button><button onclick="rLisa(true)">+ Paus</button>' +
-    '<span class="hall vaike">SB kirjutamisel täitub BB automaatselt (2 × SB) — vajadusel muuda BB käsitsi. Enter viib järgmise leveli SB lahtrisse.</span></div>';
+    '<span class="hall vaike">SB kirjutamisel täitub BB automaatselt (2 × SB). Leveli minutite muutmisel saavad sama pikkuse ka kõik järgmised levelid (pausid mitte). Enter viib järgmise leveli SB lahtrisse.</span></div>';
   $('redaktor').innerHTML = h;
 }
 function rSb(i, input) {
@@ -648,6 +648,17 @@ function rSb(i, input) {
   REDAKTOR.st[i].sb = sb;
   REDAKTOR.st[i].bb = sb * 2;
   var bb = $('r-bb-' + i); if (bb) bb.value = sb * 2;
+}
+// Leveli pikkuse muutmisel saavad sama pikkuse ka kõik järgmised levelid (pausid jäävad oma pikkusega).
+function rMin(i, input) {
+  var min = parseFloat(input.value);
+  if (!(min > 0)) return;
+  var st = REDAKTOR.st;
+  for (var j = i; j < st.length; j++) {
+    if (st[j].paus) continue;
+    st[j].min = min;
+    var el = $('r-min-' + j); if (el && j !== i) el.value = min;
+  }
 }
 function rEnter(e, input) {
   if (e.key !== 'Enter') return;
