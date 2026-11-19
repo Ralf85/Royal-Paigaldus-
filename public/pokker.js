@@ -499,7 +499,7 @@ function muudaLevelit() {
   var info = kellaInfoNyyd(), el = info.element, idx = info.kell.idx;
   if (!el || el.paus) return toast('Pausi ajal muuda pausi pikkust nupuga "+5 min" või Seadetes', true);
   modaal('<h3>MUUDA LEVEL ' + info.level_nr + ' BLINDE</h3><div class="vorm">' +
-    '<label class="v">Small blind<input type="number" id="ml-sb" value="' + el.sb + '"></label><label class="v">Big blind<input type="number" id="ml-bb" value="' + el.bb + '"></label>' +
+    '<label class="v">Small blind<input type="number" id="ml-sb" value="' + el.sb + '" oninput="$(\'ml-bb\').value=(parseFloat(this.value)||0)*2"></label><label class="v">Big blind<input type="number" id="ml-bb" value="' + el.bb + '"></label>' +
     '<label class="v">Ante<input type="number" id="ml-ante" value="' + (el.ante || 0) + '"></label><label class="v">Pikkus (min)<input type="number" step="any" id="ml-min" value="' + el.min + '"></label></div>' +
     '<div style="margin-top:12px"><label class="c"><input type="checkbox" id="ml-bba"' + (el.bba ? ' checked' : '') + '> Big blind ante</label></div>' +
     '<div class="modaal-nupud"><button onclick="sulgeModaal()">Tühista</button><button class="kuldnupp" id="ml-ok">Salvesta</button></div>');
@@ -631,14 +631,30 @@ function joonistaRedaktor() {
     } else {
       if (!el.jatk) lvl++;
       h += '<tr class="' + cls + '"><td class="num"><b>' + (el.jatk ? lvl + '↪' : lvl) + '</b></td>' +
-        ['sb', 'bb', 'ante'].map(function (k) { return '<td><input type="number" value="' + (el[k] || 0) + '" onchange="rMuuda(' + i + ',\'' + k + '\',this.value)"></td>'; }).join('') +
+        // SB sisestamisel täidetakse BB automaatselt (2 × SB); Enter viib järgmise leveli SB lahtrisse.
+        '<td><input type="number" class="r-sb" value="' + (el.sb || 0) + '" oninput="rSb(' + i + ',this)" onkeydown="rEnter(event,this)"></td>' +
+        '<td><input type="number" id="r-bb-' + i + '" value="' + (el.bb || 0) + '" oninput="rMuuda(' + i + ',\'bb\',this.value)"></td>' +
+        '<td><input type="number" value="' + (el.ante || 0) + '" oninput="rMuuda(' + i + ',\'ante\',this.value)"></td>' +
         '<td class="c"><input type="checkbox" ' + (el.bba ? 'checked' : '') + ' onchange="rMuuda(' + i + ',\'bba\',this.checked)"></td>' +
         '<td><input type="number" step="any" value="' + el.min + '" onchange="rMuuda(' + i + ',\'min\',this.value)"></td>' + nupud + '</tr>';
     }
   });
   h += '</table></div><div class="rida" style="margin-top:10px"><button onclick="rLisa(false)">+ Level</button><button onclick="rLisa(true)">+ Paus</button>' +
-    '<span class="hall vaike">Viimase leveli järgi pakutakse järgmised blindid. Iga leveli pikkus on eraldi muudetav.</span></div>';
+    '<span class="hall vaike">SB kirjutamisel täitub BB automaatselt (2 × SB) — vajadusel muuda BB käsitsi. Enter viib järgmise leveli SB lahtrisse.</span></div>';
   $('redaktor').innerHTML = h;
+}
+function rSb(i, input) {
+  var sb = parseFloat(input.value) || 0;
+  REDAKTOR.st[i].sb = sb;
+  REDAKTOR.st[i].bb = sb * 2;
+  var bb = $('r-bb-' + i); if (bb) bb.value = sb * 2;
+}
+function rEnter(e, input) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  var koik = Array.from(document.querySelectorAll('#redaktor .r-sb'));
+  var j = koik.indexOf(input);
+  if (j >= 0 && j < koik.length - 1) { koik[j + 1].focus(); koik[j + 1].select(); }
 }
 function rMuuda(i, k, v) { REDAKTOR.st[i][k] = typeof v === 'boolean' ? v : parseFloat(v) || 0; if (k === 'sb' || k === 'bb' || k === 'ante') return; joonistaRedaktor(); }
 function rLiiguta(i, suund) {
