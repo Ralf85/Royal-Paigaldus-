@@ -933,7 +933,7 @@ router.get('/turniirid/:id', noudaVaatajat, async (req, res) => {
   if (!t) return res.json({ ok: false, veateade: 'Turniiri ei leitud' });
   const info = await turniiriTaisinfo(t, Date.now());
   if (req.pokkerRoll === 'admin') {
-    const g = await pool.query(`SELECT * FROM pokker_tegevused WHERE turniir_id=$1 ORDER BY id DESC LIMIT 30`, [t.id]);
+    const g = await pool.query(`SELECT * FROM pokker_tegevused WHERE turniir_id=$1 ORDER BY id DESC LIMIT 200`, [t.id]);
     info.tegevused = g.rows;
   }
   res.json(Object.assign({ ok: true }, info));
@@ -985,6 +985,13 @@ router.put('/turniirid/:id', noudaAdmin, async (req, res) => {
     [nimi, kp, JSON.stringify(seaded), JSON.stringify(struktuur), punktiturniir, hooaegId,
      b.markus === undefined ? t.markus : (puhasNimi(b.markus, 500) || null), JSON.stringify(kell), t.id]
   );
+  // Logi: rahaga ja žetoonidega seotud seadete muutused
+  const muutused = [];
+  ['buyin', 'bounty', 'algstack', 'rebuy_summa', 'rebuy_stack', 'reentry_summa', 'reentry_stack', 'addon_summa', 'addon_stack', 'tyyp'].forEach(k => {
+    if (t.seaded[k] !== seaded[k]) muutused.push({ v: k, vana: t.seaded[k], uus: seaded[k] });
+  });
+  if (t.punktiturniir !== punktiturniir) muutused.push({ v: 'punktiturniir', vana: t.punktiturniir, uus: punktiturniir });
+  if (muutused.length) await logi(t.id, 'seaded', { muutused });
   const uus = await laeTurniir(t.id);
   if (['lopetatud', 'kinnitatud'].includes(uus.staatus)) await arvutaPunktid(uus);
   res.json({ ok: true });
@@ -1083,8 +1090,10 @@ router.post('/turniirid/:id/osalejad', noudaAdmin, async (req, res) => {
   res.json({ ok: true, id: r.rows[0].id });
 });
 router.delete('/osalejad/:id', noudaAdmin, async (req, res) => {
-  const o = await pool.query(`SELECT turniir_id FROM pokker_osalejad WHERE id=$1`, [ts(req.params.id)]);
+  const o = await pool.query(`SELECT o.*, m.nimi FROM pokker_osalejad o JOIN pokker_mangijad m ON m.id=o.mangija_id WHERE o.id=$1`, [ts(req.params.id)]);
   if (!o.rows.length) return res.json({ ok: false, veateade: 'Ei leitud' });
+  const e = o.rows[0];
+  await logi(e.turniir_id, 'eemalda', { nimi: e.nimi, rebuyd: e.rebuyd, reentryd: e.reentryd, addonid: e.addonid, bounty_eur: nr(e.bounty_eur), auhind: nr(e.auhind) });
   // Kui eemaldatav oli kellegi välja löönud, tema bounty jääb alles (parandatakse vajadusel käsitsi).
   await pool.query(`DELETE FROM pokker_osalejad WHERE id=$1`, [ts(req.params.id)]);
   await pool.query(`UPDATE pokker_osalejad SET valja_loi=NULL WHERE valja_loi=$1`, [ts(req.params.id)]);
@@ -1139,7 +1148,7 @@ router.post('/osalejad/:id/tegevus', noudaAdmin, async (req, res) => {
 router.post('/turniirid/:id/tagasi', noudaAdmin, async (req, res) => {
   const t = await laeTurniir(ts(req.params.id));
   if (!t) return res.json({ ok: false, veateade: 'Turniiri ei leitud' });
-  const g = (await pool.query(`SELECT * FROM pokker_tegevused WHERE turniir_id=$1 AND tagasi=false ORDER BY id DESC LIMIT 1`, [t.id])).rows[0];
+  const g = (await pool.query(`SELECT * FROM pokker_tegevused WHERE turniir_id=$1 AND tagasi=false AND tyyp IN ('rebuy','addon','reentry','valja','taasta','registreeri') ORDER BY id DESC LIMIT 1`, [t.id])).rows[0];
   if (!g) return res.json({ ok: false, veateade: 'Pole midagi tagasi võtta' });
   const a = g.andmed || {};
   const s = t.seaded;
@@ -1188,6 +1197,15 @@ router.put('/osalejad/:id', noudaAdmin, async (req, res) => {
      v('bounty_arv', x => Math.max(0, ts(x))), v('bounty_eur', x => Math.max(0, nr(x))), v('auhind', x => Math.max(0, nr(x))),
      v('koht', x => ts(x) || null), v('makstud', x => !!x), id]
   );
+  // Logi: mis väljad muutusid (vana → uus)
+  const uus = (await pool.query(`SELECT * FROM pokker_osalejad WHERE id=$1`, [id])).rows[0];
+  const muutused = [];
+  ['rebuyd', 'reentryd', 'addonid', 'bounty_arv', 'bounty_eur', 'auhind', 'koht', 'makstud'].forEach(k => {
+    const a = k === 'bounty_eur' || k === 'auhind' ? nr(o[k]) : o[k];
+    const c = k === 'bounty_eur' || k === 'auhind' ? nr(uus[k]) : uus[k];
+    if (a !== c) muutused.push({ v: k, vana: a, uus: c });
+  });
+  if (muutused.length) await logi(o.turniir_id, 'parandus', { osaleja: id, muutused });
   const t = await laeTurniir(o.turniir_id);
   if (['lopetatud', 'kinnitatud'].includes(t.staatus) && b.koht !== undefined) await arvutaPunktid(t);
   res.json({ ok: true });
@@ -1203,6 +1221,7 @@ router.post('/turniirid/:id/lopeta', noudaAdmin, async (req, res) => {
   await maaraKohad(t);
   t.staatus = 'lopetatud';
   await arvutaPunktid(t);
+  await logi(t.id, 'lopeta', {});
   res.json({ ok: true });
 });
 // Lõpetatud turniiri taasavamine (nt kogemata lõpetatud)
@@ -1211,6 +1230,7 @@ router.post('/turniirid/:id/taasava', noudaAdmin, async (req, res) => {
   if (!t) return res.json({ ok: false, veateade: 'Turniiri ei leitud' });
   await pool.query(`UPDATE pokker_turniirid SET staatus='kaib', lopetatud=NULL WHERE id=$1`, [t.id]);
   await pool.query(`UPDATE pokker_osalejad SET koht=NULL, punktid=0 WHERE turniir_id=$1`, [t.id]);
+  await logi(t.id, 'taasava', {});
   res.json({ ok: true });
 });
 // Tulemuste kinnitamine: punktid lõplikult hooaja arvestusse
@@ -1221,6 +1241,7 @@ router.post('/turniirid/:id/kinnita', noudaAdmin, async (req, res) => {
   await pool.query(`UPDATE pokker_turniirid SET staatus='kinnitatud' WHERE id=$1`, [t.id]);
   t.staatus = 'kinnitatud';
   await arvutaPunktid(t);
+  await logi(t.id, 'kinnita', {});
   res.json({ ok: true });
 });
 // Auhinnafondi jagamine seadetes olevate protsentide järgi (ümardatakse täiseurodeni, jääk võitjale)
@@ -1238,6 +1259,7 @@ router.post('/turniirid/:id/jaota-auhinnad', noudaAdmin, async (req, res) => {
   for (const o of os) {
     if (o.koht && o.koht <= summad.length) await pool.query(`UPDATE pokker_osalejad SET auhind=$1 WHERE id=$2`, [summad[o.koht - 1], o.id]);
   }
+  await logi(t.id, 'auhinnad', { fond, jaotus, summad });
   res.json({ ok: true, summad });
 });
 

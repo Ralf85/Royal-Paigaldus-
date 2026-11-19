@@ -307,7 +307,7 @@ function joonistaTurniir() {
   h += summadKaart();
   if (lopp) h += tulemusteKaart();
   else h += mangijateKaart();
-  if (onAdmin() && d.tegevused && d.tegevused.length && !lopp) h += tegevusteKaart();
+  if (onAdmin() && d.tegevused && d.tegevused.length) h += tegevusteKaart();
   $('sisu').innerHTML = h;
   tiksJuht();
 }
@@ -433,15 +433,39 @@ function mangijateKaart() {
   if (onAdmin() && aktiivseid === 1 && TD.osalejad.length > 1) h += '<div class="kaart" style="margin:14px 0 0;text-align:center"><div style="font-size:18px;font-weight:900;margin-bottom:10px">🏆 Alles on üks mängija!</div><button class="kuldnupp suur" onclick="lopetaTurniir(true)">🏁 Lõpeta turniir ja koosta tulemused</button></div>';
   return h + '</div>';
 }
+// Tegevuslogi: mängu tegevused + kõik rahaga seotud käsitsi muudatused (jälg maas, kui keegi midagi muudab).
+var LOGI_NIMED = { rebuyd: 'rebuy', reentryd: 're-entry', addonid: 'add-on', bounty_arv: 'bounty tk', bounty_eur: 'bounty €', auhind: 'auhind €', koht: 'koht', makstud: 'makstud',
+  buyin: 'buy-in €', bounty: 'bounty €', algstack: 'algstack', rebuy_summa: 'rebuy €', rebuy_stack: 'rebuy stack', reentry_summa: 're-entry €', reentry_stack: 're-entry stack',
+  addon_summa: 'add-on €', addon_stack: 'add-on stack', tyyp: 'tüüp', punktiturniir: 'punktiturniir' };
+var LOGI_KOIK = false;
+function logiVaartus(x) { return x === true ? 'jah' : x === false ? 'ei' : (x == null || x === '' ? '—' : x); }
 function tegevusteKaart() {
   var nimed = {}; TD.osalejad.forEach(function (o) { nimed[o.id] = o.nimi; });
-  var tekst = { rebuy: 'Rebuy', reentry: 'Re-entry', addon: 'Add-on', valja: 'OUT', taasta: 'Taastatud', registreeri: 'Registreeritud' };
-  return '<div class="kaart tume"><h2>VIIMASED TEGEVUSED</h2><table>' + TD.tegevused.slice(0, 8).map(function (g) {
-    var a = g.andmed || {};
-    return '<tr style="' + (g.tagasi ? 'opacity:.4;text-decoration:line-through' : '') + '"><td class="hall num" style="width:60px">' + new Date(g.aeg).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' }) + '</td>' +
-      '<td><b>' + esc(tekst[g.tyyp] || g.tyyp) + '</b> — ' + esc(nimed[a.osaleja] || '?') + (a.loi ? ' <span class="hall">(lõi ' + esc(nimed[a.loi] || '?') + ')</span>' : '') + '</td></tr>';
-  }).join('') + '</table></div>';
+  var tekst = { rebuy: 'Rebuy', reentry: 'Re-entry', addon: 'Add-on', valja: 'OUT', taasta: 'Taastatud', registreeri: 'Registreeritud',
+    parandus: '✎ Käsitsi parandus', eemalda: '✕ Eemaldatud turniirilt', auhinnad: '💰 Auhinnafond jaotatud', seaded: '⚙ Seadete muutus',
+    lopeta: '🏁 Turniir lõpetatud', taasava: '↺ Turniir avati uuesti', kinnita: '✔ Tulemused kinnitatud' };
+  var rahaTyybid = { parandus: 1, eemalda: 1, auhinnad: 1, seaded: 1 };
+  var list = LOGI_KOIK ? TD.tegevused : TD.tegevused.slice(0, 10);
+  var h = '<div class="kaart tume"><div class="rida" style="margin-bottom:8px"><h2 style="margin:0">TEGEVUSLOGI</h2><span class="vahe"></span><span class="hall vaike">' + TD.tegevused.length + ' kirjet</span></div><div class="tabelikast"><table>';
+  list.forEach(function (g) {
+    var a = g.andmed || {}, kirjeldus = '';
+    var nimi = esc(nimed[a.osaleja] || a.nimi || '');
+    if (g.tyyp === 'parandus') kirjeldus = nimi + ': ' + (a.muutused || []).map(function (m) { return esc(LOGI_NIMED[m.v] || m.v) + ' <b>' + esc(logiVaartus(m.vana)) + ' → ' + esc(logiVaartus(m.uus)) + '</b>'; }).join(', ');
+    else if (g.tyyp === 'seaded') kirjeldus = (a.muutused || []).map(function (m) { return esc(LOGI_NIMED[m.v] || m.v) + ' <b>' + esc(logiVaartus(m.vana)) + ' → ' + esc(logiVaartus(m.uus)) + '</b>'; }).join(', ');
+    else if (g.tyyp === 'eemalda') kirjeldus = nimi + (a.rebuyd || a.reentryd || a.addonid ? ' <span class="hall">(oli R ' + a.rebuyd + ' / RE ' + a.reentryd + ' / A ' + a.addonid + ')</span>' : '');
+    else if (g.tyyp === 'auhinnad') kirjeldus = 'fond ' + raha_(a.fond) + ': ' + (a.summad || []).map(function (x, i) { return (i + 1) + '. ' + raha_(x); }).join(', ');
+    else if (['lopeta', 'taasava', 'kinnita'].indexOf(g.tyyp) >= 0) kirjeldus = '';
+    else kirjeldus = nimi + (a.loi ? ' <span class="hall">(lõi ' + esc(nimed[a.loi] || '?') + ')</span>' : '');
+    var aeg = new Date(g.aeg);
+    var paev = aeg.toDateString() === new Date().toDateString() ? '' : aeg.toLocaleDateString('et-EE', { day: '2-digit', month: '2-digit' }) + ' ';
+    h += '<tr style="' + (g.tagasi ? 'opacity:.4;text-decoration:line-through' : '') + (rahaTyybid[g.tyyp] ? ';background:rgba(212,175,55,.05)' : '') + '"><td class="hall num" style="width:70px;white-space:nowrap">' + paev + aeg.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' }) + '</td>' +
+      '<td><b>' + esc(tekst[g.tyyp] || g.tyyp) + '</b>' + (kirjeldus ? ' — ' + kirjeldus : '') + (g.tagasi ? ' <span class="hall">(tagasi võetud)</span>' : '') + '</td></tr>';
+  });
+  h += '</table></div>';
+  if (TD.tegevused.length > 10) h += '<button class="vaikenupp" style="margin-top:8px" onclick="LOGI_KOIK=!LOGI_KOIK;TD_RASI=\'\';joonistaTurniir()">' + (LOGI_KOIK ? 'Näita vähem' : 'Näita kõiki (' + TD.tegevused.length + ')') + '</button>';
+  return h + '</div>';
 }
+function raha_(x) { return raha(x); }
 async function registreeri() {
   var mid = $('lisa-m').value, uus = $('lisa-uus').value.trim();
   if (!mid && !uus) return toast('Vali mängija või kirjuta nimi', true);
