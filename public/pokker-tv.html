@@ -78,9 +78,19 @@
   #kate p { font-size: 2.6vh; color: var(--hall); max-width: 80vh; line-height: 1.5; }
   #kate button { font-size: 2.6vh; font-weight: 800; letter-spacing: .15em; padding: 1.8vh 3vw; border-radius: 1vh; border: 1px solid var(--kuld);
     background: linear-gradient(180deg, #2b230d, #120f06); color: var(--kuld2); cursor: pointer; }
-  #nupud { position: fixed; bottom: .4vh; right: 1.2vw; display: flex; gap: .6vw; opacity: 0; transition: opacity .3s; z-index: 5; }
-  body:hover #nupud { opacity: 1; }
-  #nupud button { background: rgba(0,0,0,.6); color: var(--kuld2); border: 1px solid var(--joon); border-radius: .8vh; padding: .8vh 1vw; font-size: 1.8vh; cursor: pointer; }
+  /* Juhtriba: ilmub hiire liigutamisel / puudutusel ja kaob 4 sekundi pärast */
+  #nupud { position: fixed; left: 50%; bottom: 2vh; transform: translateX(-50%) translateY(14vh); display: flex; align-items: center; gap: .8vw;
+    padding: 1.2vh 1.4vw; border-radius: 1.6vh; background: rgba(8,7,4,.94); border: 1px solid var(--kuld3); box-shadow: 0 2vh 6vh rgba(0,0,0,.7);
+    transition: transform .3s, opacity .3s; opacity: 0; z-index: 8; }
+  body.juht-naha #nupud { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #nupud button { background: #1a1710; color: var(--tekst); border: 1px solid #3a321c; border-radius: 1vh; padding: 1.4vh 1.4vw; font-size: 2.2vh; font-weight: 800;
+    cursor: pointer; white-space: nowrap; font-family: inherit; }
+  #nupud button:hover { border-color: var(--kuld); }
+  #nupud button.play { background: linear-gradient(180deg, var(--kuld2), var(--kuld) 60%, #b38f2a); color: #120d00; border-color: var(--kuld); min-width: 11vw; font-size: 2.6vh; }
+  #nupud button.stop { background: #8f1f18; color: #fff; border-color: #c0392b; min-width: 11vw; font-size: 2.6vh; }
+  #nupud .eraldaja { width: 1px; align-self: stretch; background: #3a321c; margin: 0 .4vw; }
+  #pin-kast { display: none; align-items: center; gap: .6vw; }
+  #pin-kast input { background: #000; color: var(--tekst); border: 1px solid var(--kuld3); border-radius: 1vh; padding: 1.2vh 1vw; font-size: 2.2vh; width: 12vw; text-align: center; letter-spacing: .3em; }
   #tulemused { display: none; }
   body.lopp #kell-sisu { display: none; }
   body.lopp #tulemused { display: flex; flex-direction: column; align-items: center; gap: 2vh; }
@@ -104,7 +114,19 @@
 </style>
 </head>
 <body>
-<div id="nupud"><button onclick="taisekraan()">⛶ Täisekraan</button><button onclick="lylitaHeli()" id="heli-nupp">🔊 Heli</button></div>
+<div id="nupud">
+  <span id="admin-nupud" style="display:none;gap:.8vw;align-items:center">
+    <button onclick="kell('eelmine')" title="Eelmine level (←)">⏮</button>
+    <button id="play-nupp" class="play" onclick="playStop()">▶ START</button>
+    <button onclick="kell('jargmine')" title="Järgmine level (→)">⏭</button>
+    <button onclick="kell('lisa',-60)">− 1 min</button>
+    <button onclick="kell('lisa',60)">+ 1 min</button>
+    <span class="eraldaja"></span>
+  </span>
+  <button id="lukk-nupp" onclick="naitaPin()" title="Logi admin-PIN-iga sisse, et kella juhtida">🔒 Juhi kella</button>
+  <span id="pin-kast"><input id="tv-pin" type="password" inputmode="numeric" placeholder="ADMIN-PIN" onkeydown="if(event.key==='Enter')logiAdmin()"><button onclick="logiAdmin()">OK</button></span>
+  <button onclick="taisekraan()">⛶</button><button onclick="lylitaHeli()" id="heli-nupp">🔊 Heli</button>
+</div>
 <div id="ekraan">
   <section id="mangijad"><h2 class="kuldne">MÄNGIJAD</h2><div id="list"></div></section>
   <section id="kesk">
@@ -309,6 +331,86 @@
       try { taisekraan(); } catch (e) {}
     };
   })();
+  // ── Kella juhtimine TV-st (ainult admin) ──
+  var ADMIN = '';
+  async function kontrolliAdmin() {
+    var koik = [];
+    try { koik = [localStorage.getItem('pokkerToken'), localStorage.getItem('adminToken')].filter(Boolean); } catch (e) {}
+    for (var i = 0; i < koik.length; i++) {
+      try {
+        var r = await fetch('/api/pokker/sessioon', { headers: { 'x-session-token': koik[i] } });
+        var d = await r.json();
+        if (d.roll === 'admin') { ADMIN = koik[i]; break; }
+      } catch (e) {}
+    }
+    document.getElementById('admin-nupud').style.display = ADMIN ? 'inline-flex' : 'none';
+    document.getElementById('lukk-nupp').style.display = ADMIN ? 'none' : '';
+  }
+  function naitaPin() {
+    document.getElementById('lukk-nupp').style.display = 'none';
+    document.getElementById('pin-kast').style.display = 'inline-flex';
+    naitaJuht(30000);
+    setTimeout(function () { document.getElementById('tv-pin').focus(); }, 50);
+  }
+  async function logiAdmin() {
+    var pin = document.getElementById('tv-pin').value.trim();
+    var r = await fetch('/api/pokker/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: pin }) });
+    var d = await r.json();
+    document.getElementById('tv-pin').value = '';
+    if (!d.ok) { document.getElementById('tv-pin').placeholder = (d.veateade || 'Vale PIN').toUpperCase(); return; }
+    if (d.roll !== 'admin') { document.getElementById('tv-pin').placeholder = 'VAJA ADMIN-PIN'; return; }
+    try { localStorage.setItem('pokkerToken', d.token); } catch (e) {}
+    ADMIN = d.token;
+    document.getElementById('pin-kast').style.display = 'none';
+    await kontrolliAdmin();
+    naitaJuht();
+  }
+  async function kell(tegevus, sekundid) {
+    if (!ADMIN || !D || !D.turniir) return;
+    var lopp = D.turniir.staatus === 'lopetatud' || D.turniir.staatus === 'kinnitatud';
+    if (lopp) return;
+    await fetch('/api/pokker/turniirid/' + D.turniir.id + '/kell', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-session-token': ADMIN }, body: JSON.stringify({ tegevus: tegevus, sekundid: sekundid || 0 }) });
+    await lae();
+    naitaJuht();
+  }
+  function jookseb() {
+    if (!D || !D.turniir || !D.kell) return false;
+    return K.normaliseeri(D.kell.kell, D.turniir.struktuur, D.turniir.seaded, Date.now() + nihe).jookseb;
+  }
+  function playStop() {
+    if (!D || !D.turniir) return;
+    if (jookseb()) kell('peata');
+    else kell(D.turniir.staatus === 'ootel' ? 'start' : 'jatka');
+  }
+  function uuendaPlayNupp() {
+    var b = document.getElementById('play-nupp');
+    var j = jookseb();
+    var txt = j ? '⏸ STOP' : '▶ START';
+    if (b.textContent !== txt) { b.textContent = txt; b.className = j ? 'stop' : 'play'; }
+  }
+  var juhtTaimer = null;
+  function naitaJuht(ms) {
+    document.body.classList.add('juht-naha');
+    clearTimeout(juhtTaimer);
+    juhtTaimer = setTimeout(function () {
+      if (document.activeElement && document.activeElement.id === 'tv-pin') return;
+      document.body.classList.remove('juht-naha');
+    }, ms || 4000);
+  }
+  document.addEventListener('mousemove', function () { naitaJuht(); });
+  document.addEventListener('touchstart', function () { naitaJuht(); }, { passive: true });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.tagName === 'INPUT') return;
+    if (!ADMIN) return;
+    if (e.code === 'Space') { e.preventDefault(); playStop(); }
+    else if (e.key === 'ArrowRight') kell('jargmine');
+    else if (e.key === 'ArrowLeft') kell('eelmine');
+    else if (e.key === 'ArrowUp') kell('lisa', 60);
+    else if (e.key === 'ArrowDown') kell('lisa', -60);
+  });
+  setInterval(uuendaPlayNupp, 300);
+  kontrolliAdmin();
   // Ekraan ei tohi magama jääda
   async function arkvel() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { arkvel(); lae(); } });
