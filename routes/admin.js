@@ -555,6 +555,86 @@ router.put('/tookirjed/:id', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── TÖÖKIRJE MUUDATUSTE AJALUGU (ainult admin) ─────────────────────
+// Tagastab ühe töökirje kõik muudatused (töötaja ja admini tehtud) audit_log tabelist:
+// iga muudatuse kohta aeg, kes muutis ja millised väljad muutusid (vana → uus).
+router.get('/tookirje-ajalugu/:id', noudaAdmin, async (req, res) => {
+  const kirjeId = String(parseInt(req.params.id, 10) || '');
+  if (!kirjeId) return res.json({ ok: false, veateade: 'Vigane kirje' });
+  // Kuupäeva normaliseerimine: vanemates logides on kuupäev ISO-kujul ("2026-11-13T22:00:00.000Z")
+  const kp = (x) => {
+    if (!x) return '';
+    const s = String(x);
+    if (s.length > 10 && s.includes('T')) {
+      const d = new Date(s);
+      if (!isNaN(d)) return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    return s.slice(0, 10);
+  };
+  const kell = (x) => (x == null ? '' : String(x).slice(0, 5));
+  const arv = (x) => { const n = parseFloat(x); return isNaN(n) ? 0 : n; };
+  try {
+    const kirjeRes = await pool.query(
+      `SELECT t.id, t.loodud, t.muudetud_tootaja, w.nimi AS tootaja_nimi
+       FROM tookirjed t LEFT JOIN workers w ON w.id = t.worker_id WHERE t.id = $1`,
+      [kirjeId]
+    );
+    const lidlRes = await pool.query('SELECT id, nimi FROM lidl_projektid').catch(() => ({ rows: [] }));
+    const lidlNimi = {};
+    lidlRes.rows.forEach(p => { lidlNimi[String(p.id)] = p.nimi; });
+    const projNimi = (id) => (id ? (lidlNimi[String(id)] || ('#' + id)) : '—');
+
+    const logRes = await pool.query(
+      `SELECT a.tegevus, a.details, a.loodud, w.nimi AS kes_nimi
+       FROM audit_log a LEFT JOIN workers w ON w.id = a.worker_id
+       WHERE a.tegevus IN ('MUUDA_TOOKIRJE', 'ADMIN_MUUTIS_TOOKIRJET') AND (a.details LIKE $1 OR a.details LIKE $2)
+       ORDER BY a.loodud ASC`,
+      ['%"kirje_id":"' + kirjeId + '"%', '%"kirje_id":' + kirjeId + ',%']
+    );
+
+    const muudatused = [];
+    logRes.rows.forEach(row => {
+      let d;
+      try { d = typeof row.details === 'string' ? JSON.parse(row.details) : row.details; } catch (e) { return; }
+      if (!d || String(d.kirje_id) !== kirjeId) return;
+      const valjad = [];
+      const lisa = (nimi, vana, uus) => { if (String(vana) !== String(uus)) valjad.push({ vali: nimi, vana, uus }); };
+
+      if (row.tegevus === 'ADMIN_MUUTIS_TOOKIRJET') {
+        const v = d.vana || {}, u = d.uus || {};
+        lisa('Kuupäev', kp(v.kuupaev), kp(u.kuupaev));
+        lisa('Algus', kell(v.algus), kell(u.algus));
+        lisa('Lõpp', kell(v.lopp), kell(u.lopp));
+        lisa('Tunnid', arv(v.tunnid).toFixed(2) + 'h', arv(u.tunnid).toFixed(2) + 'h');
+        muudatused.push({ aeg: row.loodud, kes: 'Admin', admin: true, valjad });
+        return;
+      }
+
+      lisa('Kuupäev', kp(d.vana_kuupaev), kp(d.kuupaev));
+      lisa('Algus', kell(d.vana_algus), kell(d.algus));
+      lisa('Lõpp', kell(d.vana_lopp), kell(d.lopp));
+      lisa('Tunnid', arv(d.vana_tunnid).toFixed(2) + 'h', arv(d.tunnid).toFixed(2) + 'h');
+      // Need väljad on logis alates 19.11.2026 — vanematel muudatustel neid pole
+      if (d.vana_kommentaar !== undefined) lisa('Kommentaar', d.vana_kommentaar || '—', d.kommentaar || '—');
+      if (d.vana_kilomeetrid !== undefined) lisa('Kilomeetrid', arv(d.vana_kilomeetrid) + ' km', arv(d.kilomeetrid) + ' km');
+      if (d.vana_lisakulu_summa !== undefined) lisa('Lisakulu', arv(d.vana_lisakulu_summa).toFixed(2) + ' €', arv(d.lisakulu_summa).toFixed(2) + ' €');
+      if (d.vana_lisakulu_selgitus !== undefined) lisa('Lisakulu selgitus', d.vana_lisakulu_selgitus || '—', d.lisakulu_selgitus || '—');
+      if (d.vana_lidl_projekt_id !== undefined) lisa('Lidl projekt', projNimi(d.vana_lidl_projekt_id), projNimi(d.lidl_projekt_id));
+      muudatused.push({ aeg: row.loodud, kes: row.kes_nimi || 'Töötaja', admin: false, taielik: d.vana_kommentaar !== undefined, valjad });
+    });
+
+    const k = kirjeRes.rows[0] || null;
+    res.json({
+      ok: true,
+      kirje: k ? { id: k.id, loodud: k.loodud, muudetud_tootaja: k.muudetud_tootaja, tootaja_nimi: k.tootaja_nimi } : null,
+      muudatused
+    });
+  } catch (err) {
+    console.error('Töökirje ajaloo viga:', err.message);
+    res.status(500).json({ ok: false, veateade: 'Serveri viga' });
+  }
+});
+
 router.delete('/tookirjed/:id', noudaAdmin, async (req, res) => {
   try {
     const kirje = await pool.query('SELECT * FROM tookirjed WHERE id=$1', [req.params.id]);

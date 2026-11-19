@@ -1322,14 +1322,14 @@ function renderKokkuvoteTable() {
           const muudetud = k.muudetud_tootaja;
           const rowStyle = 'display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:0.5px solid var(--piir3);font-size:12px'
             + (muudetud ? ';background:rgba(251,191,36,0.14);border-left:3px solid #fbbf24' : '');
-          const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')}"` : '';
+          const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')} — vajuta ✏️ MUUDETUD, et näha muudatusi"` : '';
           return `<div style="${rowStyle}"${muudetudTitle}>
           <span style="color:var(--hall);min-width:80px">${formatKp(k.kuupaev)}</span>
           <span style="color:var(--tekst3)">${k.ettevote_nimi}</span>
           <span style="color:var(--hall)">${k.objekt_nimi||'—'}</span>
           <span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span>
           <span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>
-          ${muudetud?`<span style="color:#fbbf24;font-size:10px;font-weight:700;white-space:nowrap">✏️ MUUDETUD</span>`:''}
+          ${muudetud?`<span onclick="event.stopPropagation();naitaKirjeAjalugu(${k.id})" title="Vaata, mida muudeti" style="color:#fbbf24;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer;text-decoration:underline dotted">✏️ MUUDETUD</span>`:''}
           ${k.ettevote_tyyp==='muu'?`<span style="display:flex;align-items:center;gap:4px">
             <input type="number" value="${k.muu_tunnitasu||''}" placeholder="€/h" step="0.5" min="0"
               style="width:60px;padding:2px 5px;font-size:11px;background:var(--bg2);border:0.5px solid ${k.muu_tunnitasu?'#2563eb':'var(--sisend-piir)'};border-radius:4px;color:var(--tekst)"
@@ -1642,8 +1642,8 @@ async function avaTootajaModal(workerId, workerNimi) {
       const summa = parseFloat(k.tunnid) * parseFloat(k.tunnitasu || 0);
       const muudetud = k.muudetud_tootaja;
       const rowStyle = muudetud ? ' style="background:rgba(251,191,36,0.14);border-left:3px solid #fbbf24"' : '';
-      const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')}"` : '';
-      const muudetudBadge = muudetud ? `<span style="color:#fbbf24;font-size:9px;font-weight:700;white-space:nowrap">✏️ MUUDETUD</span>` : '';
+      const muudetudTitle = muudetud ? ` title="Töötaja muutis seda kirjet: ${new Date(muudetud).toLocaleString('et-EE')} — vajuta ✏️ MUUDETUD, et näha muudatusi"` : '';
+      const muudetudBadge = muudetud ? `<span onclick="event.stopPropagation();naitaKirjeAjalugu(${k.id})" title="Vaata, mida muudeti" style="color:#fbbf24;font-size:9px;font-weight:700;white-space:nowrap;cursor:pointer;text-decoration:underline dotted">✏️ MUUDETUD</span>` : '';
       return `<div class="tm-kirje-rida"${rowStyle}${muudetudTitle}><span style="color:var(--hall);min-width:75px">${formatKp(k.kuupaev)}</span><span class="tm-ettevote-badge badge-${tyyp}" style="font-size:9px">${tmEsc(k.ettevote_nimi)}</span><span style="color:var(--tekst3)">${tmEsc(k.objekt_nimi || '—')}</span><span style="color:var(--tekst3)">${k.algus.slice(0,5)}–${k.lopp.slice(0,5)}</span><span style="color:#2563eb;font-weight:600">${parseFloat(k.tunnid).toFixed(1)}h</span>${muudetudBadge}<span style="color:#4ade80;margin-left:auto">${summa.toFixed(2)}€</span></div>`;
     }).join('');
   }
@@ -2798,4 +2798,61 @@ function pinPeidetud(pin) {
   const p = tmEsc(pin || '');
   if (!p) return '—';
   return `<span class="pin-peidetud" title="Näita PIN-koodi" style="cursor:pointer;letter-spacing:2px" onclick="event.stopPropagation();this.textContent=this.dataset.pin;this.style.letterSpacing='';this.onclick=null" data-pin="${p}">••••</span>`;
+}
+
+// ── TÖÖKIRJE MUUDATUSTE AJALUGU (ainult admin) ─────────────────────
+// Avaneb, kui vajutada töökirje real "✏️ MUUDETUD" märgile. Näitab iga muudatuse aega, tegijat
+// ja muutunud välju (vana → uus). Andmed tulevad /api/admin/tookirje-ajalugu (noudaAdmin).
+async function naitaKirjeAjalugu(kirjeId) {
+  const vana = document.getElementById('kirjeAjaluguAken');
+  if (vana) vana.remove();
+  const kate = document.createElement('div');
+  kate.id = 'kirjeAjaluguAken';
+  kate.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:3000;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto');
+  kate.innerHTML = `<div style="background:var(--bg2);color:var(--tekst);border:0.5px solid var(--piir);border-radius:14px;width:100%;max-width:560px;padding:18px 18px 14px;box-shadow:0 20px 50px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:700;flex:1">✏️ Töökirje muudatused</div>
+      <button id="kirjeAjaluguSulge" style="background:var(--bg3);border:0.5px solid var(--piir);border-radius:8px;color:var(--tekst);padding:5px 10px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    <div id="kirjeAjaluguSisu" style="font-size:13px;color:var(--hall)">Laadimine...</div>
+  </div>`;
+  document.body.appendChild(kate);
+  const sulge = () => { kate.remove(); document.removeEventListener('keydown', esc, true); };
+  const esc = (e) => { if (e.key === 'Escape') sulge(); };
+  document.addEventListener('keydown', esc, true);
+  kate.addEventListener('click', (e) => { if (e.target === kate) sulge(); });
+  document.getElementById('kirjeAjaluguSulge').onclick = sulge;
+
+  const r = await api('/api/admin/tookirje-ajalugu/' + encodeURIComponent(kirjeId));
+  const sisu = document.getElementById('kirjeAjaluguSisu');
+  if (!sisu) return;
+  if (!r || !r.ok) { sisu.innerHTML = `<span style="color:#ef4444">${tmEsc((r && r.veateade) || 'Ajalugu ei õnnestunud laadida')}</span>`; return; }
+
+  const aegStr = (a) => a ? new Date(a).toLocaleString('et-EE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  let html = '';
+  if (r.kirje) {
+    html += `<div style="margin-bottom:12px;color:var(--hall);font-size:12px">${r.kirje.tootaja_nimi ? tmEsc(r.kirje.tootaja_nimi) + ' · ' : ''}Algselt sisestatud: <b style="color:var(--tekst3)">${aegStr(r.kirje.loodud)}</b></div>`;
+  }
+  if (!r.muudatused.length) {
+    html += `<div style="padding:12px;background:var(--bg3);border-radius:8px">Täpsemat muudatuste logi selle kirje kohta ei leitud${r.kirje && r.kirje.muudetud_tootaja ? ' — teada on ainult viimase muutmise aeg: <b>' + aegStr(r.kirje.muudetud_tootaja) + '</b>' : ''}.</div>`;
+  } else {
+    html += r.muudatused.slice().reverse().map(m => {
+      const varv = m.admin ? '#5b9cf6' : '#fbbf24';
+      const read = m.valjad.length ? m.valjad.map(v => `
+        <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;padding:5px 0;border-top:0.5px solid var(--piir3)">
+          <span style="color:var(--hall)">${tmEsc(v.vali)}</span>
+          <span style="word-break:break-word"><span style="color:#ef4444;text-decoration:line-through">${tmEsc(v.vana === '' ? '—' : v.vana)}</span>
+            <span style="color:var(--hall)"> → </span><span style="color:#4ade80;font-weight:600">${tmEsc(v.uus === '' ? '—' : v.uus)}</span></span>
+        </div>`).join('')
+        : `<div style="padding:5px 0;border-top:0.5px solid var(--piir3);color:var(--hall)">${m.taielik || m.admin ? 'Salvestati ilma muudatusteta' : 'Kellaajad ja kuupäev jäid samaks (kommentaari/km muudatusi enne 19.11.2026 ei logitud)'}</div>`;
+      return `<div style="background:var(--bg3);border-left:3px solid ${varv};border-radius:8px;padding:8px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <b style="color:${varv}">${tmEsc(m.kes)}${m.admin ? '' : ' (töötaja)'}</b>
+          <span style="color:var(--hall);font-size:12px">${aegStr(m.aeg)}</span>
+        </div>${read}
+      </div>`;
+    }).join('');
+  }
+  sisu.innerHTML = html;
+  sisu.style.color = 'var(--tekst)';
 }

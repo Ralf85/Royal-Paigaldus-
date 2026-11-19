@@ -425,6 +425,13 @@ router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
   }
 });
 
+// Kuupäev kujul AAAA-KK-PP (DATE tuleb pg-st Date objektina; toISOString võiks ajavööndi tõttu päeva nihutada)
+function kpYmd(d) {
+  if (!d) return null;
+  if (typeof d === 'string') return d.slice(0, 10);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // Töötaja muudab oma töökirjet
 router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
   const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk } = req.body;
@@ -459,13 +466,21 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
       [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', lidl_projekt_id || null, req.params.id, soiduk]
     );
 
+    // Muudatuste ajalugu (näeb ainult admin): salvestame kõigi muudetavate väljade vana ja uue väärtuse
+    const v = vana.rows[0];
     await pool.query(
       `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
       [req.session.workerId, 'MUUDA_TOOKIRJE', JSON.stringify({
         kirje_id: req.params.id,
         kuupaev, algus, lopp, tunnid: tunnid.toFixed(2),
-        vana_kuupaev: vana.rows[0].kuupaev, vana_algus: vana.rows[0].algus, vana_lopp: vana.rows[0].lopp,
-        vana_tunnid: parseFloat(vana.rows[0].tunnid).toFixed(2)
+        kommentaar: kommentaar || '', kilomeetrid: km,
+        lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_selgitus || '',
+        lidl_projekt_id: lidl_projekt_id || null,
+        vana_kuupaev: kpYmd(v.kuupaev), vana_algus: v.algus, vana_lopp: v.lopp,
+        vana_tunnid: parseFloat(v.tunnid).toFixed(2),
+        vana_kommentaar: v.kommentaar || '', vana_kilomeetrid: parseFloat(v.kilomeetrid) || 0,
+        vana_lisakulu_summa: parseFloat(v.lisakulu_summa) || 0, vana_lisakulu_selgitus: v.lisakulu_selgitus || '',
+        vana_lidl_projekt_id: v.lidl_projekt_id || null
       }), req.ip]
     );
 
