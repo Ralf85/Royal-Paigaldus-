@@ -46,15 +46,17 @@
   .live.peatatud { background: #5c5440; }
   .live.peatatud i { animation: none; opacity: .5; }
   @keyframes vilgu { 50% { opacity: .2; } }
-  #kell { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 0; }
+  #kell { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: safe center; text-align: center; min-height: 0; overflow: hidden; }
+  #kell-sisu { width: 100%; }
   #level { font-size: 5.2vh; font-weight: 900; letter-spacing: .3em; }
-  #aeg { font-size: min(29vh, 19vw); font-weight: 800; line-height: .95; letter-spacing: -.01em; margin: .4vh 0 .8vh; text-shadow: 0 0 6vh rgba(212,175,55,.18); }
+  #aeg { white-space: nowrap; font-size: min(29vh, 19vw); font-weight: 800; line-height: .95; letter-spacing: -.01em; margin: .4vh 0 .8vh; text-shadow: 0 0 6vh rgba(212,175,55,.18); }
   #aeg.hoiatus { color: #ffb4ad; -webkit-text-fill-color: #ffb4ad; }
   #aeg.peatatud { opacity: .55; }
   #riba { width: min(70vw, 120vh); height: .9vh; border-radius: 1vh; background: rgba(255,255,255,.08); overflow: hidden; margin-bottom: 2.2vh; }
   #riba div { height: 100%; background: linear-gradient(90deg, var(--kuld3), var(--kuld2)); width: 0; transition: width .5s linear; }
   #blindid-silt { font-size: 2.4vh; letter-spacing: .4em; color: var(--hall); font-weight: 800; }
-  #blindid { font-size: min(13vh, 8.5vw); font-weight: 900; line-height: 1.05; }
+  #blindid { font-size: min(13vh, 8.5vw); font-weight: 900; line-height: 1.05; white-space: nowrap; }
+  #jargmised, #pausini, #periood, #ante { white-space: nowrap; }
   #ante { font-size: 3.2vh; color: var(--kuld2); font-weight: 700; min-height: 3.6vh; }
   #jargmised { margin-top: 1.4vh; font-size: 3.2vh; color: var(--hall); font-weight: 700; letter-spacing: .05em; }
   #jargmised b { color: var(--tekst); }
@@ -71,7 +73,7 @@
   #jalus { position: fixed; bottom: .5vh; left: 0; right: 0; text-align: center; font-size: 1.4vh; letter-spacing: .5em; color: #4a4536; pointer-events: none; }
   /* Paus */
   body.paus #aeg { color: var(--kuld2); }
-  body.paus #blindid { font-size: min(16vh, 10vw); letter-spacing: .2em; }
+  
   /* Teated */
   #kate { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; z-index: 10; text-align: center; padding: 4vh; }
   #kate img { width: min(42vh, 60vw); }
@@ -424,6 +426,23 @@
   lae();
   setInterval(lae, 2000);
   setInterval(tiks, 250);
+  // Suured numbrid (kell, blindid) peavad alati ühele reale mahtuma: kui tekst on laiem kui ruum, vähendame kirja.
+  function mahuta(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var laius = el.parentNode.clientWidth * 0.96;
+    var voti = el.textContent + '|' + laius;
+    if (el.dataset.mahutatud === voti) return;
+    el.style.fontSize = '';
+    var w = el.scrollWidth;
+    if (w > laius && w > 0) {
+      var praegu = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = Math.floor(praegu * laius / w) + 'px';
+    }
+    el.dataset.mahutatud = voti;
+  }
+  setInterval(function () { ['aeg', 'blindid', 'jargmised', 'periood', 'pausini'].forEach(mahuta); }, 250);
+  window.addEventListener('resize', function () { ['aeg', 'blindid', 'jargmised', 'periood', 'pausini'].forEach(function (id) { var e = document.getElementById(id); if (e) e.dataset.mahutatud = ''; }); });
 </script>
 </body>
 </html>
