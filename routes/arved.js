@@ -472,9 +472,12 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     if (!hind) return res.json({ ok: false, veateade: 'Sisesta korrektne esitushind' });
     // KAUBIK: Lidli arvele lisanduvad kaubiku rendi read (päevad × päevahind + km × km-hind),
     // aga ainult siis, kui /kaubik-admin lehel on "Lisa Lidli arvele" sisse lülitatud (vt routes/kaubik.js).
-    let kaubikuRead = [];
+    let kaubikuRead = [], kaubikTeade = null;
     if (tyyp === 'lidl') {
-      try { kaubikuRead = await require('./kaubik').arveRead(algus, lopp); } catch (e) { console.error('Kaubiku arveread:', e.message); }
+      try {
+        const k = await require('./kaubik').arveInfo(algus, lopp);
+        kaubikuRead = k.read; kaubikTeade = k.teade;
+      } catch (e) { console.error('Kaubiku arveread:', e.message); kaubikTeade = '⚠️ Kaubiku ridu ei saanud lisada: ' + e.message; }
     }
       if (viis === 'objektid') {
       const r = await pool.query(
@@ -502,7 +505,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
           read.push({ kirjeldus: `Transport (${row.objekt_nimi})`, kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
         }
       });
-      return res.json({ ok: true, read: read.concat(kaubikuRead) });
+      return res.json({ ok: true, read: read.concat(kaubikuRead), kaubik_teade: kaubikTeade });
     }
 
     if (viis === 'tootajad') {
@@ -521,7 +524,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
         const alusKirjeldus = row.objekt_nimi || 'Tööd';
         return { kirjeldus: `${alusKirjeldus} (${row.worker_nimi})`, kogus, uhik: 'h', hind, summa: +(kogus * hind).toFixed(2) };
       });
-      return res.json({ ok: true, read: read.concat(kaubikuRead) });
+      return res.json({ ok: true, read: read.concat(kaubikuRead), kaubik_teade: kaubikTeade });
     }
 
     const tR = await pool.query(
@@ -533,7 +536,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     const read = [];
     if (tunnid > 0) read.push({ kirjeldus: 'Tehtud tööd', kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
     if (km > 0) read.push({ kirjeldus: 'Transport', kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-    res.json({ ok: true, read: read.concat(kaubikuRead) });
+    res.json({ ok: true, read: read.concat(kaubikuRead), kaubik_teade: kaubikTeade });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: err.message });

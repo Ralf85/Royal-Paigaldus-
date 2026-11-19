@@ -22,7 +22,7 @@ const { aiFailid, loeDokument } = require('../ailugeja');
 //    näidu kontrolli). Läbisõit = lõpunäit − algnäit, kui näidud on olemas, muidu km_kasitsi.
 //  * Ligipääs: ainult töötajad tabelis kaubik_lubatud. Algul ainult Ralf (testiks), teisi saab lisada
 //    lehel /kaubik-admin.
-//  * Lidli arvele: arve autotäitmine (routes/arved.js /autotaita) lisab AINULT Lidli projekti sõidud ja
+//  * Lidli arvele: arve autotäitmine (routes/arved.js /autotaita) lisab AINULT Lidli projekti soidud ja
 //    ainult siis, kui adminis on "Lisa Lidli arvele" sisse lülitatud (vaikimisi VÄLJAS).
 //
 // Tabelid luuakse siin (mitte db.js-is), et moodul oleks iseseisev — sama muster mis routes/remont.js.
@@ -98,7 +98,7 @@ async function looTabelid() {
     -- Projekt (lidl/cramo/xseeria/isiklik) ja isikliku sõidu juhi nimi. Vanad read = Lidl.
     ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS projekt VARCHAR(20) NOT NULL DEFAULT 'lidl';
     ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS juht VARCHAR(100);
-    -- Admini käsitsi lisatud sõidud: võib olla ainult km (ilma näitudeta) ja rendikaubikuga (oma näidud,
+    -- Admini käsitsi lisatud soidud: võib olla ainult km (ilma näitudeta) ja rendikaubikuga (oma näidud,
     -- mis ei mõjuta oma kaubiku "viimase näidu" kontrolli).
     ALTER TABLE kaubik_paevik ALTER COLUMN algus_km DROP NOT NULL;
     ALTER TABLE kaubik_paevik ADD COLUMN IF NOT EXISTS km_kasitsi INTEGER;
@@ -125,10 +125,14 @@ async function looTabelid() {
     );
     await pool.query(`UPDATE kaubik_seaded SET versioon=1 WHERE id=1`);
   }
+  // Ühekordne (19.11.2026): kaubik läheb päriselt Lidli arvetele — "Lisa Lidli arvele" sisse.
+  if (v.rows[0].versioon < 3) {
+    await pool.query(`UPDATE kaubik_seaded SET arvele=true, versioon=GREATEST(versioon, 3) WHERE id=1`);
+  }
   // Ühekordne (18.11.2026): hinnad liikusid projektipõhiseks — Lidli hinnaks jääb seni seadetes olnud hind.
   if (v.rows[0].versioon < 2) {
     await pool.query(`UPDATE kaubik_hinnad h SET paevahind=s.paevahind, km_hind=s.km_hind FROM kaubik_seaded s WHERE s.id=1 AND h.projekt='lidl'`);
-    await pool.query(`UPDATE kaubik_seaded SET versioon=2 WHERE id=1`);
+    await pool.query(`UPDATE kaubik_seaded SET versioon=GREATEST(versioon, 2) WHERE id=1`);
   }
 }
 
@@ -287,7 +291,7 @@ router.get('/kontroll', async (req, res) => {
   res.json({ ok: true, lubatud: await onLubatud(req.session && req.session.workerId) });
 });
 
-// Töötaja vaade: lahtine sõit (kui on), viimane näit, projektid, juhtide ajalugu ja viimased sõidud.
+// Töötaja vaade: lahtine sõit (kui on), viimane näit, projektid, juhtide ajalugu ja viimased soidud.
 router.get('/minu', noudaTootajat, async (req, res) => {
   const s = await seaded();
   const lahtine = await pool.query(
@@ -626,18 +630,25 @@ router.get('/admin/excel', noudaAdmin, async (req, res) => {
 });
 
 // ── LIDLI ARVE: read arve autotäitmisele (kasutab routes/arved.js) ────────
-// Ainult Lidli projekti sõidud. Tühi massiiv, kui "Lisa Lidli arvele" on adminis väljas või sõite pole.
-async function arveRead(algus, lopp) {
+// Ainult Lidli projekti soidud. Tagastab { read, teade } — teade näidatakse arve vormis, et oleks näha,
+// miks kaubiku read tulid või ei tulnud.
+async function arveInfo(algus, lopp) {
   await valmis();
   const s = await seaded();
-  if (!s.arvele) return [];
   const h = hinnadKoodiga(s).lidl;
-  const kv = kokkuvote(await perioodiRead(algus, lopp, 'lidl'), s).projektid.find(p => p.kood === 'lidl');
-  const tulem = [];
-  if (kv.paevad > 0 && h.paevahind > 0) tulem.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: kv.paevad, uhik: 'päev', hind: h.paevahind, summa: kv.paeva_tulu });
-  if (kv.km > 0 && h.km_hind > 0) tulem.push({ kirjeldus: `${s.kaubiku_nimi} läbisõit`, kogus: kv.km, uhik: 'km', hind: h.km_hind, summa: kv.km_tulu });
-  return tulem;
+  const soidud = await perioodiRead(algus, lopp, 'lidl');
+  const kv = kokkuvote(soidud, s).projektid.find(p => p.kood === 'lidl');
+  const lahtised = soidud.filter(x => soiduKm(x) === null).length;
+  const lahtiseTeade = lahtised ? ` NB: ${lahtised} sõit on lõpetamata (lõpunäit puudu) — see ei ole arvel.` : '';
+  if (!kv.paevad) return { read: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
+  if (!s.arvele) return { read: [], teade: `🚐 Kaubiku read jäid välja (${kv.paevad} päeva, ${kv.km} km): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
+  const read = [];
+  if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: kv.paevad, uhik: 'päev', hind: h.paevahind, summa: kv.paeva_tulu });
+  if (kv.km > 0 && h.km_hind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} läbisõit`, kogus: kv.km, uhik: 'km', hind: h.km_hind, summa: kv.km_tulu });
+  return { read, teade: `🚐 Lisatud kaubik: ${kv.paevad} päeva + ${kv.km} km = ${kv.kokku.toFixed(2).replace('.', ',')} € (km-ta).` + lahtiseTeade };
 }
+async function arveRead(algus, lopp) { return (await arveInfo(algus, lopp)).read; }
 
 module.exports = router;
 module.exports.arveRead = arveRead;
+module.exports.arveInfo = arveInfo;

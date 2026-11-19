@@ -639,9 +639,11 @@ async function avAutotaida(viis) {
   }
   const r = await api(`/api/arved/autotaita?ettevote_id=${ettevoteId}&algus=${algus}&lopp=${lopp}&viis=${viis}&esitus_hind=${esitus_hind}`);
   if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Autotäitmine ebaõnnestus');
-  if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.');
+  if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.' + (r.kaubik_teade ? ' ' + r.kaubik_teade : ''));
   avRead = r.read;
   avJoonistaRead();
+  // Lidl: näitame, kas ja mis kaubiku read lisati (või miks mitte) — vt routes/kaubik.js arveInfo
+  if (r.kaubik_teade) naitaTeade('arve-teade', /^🚐 Lisatud/.test(r.kaubik_teade) ? 'ok' : 'viga', r.kaubik_teade);
 }
 
 // Kogub vormist arve andmed (kasutavad nii eelvaade kui salvestamine). Vea korral näitab teadet ja tagastab null.
