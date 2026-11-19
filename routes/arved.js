@@ -472,29 +472,28 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     if (!hind) return res.json({ ok: false, veateade: 'Sisesta korrektne esitushind' });
     // KAUBIK: Lidli arvele lisanduvad kaubiku rendi read (päevad × päevahind + km × km-hind),
     // aga ainult siis, kui /kaubik-admin lehel on "Lisa Lidli arvele" sisse lülitatud (vt routes/kaubik.js).
-    let kaubikuRead = [], kaubikTeade = null, kaubikuMarkused = [];
+    let kaubikuRead = [], kaubikTeade = null;
     if (tyyp === 'lidl') {
       try {
         const k = await require('./kaubik').arveInfo(algus, lopp);
-        kaubikuRead = k.read; kaubikTeade = k.teade; kaubikuMarkused = k.markused || [];
+        kaubikuRead = k.read; kaubikTeade = k.teade;
       } catch (e) { console.error('Kaubiku arveread:', e.message); kaubikTeade = '⚠️ Kaubiku ridu ei saanud lisada: ' + e.message; }
     }
-    // Lidl: KÕIK kilomeetrid (töökirjete poodide km + kaubiku km, sama km-hind) ühele "Transport" reale —
-    // Lidli raamatupidamises on transport üks rida. Selgituseks kaubiku sõitude märkused. Rendi rida jääb eraldi.
+    // Lidl: kaubiku sõidud tulevad eraldi "Transport <kuupäev> (<kommentaar>)" ridadena (vt routes/kaubik.js).
+    // Töökirjete poodide km (kui on) pannakse kokku ÜHELE "Transport" reale, et transpordiridu poleks liiga palju.
     const valmisRead = (read) => {
-      const koik = read.concat(kaubikuRead);
-      if (tyyp !== 'lidl') return koik;
-      const km = koik.filter(r => r.uhik === 'km');
-      if (!km.length) return koik;
-      const hinnad = Array.from(new Set(km.map(r => +r.hind)));
-      if (hinnad.length > 1) return koik.map(r => { const x = Object.assign({}, r); delete x.kaubik_km; return x; }); // erinev km-hind -> jäävad eraldi
-      const kogus = Math.round(km.reduce((s, r) => s + (+r.kogus || 0), 0) * 10) / 10;
-      const selgitus = kaubikuMarkused.join('; ').slice(0, 160);
-      return koik.filter(r => r.uhik !== 'km').concat([{
-        kirjeldus: 'Transport' + (selgitus ? ` (${selgitus})` : ''), kogus, uhik: 'km', hind: hinnad[0], summa: +(kogus * hinnad[0]).toFixed(2)
-      }]);
+      const puhas = (r) => { const x = Object.assign({}, r); delete x.kaubik_km; return x; };
+      if (tyyp !== 'lidl') return read.concat(kaubikuRead).map(puhas);
+      const tooKm = read.filter(r => r.uhik === 'km');
+      const hinnad = Array.from(new Set(tooKm.map(r => +r.hind)));
+      let tulem = read;
+      if (tooKm.length > 1 && hinnad.length === 1) {
+        const kogus = Math.round(tooKm.reduce((s, r) => s + (+r.kogus || 0), 0) * 10) / 10;
+        tulem = read.filter(r => r.uhik !== 'km').concat([{ kirjeldus: 'Transport', kogus, uhik: 'km', hind: hinnad[0], summa: +(kogus * hinnad[0]).toFixed(2) }]);
+      }
+      return tulem.concat(kaubikuRead).map(puhas);
     };
-      if (viis === 'objektid') {
+    if (viis === 'objektid') {
       const r = await pool.query(
         `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
                 SUM(t.tunnid) as tunnid,

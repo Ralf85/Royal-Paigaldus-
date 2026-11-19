@@ -642,15 +642,26 @@ async function arveInfo(algus, lopp) {
   const lahtiseTeade = lahtised ? ` NB: ${lahtised} sõit on lõpetamata (lõpunäit puudu) — see ei ole arvel.` : '';
   if (!kv.paevad) return { read: [], markused: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
   if (!s.arvele) return { read: [], markused: [], teade: `🚐 Kaubiku read jäid välja (${kv.paevad} päeva, ${kv.km} km): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
-  // Admini/töötaja märkused (ilma automaatsete vahemiku-lisanditeta) — lähevad "Transport" rea selgituseks.
-  const markused = [];
-  soidud.filter(x => soiduKm(x) !== null).forEach(x => String(x.markus || '').split(' · ').forEach(m => {
-    m = m.trim();
-    if (m && !/^km kogu perioodi|^sama sõit/.test(m) && !markused.includes(m)) markused.push(m);
-  }));
+  // Iga kaubiku sõit eraldi "Transport" reaks: kuupäev + sõidu kommentaar (poe nimi/number), et Lidl saaks
+  // aruandluses sõidud poodide kaupa kätte. Mitmepäevase rendi km on esimese päeva real — selle kuupäevaks
+  // pannakse vahemik (nt 17.11–19.11); 0 km päevad (sama rendi teised päevad) reaks ei lähe.
+  const kpL = (k) => `${k.slice(8, 10)}.${k.slice(5, 7)}`;
   const read = [];
   if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: kv.paevad, uhik: 'päev', hind: h.paevahind, summa: kv.paeva_tulu });
-  if (kv.km > 0 && h.km_hind > 0) read.push({ kirjeldus: 'Transport', kogus: kv.km, uhik: 'km', hind: h.km_hind, summa: kv.km_tulu, kaubik_km: true });
+  if (h.km_hind > 0) {
+    soidud.forEach(x => {
+      const km = soiduKm(x);
+      if (!km) return;
+      const osad = String(x.markus || '').split(' · ').map(m => m.trim()).filter(Boolean);
+      const vahemik = (osad.join(' ').match(/km kogu perioodi (\S+) kohta/) || [])[1];
+      const kommentaar = osad.filter(m => !/^km kogu perioodi|^sama sõit/.test(m)).join(', ');
+      read.push({
+        kirjeldus: `Transport ${vahemik || kpL(x.kuupaev)}` + (kommentaar ? ` (${kommentaar})` : ''),
+        kogus: km, uhik: 'km', hind: h.km_hind, summa: r2(km * h.km_hind), kaubik_km: true
+      });
+    });
+  }
+  const markused = [];
   return { read, markused, teade: `🚐 Lisatud kaubik: ${kv.paevad} päeva + ${kv.km} km = ${kv.kokku.toFixed(2).replace('.', ',')} € (km-ta).` + lahtiseTeade };
 }
 async function arveRead(algus, lopp) { return (await arveInfo(algus, lopp)).read; }
