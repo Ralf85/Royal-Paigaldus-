@@ -511,7 +511,7 @@ function muudaLevelit() {
 function seadedModaal() {
   var t = TD.turniir;
   REDAKTOR.st = JSON.parse(JSON.stringify(t.struktuur));
-  REDAKTOR.praegune = TD.kell ? TD.kell.kell.idx : -1;
+  REDAKTOR.praegune = TD.kell ? TD.kell.kell.idx : -1; REDAKTOR.alus = 0; REDAKTOR.tagasi = null;
   modaal('<h3>TURNIIRI SEADED JA BLINDID</h3><div class="vorm">' +
     '<label class="v">Nimi<input id="ts-nimi" value="' + esc(t.nimi) + '"></label><label class="v">Kuupäev<input type="date" id="ts-kp" value="' + t.kuupaev + '"></label>' +
     '<label class="v">Hooaeg<select id="ts-hooaeg">' + hooajaValik(t.hooaeg_id) + '</select></label></div>' +
@@ -618,7 +618,7 @@ async function kustutaTurniir() {
 }
 
 // ── BLINDIDE STRUKTUURI REDAKTOR ─────────────────────────────────────────
-var REDAKTOR = { st: [], praegune: -1 };
+var REDAKTOR = { st: [], praegune: -1, alus: 0, tagasi: null };
 function joonistaRedaktor() {
   var st = REDAKTOR.st, lvl = 0;
   var h = '<div class="tabelikast"><table class="struktuur"><tr><th>#</th><th>SB</th><th>BB</th><th>Ante</th><th class="c">BB ante</th><th>Min</th><th></th></tr>';
@@ -632,7 +632,7 @@ function joonistaRedaktor() {
       if (!el.jatk) lvl++;
       h += '<tr class="' + cls + '"><td class="num"><b>' + (el.jatk ? lvl + '↪' : lvl) + '</b></td>' +
         // SB sisestamisel täidetakse BB automaatselt (2 × SB); Enter viib järgmise leveli SB lahtrisse.
-        '<td><input type="number" class="r-sb" value="' + (el.sb || 0) + '" oninput="rSb(' + i + ',this)" onkeydown="rEnter(event,this)"></td>' +
+        '<td><input type="number" class="r-sb" value="' + (el.sb || 0) + '" oninput="rSb(' + i + ',this)" onfocus="REDAKTOR.alus=' + i + '" onkeydown="rEnter(event,this)"></td>' +
         '<td><input type="number" id="r-bb-' + i + '" value="' + (el.bb || 0) + '" oninput="rMuuda(' + i + ',\'bb\',this.value)"></td>' +
         '<td><input type="number" value="' + (el.ante || 0) + '" oninput="rMuuda(' + i + ',\'ante\',this.value)"></td>' +
         '<td class="c"><input type="checkbox" ' + (el.bba ? 'checked' : '') + ' onchange="rMuuda(' + i + ',\'bba\',this.checked)"></td>' +
@@ -640,7 +640,9 @@ function joonistaRedaktor() {
     }
   });
   h += '</table></div><div class="rida" style="margin-top:10px"><button onclick="rLisa(false)">+ Level</button><button onclick="rLisa(true)">+ Paus</button>' +
-    '<span class="hall vaike">SB kirjutamisel täitub BB automaatselt (2 × SB). Leveli minutite muutmisel saavad sama pikkuse ka kõik järgmised levelid (pausid mitte). Enter viib järgmise leveli SB lahtrisse.</span></div>';
+    '<button class="kuldnupp" onclick="rTaidaLopuni()">⚡ Täida lõpuni</button>' +
+    (REDAKTOR.tagasi ? '<button onclick="rTaitmineTagasi()">↩ Võta täitmine tagasi</button>' : '') +
+    '<span class="hall vaike">SB kirjutamisel täitub BB automaatselt (2 × SB). Leveli minutite muutmisel saavad sama pikkuse ka kõik järgmised levelid (pausid mitte). Enter viib järgmise leveli SB lahtrisse. ⚡ Täida lõpuni täidab blindid alates viimati muudetud levelist.</span></div>';
   $('redaktor').innerHTML = h;
 }
 function rSb(i, input) {
@@ -659,6 +661,45 @@ function rMin(i, input) {
     st[j].min = min;
     var el = $('r-min-' + j); if (el && j !== i) el.value = min;
   }
+}
+// "Täida lõpuni": viimati muudetud (või klõpsatud) levelist alates täidetakse kõik järgmised levelid
+// tavapärase pokkeri blindiredeli järgi (BB = 2 × SB). Pausid jäävad oma kohale, minutid alusleveli järgi.
+// Kui levelid on vähem kui 14, lisatakse juurde kuni 14 levelini. Kõike saab pärast käsitsi muuta.
+var BLINDIREDEL = [25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 800, 1000, 1200, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000,
+  10000, 12000, 15000, 20000, 25000, 30000, 40000, 50000, 60000, 80000, 100000, 120000, 150000, 200000, 250000, 300000, 400000, 500000];
+function jargmineSb(sb) {
+  for (var i = 0; i < BLINDIREDEL.length; i++) if (BLINDIREDEL[i] > sb) return BLINDIREDEL[i];
+  return Math.round(sb * 1.25 / 1000) * 1000;
+}
+function rTaidaLopuni() {
+  var st = REDAKTOR.st;
+  var alus = REDAKTOR.alus;
+  if (!st[alus] || st[alus].paus) { alus = -1; for (var k = 0; k < st.length; k++) if (!st[k].paus) { alus = k; break; } }
+  if (alus < 0) return toast('Lisa enne vähemalt üks level', true);
+  if (!(st[alus].sb > 0)) return toast('Kirjuta alusleveli small blind', true);
+  REDAKTOR.tagasi = JSON.parse(JSON.stringify(st));
+  var sb = st[alus].sb, min = st[alus].min || 20, levelNr = 0, j;
+  for (j = 0; j <= alus; j++) if (!st[j].paus && !st[j].jatk) levelNr++;
+  var alusNr = levelNr;
+  for (j = alus + 1; j < st.length; j++) {
+    if (st[j].paus || st[j].jatk) continue;
+    sb = jargmineSb(sb);
+    st[j].sb = sb; st[j].bb = sb * 2; st[j].min = min;
+    levelNr++;
+  }
+  while (levelNr < 14) {
+    sb = jargmineSb(sb);
+    st.push({ sb: sb, bb: sb * 2, ante: 0, bba: false, min: min });
+    levelNr++;
+  }
+  joonistaRedaktor();
+  toast('Täidetud alates level ' + alusNr + ' — muuda vajadusel käsitsi');
+}
+function rTaitmineTagasi() {
+  if (!REDAKTOR.tagasi) return;
+  REDAKTOR.st = REDAKTOR.tagasi; REDAKTOR.tagasi = null;
+  joonistaRedaktor();
+  toast('Täitmine tagasi võetud');
 }
 function rEnter(e, input) {
   if (e.key !== 'Enter') return;
@@ -976,7 +1017,7 @@ function vaataStruktuuri(id) {
 }
 function muudaFormaati(id) {
   var f = id ? AJUTINE.formaadid.find(function (x) { return x.id === id; }) : { nimi: '', seaded: { tyyp: 'freezeout', buyin: 20, bounty: 0, algstack: 10000, addon_summa: 0, addon_stack: 0, lisaperiood_levelid: 0, hiline_reg_levelid: 4, leveli_min: 20, pausi_min: 10 }, struktuur: [{ sb: 25, bb: 50, ante: 0, bba: false, min: 20 }] };
-  REDAKTOR.st = JSON.parse(JSON.stringify(f.struktuur)); REDAKTOR.praegune = -1;
+  REDAKTOR.st = JSON.parse(JSON.stringify(f.struktuur)); REDAKTOR.praegune = -1; REDAKTOR.alus = 0; REDAKTOR.tagasi = null;
   modaal('<h3>' + (id ? 'MUUDA FORMAATI' : 'UUS FORMAAT') + '</h3><label class="v">Nimi<input id="fs-nimi" value="' + esc(f.nimi) + '"></label><div style="margin-top:12px">' + seadedVorm(f.seaded, 'fs') + '</div>' +
     (id ? '<div style="margin-top:12px"><label class="c"><input type="checkbox" id="fs-arhiiv"' + (f.arhiveeritud ? ' checked' : '') + '> Arhiveeritud (ei pakuta uue turniiri loomisel)</label></div>' : '') +
     '<h2 style="margin-top:18px">BLINDIDE STRUKTUUR</h2><div id="redaktor"></div>' +
