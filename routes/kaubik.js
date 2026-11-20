@@ -637,22 +637,38 @@ router.get('/admin/excel', noudaAdmin, async (req, res) => {
 // ── LIDLI ARVE: read arve autotäitmisele (kasutab routes/arved.js) ────────
 // Ainult Lidli projekti soidud. Tagastab { read, teade } — teade näidatakse arve vormis, et oleks näha,
 // miks kaubiku read tulid või ei tulnud.
-async function arveInfo(algus, lopp) {
+// Päevatasu (rent) läheb ÜKS KORD PÄEVAS: päev loetakse kaubikupäevaks, kui sel päeval on lõpetatud Lidli
+// sõit sõidupäevikus VÕI mõni Lidli töökirje, kus töötaja märkis km "🚐 Kaubik" (km > 0). Mitu töökirjet,
+// mitu töötajat või päevik + töökirje samal päeval = ikkagi üks päevatasu. Töökirjete km ise lähevad arvele
+// töökirjete "Transport" reana (routes/arved.js), päeviku sõidud oma ridadena allpool.
+async function arveInfo(algus, lopp, ettevoteId) {
   await valmis();
   const s = await seaded();
   const h = hinnadKoodiga(s).lidl;
   const soidud = await perioodiRead(algus, lopp, 'lidl');
   const kv = kokkuvote(soidud, s).projektid.find(p => p.kood === 'lidl');
+  const paevikuPaevad = new Set(soidud.filter(x => soiduKm(x) !== null).map(x => x.kuupaev));
+  const tooPaevad = new Set((await pool.query(
+    `SELECT DISTINCT to_char(t.kuupaev,'YYYY-MM-DD') AS kp
+     FROM tookirjed t JOIN ettevotted e ON e.id = t.ettevote_id
+     WHERE t.km_soiduk = 'kaubik' AND COALESCE(t.kilomeetrid, 0) > 0 AND t.kuupaev BETWEEN $1 AND $2
+       AND ($3::int IS NOT NULL AND t.ettevote_id = $3 OR $3::int IS NULL AND e.tyyp = 'lidl')`,
+    [algus, lopp, parseInt(ettevoteId, 10) || null]
+  )).rows.map(r => r.kp));
+  const koikPaevad = new Set([...paevikuPaevad, ...tooPaevad]);
+  const ainultToo = [...tooPaevad].filter(p => !paevikuPaevad.has(p)).length;
+  const paevi = koikPaevad.size;
+  const rent = r2(paevi * h.paevahind);
   const lahtised = soidud.filter(x => soiduKm(x) === null).length;
   const lahtiseTeade = lahtised ? ` NB: ${lahtised} sõit on lõpetamata (lõpunäit puudu) — see ei ole arvel.` : '';
-  if (!kv.paevad) return { read: [], markused: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
-  if (!s.arvele) return { read: [], markused: [], teade: `🚐 Kaubiku read jäid välja (${kv.paevad} päeva, ${kv.km} km): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
+  if (!paevi) return { read: [], markused: [], teade: '🚐 Kaubiku Lidli sõite sellel perioodil pole.' + lahtiseTeade };
+  if (!s.arvele) return { read: [], markused: [], teade: `🚐 Kaubiku read jäid välja (${paevi} päeva): lehel /kaubik-admin on "Lisa Lidli arvele" välja lülitatud.` };
   // Iga kaubiku sõit eraldi "Transport" reaks: kuupäev + sõidu kommentaar (poe nimi/number), et Lidl saaks
   // aruandluses sõidud poodide kaupa kätte. Mitmepäevase rendi km on esimese päeva real — selle kuupäevaks
   // pannakse vahemik (nt 17.11–19.11); 0 km päevad (sama rendi teised päevad) reaks ei lähe.
   const kpL = (k) => `${k.slice(8, 10)}.${k.slice(5, 7)}`;
   const read = [];
-  if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: kv.paevad, uhik: 'päev', hind: h.paevahind, summa: kv.paeva_tulu });
+  if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: paevi, uhik: 'päev', hind: h.paevahind, summa: rent });
   if (h.km_hind > 0) {
     soidud.forEach(x => {
       const km = soiduKm(x);
@@ -667,9 +683,11 @@ async function arveInfo(algus, lopp) {
     });
   }
   const markused = [];
-  return { read, markused, teade: `🚐 Lisatud kaubik: ${kv.paevad} päeva + ${kv.km} km = ${kv.kokku.toFixed(2).replace('.', ',')} € (km-ta).` + lahtiseTeade };
+  const kokku = r2(rent + kv.km_tulu);
+  return { read, markused, teade: `🚐 Lisatud kaubik: ${paevi} päeva` + (ainultToo ? ` (neist ${ainultToo} töökirjete "Kaubik" märke järgi)` : '')
+    + ` + päeviku ${kv.km} km = ${kokku.toFixed(2).replace('.', ',')} € (km-ta). Töökirjete kaubiku km on töökirjete Transport real.` + lahtiseTeade };
 }
-async function arveRead(algus, lopp) { return (await arveInfo(algus, lopp)).read; }
+async function arveRead(algus, lopp, ettevoteId) { return (await arveInfo(algus, lopp, ettevoteId)).read; }
 
 module.exports = router;
 module.exports.arveRead = arveRead;

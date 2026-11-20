@@ -475,7 +475,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     let kaubikuRead = [], kaubikTeade = null;
     if (tyyp === 'lidl') {
       try {
-        const k = await require('./kaubik').arveInfo(algus, lopp);
+        const k = await require('./kaubik').arveInfo(algus, lopp, ettevote_id);
         kaubikuRead = k.read; kaubikTeade = k.teade;
       } catch (e) { console.error('Kaubiku arveread:', e.message); kaubikTeade = '⚠️ Kaubiku ridu ei saanud lisada: ' + e.message; }
     }
