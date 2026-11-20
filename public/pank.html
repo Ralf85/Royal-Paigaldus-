@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Paigaldus — Pangaväljavõte</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+<meta name="theme-color" content="#0d0f13">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f13; --bg2: #13161c; --bg3: #1e2128; --piir: rgba(255,255,255,0.08);
+    --tekst: #e2e8f0; --tekst2: #bbb; --tekst3: #7a8290;
+    --kuld: #c9a84c; --roheline: #4ade80; --oranz: #fb923c; --punane: #f87171; --sinine: #60a5fa;
+  }
+  body.hele {
+    --bg: #f4f5f7; --bg2: #ffffff; --bg3: #eef0f3; --piir: rgba(0,0,0,0.10);
+    --tekst: #111827; --tekst2: #374151; --tekst3: #6b7280;
+    --kuld: #a5832a; --roheline: #15803d; --oranz: #c2410c; --punane: #b91c1c; --sinine: #1d4ed8;
+  }
+  body { background: var(--bg); color: var(--tekst); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 18px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 800; }
+  h1 span { color: var(--kuld); }
+  a.tagasi { color: var(--tekst2); text-decoration: none; font-size: 13px; display: inline-block; margin: 4px 0 16px; }
+  .kaart { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .kaart h2 { font-size: 14px; font-weight: 800; margin-bottom: 10px; }
+  .abi { font-size: 12px; color: var(--tekst3); line-height: 1.45; }
+  label.silt { display: block; font-size: 11px; color: var(--tekst3); text-transform: uppercase; letter-spacing: 0.5px; margin: 8px 0 4px; }
+  input, select, textarea { background: var(--bg3); border: 0.5px solid var(--piir); color: var(--tekst); border-radius: 8px; padding: 9px; font-size: 14px; width: 100%; font-family: inherit; }
+  .nupp { background: var(--kuld); color: #1a1405; border: none; border-radius: 9px; padding: 10px 14px; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .nupp:disabled { opacity: 0.5; cursor: default; }
+  .nupp.hall { background: var(--bg3); color: var(--tekst); border: 0.5px solid var(--piir); }
+  .nupp.roheline { background: var(--roheline); color: #052e12; }
+  .nupp.vaike { padding: 6px 10px; font-size: 12.5px; font-weight: 700; }
+  .nupp.punane { background: transparent; color: var(--punane); border: 0.5px solid var(--punane); }
+  .teade { font-size: 13px; margin-top: 8px; min-height: 16px; line-height: 1.45; }
+  .teade.ok { color: var(--roheline); } .teade.viga { color: var(--punane); }
+  .laadi-rida { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .laadi-rida input[type=file] { flex: 1; min-width: 220px; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--tekst2); margin-top: 10px; }
+  .kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 760px) { .kv { grid-template-columns: repeat(2, 1fr); } }
+  .kv div { background: var(--bg3); border-radius: 10px; padding: 10px; text-align: center; }
+  .kv b { display: block; font-size: 18px; font-weight: 800; }
+  .kv small { display: block; font-size: 12px; color: var(--tekst2); margin-top: 2px; }
+  .kv span { font-size: 11px; color: var(--tekst3); }
+  .kv .sisse b { color: var(--roheline); } .kv .valja b { color: var(--oranz); }
+  .filtrid { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .filtrid > div { min-width: 130px; }
+  .sakid { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sakk { background: var(--bg3); border: 0.5px solid var(--piir); color: var(--tekst2); border-radius: 20px; padding: 7px 13px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .sakk.ak { background: var(--kuld); color: #1a1405; border-color: var(--kuld); }
+  .rida { border: 0.5px solid var(--piir); border-radius: 12px; padding: 12px; margin-bottom: 10px; background: var(--bg2); }
+  .rida-ylal { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .rida-osapool { font-weight: 800; font-size: 14.5px; }
+  .rida-selg { font-size: 13px; color: var(--tekst2); margin-top: 3px; word-break: break-word; }
+  .rida-meta { font-size: 11.5px; color: var(--tekst3); margin-top: 4px; }
+  .summa { font-weight: 800; font-size: 16px; white-space: nowrap; }
+  .summa.sisse { color: var(--roheline); } .summa.valja { color: var(--oranz); }
+  .vaste { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding: 8px 10px; border-radius: 9px; background: var(--bg3); font-size: 13px; }
+  .vaste .tekst { flex: 1; min-width: 200px; }
+  .vaste .pohj { font-size: 11px; color: var(--tekst3); }
+  .silt-k { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 3px 7px; border-radius: 6px; }
+  .silt-k.kindel { background: rgba(74,222,128,0.18); color: var(--roheline); }
+  .silt-k.tõenäoline { background: rgba(96,165,250,0.18); color: var(--sinine); }
+  .silt-k.võimalik { background: rgba(251,146,60,0.15); color: var(--oranz); }
+  .silt-k.puudub { background: rgba(248,113,113,0.15); color: var(--punane); }
+  .tegevused { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .seos { margin-top: 8px; font-size: 13px; color: var(--roheline); }
+  .seos.ign { color: var(--tekst3); }
+  .tyhi { text-align: center; padding: 30px 10px; color: var(--tekst3); font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; color: var(--tekst3); text-transform: uppercase; padding: 6px; border-bottom: 1px solid var(--piir); }
+  td { padding: 6px; border-bottom: 0.5px solid var(--piir); }
+  .modal-taust { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .modal-taust.ava { display: flex; }
+  .modal { background: var(--bg2); border: 0.5px solid var(--piir); border-radius: 14px; padding: 18px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { font-size: 16px; margin-bottom: 4px; }
+  .modal .nupud { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .km-nupud { display: flex; gap: 6px; margin-top: 6px; }
+  .lyliti { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px; border-radius: 10px; background: var(--bg3); cursor: pointer; font-size: 13px; }
+  .lyliti input { width: 20px; height: 20px; flex: none; accent-color: #c9a84c; }
+</style>
+</head>
+<body>
+  <a class="tagasi" href="/admin">← Tagasi admin paneeli</a>
+  <h1>🏦 Pangaväljavõte <span>· Royal Paigaldus</span></h1>
+  <p class="abi" style="margin:6px 0 16px">Lae üles Swedbanki väljavõte ja vaata, mis laekumised ja väljaminekud on arvetes veel sisse kandmata. Rakendus pakub vasted välja — midagi ei muudeta enne, kui sa kinnitad.</p>
+
+  <div class="kaart">
+    <h2>1. Lae väljavõte üles</h2>
+    <p class="abi">Swedbanki internetipank → Konto väljavõte → vali periood → <b>Laadi alla CSV</b> (või XML / ISO 20022). Võid sama perioodi mitu korda üles laadida — juba olemasolevaid ridu topelt ei teki.</p>
+    <div class="laadi-rida">
+      <input type="file" id="fail" accept=".csv,.xml,text/csv,text/xml,application/xml">
+      <button class="nupp" id="laadi-nupp" onclick="laadiYles()">Lae üles</button>
+    </div>
+    <div id="laadi-teade" class="teade"></div>
+    <details>
+      <summary>Üleslaetud väljavõtted ja ignoreerimise reeglid</summary>
+      <div style="margin-top:10px;overflow-x:auto">
+        <table>
+          <thead><tr><th>Laetud</th><th>Fail</th><th>Periood</th><th>Ridu / uusi</th><th></th></tr></thead>
+          <tbody id="valjavotted"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;overflow-x:auto">
+        <table>
+          <thead><tr><th>Ignoreeri alati</th><th>Suund</th><th>Põhjus</th><th></th></tr></thead>
+          <tbody id="reeglid"></tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+
+  <div class="kaart">
+    <h2>2. Ülevaade</h2>
+    <div class="kv" id="kv"></div>
+  </div>
+
+  <div class="kaart">
+    <h2>3. Pangaread</h2>
+    <div class="sakid" id="sakid">
+      <button class="sakk ak" data-s="lahtine" onclick="valiSakk('lahtine')">Vajab tähelepanu</button>
+      <button class="sakk" data-s="seotud" onclick="valiSakk('seotud')">Seotud</button>
+      <button class="sakk" data-s="ignoreeritud" onclick="valiSakk('ignoreeritud')">Ignoreeritud</button>
+      <button class="sakk" data-s="koik" onclick="valiSakk('koik')">Kõik</button>
+    </div>
+    <div class="filtrid">
+      <div><label class="silt">Suund</label>
+        <select id="f-suund" onchange="laadiRead()"><option value="">Kõik</option><option value="sisse">Laekumised (sisse)</option><option value="valja">Väljaminekud (välja)</option></select></div>
+      <div><label class="silt">Alates</label><input type="date" id="f-algus" onchange="laadiRead()"></div>
+      <div><label class="silt">Kuni</label><input type="date" id="f-lopp" onchange="laadiRead()"></div>
+      <div style="min-width:auto"><button class="nupp hall" onclick="tyhjendaFiltrid()">Tühjenda</button></div>
+      <div style="min-width:auto"><button class="nupp hall" onclick="ekspordi()">⬇ CSV</button></div>
+    </div>
+    <div id="kindlad-riba" style="display:none;margin-bottom:12px">
+      <button class="nupp roheline" onclick="seoKindlad()" id="kindlad-nupp">✓ Kinnita kõik kindlad vasted</button>
+      <span class="abi" style="margin-left:8px">Ainult need, kus viitenumber/arve nr ja summa klapivad üheselt.</span>
+    </div>
+    <div id="read-teade" class="teade"></div>
+    <div id="read"><div class="tyhi">Laadin…</div></div>
+  </div>
+
+  <!-- Lisa kuluna -->
+  <div class="modal-taust" id="m-kulu" onclick="if(event.target===this)suljeModal('m-kulu')">
+    <div class="modal">
+      <h3>Lisa kuluarvena</h3>
+      <p class="abi" id="k-info"></p>
+      <label class="silt">Kirjeldus</label>
+      <input id="k-kirjeldus">
+      <label class="silt">Käibemaks (€)</label>
+      <input id="k-km" inputmode="decimal" value="0">
+      <div class="km-nupud">
+        <button class="nupp hall vaike" onclick="seaKm(24)">24%</button>
+        <button class="nupp hall vaike" onclick="seaKm(22)">22%</button>
+        <button class="nupp hall vaike" onclick="seaKm(0)">0 / KM-ta</button>
+      </div>
+      <label class="silt">Klient / projekt (valikuline)</label>
+      <select id="k-ettevote"><option value="">—</option></select>
+      <p class="abi" style="margin-top:10px">Kulu salvestatakse Arved → Sissetulevad alla staatusega <b>makstud</b>. Arve või tšeki faili saad hiljem seal juurde lisada.</p>
+      <div id="k-teade" class="teade"></div>
+      <div class="nupud">
+        <button class="nupp hall" onclick="suljeModal('m-kulu')">Tühista</button>
+        <button class="nupp" onclick="salvestaKulu()">Salvesta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ignoreeri -->
+  <div class="modal-taust" id="m-ign" onclick="if(event.target===this)suljeModal('m-ign')">
+    <div class="modal">
+      <h3>Ignoreeri rida</h3>
+      <p class="abi" id="i-info"></p>
+      <label class="silt">Põhjus</label>
+      <select id="i-pohjus-valik" onchange="document.getElementById('i-pohjus').value=this.value">
+        <option value="Oma kontode vaheline ülekanne">Oma kontode vaheline ülekanne</option>
+        <option value="Pangatasu">Pangatasu</option>
+        <option value="Palk / töötasu">Palk / töötasu</option>
+        <option value="Maksud (EMTA)">Maksud (EMTA)</option>
+        <option value="Isiklik">Isiklik</option>
+        <option value="">Muu…</option>
+      </select>
+      <input id="i-pohjus" style="margin-top:6px" placeholder="Põhjus">
+      <label class="lyliti"><input type="checkbox" id="i-reegel"><span><b>Ignoreeri alati sellelt osapoolelt</b><br><span class="abi" id="i-reegel-info"></span></span></label>
+      <div id="i-teade" class="teade"></div>
+      <div class="nupud">
+        <button class="nupp hall" onclick="suljeModal('m-ign')">Tühista</button>
+        <button class="nupp" onclick="salvestaIgnoreeri()">Ignoreeri</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var TOKEN = localStorage.getItem('adminToken') || '';
+    if (localStorage.getItem('teema') === 'hele') document.body.classList.add('hele');
+    var sakk = 'lahtine', read = [], aktiivne = null, ettevottedLaetud = false;
+
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function kp(s) { var o = String(s || '').split('-'); return o.length === 3 ? o[2] + '.' + o[1] + '.' + o[0] : (s || ''); }
+    function eur(n) { var v = Math.round((parseFloat(n) || 0) * 100) / 100; return v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €'; }
+    function teade(id, tekst, tyyp) { var el = document.getElementById(id); el.className = 'teade ' + (tyyp || 'viga'); el.textContent = tekst || ''; }
+    function suljeModal(id) { document.getElementById(id).classList.remove('ava'); }
+
+    async function api(tee, seaded) {
+      seaded = seaded || {};
+      seaded.headers = Object.assign({ 'x-session-token': TOKEN }, seaded.json ? { 'Content-Type': 'application/json' } : {}, seaded.headers || {});
+      if (seaded.json) { seaded.body = JSON.stringify(seaded.json); delete seaded.json; }
+      try {
+        var r = await fetch('/api/pank' + tee, seaded);
+        if (r.status === 401) { window.location = '/admin-login'; return { ok: false }; }
+        return await r.json();
+      } catch (e) { return { ok: false, veateade: 'Ühendus katkes — proovi uuesti' }; }
+    }
+
+    // ── Üleslaadimine ──
+    async function laadiYles() {
+      var f = document.getElementById('fail').files[0];
+      if (!f) return teade('laadi-teade', 'Vali enne fail');
+      var nupp = document.getElementById('laadi-nupp');
+      nupp.disabled = true; teade('laadi-teade', 'Laen üles…', 'ok');
+      var fd = new FormData(); fd.append('fail', f);
+      var r = await api('/laadi', { method: 'POST', body: fd });
+      nupp.disabled = false;
+      if (!r.ok) return teade('laadi-teade', r.veateade || 'Üleslaadimine ebaõnnestus');
+      document.getElementById('fail').value = '';
+      var t = 'Valmis! Periood ' + kp(r.algus) + ' – ' + kp(r.lopp) + ': ' + r.ridu + ' tehingut, neist uusi ' + r.uusi;
+      if (r.juba_olemas) t += ' (' + r.juba_olemas + ' olid juba varem sees)';
+      if (r.ignoreeritud) t += ', reeglite järgi ignoreeriti ' + r.ignoreeritud;
+      teade('laadi-teade', t + '.', 'ok');
+      valiSakk('lahtine');
+      laadiKokkuvote();
+    }
+
+    // ── Kokkuvõte ──
+    async function laadiKokkuvote() {
+      var r = await api('/kokkuvote');
+      if (!r.ok) return;
+      var g = function (staatus, sisse) {
+        var x = r.grupid.find(function (y) { return y.staatus === staatus && y.sisse === sisse; });
+        return x ? { arv: x.arv, summa: parseFloat(x.summa) } : { arv: 0, summa: 0 };
+      };
+      var ls = g('lahtine', true), lv = g('lahtine', false);
+      var seotud = g('seotud', true).arv + g('seotud', false).arv;
+      var ign = g('ignoreeritud', true).arv + g('ignoreeritud', false).arv;
+      document.getElementById('kv').innerHTML =
+        '<div class="sisse"><b>' + ls.arv + '</b><small>' + eur(ls.summa) + '</small><span>Laekumised sisse kandmata</span></div>' +
+        '<div class="valja"><b>' + lv.arv + '</b><small>' + eur(Math.abs(lv.summa)) + '</small><span>Väljaminekud sisse kandmata</span></div>' +
+        '<div><b>' + seotud + '</b><span>Seotud arvetega</span></div>' +
+        '<div><b>' + ign + '</b><span>Ignoreeritud</span></div>';
+      document.getElementById('valjavotted').innerHTML = r.valjavotted.length ? r.valjavotted.map(function (v) {
+        return '<tr><td>' + esc(v.loodud) + '</td><td>' + esc(v.failinimi) + '</td><td>' + kp(v.algus) + ' – ' + kp(v.lopp) + '</td><td>' + v.ridu + ' / ' + v.uusi + '</td>'
+          + '<td><button class="nupp punane vaike" onclick="kustutaValjavote(' + v.id + ')">Kustuta</button></td></tr>';
+      }).join('') : '<tr><td colspan="5" class="abi">Veel pole midagi üles laetud</td></tr>';
+      document.getElementById('reeglid').innerHTML = r.reeglid.length ? r.reeglid.map(function (g) {
+        return '<tr><td>' + esc(g.osapool || g.osapoole_konto) + '</td><td>' + (g.suund === 'sisse' ? 'Sisse' : g.suund === 'valja' ? 'Välja' : 'Kõik') + '</td><td>' + esc(g.pohjus) + '</td>'
+          + '<td><button class="nupp punane vaike" onclick="kustutaReegel(' + g.id + ')">Eemalda</button></td></tr>';
+      }).join('') : '<tr><td colspan="4" class="abi">Reegleid pole</td></tr>';
+    }
+    async function kustutaValjavote(id) {
+      if (!confirm('Kustutada see väljavõte ja selle read? Juba makstuks märgitud arvete staatust ei muudeta.')) return;
+      var r = await api('/valjavotted/' + id, { method: 'DELETE' });
+      if (!r.ok) return alert(r.veateade || 'Viga');
+      laadiKokkuvote(); laadiRead();
+    }
+    async function kustutaReegel(id) {
+      if (!confirm('Eemaldada reegel? Juba ignoreeritud read jäävad ignoreerituks.')) return;
+      var r = await api('/reeglid/' + id, { method: 'DELETE' });
+      if (!r.ok) return alert(r.veateade || 'Viga');
+      laadiKokkuvote();
+    }
+
+    // ── Read ──
+    function valiSakk(s) {
+      sakk = s;
+      document.querySelectorAll('.sakk').forEach(function (b) { b.classList.toggle('ak', b.dataset.s === s); });
+      laadiRead();
+    }
+    function tyhjendaFiltrid() {
+      document.getElementById('f-suund').value = ''; document.getElementById('f-algus').value = ''; document.getElementById('f-lopp').value = '';
+      laadiRead();
+    }
+    function filtriParam() {
+      var p = ['staatus=' + sakk];
+      var s = document.getElementById('f-suund').value, a = document.getElementById('f-algus').value, l = document.getElementById('f-lopp').value;
+      if (s) p.push('suund=' + s); if (a) p.push('algus=' + a); if (l) p.push('lopp=' + l);
+      return p.join('&');
+    }
+    async function laadiRead() {
+      document.getElementById('read').innerHTML = '<div class="tyhi">Laadin…</div>';
+      teade('read-teade', '');
+      var r = await api('/read?' + filtriParam());
+      if (!r.ok) { document.getElementById('read').innerHTML = ''; return teade('read-teade', r.veateade || 'Viga'); }
+      read = r.read;
+      joonistaRead();
+    }
+    function joonistaRead() {
+      var kindlaid = read.filter(function (x) { return x.vasted && x.vasted[0] && x.vasted[0].kindlus === 'kindel'; }).length;
+      document.getElementById('kindlad-riba').style.display = kindlaid ? '' : 'none';
+      document.getElementById('kindlad-nupp').textContent = '✓ Kinnita kõik kindlad vasted (' + kindlaid + ')';
+      if (!read.length) {
+        document.getElementById('read').innerHTML = '<div class="tyhi">' + (sakk === 'lahtine' ? '🎉 Kõik on sisse kantud — midagi pole lahtiselt.' : 'Ridu pole.') + '</div>';
+        return;
+      }
+      document.getElementById('read').innerHTML = read.map(function (x, i) {
+        var summa = parseFloat(x.summa), sisse = summa > 0;
+        var h = '<div class="rida"><div class="rida-ylal"><div style="min-width:0">'
+          + '<div class="rida-osapool">' + esc(x.osapool || '(osapool puudub)') + '</div>'
+          + (x.selgitus ? '<div class="rida-selg">' + esc(x.selgitus) + '</div>' : '')
+          + '<div class="rida-meta">' + kp(x.kuupaev) + (x.viitenumber ? ' · viide ' + esc(x.viitenumber) : '') + (x.osapoole_konto ? ' · ' + esc(x.osapoole_konto) : '') + '</div>'
+          + '</div><div class="summa ' + (sisse ? 'sisse' : 'valja') + '">' + (sisse ? '+' : '−') + eur(Math.abs(summa)) + '</div></div>';
+
+        if (x.staatus === 'seotud') {
+          var seos = x.arve_number ? 'Arve ' + esc(x.arve_number) + ' · ' + esc(x.arve_ostja || '') + ' · ' + eur(x.arve_kokku)
+            : x.sisse_kirjeldus != null ? 'Kulu: ' + esc(x.sisse_kirjeldus || 'kirjelduseta') + ' · ' + eur(x.sisse_summa)
+            : x.makse_tootaja ? 'Töötaja makse: ' + esc(x.makse_tootaja) : 'Seotud';
+          h += '<div class="seos">✓ ' + seos + (x.muutis_staatust ? ' <span class="abi">(märgiti makstuks)</span>' : '') + '</div>'
+            + '<div class="tegevused"><button class="nupp hall vaike" onclick="tagasi(' + x.id + ')">Võta tagasi</button></div>';
+        } else if (x.staatus === 'ignoreeritud') {
+          h += '<div class="seos ign">⊘ Ignoreeritud: ' + esc(x.markus || '') + (x.reegel_id ? ' (reegel)' : '') + '</div>'
+            + '<div class="tegevused"><button class="nupp hall vaike" onclick="tagasi(' + x.id + ')">Võta tagasi</button></div>';
+        } else {
+          var v = x.vasted || [];
+          if (v.length) {
+            h += v.map(function (m, j) {
+              return '<div class="vaste"' + (j > 0 ? ' style="opacity:0.85"' : '') + '><span class="silt-k ' + m.kindlus + '">' + m.kindlus + '</span>'
+                + '<div class="tekst">' + esc(m.silt) + '<div class="pohj">klapib: ' + esc(m.pohjused.join(', ')) + '</div></div>'
+                + '<button class="nupp ' + (j === 0 ? 'roheline' : 'hall') + ' vaike" onclick="seo(' + x.id + ',\'' + m.tyyp + '\',' + m.id + ')">Seo</button></div>';
+            }).join('');
+          } else {
+            h += '<div class="vaste"><span class="silt-k puudub">sisse kandmata</span><div class="tekst">'
+              + (sisse ? 'Ühtegi sobivat väljastatud arvet ei leitud.' : 'Ühtegi sobivat kuluarvet ega töötaja makset ei leitud.') + '</div></div>';
+          }
+          h += '<div class="tegevused">'
+            + (!sisse ? '<button class="nupp vaike" onclick="avaKulu(' + i + ')">+ Lisa kuluna</button>' : '')
+            + '<button class="nupp hall vaike" onclick="avaIgnoreeri(' + i + ')">Ignoreeri</button></div>';
+        }
+        return h + '</div>';
+      }).join('');
+    }
+
+    async function seo(ridaId, tyyp, id) {
+      var r = await api('/seo', { method: 'POST', json: { rida_id: ridaId, tyyp: tyyp, id: id } });
+      if (!r.ok) return teade('read-teade', r.veateade || 'Viga');
+      teade('read-teade', 'Seotud ✓', 'ok');
+      laadiRead(); laadiKokkuvote();
+    }
+    async function seoKindlad() {
+      var n = document.getElementById('kindlad-nupp');
+      if (!confirm('Siduda kõik kindlad vasted ja märkida need arved makstuks?')) return;
+      n.disabled = true;
+      var r = await api('/seo-kindlad', { method: 'POST', json: {} });
+      n.disabled = false;
+      if (!r.ok) return teade('read-teade', r.veateade || 'Viga');
+      teade('read-teade', 'Seotud ' + r.seotud + ' rida' + (r.vead && r.vead.length ? ' (' + r.vead.length + ' jäi vahele: ' + r.vead.join('; ') + ')' : '') + '.', 'ok');
+      laadiRead(); laadiKokkuvote();
+    }
+    async function tagasi(ridaId) {
+      if (!confirm('Võtta tagasi? Kui sidumine märkis arve makstuks, pannakse see tagasi maksmata.')) return;
+      var r = await api('/tagasi', { method: 'POST', json: { rida_id: ridaId } });
+      if (!r.ok) return teade('read-teade', r.veateade || 'Viga');
+      laadiRead(); laadiKokkuvote();
+    }
+
+    // ── Lisa kuluna ──
+    async function laadiEttevotted() {
+      if (ettevottedLaetud) return;
+      try {
+        var r = await fetch('/api/admin/ettevotted', { headers: { 'x-session-token': TOKEN } });
+        var e = await r.json();
+        if (Array.isArray(e)) {
+          document.getElementById('k-ettevote').innerHTML = '<option value="">—</option>' + e.map(function (x) { return '<option value="' + x.id + '">' + esc(x.nimi) + '</option>'; }).join('');
+          ettevottedLaetud = true;
+        }
+      } catch (err) {}
+    }
+    function avaKulu(i) {
+      aktiivne = read[i];
+      laadiEttevotted();
+      document.getElementById('k-info').textContent = kp(aktiivne.kuupaev) + ' · ' + (aktiivne.osapool || '') + ' · ' + eur(Math.abs(aktiivne.summa));
+      document.getElementById('k-kirjeldus').value = [aktiivne.osapool, aktiivne.selgitus].filter(Boolean).join(' — ').slice(0, 200);
+      document.getElementById('k-km').value = '0';
+      teade('k-teade', '');
+      document.getElementById('m-kulu').classList.add('ava');
+    }
+    function seaKm(pr) {
+      var s = Math.abs(parseFloat(aktiivne.summa));
+      document.getElementById('k-km').value = (Math.round(s * pr / (100 + pr) * 100) / 100).toFixed(2).replace('.', ',');
+    }
+    async function salvestaKulu() {
+      var r = await api('/lisa-kulu', { method: 'POST', json: {
+        rida_id: aktiivne.id,
+        kirjeldus: document.getElementById('k-kirjeldus').value,
+        kaibemaks: document.getElementById('k-km').value,
+        ettevote_id: document.getElementById('k-ettevote').value
+      } });
+      if (!r.ok) return teade('k-teade', r.veateade || 'Viga');
+      suljeModal('m-kulu');
+      teade('read-teade', 'Kulu lisatud ja seotud ✓', 'ok');
+      laadiRead(); laadiKokkuvote();
+    }
+
+    // ── Ignoreeri ──
+    function avaIgnoreeri(i) {
+      aktiivne = read[i];
+      document.getElementById('i-info').textContent = kp(aktiivne.kuupaev) + ' · ' + (aktiivne.osapool || '') + ' · ' + eur(aktiivne.summa);
+      document.getElementById('i-pohjus-valik').value = 'Oma kontode vaheline ülekanne';
+      document.getElementById('i-pohjus').value = 'Oma kontode vaheline ülekanne';
+      document.getElementById('i-reegel').checked = false;
+      document.getElementById('i-reegel-info').textContent = aktiivne.osapool
+        ? 'Kõik edaspidised ' + (parseFloat(aktiivne.summa) > 0 ? 'laekumised osapoolelt' : 'maksed osapoolele') + ' „' + aktiivne.osapool + '“ ignoreeritakse automaatselt.'
+        : 'Real pole osapoole nime.';
+      teade('i-teade', '');
+      document.getElementById('m-ign').classList.add('ava');
+    }
+    async function salvestaIgnoreeri() {
+      var r = await api('/ignoreeri', { method: 'POST', json: {
+        rida_id: aktiivne.id,
+        pohjus: document.getElementById('i-pohjus').value,
+        reegel: document.getElementById('i-reegel').checked
+      } });
+      if (!r.ok) return teade('i-teade', r.veateade || 'Viga');
+      suljeModal('m-ign');
+      teade('read-teade', 'Ignoreeritud' + (r.lisaks ? ' (+ veel ' + r.lisaks + ' sama osapoole rida)' : '') + '.', 'ok');
+      laadiRead(); laadiKokkuvote();
+    }
+
+    function ekspordi() {
+      window.location = '/api/pank/eksport?staatus=' + sakk + '&_token=' + encodeURIComponent(TOKEN);
+    }
+
+    if (!TOKEN) window.location = '/admin-login';
+    laadiKokkuvote();
+    laadiRead();
+  </script>
+</body>
+</html>

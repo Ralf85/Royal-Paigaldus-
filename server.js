@@ -148,6 +148,9 @@ app.use('/api/pokker', require('./routes/pokker'));
 // KAUBIK — sõidupäevik (algnäit/lõpunäit, AI loeb spidomeetri pildilt). Tulu = päevatasu + km × km-hind.
 // Ligipääs ainult kaubik_lubatud töötajatele (algul ainult Ralf), vt routes/kaubik.js.
 app.use('/api/kaubik', require('./routes/kaubik'));
+// PANK — Swedbanki väljavõtte võrdlus arvetega: mis laekumised/väljaminekud on arvetes sisse kandmata.
+// Ainult admin, oma tabelid (pank_*), vt routes/pank.js.
+app.use('/api/pank', require('./routes/pank'));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/tootaja', (req, res) => res.sendFile(path.join(__dirname, 'public', 'tootaja.html')));
 app.get('/admin-login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-login.html')));
@@ -175,6 +178,7 @@ app.get('/pokker', (req, res) => res.sendFile(path.join(__dirname, 'public', 'po
 app.get(['/pokker-tv', '/tv'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'pokker-tv.html')));
 app.get('/kaubik', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kaubik.html')));
 app.get('/kaubik-admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'kaubik-admin.html')));
+app.get('/pank', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pank.html')));
 app.get('/telje10-tsekk', (req, res) => res.sendFile(path.join(__dirname, 'public', 'telje10-tsekk.html')));
 // Tundmatu API aadress -> selge JSON-vastus (mitte HTML-leht, mida liides ei oska lugeda)
 app.use('/api', (req, res) => {
