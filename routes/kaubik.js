@@ -13,7 +13,7 @@ const { aiFailid, loeDokument } = require('../ailugeja');
 //  * Töötaja valib sõidu alguses PROJEKTI (Lidl / Cramo / X-seeria / Isiklik) ja paneb kirja odomeetri
 //    näidu (või pildistab spidomeetri — AI loeb näidu ise). Päeva lõpus lõpunäit. Km = lõpp − algus.
 //  * Igal projektil on oma hinnad (tabel kaubik_hinnad): päevatasu + km × km-hind, käibemaksuta.
-//    Lidl: 80 € + 0,50 €/km. Cramo, X-seeria, Isiklik: esialgu 0 € (näitu jälgitakse ikka).
+//    Lidl (kinnitatud hinnakiri 20.11.2026): 100 €/päev + 0,50 €/km; töötaja 27 €/h tuleb töökirjetelt. Cramo, X-seeria, Isiklik: esialgu 0 € (näitu jälgitakse ikka).
 //    Päevatasu läheb üks kord projekti ja kuupäeva kohta (sama päeva mitu sõitu = üks päevatasu).
 //  * "Isiklik" sõidul kirjutatakse juhi nimi. Varem kasutatud nimed pakutakse ise ette (võetakse
 //    varasematest sõitudest — eraldi nimekirja pole vaja).
@@ -32,7 +32,7 @@ const MAX_KM_PAEVAS = 1500; // suurem päevane läbisõit on peaaegu kindlasti v
 
 // Projektid, mille raames kaubik sõidab. Järjekord = järjekord liideses.
 const PROJEKTID = [
-  { kood: 'lidl', nimi: 'Lidl', paevahind: 80, km_hind: 0.5 },
+  { kood: 'lidl', nimi: 'Lidl', paevahind: 100, km_hind: 0.5 },
   { kood: 'cramo', nimi: 'Cramo', paevahind: 0, km_hind: 0 },
   { kood: 'xseeria', nimi: 'X-seeria', paevahind: 0, km_hind: 0 },
   { kood: 'isiklik', nimi: 'Isiklik', paevahind: 0, km_hind: 0 }
@@ -133,6 +133,11 @@ async function looTabelid() {
   if (v.rows[0].versioon < 2) {
     await pool.query(`UPDATE kaubik_hinnad h SET paevahind=s.paevahind, km_hind=s.km_hind FROM kaubik_seaded s WHERE s.id=1 AND h.projekt='lidl'`);
     await pool.query(`UPDATE kaubik_seaded SET versioon=GREATEST(versioon, 2) WHERE id=1`);
+  }
+  // Ühekordne (20.11.2026): Lidliga kinnitatud kaubiku hinnakiri — päevatasu 100 € (enne 80 €).
+  if (v.rows[0].versioon < 4) {
+    await pool.query(`UPDATE kaubik_hinnad SET paevahind=100 WHERE projekt='lidl'`);
+    await pool.query(`UPDATE kaubik_seaded SET versioon=GREATEST(versioon, 4) WHERE id=1`);
   }
 }
 
