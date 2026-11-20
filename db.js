@@ -931,6 +931,10 @@ async function initDB() {
     await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS klient_id VARCHAR(40)`);
     await client.query(`CREATE INDEX IF NOT EXISTS tookirjed_klient_id_idx ON tookirjed (worker_id, klient_id) WHERE klient_id IS NOT NULL`);
 
+    // Töökirje km: millega sõideti — 'isiklik' (töötaja auto, saab km-hüvitist 12 €/100 km) või 'kaubik'
+    // (ettevõtte kaubik: töötaja km-hüvitist ei saa, km tulu jääb ettevõttele). Vaikimisi isiklik.
+    await client.query(`ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS km_soiduk VARCHAR(10) NOT NULL DEFAULT 'isiklik'`);
+
     // Kuu sulgemine (vt kuulukk.js)
     await client.query(`
       CREATE TABLE IF NOT EXISTS kuu_lukud (

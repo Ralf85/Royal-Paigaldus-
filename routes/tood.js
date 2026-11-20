@@ -55,7 +55,7 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 
 // Lisa töökirje
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
-  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
+  const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk } = req.body;
   const klientId = req.body.klient_id ? String(req.body.klient_id).slice(0, 40) : null;
   try {
     // Sama kirje saadeti juba (telefon ei saanud vastust kätte ja proovis uuesti) — tagasta olemasolev
@@ -75,14 +75,16 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     tunnid = cramoLounapaus(tunnid, tyyp);
 
     const km = parseFloat(kilomeetrid) || 0;
-    const km_raha = km > 0 ? (km / 100 * 12) : 0;
+    // Kaubikuga sõidetud km eest töötaja hüvitist ei saa (km tulu jääb ettevõttele).
+    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+    const km_raha = km > 0 && soiduk === 'isiklik' ? (km / 100 * 12) : 0;
     const lisakulu = parseFloat(lisakulu_summa) || 0;
     const lisakulu_sel = lisakulu_selgitus || '';
 
     const result = await pool.query(
-      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, klient_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
-      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel, lidl_projekt_id || null, klientId]
+      `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, klient_id, km_soiduk)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+      [req.session.workerId, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_sel, lidl_projekt_id || null, klientId, soiduk]
     );
     const kirjeId = result.rows[0].id;
 
@@ -344,7 +346,7 @@ router.delete('/lisakulu/:id', noudaSisslogimist, async (req, res) => {
 
 // Töötaja muudab oma töökirjet
 router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
-  const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id } = req.body;
+  const { kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk } = req.body;
   try {
     const vana = await pool.query(
       'SELECT * FROM tookirjed WHERE id=$1 AND worker_id=$2',
@@ -364,13 +366,15 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
     tunnid = cramoLounapaus(tunnid, tyyp);
 
     const km = parseFloat(kilomeetrid) || 0;
-    const km_raha = km > 0 ? (km / 100 * 12) : 0;
+    // Kaubikuga sõidetud km eest töötaja hüvitist ei saa (km tulu jääb ettevõttele).
+    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+    const km_raha = km > 0 && soiduk === 'isiklik' ? (km / 100 * 12) : 0;
     const lisakulu = parseFloat(lisakulu_summa) || 0;
 
     await pool.query(
       `UPDATE tookirjed SET kuupaev=$1, algus=$2, lopp=$3, tunnid=$4, kommentaar=$5,
-       kilomeetrid=$6, km_raha=$7, lisakulu_summa=$8, lisakulu_selgitus=$9, lidl_projekt_id=$10, muudetud_tootaja=NOW() WHERE id=$11`,
-      [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', lidl_projekt_id || null, req.params.id]
+       kilomeetrid=$6, km_raha=$7, lisakulu_summa=$8, lisakulu_selgitus=$9, lidl_projekt_id=$10, km_soiduk=$12, muudetud_tootaja=NOW() WHERE id=$11`,
+      [kuupaev, algus, lopp, tunnid, kommentaar || '', km, km_raha, lisakulu, lisakulu_selgitus || '', lidl_projekt_id || null, req.params.id, soiduk]
     );
 
     await pool.query(

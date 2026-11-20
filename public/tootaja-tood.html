@@ -161,6 +161,9 @@
         <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="muuta-lisakulu" placeholder="0.00" min="0" step="0.01"></div>
       </div>
       <div class="vorm-rida">
+        <div class="vorm-grupp"><label>Millega sõitsid?</label><select id="muuta-km-soiduk"><option value="isiklik">🚗 Isiklik auto (saad km-hüvitist)</option><option value="kaubik">🚐 Kaubik (km-hüvitist ei ole)</option></select></div>
+      </div>
+      <div class="vorm-rida">
         <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="muuta-lisakulu-sel" placeholder="nt. sõidukulud"></div>
       </div>
       <div class="vorm-rida" id="muuta-lidl-projekt-rida" style="display:none">
@@ -265,6 +268,9 @@
         <div class="vorm-rida col2">
           <div class="vorm-grupp"><label>Kilomeetrid</label><input type="number" id="km" placeholder="0" min="0" step="1" value="0"></div>
           <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="lisakulu" placeholder="0.00" min="0" step="0.01" value="0"></div>
+        </div>
+        <div class="vorm-rida">
+          <div class="vorm-grupp"><label>Millega sõitsid?</label><select id="km-soiduk"><option value="isiklik">🚗 Isiklik auto (saad km-hüvitist)</option><option value="kaubik">🚐 Kaubik (km-hüvitist ei ole)</option></select></div>
         </div>
         <div class="vorm-rida" id="lisakulu-sel-rida" style="display:none">
           <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="lisakulu-sel" placeholder="nt. sõidukulud, tööriistad..."></div>
@@ -427,6 +433,7 @@
       try { if (localStorage.getItem('tt_lisavaljad_lahti') === '1') lv.open = true; } catch(e) {}
       lv.addEventListener('toggle', function() { try { localStorage.setItem('tt_lisavaljad_lahti', lv.open ? '1' : '0'); } catch(e) {} });
       ['kommentaar', 'km', 'lisakulu'].forEach(function(id) { document.getElementById(id).addEventListener('input', uuendaLisavaljadKokkuvote); });
+      document.getElementById('km-soiduk').addEventListener('change', uuendaLisavaljadKokkuvote);
       // Fotod
       document.getElementById('foto-kaamera').addEventListener('change', function() { lisaFotod(this.files); });
       document.getElementById('foto-album').addEventListener('change', function() { lisaFotod(this.files); });
@@ -565,7 +572,7 @@
       var km = parseFloat(document.getElementById('km').value) || 0;
       var lk = parseFloat(document.getElementById('lisakulu').value) || 0;
       if (document.getElementById('kommentaar').value.trim()) osad.push('kommentaar');
-      if (km > 0) osad.push(km + ' km');
+      if (km > 0) osad.push(km + ' km' + (document.getElementById('km-soiduk').value === 'kaubik' ? ' (kaubik)' : ''));
       if (lk > 0) osad.push(lk.toFixed(2) + ' €');
       document.getElementById('lisavaljad-kokkuvote').textContent = osad.length ? '· ' + osad.join(', ') : '';
     }
@@ -588,6 +595,7 @@
       }
       var km = parseFloat(k.kilomeetrid || 0);
       document.getElementById('km').value = km > 0 ? km : '0';
+      document.getElementById('km-soiduk').value = k.km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
       if (km > 0) document.getElementById('lisavaljad').open = true;
       uuendaLisavaljadKokkuvote();
       naitaTeade('↺ Täidetud ' + new Date(k.kuupaev).toLocaleDateString('et-EE') + ' kirje järgi — kontrolli üle ja salvesta', 'ok');
@@ -753,6 +761,7 @@
         kuupaev: kuupaev, algus: algus, lopp: lopp,
         kommentaar: loplikKommentaar,
         kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel,
+        km_soiduk: document.getElementById('km-soiduk').value,
         lidl_projekt_id: lidlProjektId,
         klient_id: window.rpKlientId ? rpKlientId() : null
       };
@@ -994,7 +1003,7 @@
         var km = parseFloat(k.kilomeetrid || 0);
         var lisakulu = parseFloat(k.lisakulu_summa || 0);
         var tags = '';
-        if (km > 0) tags += '<span class="kirje-tag km">🚗 ' + km + 'km</span>';
+        if (km > 0) tags += '<span class="kirje-tag km">' + (k.km_soiduk === 'kaubik' ? '🚐 ' + km + 'km kaubik' : '🚗 ' + km + 'km') + '</span>';
         if (lisakulu > 0) tags += '<span class="kirje-tag lisakulu">💸 ' + lisakulu.toFixed(2) + '€</span>';
         if (k.kommentaar) tags += '<span class="kirje-tag kirjeldus">' + k.kommentaar + '</span>';
         var pildid = pildidMap[k.id] || [];
@@ -1030,6 +1039,7 @@
       document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
       document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
       document.getElementById('muuta-km').value = parseFloat(kirje.kilomeetrid || 0);
+      document.getElementById('muuta-km-soiduk').value = kirje.km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
       document.getElementById('muuta-lisakulu').value = parseFloat(kirje.lisakulu_summa || 0);
       document.getElementById('muuta-lisakulu-sel').value = kirje.lisakulu_selgitus || '';
       document.getElementById('muuta-komm').value = kirje.kommentaar || '';
@@ -1152,6 +1162,7 @@
           lopp: document.getElementById('muuta-lopp').value,
           kommentaar: document.getElementById('muuta-komm').value,
           kilomeetrid: document.getElementById('muuta-km').value,
+          km_soiduk: document.getElementById('muuta-km-soiduk').value,
           lisakulu_summa: document.getElementById('muuta-lisakulu').value,
           lisakulu_selgitus: document.getElementById('muuta-lisakulu-sel').value,
           lidl_projekt_id: etteVoteTyyp === 'lidl' ? (document.getElementById('muuta-lidl-projekt').value || null) : null
