@@ -38,6 +38,17 @@
     .vorm-grupp input, .vorm-grupp select, .vorm-grupp textarea { width: 100%; background: #0d0f13; border: 0.5px solid #252830; border-radius: 8px; padding: 9px 11px; color: #e2e8f0; font-size: 14px; font-family: inherit; }
     .vorm-grupp input:focus, .vorm-grupp select:focus { outline: none; border-color: #c9a84c; }
     .vorm-grupp select option { background: #0d0f13; }
+    /* Sõiduvahendi valik: 3 kasti */
+    .soiduk-kastid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .soiduk-kast { background: #0d0f13; border: 1.5px solid #252830; border-radius: 10px; padding: 10px 4px 9px; color: #e2e8f0; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; transition: border-color .15s, background .15s; }
+    .soiduk-kast .sk-ikoon { font-size: 22px; line-height: 1; }
+    .soiduk-kast .sk-nimi { font-size: 13px; font-weight: 700; }
+    .soiduk-kast .sk-abi { font-size: 10.5px; color: #7a8290; }
+    .soiduk-kast.valitud { border-color: #c9a84c; background: rgba(201,168,76,0.12); }
+    .soiduk-kast.valitud .sk-nimi { color: #c9a84c; }
+    body.hele .soiduk-kast { background: #fff; border-color: #d1d5db; color: #111827; }
+    body.hele .soiduk-kast.valitud { border-color: #a5832a; background: rgba(165,131,42,0.10); }
+    body.hele .soiduk-kast.valitud .sk-nimi { color: #8a6a14; }
     /* Kella- ja kuupäevaväljad: tume skeem, et Androidi kellaikoon oleks nähtav ja kogu väli avaks pickeri */
     .vorm-grupp input[type=time], .vorm-grupp input[type=date] { color-scheme: dark; cursor: pointer; min-height: 40px; }
     .vorm-grupp input[type=time]::-webkit-calendar-picker-indicator, .vorm-grupp input[type=date]::-webkit-calendar-picker-indicator { opacity: 0.85; cursor: pointer; }
@@ -161,7 +172,13 @@
         <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="muuta-lisakulu" placeholder="0.00" min="0" step="0.01"></div>
       </div>
       <div class="vorm-rida">
-        <div class="vorm-grupp"><label>Millega sõitsid?</label><select id="muuta-km-soiduk"><option value="isiklik">🚗 Isiklik auto (saad km-hüvitist)</option><option value="kaubik">🚐 Kaubik (km-hüvitist ei ole)</option></select></div>
+        <div class="vorm-grupp"><label>Millega sõitsid?</label>
+          <select id="muuta-km-soiduk" style="display:none"><option value="puudub">puudub</option><option value="isiklik">isiklik</option><option value="kaubik">kaubik</option></select>
+          <div class="soiduk-kastid" id="muuta-km-soiduk-kastid">
+            <button type="button" class="soiduk-kast" data-v="isiklik" onclick="valiSoiduk('muuta-km-soiduk','muuta-km','isiklik')"><span class="sk-ikoon">🚗</span><span class="sk-nimi">Isiklik auto</span><span class="sk-abi">saad km-hüvitist</span></button>
+            <button type="button" class="soiduk-kast" data-v="kaubik" onclick="valiSoiduk('muuta-km-soiduk','muuta-km','kaubik')"><span class="sk-ikoon">🚐</span><span class="sk-nimi">Kaubik</span><span class="sk-abi">km-hüvitist ei ole</span></button>
+            <button type="button" class="soiduk-kast" data-v="puudub" onclick="valiSoiduk('muuta-km-soiduk','muuta-km','puudub')"><span class="sk-ikoon">🚶</span><span class="sk-nimi">Ei kasutanud</span><span class="sk-abi">sõiduvahendit</span></button>
+          </div></div>
       </div>
       <div class="vorm-rida">
         <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="muuta-lisakulu-sel" placeholder="nt. sõidukulud"></div>
@@ -270,7 +287,13 @@
           <div class="vorm-grupp"><label>Lisakulu (€)</label><input type="number" id="lisakulu" placeholder="0.00" min="0" step="0.01" value="0"></div>
         </div>
         <div class="vorm-rida">
-          <div class="vorm-grupp"><label>Millega sõitsid?</label><select id="km-soiduk"><option value="isiklik">🚗 Isiklik auto (saad km-hüvitist)</option><option value="kaubik">🚐 Kaubik (km-hüvitist ei ole)</option></select></div>
+          <div class="vorm-grupp"><label>Millega sõitsid?</label>
+          <select id="km-soiduk" style="display:none"><option value="puudub">puudub</option><option value="isiklik">isiklik</option><option value="kaubik">kaubik</option></select>
+          <div class="soiduk-kastid" id="km-soiduk-kastid">
+            <button type="button" class="soiduk-kast" data-v="isiklik" onclick="valiSoiduk('km-soiduk','km','isiklik')"><span class="sk-ikoon">🚗</span><span class="sk-nimi">Isiklik auto</span><span class="sk-abi">saad km-hüvitist</span></button>
+            <button type="button" class="soiduk-kast" data-v="kaubik" onclick="valiSoiduk('km-soiduk','km','kaubik')"><span class="sk-ikoon">🚐</span><span class="sk-nimi">Kaubik</span><span class="sk-abi">km-hüvitist ei ole</span></button>
+            <button type="button" class="soiduk-kast" data-v="puudub" onclick="valiSoiduk('km-soiduk','km','puudub')"><span class="sk-ikoon">🚶</span><span class="sk-nimi">Ei kasutanud</span><span class="sk-abi">sõiduvahendit</span></button>
+          </div></div>
         </div>
         <div class="vorm-rida" id="lisakulu-sel-rida" style="display:none">
           <div class="vorm-grupp"><label>Lisakulu selgitus</label><input type="text" id="lisakulu-sel" placeholder="nt. sõidukulud, tööriistad..."></div>
@@ -433,7 +456,7 @@
       try { if (localStorage.getItem('tt_lisavaljad_lahti') === '1') lv.open = true; } catch(e) {}
       lv.addEventListener('toggle', function() { try { localStorage.setItem('tt_lisavaljad_lahti', lv.open ? '1' : '0'); } catch(e) {} });
       ['kommentaar', 'km', 'lisakulu'].forEach(function(id) { document.getElementById(id).addEventListener('input', uuendaLisavaljadKokkuvote); });
-      document.getElementById('km-soiduk').addEventListener('change', uuendaLisavaljadKokkuvote);
+      seaSoiduk('km-soiduk', 'puudub', 0);
       // Fotod
       document.getElementById('foto-kaamera').addEventListener('change', function() { lisaFotod(this.files); });
       document.getElementById('foto-album').addEventListener('change', function() { lisaFotod(this.files); });
@@ -567,6 +590,29 @@
       sel.value = valitud;
       uuendaPoeSeisuPlokk();
     }
+    // Sõiduvahendi kastid: väärtus on peidetud <select>-is (isiklik / kaubik / puudub). "Ei kasutanud" paneb km nulliks.
+    function naitaSoiduk(selId) {
+      var v = document.getElementById(selId).value;
+      document.querySelectorAll('#' + selId + '-kastid .soiduk-kast').forEach(function(b) { b.classList.toggle('valitud', b.dataset.v === v); });
+    }
+    function valiSoiduk(selId, kmId, v) {
+      document.getElementById(selId).value = v;
+      if (v === 'puudub') document.getElementById(kmId).value = '0';
+      naitaSoiduk(selId);
+      if (selId === 'km-soiduk') uuendaLisavaljadKokkuvote();
+    }
+    // Olemasoleva kirje järgi: 0 km ja mitte kaubik = "ei kasutanud".
+    function seaSoiduk(selId, soiduk, km) {
+      document.getElementById(selId).value = soiduk === 'kaubik' ? 'kaubik' : (parseFloat(km) > 0 ? 'isiklik' : 'puudub');
+      naitaSoiduk(selId);
+    }
+    function soidukViga(selId, km) {
+      var v = document.getElementById(selId).value;
+      km = parseFloat(km) || 0;
+      if (km > 0 && v === 'puudub') return 'Märgi, millega sõitsid (isiklik auto või kaubik)';
+      if (km <= 0 && v !== 'puudub') return 'Kirjuta kilomeetrid või vali "Ei kasutanud"';
+      return '';
+    }
     function uuendaLisavaljadKokkuvote() {
       var osad = [];
       var km = parseFloat(document.getElementById('km').value) || 0;
@@ -595,7 +641,7 @@
       }
       var km = parseFloat(k.kilomeetrid || 0);
       document.getElementById('km').value = km > 0 ? km : '0';
-      document.getElementById('km-soiduk').value = k.km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+      seaSoiduk('km-soiduk', k.km_soiduk, km);
       if (km > 0) document.getElementById('lisavaljad').open = true;
       uuendaLisavaljadKokkuvote();
       naitaTeade('↺ Täidetud ' + new Date(k.kuupaev).toLocaleDateString('et-EE') + ' kirje järgi — kontrolli üle ja salvesta', 'ok');
@@ -733,6 +779,13 @@
         naitaTeade('❌ Täida kuupäev, algus ja lõpp!', 'viga');
         return;
       }
+      var sViga = soidukViga('km-soiduk', km);
+      if (sViga) {
+        naitaTeade('❌ ' + sViga, 'viga');
+        document.getElementById('lisavaljad').open = true;
+        document.getElementById('km-soiduk-kastid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       if (etteVoteTyyp === 'lidl' && valitudFotod.length > 0 && !lidlProjektId) {
         naitaTeade('❌ Piltide lisamisel vali kindlasti Projekt, et fotod jõuaksid õigesse kausta!', 'viga');
         return;
@@ -863,6 +916,7 @@
     }
     function puhastaVorm() {
       document.getElementById('km').value = '0';
+      seaSoiduk('km-soiduk', 'puudub', 0);
       document.getElementById('lisakulu').value = '0';
       document.getElementById('lisakulu-sel').value = '';
       document.getElementById('lisakulu-sel-rida').style.display = 'none';
@@ -1039,7 +1093,7 @@
       document.getElementById('muuta-algus').value = kirje.algus ? kirje.algus.slice(0,5) : '';
       document.getElementById('muuta-lopp').value = kirje.lopp ? kirje.lopp.slice(0,5) : '';
       document.getElementById('muuta-km').value = parseFloat(kirje.kilomeetrid || 0);
-      document.getElementById('muuta-km-soiduk').value = kirje.km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+      seaSoiduk('muuta-km-soiduk', kirje.km_soiduk, kirje.kilomeetrid);
       document.getElementById('muuta-lisakulu').value = parseFloat(kirje.lisakulu_summa || 0);
       document.getElementById('muuta-lisakulu-sel').value = kirje.lisakulu_selgitus || '';
       document.getElementById('muuta-komm').value = kirje.kommentaar || '';
@@ -1152,6 +1206,13 @@
         var t1 = document.getElementById('muuta-teade');
         t1.className = 'modal-teade viga'; t1.style.display = 'block';
         t1.textContent = 'Kirjuta, mis jäi puudu';
+        return;
+      }
+      var mViga = soidukViga('muuta-km-soiduk', document.getElementById('muuta-km').value);
+      if (mViga) {
+        var t2 = document.getElementById('muuta-teade');
+        t2.className = 'modal-teade viga'; t2.style.display = 'block';
+        t2.textContent = mViga;
         return;
       }
       var r = await api('/api/tood/kirje/' + id, {

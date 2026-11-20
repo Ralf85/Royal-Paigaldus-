@@ -668,7 +668,36 @@ async function arveInfo(algus, lopp, ettevoteId) {
   // pannakse vahemik (nt 17.11–19.11); 0 km päevad (sama rendi teised päevad) reaks ei lähe.
   const kpL = (k) => `${k.slice(8, 10)}.${k.slice(5, 7)}`;
   const read = [];
-  if (h.paevahind > 0) read.push({ kirjeldus: `${s.kaubiku_nimi} rent`, kogus: paevi, uhik: 'päev', hind: h.paevahind, summa: rent });
+  // Rent iga päeva kohta eraldi reana: "Kaubik rent 21.11 (600, 601)" — sulgudes selle päeva Lidli poodide
+  // numbrid töökirjetelt (objekti nime algusnumber, nt "600 Raadiku" -> 600). Kui töökirjeid pole, siis
+  // päeviku sõidu kommentaar.
+  if (h.paevahind > 0) {
+    const paevadSort = [...koikPaevad].sort();
+    const poed = (await pool.query(
+      `SELECT to_char(t.kuupaev,'YYYY-MM-DD') AS kp, o.nimi
+       FROM tookirjed t JOIN ettevotted e ON e.id = t.ettevote_id JOIN objektid o ON o.id = t.objekt_id
+       WHERE t.kuupaev = ANY($1::date[])
+         AND ($2::int IS NOT NULL AND t.ettevote_id = $2 OR $2::int IS NULL AND e.tyyp = 'lidl')
+       ORDER BY t.kuupaev, t.algus`,
+      [paevadSort, parseInt(ettevoteId, 10) || null]
+    )).rows;
+    const poodPaevas = {};
+    poed.forEach(r => {
+      const nr = (String(r.nimi).match(/^\s*(\d+)/) || [])[1] || String(r.nimi).trim();
+      (poodPaevas[r.kp] = poodPaevas[r.kp] || []);
+      if (!poodPaevas[r.kp].includes(nr)) poodPaevas[r.kp].push(nr);
+    });
+    paevadSort.forEach(kp => {
+      let sulgudes = (poodPaevas[kp] || []).join(', ');
+      if (!sulgudes) {
+        const komm = soidud.filter(x => x.kuupaev === kp).map(x => String(x.markus || '').split(' · ')
+          .map(m => m.trim()).filter(m => m && !/^km kogu perioodi|^sama sõit/.test(m)).join(', ')).filter(Boolean);
+        sulgudes = komm.join('; ');
+      }
+      read.push({ kirjeldus: `${s.kaubiku_nimi} rent ${kpL(kp)}` + (sulgudes ? ` (${sulgudes.slice(0, 120)})` : ''),
+        kogus: 1, uhik: 'päev', hind: h.paevahind, summa: r2(h.paevahind) });
+    });
+  }
   if (h.km_hind > 0) {
     soidud.forEach(x => {
       const km = soiduKm(x);

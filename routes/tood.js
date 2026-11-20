@@ -74,9 +74,10 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
     tunnid = cramoLounapaus(tunnid, tyyp);
 
-    const km = parseFloat(kilomeetrid) || 0;
-    // Kaubikuga sõidetud km eest töötaja hüvitist ei saa (km tulu jääb ettevõttele).
-    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+    // Sõiduvahend: 'isiklik' (km-hüvitis 12 €/100 km), 'kaubik' (hüvitist pole, km tulu jääb ettevõttele)
+    // või 'puudub' (ei kasutanud sõiduvahendit -> km 0). Vanad kliendid ei saada midagi -> isiklik.
+    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : (km_soiduk === 'puudub' ? 'puudub' : 'isiklik');
+    const km = soiduk === 'puudub' ? 0 : (parseFloat(kilomeetrid) || 0);
     const km_raha = km > 0 && soiduk === 'isiklik' ? (km / 100 * 12) : 0;
     const lisakulu = parseFloat(lisakulu_summa) || 0;
     const lisakulu_sel = lisakulu_selgitus || '';
@@ -365,9 +366,10 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
     const tyyp = ettevoteInfo.rows[0]?.tyyp || '';
     tunnid = cramoLounapaus(tunnid, tyyp);
 
-    const km = parseFloat(kilomeetrid) || 0;
-    // Kaubikuga sõidetud km eest töötaja hüvitist ei saa (km tulu jääb ettevõttele).
-    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : 'isiklik';
+    // Sõiduvahend: 'isiklik' (km-hüvitis 12 €/100 km), 'kaubik' (hüvitist pole, km tulu jääb ettevõttele)
+    // või 'puudub' (ei kasutanud sõiduvahendit -> km 0). Vanad kliendid ei saada midagi -> isiklik.
+    const soiduk = km_soiduk === 'kaubik' ? 'kaubik' : (km_soiduk === 'puudub' ? 'puudub' : 'isiklik');
+    const km = soiduk === 'puudub' ? 0 : (parseFloat(kilomeetrid) || 0);
     const km_raha = km > 0 && soiduk === 'isiklik' ? (km / 100 * 12) : 0;
     const lisakulu = parseFloat(lisakulu_summa) || 0;
 
