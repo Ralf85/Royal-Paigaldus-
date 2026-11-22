@@ -707,7 +707,10 @@ async function arveInfo(algus, lopp, ettevoteId) {
       const kommentaar = osad.filter(m => !/^km kogu perioodi|^sama sõit/.test(m)).join(', ');
       read.push({
         kirjeldus: `Transport ${vahemik || kpL(x.kuupaev)}` + (kommentaar ? ` (${kommentaar})` : ''),
-        kogus: km, uhik: 'km', hind: h.km_hind, summa: r2(km * h.km_hind), kaubik_km: true
+        kogus: km, uhik: 'km', hind: h.km_hind, summa: r2(km * h.km_hind), kaubik_km: true,
+        // Arve lisalehe ("Transpordi detail") jaoks — routes/arved.js paneb Lidli km-read kokku üheks reaks
+        detail_kp: x.kuupaev, detail_kp_tekst: vahemik || kpL(x.kuupaev),
+        detail_kirjeldus: `${s.kaubiku_nimi}` + (kommentaar ? `: ${kommentaar}` : '')
       });
     });
   }

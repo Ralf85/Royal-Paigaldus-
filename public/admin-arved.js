@@ -285,7 +285,8 @@ async function avMuudaArve(id) {
   avKmProtsent = parseFloat(a.kaibemaks_protsent) || 0;
   avRead = (r.read || []).map(x => ({
     kirjeldus: x.kirjeldus || '', kogus: parseFloat(x.kogus) || 0, uhik: x.uhik || '',
-    hind: parseFloat(x.hind) || 0, summa: parseFloat(x.summa) || 0
+    hind: parseFloat(x.hind) || 0, summa: parseFloat(x.summa) || 0,
+    detail: Array.isArray(x.detail) && x.detail.length ? x.detail : undefined
   }));
   if (!avRead.length) avRead.push({ kirjeldus: '', kogus: 1, uhik: '', hind: 0, summa: 0 });
   avJoonistaRead();
@@ -580,7 +581,7 @@ function avJoonistaRead() {
   const body = document.getElementById('av-read-body');
   body.innerHTML = avRead.map((r, idx) => `
     <tr>
-      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)"></td>
+      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)">${Array.isArray(r.detail) && r.detail.length ? `<div style="font-size:11px;color:var(--hall);margin-top:2px">📎 ${r.detail.length} sõitu läheb arve PDF-i lisalehele</div>` : ''}</td>
       <td><input type="number" step="0.1" value="${r.kogus}" oninput="avUuendaRida(${idx},'kogus',this.value)"></td>
       <td><input type="text" value="${r.uhik||''}" oninput="avUuendaRida(${idx},'uhik',this.value)"></td>
       <td><input type="number" step="0.01" value="${r.hind}" oninput="avUuendaRida(${idx},'hind',this.value)"></td>
