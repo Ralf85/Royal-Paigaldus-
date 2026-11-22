@@ -126,7 +126,7 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     // km kliendile topelt arvele). Kui kaaslasel on samal ajal juba kirje, jäetakse ta vahele.
     const kaaslased = { lisatud: [], vahele: [] };
     const kaaslasteIdd = Array.isArray(req.body.kaaslased)
-      ? Array.from(new Set(req.body.kaaslased.map(x => parseInt(x, 10)).filter(x => x && x !== req.session.workerId))).slice(0, 15)
+      ? Array.from(new Set(req.body.kaaslased.map(x => parseInt(x, 10)).filter(x => x && x !== req.session.workerId))).slice(0, 4)
       : [];
     if (kaaslasteIdd.length) {
       await kaaslasteVeerud;

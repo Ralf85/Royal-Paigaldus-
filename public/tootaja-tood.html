@@ -283,8 +283,8 @@
         <!-- Kes olid koos: igale valitud kaaslasele tekib tema enda töökirje (km ja pildid jäävad ainult sulle) -->
         <div class="vorm-rida" id="kaaslased-grupp" style="display:none">
           <div class="vorm-grupp">
-            <label>👥 Kes olid sinuga koos? (vabatahtlik)</label>
-            <div class="kaaslased-silt">Valitud kaaslastele lisatakse samad tunnid nende enda lehele. Km ja pildid jäävad ainult sinu kirjele.</div>
+            <label>👥 Kes olid sinuga koos? (vabatahtlik, kuni 4)</label>
+            <div class="kaaslased-silt">Vali üks või mitu. Igaühele lisatakse samad tunnid tema enda lehele (ta saab neid ise muuta). Km ja pildid jäävad ainult sinu kirjele.</div>
             <div class="kaaslased-nupud" id="kaaslased-nupud"></div>
           </div>
         </div>
@@ -780,6 +780,7 @@
     // ── SALVESTA ─────────────────────────────────────────────
     // ── KAASLASED ────────────────────────────────────────────
     var valitudKaaslased = [];
+    var MAX_KAASLASI = 4;
     async function laadiKaaslased() {
       try {
         var r = await api('/api/tood/kaaslased/' + ettevoteId);
@@ -793,7 +794,9 @@
     }
     function valiKaaslane(id) {
       var i = valitudKaaslased.indexOf(id);
-      if (i >= 0) valitudKaaslased.splice(i, 1); else valitudKaaslased.push(id);
+      if (i >= 0) valitudKaaslased.splice(i, 1);
+      else if (valitudKaaslased.length >= MAX_KAASLASI) { naitaTeade('Korraga saab märkida kuni ' + MAX_KAASLASI + ' kaaslast', 'viga'); return; }
+      else valitudKaaslased.push(id);
       naitaKaaslased();
     }
     function naitaKaaslased() {
