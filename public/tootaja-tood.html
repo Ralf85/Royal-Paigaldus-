@@ -99,6 +99,14 @@
     .kirje-tag.lisakulu { color: #fb923c; }
     .kirje-tag.komm { color: #888; font-style: italic; }
     .kirje-tag.kirjeldus { color: #a78bfa; }
+    .kirje-tag.koos { color: #34d399; }
+    .kirje-tag.lisas { color: #c9a84c; }
+    .kaaslased-silt { font-size: 12px; color: #7a8290; margin-bottom: 6px; }
+    .kaaslased-nupud { display: flex; flex-wrap: wrap; gap: 6px; }
+    .kaaslane-chip { background: #0d0f13; border: 1.5px solid #252830; border-radius: 999px; padding: 7px 13px; color: #e2e8f0; font-family: inherit; font-size: 13px; cursor: pointer; }
+    .kaaslane-chip.valitud { border-color: #34d399; background: rgba(52,211,153,0.12); color: #34d399; font-weight: 700; }
+    body.hele .kaaslane-chip { background: #fff; border-color: #d1d5db; color: #111827; }
+    body.hele .kaaslane-chip.valitud { border-color: #059669; background: rgba(5,150,105,0.10); color: #047857; }
     .kirje-pildid { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
     .kirje-pilt { width: 48px; height: 48px; object-fit: cover; border-radius: 5px; cursor: pointer; border: 0.5px solid #252830; }
     .kirje-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid rgba(255,255,255,0.04); }
@@ -272,6 +280,14 @@
             <div class="poe-seis-varem" id="poe-seis-varem"></div>
           </div>
         </div>
+        <!-- Kes olid koos: igale valitud kaaslasele tekib tema enda töökirje (km ja pildid jäävad ainult sulle) -->
+        <div class="vorm-rida" id="kaaslased-grupp" style="display:none">
+          <div class="vorm-grupp">
+            <label>👥 Kes olid sinuga koos? (vabatahtlik)</label>
+            <div class="kaaslased-silt">Valitud kaaslastele lisatakse samad tunnid nende enda lehele. Km ja pildid jäävad ainult sinu kirjele.</div>
+            <div class="kaaslased-nupud" id="kaaslased-nupud"></div>
+          </div>
+        </div>
         <!-- Kommentaar, km ja lisakulu — kokku klapitud, et vorm oleks lühem (avatud olek jäetakse meelde) -->
         <details class="lisavaljad" id="lisavaljad">
         <summary>Kommentaar, km, lisakulu <span class="lisavaljad-kokkuvote" id="lisavaljad-kokkuvote"></span></summary>
@@ -420,6 +436,7 @@
       }
       // Lae kirjeldused tulevaste tööde põhjal
       await laadiKirjeldused();
+      await laadiKaaslased();
       // Lidl: lae projektide valik (fotode kaustastruktuuri jaoks)
       if (etteVoteTyyp === 'lidl') {
         await laadiLidlProjektid();
@@ -761,6 +778,36 @@
       });
     }
     // ── SALVESTA ─────────────────────────────────────────────
+    // ── KAASLASED ────────────────────────────────────────────
+    var valitudKaaslased = [];
+    async function laadiKaaslased() {
+      try {
+        var r = await api('/api/tood/kaaslased/' + ettevoteId);
+        var list = (r && r.kaaslased) || [];
+        if (!list.length) return;
+        document.getElementById('kaaslased-nupud').innerHTML = list.map(function(w) {
+          return '<button type="button" class="kaaslane-chip" data-id="' + w.id + '" onclick="valiKaaslane(' + w.id + ')">' + esc(w.nimi) + '</button>';
+        }).join('');
+        document.getElementById('kaaslased-grupp').style.display = 'block';
+      } catch (e) { console.error('Kaaslaste laadimine:', e); }
+    }
+    function valiKaaslane(id) {
+      var i = valitudKaaslased.indexOf(id);
+      if (i >= 0) valitudKaaslased.splice(i, 1); else valitudKaaslased.push(id);
+      naitaKaaslased();
+    }
+    function naitaKaaslased() {
+      document.querySelectorAll('#kaaslased-nupud .kaaslane-chip').forEach(function(b) {
+        b.classList.toggle('valitud', valitudKaaslased.indexOf(parseInt(b.dataset.id, 10)) >= 0);
+      });
+    }
+    function kaaslasteTeade(k) {
+      if (!k) return '';
+      var t = '';
+      if (k.lisatud && k.lisatud.length) t += ' · 👥 lisatud ka: ' + k.lisatud.join(', ');
+      if (k.vahele && k.vahele.length) t += ' · ⚠️ vahele jäi: ' + k.vahele.map(function(v) { return v.nimi + ' (' + v.pohjus + ')'; }).join(', ');
+      return t;
+    }
     async function lisaKirje() {
       if (salvestamine) return;
       if (pooleliKirjeId && valitudFotod.length) return saadaPuuduvadPildid();
@@ -816,6 +863,7 @@
         kilomeetrid: km, lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_sel,
         km_soiduk: document.getElementById('km-soiduk').value,
         lidl_projekt_id: lidlProjektId,
+        kaaslased: valitudKaaslased.slice(),
         klient_id: window.rpKlientId ? rpKlientId() : null
       };
       try {
@@ -877,8 +925,10 @@
         var teadeTekst = (ebaonnestunud.length || seisuViga ? '⚠️ Kirje salvestatud: ' : '✅ Salvestatud! ') + r.tunnid + 'h';
         if (fotodKoopia.length) teadeTekst += ' · ' + (fotodKoopia.length - ebaonnestunud.length) + '/' + fotodKoopia.length + ' pilti lisatud';
         if (r.lounaPaus) teadeTekst += ' · lõunapaus arvestatud';
+        teadeTekst += kaaslasteTeade(r.kaaslased);
+        var kaaslasteHoiatus = r.kaaslased && r.kaaslased.vahele && r.kaaslased.vahele.length;
         if (seisuViga) teadeTekst += ' · ⚠️ poe seis jäi salvestamata, märgi see kirje muutmise aknas';
-        naitaTeade(teadeTekst, ebaonnestunud.length || seisuViga ? 'viga' : 'ok');
+        naitaTeade(teadeTekst, ebaonnestunud.length || seisuViga || kaaslasteHoiatus ? 'viga' : 'ok');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         kuuNihe = 0;
         await laadiKirjed();
@@ -926,6 +976,8 @@
       document.getElementById('lidl-projekt-select').value = jaavProjekt;
       if (etteVoteTyyp === 'lidl') { lahtestaPoeSeis(); jarjestaObjektidProjektiJargi(jaavProjekt); }
       document.getElementById('kommentaar').value = '';
+      valitudKaaslased = [];
+      naitaKaaslased();
       uuendaLisavaljadKokkuvote();
     }
 
@@ -1060,6 +1112,8 @@
         if (km > 0) tags += '<span class="kirje-tag km">' + (k.km_soiduk === 'kaubik' ? '🚐 ' + km + 'km kaubik' : '🚗 ' + km + 'km') + '</span>';
         if (lisakulu > 0) tags += '<span class="kirje-tag lisakulu">💸 ' + lisakulu.toFixed(2) + '€</span>';
         if (k.kommentaar) tags += '<span class="kirje-tag kirjeldus">' + k.kommentaar + '</span>';
+        if (k.koos_nimed) tags += '<span class="kirje-tag koos">👥 koos: ' + esc(k.koos_nimed) + '</span>';
+        if (k.lisas_nimi) tags += '<span class="kirje-tag lisas">👤 lisas ' + esc(k.lisas_nimi) + '</span>';
         var pildid = pildidMap[k.id] || [];
         var pildiHTML = pildid.length ? '<div class="kirje-pildid">' + pildid.slice(0,6).map(function(p) {
           return '<img src="' + pisipilt(p.url) + '" class="kirje-pilt" onclick="window.open(\'' + p.url + '\',\'_blank\')" loading="lazy">';

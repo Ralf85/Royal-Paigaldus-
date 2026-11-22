@@ -9,6 +9,31 @@ function noudaSisslogimist(req, res, next) {
   next();
 }
 
+// KAASTÖÖTAJAD: töötaja saab töökirje lisamisel märkida, kes olid temaga samal objektil koos.
+// Igale kaaslasele tekib tema enda töökirje (samad kuupäev, kellaajad, objekt, kirjeldus; km 0, pildid
+// jäävad ainult lisaja kirjele). lisas_worker_id = kes kirje tema eest lisas, koos_kirje_id = lisaja kirje.
+const kaaslasteVeerud = pool.query(
+  `ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lisas_worker_id INTEGER;
+   ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS koos_kirje_id INTEGER;`
+).catch(err => console.error('tookirjed kaaslaste veergude loomine ebaõnnestus:', err.message));
+
+// Kaaslaste valik: aktiivsed töötajad, kes on samale ettevõttele määratud (ilma iseendata)
+router.get('/kaaslased/:ettevoteId', noudaSisslogimist, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT w.id, w.nimi FROM workers w
+       JOIN worker_ettevotted we ON we.worker_id = w.id
+       WHERE we.ettevote_id = $1 AND w.aktiivne = true AND w.id <> $2
+       ORDER BY w.nimi`,
+      [parseInt(req.params.ettevoteId, 10) || 0, req.session.workerId]
+    );
+    res.json({ ok: true, kaaslased: r.rows });
+  } catch (err) {
+    console.error(err);
+    res.json({ ok: true, kaaslased: [] });
+  }
+});
+
 // Töötaja ettevõtted (ainult talle määratud)
 router.get('/minu-ettevotted', noudaSisslogimist, async (req, res) => {
   try {
@@ -97,7 +122,45 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
       }), req.ip]
     );
 
-    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), kirjeId, lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60) });
+    // Kaaslased: igaühele oma töökirje. Km, km-hüvitis ja lisakulu jäävad ainult lisajale (muidu läheks
+    // km kliendile topelt arvele). Kui kaaslasel on samal ajal juba kirje, jäetakse ta vahele.
+    const kaaslased = { lisatud: [], vahele: [] };
+    const kaaslasteIdd = Array.isArray(req.body.kaaslased)
+      ? Array.from(new Set(req.body.kaaslased.map(x => parseInt(x, 10)).filter(x => x && x !== req.session.workerId))).slice(0, 15)
+      : [];
+    if (kaaslasteIdd.length) {
+      await kaaslasteVeerud;
+      for (const kid of kaaslasteIdd) {
+        try {
+          const w = await pool.query(
+            `SELECT w.nimi FROM workers w JOIN worker_ettevotted we ON we.worker_id = w.id
+             WHERE w.id = $1 AND we.ettevote_id = $2 AND w.aktiivne = true`, [kid, ettevote_id]);
+          if (!w.rows.length) { kaaslased.vahele.push({ nimi: '#' + kid, pohjus: 'pole selle ettevõttega seotud' }); continue; }
+          const nimi = w.rows[0].nimi;
+          const kattub = await pool.query(
+            `SELECT 1 FROM tookirjed WHERE worker_id = $1 AND kuupaev = $2 AND algus < $4::time AND lopp > $3::time LIMIT 1`,
+            [kid, kuupaev, algus, lopp]);
+          if (kattub.rows.length) { kaaslased.vahele.push({ nimi, pohjus: 'tal on sel ajal juba kirje' }); continue; }
+          const k = await pool.query(
+            `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha,
+               lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk, lisas_worker_id, koos_kirje_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,0,0,'',$9,'puudub',$10,$11) RETURNING id`,
+            [kid, ettevote_id, objekt_id || null, kuupaev, algus, lopp, tunnid, kommentaar || '', lidl_projekt_id || null, req.session.workerId, kirjeId]);
+          await pool.query(
+            `INSERT INTO audit_log (worker_id, tegevus, details, ip_aadress) VALUES ($1, $2, $3, $4)`,
+            [req.session.workerId, 'LISA_TOOKIRJE_KAASLASELE', JSON.stringify({
+              kirje_id: k.rows[0].id, kaaslane_id: kid, kaaslane: nimi, koos_kirje_id: kirjeId,
+              ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid: tunnid.toFixed(2)
+            }), req.ip]);
+          kaaslased.lisatud.push(nimi);
+        } catch (e) {
+          console.error('Kaaslase kirje viga:', e.message);
+          kaaslased.vahele.push({ nimi: '#' + kid, pohjus: 'serveri viga' });
+        }
+      }
+    }
+
+    res.json({ ok: true, tunnid: tunnid.toFixed(2), km_raha: km_raha.toFixed(2), kirjeId, lounaPaus: tyyp === 'cramo' && tunnid < (minutid/60), kaaslased });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
@@ -155,6 +218,7 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
   const { aasta, kuu } = req.query;
   const wid = req.session.workerId;
   try {
+    await kaaslasteVeerud;
     const kirjed = await pool.query(
       `SELECT t.*, e.nimi as ettevote_nimi, e.tyyp as ettevote_tyyp,
               COALESCE(o.nimi, '') as objekt_nimi,
@@ -163,12 +227,16 @@ router.get('/kokkuvote', noudaSisslogimist, async (req, res) => {
               COALESCE(t.km_raha, 0) as km_raha,
               COALESCE(t.lisakulu_summa, 0) as lisakulu_summa,
               COALESCE(t.lisakulu_selgitus, '') as lisakulu_selgitus,
-              lp.nimi as lidl_projekt_nimi
+              lp.nimi as lidl_projekt_nimi,
+              lw.nimi as lisas_nimi,
+              (SELECT string_agg(w2.nimi, ', ' ORDER BY w2.nimi) FROM tookirjed t2 JOIN workers w2 ON w2.id = t2.worker_id
+                WHERE t2.koos_kirje_id = t.id) as koos_nimed
        FROM tookirjed t
        JOIN ettevotted e ON t.ettevote_id = e.id
        LEFT JOIN objektid o ON t.objekt_id = o.id
        LEFT JOIN worker_ettevotted we ON (we.worker_id = t.worker_id AND we.ettevote_id = t.ettevote_id)
        LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
+       LEFT JOIN workers lw ON lw.id = t.lisas_worker_id
        WHERE t.worker_id=$1 AND EXTRACT(YEAR FROM t.kuupaev)=$2 AND EXTRACT(MONTH FROM t.kuupaev)=$3
        ORDER BY t.kuupaev, t.algus`,
       [wid, aasta, kuu]
