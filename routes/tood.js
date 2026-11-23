@@ -475,12 +475,12 @@ router.put('/kirje/:id', noudaSisslogimist, async (req, res) => {
         kuupaev, algus, lopp, tunnid: tunnid.toFixed(2),
         kommentaar: kommentaar || '', kilomeetrid: km,
         lisakulu_summa: lisakulu, lisakulu_selgitus: lisakulu_selgitus || '',
-        lidl_projekt_id: lidl_projekt_id || null,
+        lidl_projekt_id: lidl_projekt_id || null, km_soiduk: soiduk,
         vana_kuupaev: kpYmd(v.kuupaev), vana_algus: v.algus, vana_lopp: v.lopp,
         vana_tunnid: parseFloat(v.tunnid).toFixed(2),
         vana_kommentaar: v.kommentaar || '', vana_kilomeetrid: parseFloat(v.kilomeetrid) || 0,
         vana_lisakulu_summa: parseFloat(v.lisakulu_summa) || 0, vana_lisakulu_selgitus: v.lisakulu_selgitus || '',
-        vana_lidl_projekt_id: v.lidl_projekt_id || null
+        vana_lidl_projekt_id: v.lidl_projekt_id || null, vana_km_soiduk: v.km_soiduk || 'isiklik'
       }), req.ip]
     );
 

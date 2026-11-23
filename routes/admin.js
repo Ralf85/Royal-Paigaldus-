@@ -619,6 +619,8 @@ router.get('/tookirje-ajalugu/:id', noudaAdmin, async (req, res) => {
       if (d.vana_kilomeetrid !== undefined) lisa('Kilomeetrid', arv(d.vana_kilomeetrid) + ' km', arv(d.kilomeetrid) + ' km');
       if (d.vana_lisakulu_summa !== undefined) lisa('Lisakulu', arv(d.vana_lisakulu_summa).toFixed(2) + ' €', arv(d.lisakulu_summa).toFixed(2) + ' €');
       if (d.vana_lisakulu_selgitus !== undefined) lisa('Lisakulu selgitus', d.vana_lisakulu_selgitus || '—', d.lisakulu_selgitus || '—');
+      const soidukNimi = { isiklik: 'Isiklik auto', kaubik: 'Kaubik', puudub: 'Ei kasutanud' };
+      if (d.vana_km_soiduk !== undefined) lisa('Sõiduk', soidukNimi[d.vana_km_soiduk] || d.vana_km_soiduk, soidukNimi[d.km_soiduk] || d.km_soiduk);
       if (d.vana_lidl_projekt_id !== undefined) lisa('Lidl projekt', projNimi(d.vana_lidl_projekt_id), projNimi(d.lidl_projekt_id));
       muudatused.push({ aeg: row.loodud, kes: row.kes_nimi || 'Töötaja', admin: false, taielik: d.vana_kommentaar !== undefined, valjad });
     });
