@@ -138,6 +138,7 @@ async function looTabelid() {
     ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS oma_ostud JSONB;
     ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS lisakulu_id INTEGER REFERENCES lisakulud(id) ON DELETE SET NULL;
     ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS ule_vaadatud BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS arvetest_tulnud BOOLEAN NOT NULL DEFAULT false;
   `);
   await pool.query(`INSERT INTO remont_seaded (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
   // Ettevõte "TELJE 10" — selle alla teevad töötajad töökirjeid. Tüüp on 'muu', et ükski
@@ -292,7 +293,7 @@ async function koguAndmed() {
             k.naabri_protsent, k.naabri_summa, k.objekt_id, k.foto_url, o.nimi AS osa_nimi,
             k.kaibemaks, k.foto_tyyp, k.foto_arvest, k.arve_sisse_id,
             k.tootaja_maksis, k.tsekk_kokku, k.oma_ostud, k.ule_vaadatud, k.lisakulu_id,
-            w.nimi AS tootaja_nimi, a.staatus AS arve_staatus
+            w.nimi AS tootaja_nimi, a.staatus AS arve_staatus, k.arvetest_tulnud
      FROM remont_kulud k
      LEFT JOIN objektid o ON o.id = k.objekt_id
      LEFT JOIN workers w ON w.id = k.tootaja_id
@@ -325,6 +326,7 @@ async function koguAndmed() {
       foto_url: (k.foto_arvest && !k.arve_sisse_id) ? '' : (k.foto_url || ''),
       foto_pdf: k.foto_tyyp === 'raw',
       kaibemaks: parseFloat(k.kaibemaks) || 0, arvetes: !!k.arve_sisse_id,
+      arvetest: !!k.arvetest_tulnud,
       read: kuluRead[k.id] || [],
       // Töötaja lisatud tšekk (ainult adminile, vt /andmed)
       tootaja: k.tootaja_maksis ? {
@@ -430,8 +432,54 @@ async function arvutaTooKulu(d) {
   return k;
 }
 
+// ── ARVETEST TULNUD TŠEKID ────────────────────────────────────────────────
+// Kui tšekk lisatakse Arvete lehel (või kiirtšekiga) ja "Klient/projekt" on TELJE 10, tekib see ka siia
+// materjalide alla: üks rida tšeki summaga, vaikimisi kõik Ralfi kanda (0% teisele osapoolele).
+// Admin näeb seda sinise täpiga ja jaotab "Muuda" vaates; pärast salvestamist on see tavaline tšekk.
+// Kuni tšekki pole siin muudetud, järgib see arvet (summa, kuupäev, fail); kui arve projekt muudetakse
+// TELJE 10-st ära, kaob ka siinne (muutmata) koopia.
+async function syncArvetest() {
+  const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
+  const ettevoteId = s.rows[0] && s.rows[0].ettevote_id;
+  if (!ettevoteId) return;
+  // 1) Muutmata koopiad, mille arve ei kuulu enam TELJE 10 alla (või kustutati) -> eemalda
+  await pool.query(
+    `DELETE FROM remont_kulud k WHERE k.arvetest_tulnud = true
+       AND (k.arve_sisse_id IS NULL OR NOT EXISTS (SELECT 1 FROM arve_sisse a WHERE a.id = k.arve_sisse_id AND a.ettevote_id = $1))`,
+    [ettevoteId]);
+  // 2) Muutmata koopiad järgivad arvet
+  await pool.query(
+    `UPDATE remont_kulud k SET kuupaev = a.kuupaev, kirjeldus = COALESCE(NULLIF(a.kirjeldus, ''), 'Tšekk'), summa = a.summa,
+            kaibemaks = COALESCE(a.kaibemaks, 0), foto_url = a.fail_url, foto_tyyp = a.fail_resource_type
+     FROM arve_sisse a WHERE k.arvetest_tulnud = true AND a.id = k.arve_sisse_id
+       AND (k.summa IS DISTINCT FROM a.summa OR k.kuupaev IS DISTINCT FROM a.kuupaev OR k.kirjeldus IS DISTINCT FROM COALESCE(NULLIF(a.kirjeldus, ''), 'Tšekk')
+            OR k.foto_url IS DISTINCT FROM a.fail_url OR k.kaibemaks IS DISTINCT FROM COALESCE(a.kaibemaks, 0))`);
+  await pool.query(
+    `UPDATE remont_kulu_read r SET nimetus = k.kirjeldus, summa = k.summa
+     FROM remont_kulud k WHERE k.arvetest_tulnud = true AND r.kulu_id = k.id AND (r.summa IS DISTINCT FROM k.summa OR r.nimetus IS DISTINCT FROM k.kirjeldus)`);
+  // 3) Uued TELJE 10 arved, millel siin veel tšekki pole
+  const uued = await pool.query(
+    `SELECT a.id, a.kuupaev, COALESCE(NULLIF(a.kirjeldus, ''), 'Tšekk') AS kirjeldus, a.summa, COALESCE(a.kaibemaks, 0) AS kaibemaks,
+            a.fail_url, a.fail_resource_type
+     FROM arve_sisse a
+     WHERE a.ettevote_id = $1 AND a.summa > 0
+       AND NOT EXISTS (SELECT 1 FROM remont_kulud k WHERE k.arve_sisse_id = a.id)`,
+    [ettevoteId]);
+  for (const a of uued.rows) {
+    const k = await pool.query(
+      `INSERT INTO remont_kulud (kuupaev, kirjeldus, summa, maksja, jaotus, naabri_summa, kaibemaks,
+         foto_url, foto_public_id, foto_tyyp, foto_arvest, arve_sisse_id, arvetest_tulnud)
+       VALUES ($1,$2,$3,'mina','read',0,$4,$5,NULL,$6,true,$7,true) RETURNING id`,
+      [a.kuupaev, a.kirjeldus, a.summa, a.kaibemaks, a.fail_url, a.fail_resource_type, a.id]);
+    await pool.query(
+      `INSERT INTO remont_kulu_read (kulu_id, jrk, nimetus, summa, naabri_protsent, naabri_summa) VALUES ($1,1,$2,$3,0,0)`,
+      [k.rows[0].id, a.kirjeldus, a.summa]);
+  }
+}
+
 // ── VAATAMINE (admin + naaber) ────────────────────────────────────────────
 router.get('/andmed', noudaVaatajat, async (req, res) => {
+  try { await syncArvetest(); } catch (e) { console.error('TELJE 10 arvete sünkroonimine:', e.message); }
   const d = await koguAndmed();
   const onAdmin = req.remontRoll === 'admin';
   if (onAdmin) {
@@ -446,7 +494,7 @@ router.get('/andmed', noudaVaatajat, async (req, res) => {
     d.tood.forEach(t => { delete t.lisakulu_summa; delete t.lisakulu_selgitus; });
     // Käibemaks ja seos Royal Paigalduse arvetega on raamatupidamise info.
     // Kes töötajatest tšeki lisas, kuidas maksis ja tema enda ostud on Royal Paigalduse sisemine info.
-    d.kulud.forEach(x => { delete x.kaibemaks; delete x.arvetes; delete x.tootaja; });
+    d.kulud.forEach(x => { delete x.kaibemaks; delete x.arvetes; delete x.tootaja; delete x.arvetest; });
   }
   res.json({ ok: true, roll: req.remontRoll, ...d });
 });
@@ -748,7 +796,7 @@ async function salvestaKulu(k, uusFail, id) {
       await klient.query(
         `UPDATE remont_kulud SET kuupaev=$1, kirjeldus=$2, summa=$3, maksja=$4, jaotus='read', naabri_protsent=NULL,
            naabri_summa=$5, kaibemaks=$6, foto_url=$7, foto_public_id=$8, foto_tyyp=$9, foto_arvest=$10, arve_sisse_id=$11,
-           objekt_id=NULL WHERE id=$12`, valjad.concat([id]));
+           objekt_id=NULL, arvetest_tulnud=false WHERE id=$12`, valjad.concat([id]));
       await klient.query(`DELETE FROM remont_kulu_read WHERE kulu_id=$1`, [id]);
     } else {
       const r = await klient.query(

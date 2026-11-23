@@ -972,6 +972,7 @@ function joonistaKulud() {
       + '<td class="pood">' + esc(k.kirjeldus) + ' <span class="nool">' + (avatud ? '▴' : '▾') + '</span>'
       + (puudub ? ' <span class="tapp punane" title="Tšeki pilt puudub">●</span>' : '')
       + (uusTootajalt ? ' <span class="tapp kollane" title="Töötaja lisatud — vaata jaotus üle">●</span>' : '')
+      + (admin && k.arvetest ? ' <span class="tapp" style="color:#60a5fa" title="Lisatud Arvete lehelt (projekt TELJE 10) — vaikimisi kõik ' + esc(s.minu_nimi) + ' kanda. Ava „Muuda“ ja jaota.">●</span>' : '')
       + (k.maksja === 'naaber' ? '<div class="alam">maksis ' + esc(s.naabri_nimi) + '</div>' : '')
       + '</td>'
       + '<td class="p">' + raha(k.summa) + '</td>'
@@ -993,7 +994,7 @@ function joonistaKulud() {
     + '<td class="p m">' + raha(kM) + '</td><td class="p n">' + raha(kN) + '</td>'
     + (admin ? '<td class="p">' + raha(kKm) + '</td><td class="k h">' + arvetes + ' / ' + A.kulud.length + '</td>' : '')
     + '</tr></tfoot></table></div>';
-  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="tapp kollane">●</span> töötaja lisatud, vaata üle &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu) või võtab sealt välja. „hüvitis ✓" = töötaja maksis oma kaardiga.</div>';
+  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="tapp kollane">●</span> töötaja lisatud, vaata üle &nbsp; <span class="tapp" style="color:#60a5fa">●</span> lisatud Arvete lehelt, jaota &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu) või võtab sealt välja. „hüvitis ✓" = töötaja maksis oma kaardiga.</div>';
   document.getElementById('paneel-kulud').innerHTML = html;
 }
 
