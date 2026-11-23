@@ -6,7 +6,7 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const archiver = require('archiver');
 const { looZip, lisaUrl, lopetaZip, zipNimi, kpNimeks, laadiPuhver } = require('../zipabi');
-const { aiFailid, loeDokument, arv, puhasKuupaev } = require('../ailugeja');
+const { aiFailid, loeDokument, arv, puhasKuupaev, kysiAI, loeJson } = require('../ailugeja');
 const https = require('https');
 const http = require('http');
 
@@ -737,6 +737,42 @@ router.put('/sisse/:id(\\d+)/huvitatud', noudaAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ ok: false, veateade: err.message }); }
 });
+// Juba üleslaetud tšeki kaardi tuvastamine tagantjärele: laeb faili Cloudinaryst, AI loeb ainult kaardi
+// 4 viimast numbrit ja (kui kaart on tuntud ning tšekil kaarti veel pole) märgib selle. Frontend kutsub
+// seda ükshaaval iga tšeki kohta (progressiga), et üks pikk päring ei aeguks.
+router.post('/sisse/:id(\\d+)/loe-kaart', noudaAdmin, async (req, res) => {
+  try {
+    const r0 = await pool.query('SELECT id, fail_url, fail_resource_type, kaart_id FROM arve_sisse WHERE id=$1', [req.params.id]);
+    const s = r0.rows[0];
+    if (!s) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+    if (!s.fail_url) return res.json({ ok: true, tulemus: 'failita' });
+    const onPdf = s.fail_resource_type === 'raw' || /\.pdf($|\?)/i.test(s.fail_url);
+    // Pildid vähendame Cloudinary teisendusega (AI piirang ~5 MB pildi kohta)
+    const url = onPdf ? s.fail_url : s.fail_url.replace('/image/upload/', '/image/upload/c_limit,w_1800,h_1800,q_80,f_jpg/');
+    const vastus = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    if (!vastus.ok) return res.json({ ok: true, tulemus: 'fail_puudub', veateade: 'Faili ei saanud laadida (HTTP ' + vastus.status + ')' });
+    const puhver = Buffer.from(await vastus.arrayBuffer());
+    if (puhver.length > 20 * 1024 * 1024) return res.json({ ok: true, tulemus: 'liiga_suur' });
+    const blokk = onPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: puhver.toString('base64') } }
+      : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: puhver.toString('base64') } };
+    const juhis = `See on poetšekk või ostuarve. Leia sellelt makse KAARDI number (tavaliselt maskeeritud, nt "************6501", "Visa ****2450", "Kaart: xxxx4645", "MASTERCARD 4645"). Vasta AINULT JSON-objektiga: {"kaart": "kaardi 4 viimast numbrit või tühi string, kui kaardimakset/kaardinumbrit pole näha (nt sularaha või pangaülekanne)"}`;
+    const ai = await kysiAI([{ role: 'user', content: [blokk, { type: 'text', text: juhis }] }], 100);
+    if (!ai.ok) return res.json({ ok: false, veateade: ai.veateade });
+    const valjad = loeJson(ai.tekst) || {};
+    const k = await leiaKaart(valjad.kaart);
+    let maaratud = false;
+    if (k.kaart_id && !s.kaart_id) {
+      await pool.query('UPDATE arve_sisse SET kaart_id=$1 WHERE id=$2 AND kaart_id IS NULL', [k.kaart_id, s.id]);
+      maaratud = true;
+    }
+    res.json({ ok: true, tulemus: k.kaart_id ? 'leitud' : (k.kaart_last4 ? 'tundmatu' : 'kaarti_pole'), maaratud, ...k });
+  } catch (err) {
+    console.error('loe-kaart:', err.message);
+    res.json({ ok: false, veateade: err.message });
+  }
+});
+
 // Hulgi: märgi ühe kaardi kõik hüvitamata tšekid hüvitatuks (nt kui maksid Liisile kogu summa korraga)
 router.put('/sisse/huvitatud-kaart/:kaartId(\\d+)', noudaAdmin, async (req, res) => {
   try {

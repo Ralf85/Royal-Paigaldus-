@@ -1383,6 +1383,48 @@ function avKaardiTeade(r) {
   return ' · kaarti tšekilt ei leitud — vali käsitsi';
 }
 function avFiltreeriSisseKaart(v) { avSisseKaartFilter = v; avJoonistaSisseTabel(); }
+
+// Juba üleslaetud tšekid: AI loeb igalt (kaart märkimata + fail olemas) kaardi numbri ja märgib maksja.
+// Käib ükshaaval, et näha edenemist ja et üks aeglane tšekk ei katkestaks kõike. Lõpus topeltkandidaadid.
+let avKaardiLugemineKaib = false;
+async function avLoeKaardidUle() {
+  if (avKaardiLugemineKaib) return;
+  const list = avSisseList.filter(s => !s.kaart_id && s.fail_url);
+  const nupp = document.getElementById('as-loe-kaardid-nupp');
+  if (!list.length) { alert('Valitud perioodis pole ühtegi failiga tšekki, millel kaart oleks märkimata.'); return; }
+  if (!await kysi(`AI loeb ${list.length} tšekilt kaardi numbri ja märgib maksja (Ralf / Liis / firma kaart).\n\nSee võtab umbes ${Math.max(1, Math.round(list.length * 6 / 60))} min. Juba märgitud tšekke ei muudeta.`)) return;
+  avKaardiLugemineKaib = true;
+  const loend = { leitud: 0, tundmatu: [], kaarti_pole: 0, vead: 0 };
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    if (nupp) { nupp.disabled = true; nupp.textContent = `🤖 Loen… ${i + 1}/${list.length}`; }
+    let r = null;
+    try { r = await api(`/api/arved/sisse/${s.id}/loe-kaart`, { method: 'POST', body: '{}' }); } catch (e) { r = null; }
+    if (!r || !r.ok) loend.vead++;
+    else if (r.tulemus === 'leitud') loend.leitud++;
+    else if (r.tulemus === 'tundmatu') loend.tundmatu.push(r.kaart_last4);
+    else loend.kaarti_pole++;
+  }
+  avKaardiLugemineKaib = false;
+  if (nupp) { nupp.disabled = false; nupp.textContent = '🤖 Loe kaardid üle'; }
+  await laadiSisseTabel();
+  // Topeltkandidaadid valitud perioodis: sama summa ja kuupäev ±1 päev
+  const topelt = [];
+  const sorditud = avSisseList.slice().sort((a, b) => String(a.kuupaev).localeCompare(String(b.kuupaev)));
+  for (let i = 0; i < sorditud.length; i++) for (let j = i + 1; j < sorditud.length; j++) {
+    const a = sorditud[i], b = sorditud[j];
+    const vahe = Math.abs(new Date(b.kuupaev) - new Date(a.kuupaev)) / 86400000;
+    if (vahe > 1.5) break;
+    if (Math.abs((parseFloat(a.summa) || 0) - (parseFloat(b.summa) || 0)) < 0.005 && (parseFloat(a.summa) || 0) > 0)
+      topelt.push(`${formatKp(a.kuupaev)} ${a.kirjeldus || ''} ↔ ${formatKp(b.kuupaev)} ${b.kirjeldus || ''} — ${avFmtEur(a.summa)}`);
+  }
+  const unikTundmatu = [...new Set(loend.tundmatu)];
+  await kysi(`✅ Valmis!\n\n💳 Kaart määratud: ${loend.leitud}\n❔ Kaarti tšekilt ei leitud: ${loend.kaarti_pole}` +
+    (unikTundmatu.length ? `\n⚠️ Tundmatu kaart: ${loend.tundmatu.length} tšekki (****${unikTundmatu.join(', ****')}) — ütle, kelle kaart see on` : '') +
+    (loend.vead ? `\n❌ Ei õnnestunud: ${loend.vead}` : '') +
+    (topelt.length ? `\n\n⚠️ Võimalikud topeltid (${topelt.length}):\n` + topelt.slice(0, 15).join('\n') : '\n\nTopelt-kandidaate ei leitud.') +
+    `\n\nÜlejäänud leiad filtriga „❔ Kaart märkimata“.`);
+}
 async function avMuudaSisseKaart(id, kaartId) {
   await api(`/api/arved/sisse/${id}/kaart`, { method: 'PUT', body: JSON.stringify({ kaart_id: kaartId || null }) });
   await laadiSisseTabel();
