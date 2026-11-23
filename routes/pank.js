@@ -336,7 +336,9 @@ async function laadiKandidaadid() {
     pool.query(`SELECT x.id, to_char(x.kuupaev,'YYYY-MM-DD') AS kuupaev, x.kirjeldus, x.summa, x.staatus, e.nimi AS ettevote_nimi
                 FROM arve_sisse x LEFT JOIN ettevotted e ON e.id = x.ettevote_id
                 WHERE ${muujaTingimus} AND x.summa > 0
-                  AND NOT EXISTS (SELECT 1 FROM pank_read p WHERE p.arve_sisse_id = x.id)`),
+                  AND NOT EXISTS (SELECT 1 FROM pank_read p WHERE p.arve_sisse_id = x.id)
+                  -- Isikliku kaardiga makstud tšekid ei ole firma pangaväljavõttel (need hüvitatakse omanikule)
+                  AND NOT EXISTS (SELECT 1 FROM maksekaardid mk WHERE mk.id = x.kaart_id AND mk.tyyp = 'isiklik')`),
     pool.query(`SELECT m.id, to_char(m.kuupaev,'YYYY-MM-DD') AS kuupaev, m.summa, m.kommentaar, w.nimi AS tootaja
                 FROM maksed m LEFT JOIN workers w ON w.id = m.worker_id
                 WHERE m.summa > 0 AND NOT EXISTS (SELECT 1 FROM pank_read p WHERE p.makse_id = m.id)`)

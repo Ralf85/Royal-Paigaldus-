@@ -538,6 +538,27 @@ async function initDB() {
     // ning selleks, et vältida Cloudinary vaikimisi PDF-delivery piirangut ("tühi leht" viga).
     await client.query(`ALTER TABLE arved ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
     await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS fail_resource_type VARCHAR(10);`);
+    // MAKSEKAARDID — millise kaardiga tšekk maksti (4 viimast numbrit). Isikliku kaardiga makstud tšekid
+    // tuleb omanikule hüvitada (arve_sisse.huvitatud); firma kaardi maksed on pangaväljavõttel (/pank).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maksekaardid (
+        id SERIAL PRIMARY KEY,
+        last4 VARCHAR(4) NOT NULL UNIQUE,
+        nimi VARCHAR(120) NOT NULL,
+        omanik VARCHAR(120) NOT NULL,
+        tyyp VARCHAR(10) NOT NULL DEFAULT 'isiklik',
+        aktiivne BOOLEAN DEFAULT true,
+        loodud TIMESTAMP DEFAULT NOW()
+      );
+      INSERT INTO maksekaardid (last4, nimi, omanik, tyyp) VALUES
+        ('6501', 'Ralfi isiklik (Swedbank)', 'Ralf', 'isiklik'),
+        ('2450', 'Liis Rogov isiklik (Swedbank)', 'Liis Rogov', 'isiklik'),
+        ('4645', 'Royal Paigaldus OÜ ettevõttekaart', 'Royal Paigaldus OÜ', 'firma')
+      ON CONFLICT (last4) DO NOTHING;
+    `);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS kaart_id INTEGER REFERENCES maksekaardid(id) ON DELETE SET NULL;`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS huvitatud BOOLEAN NOT NULL DEFAULT false;`);
+    await client.query(`ALTER TABLE arve_sisse ADD COLUMN IF NOT EXISTS huvitatud_kp DATE;`);
     // Reg-kood/KMKR väljad olid VARCHAR(20) — liiga kitsas, kui kellegi salvestatud kliendiandmetesse
     // sattus kogemata pikem tekst (nt osakonna nimi reg-koodi asemel). Sellest tuli "value too long"
     // viga arve salvestamisel. Laiendame, et see enam terve arve loomist ei blokeeriks.

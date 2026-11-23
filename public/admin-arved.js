@@ -1300,6 +1300,7 @@ async function avKiirValiFail(file) {
     if (r.kokku) document.getElementById('as-kaibemaks').value = r.kaibemaks || 0;
     if (r.vastaspool) document.getElementById('as-kirjeldus').value = r.vastaspool;
     if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
+    avSeaKaartAI(r);
     rpAiKmTeade('as-teade', r);
     avSisseFail = file;
     document.getElementById('av-sisse-dropzone-tekst').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — kliki, et vahetada`;
@@ -1344,12 +1345,76 @@ async function avLoeSisseFail(file) {
   if (r.ettevote) document.getElementById('as-kirjeldus').value = r.ettevote;
   if (r.ettevote_id) document.getElementById('as-ettevote').value = r.ettevote_id;
   avAiMuujaId = r.muuja_id || null;
-  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil' + (r.muuja_nimi ? ' · ' + r.muuja_nimi + ' kulu' : '') + ' — kontrolli üle ja vajuta Salvesta!');
+  avSeaKaartAI(r);
+  naitaTeade('as-teade', 'ok', '🤖 Väljad täidetud AI abil' + (r.muuja_nimi ? ' · ' + r.muuja_nimi + ' kulu' : '') + avKaardiTeade(r) + ' — kontrolli üle ja vajuta Salvesta!');
   rpAiKmTeade('as-teade', r);
 }
 
 let avSisseMuudaId = null;
 let avSisseValitud = new Set();
+
+// ── MAKSEKAARDID ja HÜVITAMINE ─────────────────────────────────────────────
+// Kõik tšekid on Royal Paigalduse kulud. Isikliku kaardiga makstud tšekid tuleb kaardi omanikule
+// hüvitada (raamatupidaja maksab) — need on eraldi kokkuvõttes ja raamatupidaja vaates.
+let avKaardid = [];
+let avKaardidLaetud = false;
+let avSisseKaartFilter = 'koik';
+async function avLaadiKaardid() {
+  if (avKaardidLaetud) return;
+  const r = await api('/api/arved/maksekaardid');
+  avKaardid = (r && Array.isArray(r.kaardid)) ? r.kaardid.filter(k => k.aktiivne !== false) : [];
+  avKaardidLaetud = true;
+  const silt = k => (k.tyyp === 'firma' ? '🏢 ' : '👤 ') + k.nimi + ' ****' + k.last4;
+  const sel = document.getElementById('as-kaart');
+  if (sel) sel.innerHTML = '<option value="">— teadmata / ülekanne / sularaha —</option>' + avKaardid.map(k => `<option value="${k.id}">${tmEsc(silt(k))}</option>`).join('');
+  const f = document.getElementById('as-filt-kaart');
+  if (f) f.innerHTML = '<option value="koik">Kõik maksjad</option><option value="huvitamata">👤 Isiklik — hüvitamata</option>'
+    + avKaardid.map(k => `<option value="${k.id}">${tmEsc(silt(k))}</option>`).join('') + '<option value="puudub">❔ Kaart märkimata</option>';
+  if (f) f.value = avSisseKaartFilter;
+}
+function avSeaKaartAI(r) {
+  const sel = document.getElementById('as-kaart');
+  if (sel && r && r.kaart_id) sel.value = r.kaart_id;
+}
+function avKaardiTeade(r) {
+  if (!r) return '';
+  if (r.kaart_id) return ' · 💳 ' + r.kaart_nimi;
+  if (r.kaart_last4) return ' · ⚠️ tundmatu kaart ****' + r.kaart_last4 + ' (vali käsitsi)';
+  return ' · kaarti tšekilt ei leitud — vali käsitsi';
+}
+function avFiltreeriSisseKaart(v) { avSisseKaartFilter = v; avJoonistaSisseTabel(); }
+async function avMuudaSisseKaart(id, kaartId) {
+  await api(`/api/arved/sisse/${id}/kaart`, { method: 'PUT', body: JSON.stringify({ kaart_id: kaartId || null }) });
+  await laadiSisseTabel();
+}
+async function avMuudaHuvitatud(id, h) {
+  await api(`/api/arved/sisse/${id}/huvitatud`, { method: 'PUT', body: JSON.stringify({ huvitatud: h }) });
+  await laadiSisseTabel();
+}
+async function avMargiKaartHuvitatuks(kaartId, omanik, summa) {
+  if (!await kysi(`Märgid kaardi omaniku (${omanik}) kõik hüvitamata tšekid kokku ${avFmtEur(summa)} hüvitatuks?\n\nTee seda siis, kui raamatupidaja on selle summa juba üle kandnud.`)) return;
+  await api(`/api/arved/sisse/huvitatud-kaart/${kaartId}`, { method: 'PUT', body: '{}' });
+  await laadiSisseTabel();
+}
+async function avLaadiHuvitamine() {
+  const div = document.getElementById('as-huvitamine');
+  if (!div) return;
+  const r = await api('/api/arved/sisse/huvitamine');
+  const kaardid = (r && r.kaardid) || [];
+  if (!kaardid.some(k => k.tsekke > 0)) { div.innerHTML = ''; return; }
+  div.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--piir2)">` +
+    kaardid.filter(k => k.tsekke > 0).map(k => {
+      const isiklik = k.tyyp === 'isiklik';
+      const huvitada = parseFloat(k.huvitada) || 0;
+      return `<div style="flex:1;min-width:200px;background:var(--bg3);border-radius:10px;padding:10px 14px;border-left:3px solid ${isiklik ? (huvitada > 0 ? '#fb923c' : '#4ade80') : '#60a5fa'}">
+        <div style="font-size:12px;color:var(--hall)">${isiklik ? '👤' : '🏢'} ${tmEsc(k.nimi)} ****${tmEsc(k.last4)}</div>
+        <div style="font-size:13px;margin-top:4px">Makstud kokku <b>${avFmtEur(k.kokku)}</b> <span style="color:var(--hall)">(${k.tsekke} tšekki)</span></div>
+        ${isiklik ? `<div style="font-size:15px;font-weight:700;margin-top:4px;color:${huvitada > 0 ? '#fb923c' : '#4ade80'}">${huvitada > 0 ? 'Hüvitada ' + avFmtEur(huvitada) + ' <span style="font-size:12px;font-weight:400;color:var(--hall)">(' + k.huvitamata_tsekke + ' tšekki)</span>' : '✓ Kõik hüvitatud'}</div>
+          ${huvitada > 0 ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="nupp hall" style="font-size:11px;padding:4px 10px" onclick="avFiltreeriSisseKaart('${k.id}');document.getElementById('as-filt-kaart').value='${k.id}'">Näita</button><button class="nupp roheline" style="font-size:11px;padding:4px 10px" onclick="avMargiKaartHuvitatuks(${k.id}, '${tmEsc(k.omanik).replace(/'/g, '')}', ${huvitada})">✓ Märgi kõik hüvitatuks</button></div>` : ''}`
+        : '<div style="font-size:12px;color:var(--hall);margin-top:4px">Firma kaart — kontrolli /pank lehel</div>'}
+      </div>`;
+    }).join('') + `</div>`;
+}
 
 let avSisseMuujaFilter = 'koik';
 function muujaVarv(id) {
@@ -1376,6 +1441,8 @@ async function avMuudaSisseMuuja(id, muujaId) {
 }
 
 async function laadiSisseTabel() {
+  await avLaadiKaardid();
+  avLaadiHuvitamine();
   const { kuu, aasta } = avValitudKuuAasta();
   const params = [];
   if (kuu) params.push('kuu=' + kuu);
@@ -1396,7 +1463,10 @@ async function laadiSisseTabel() {
 
 function avJoonistaSisseTabel() {
   const div = document.getElementById('sisseTabel');
-  const filtreeritudList = avSisseMuujaFilter === 'koik' ? avSisseList : avSisseList.filter(s => String(s.muuja_id) === String(avSisseMuujaFilter));
+  let filtreeritudList = avSisseMuujaFilter === 'koik' ? avSisseList : avSisseList.filter(s => String(s.muuja_id) === String(avSisseMuujaFilter));
+  if (avSisseKaartFilter === 'huvitamata') filtreeritudList = filtreeritudList.filter(s => s.kaart_tyyp === 'isiklik' && !s.huvitatud);
+  else if (avSisseKaartFilter === 'puudub') filtreeritudList = filtreeritudList.filter(s => !s.kaart_id);
+  else if (avSisseKaartFilter !== 'koik') filtreeritudList = filtreeritudList.filter(s => String(s.kaart_id) === String(avSisseKaartFilter));
   if (!filtreeritudList.length) { div.innerHTML = '<div style="padding:24px;text-align:center;color:var(--hall)">Selle valiku kohta tšekke/arveid pole</div>'; document.getElementById('as-zip-nupp').style.display = 'none'; return; }
   const kokkuSumma = filtreeritudList.reduce((s, x) => s + (parseFloat(x.summa) || 0), 0);
   const kmSumma = filtreeritudList.reduce((s, x) => s + (parseFloat(x.kaibemaks) || 0), 0);
@@ -1404,7 +1474,7 @@ function avJoonistaSisseTabel() {
   const muujaValikudBase = [{ id: '', ettevote_nimi: '— vali —' }].concat(avmMuujad);
   div.innerHTML = `<div style="overflow-x:auto"><table><thead><tr>
       <th><input type="checkbox" id="as-vali-koik" onchange="avVaataKoikSisse(this.checked)"></th>
-      <th>Kuupäev</th><th>Tähtaeg</th><th>Minu ettevõte</th><th>Klient/projekt</th><th>Kirjeldus</th>
+      <th>Kuupäev</th><th>Tähtaeg</th><th>Minu ettevõte</th><th>Klient/projekt</th><th>Kirjeldus</th><th>Makstud</th>
       <th style="text-align:right">Summa km-ta</th><th style="text-align:right">Käibemaks</th><th style="text-align:right">Kokku</th>
       <th>Staatus</th><th>Tegevused</th>
     </tr></thead><tbody>` +
@@ -1419,6 +1489,9 @@ function avJoonistaSisseTabel() {
         <td><select onchange="avMuudaSisseMuuja(${s.id}, this.value)" style="font-size:12px;padding:4px 6px;width:auto;border-left:3px solid ${vc}">${muujaValikudBase.map(m => `<option value="${m.id}" ${String(m.id) === String(s.muuja_id||'') ? 'selected' : ''}>${m.ettevote_nimi}</option>`).join('')}</select></td>
         <td>${s.ettevote_nimi || '<span style="color:var(--hall)">—</span>'}</td>
         <td>${tmEsc(s.kirjeldus || '')}</td>
+        <td style="white-space:nowrap"><select onchange="avMuudaSisseKaart(${s.id}, this.value)" style="font-size:12px;padding:4px 6px;width:auto;max-width:170px">
+          <option value="">—</option>${avKaardid.map(k => `<option value="${k.id}" ${String(k.id) === String(s.kaart_id || '') ? 'selected' : ''}>${k.tyyp === 'firma' ? '🏢' : '👤'} ${tmEsc(k.omanik)} ****${tmEsc(k.last4)}</option>`).join('')}
+        </select>${s.kaart_tyyp === 'isiklik' ? `<br><span class="staatus-pill ${s.huvitatud ? 'roheline' : 'oranz'}" style="cursor:pointer;margin-top:4px;display:inline-block" title="Vajuta, et muuta" onclick="avMuudaHuvitatud(${s.id}, ${!s.huvitatud})">${s.huvitatud ? '✓ Hüvitatud' : 'Hüvitada'}</span>` : ''}</td>
         <td style="text-align:right">${avFmtEur(kmta)}</td>
         <td style="text-align:right">${avFmtEur(s.kaibemaks)}</td>
         <td style="text-align:right;font-weight:600">${avFmtEur(s.summa)}</td>
@@ -1512,6 +1585,7 @@ function avMuudaSisse(id) {
   document.getElementById('as-kirjeldus').value = s.kirjeldus || '';
   document.getElementById('as-summa').value = s.summa;
   document.getElementById('as-kaibemaks').value = s.kaibemaks;
+  const kSel = document.getElementById('as-kaart'); if (kSel) kSel.value = s.kaart_id || '';
   if (window.rpAiKmTeade) rpAiKmTeade('as-teade', null);
 }
 
@@ -1530,6 +1604,7 @@ function avTuhistaSisseMuutmine() {
   document.getElementById('as-kaibemaks').value = '';
   if (window.rpAiKmTeade) rpAiKmTeade('as-teade', null);
   document.getElementById('as-ettevote').value = '';
+  const kSel = document.getElementById('as-kaart'); if (kSel) kSel.value = '';
 }
 
 async function avSalvestaSisse() {
@@ -1550,6 +1625,15 @@ async function avSalvestaSisse() {
   fd.append('kirjeldus', document.getElementById('as-kirjeldus').value);
   fd.append('summa', document.getElementById('as-summa').value || 0);
   fd.append('kaibemaks', document.getElementById('as-kaibemaks').value || 0);
+  fd.append('kaart_id', (document.getElementById('as-kaart') || {}).value || '');
+  // Topeltkontroll: sama summa ja kuupäev ±1 päev juba olemas?
+  try {
+    const tp = await api(`/api/arved/sisse/topelt?kuupaev=${encodeURIComponent(kuupaev)}&summa=${encodeURIComponent(summaVaartus)}&ilma_id=${avSisseMuudaId || 0}`);
+    if (tp && tp.kirjed && tp.kirjed.length) {
+      const t = tp.kirjed.map(k => `${formatKp(k.kuupaev)} ${k.kirjeldus || ''} ${avFmtEur(k.summa)}${k.kaart_nimi ? ' (' + k.kaart_nimi + ')' : ''}`).join('\n');
+      if (!await kysi(`⚠️ Võib olla topelt — selline tšekk on juba olemas:\n${t}\n\nSalvestan ikkagi?`)) return;
+    }
+  } catch (e) {}
   if (avSisseFail) fd.append('fail', avSisseFail);
   if (!avSisseMuudaId && avAiMuujaId) fd.append('muuja_id', avAiMuujaId);
   const r = avSisseMuudaId

@@ -48,7 +48,7 @@
 
     tsTeade('🤖 Loen tšekki...', '#a78bfa');
     // Eelmise tšeki numbrid ei tohi uue tšeki vormi jääda.
-    ['ts-summa', 'ts-kaibemaks', 'ts-kirjeldus'].forEach(function (id) { document.getElementById(id).value = ''; });
+    ['ts-summa', 'ts-kaibemaks', 'ts-kirjeldus', 'ts-kaart'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
     if (window.rpAiKmTeade) window.rpAiKmTeade('ts-teade', null);
     var r = null;
     try {
@@ -66,8 +66,10 @@
       if (r.summa) document.getElementById('ts-kaibemaks').value = r.kaibemaks || 0;
       if (r.ettevote) document.getElementById('ts-kirjeldus').value = r.ettevote;
       if (r.ettevote_id) document.getElementById('ts-ettevote').value = r.ettevote_id;
+      if (r.kaart_id && document.getElementById('ts-kaart')) document.getElementById('ts-kaart').value = r.kaart_id;
       var kahtlane = r.km_kontroll && r.km_kontroll.olek === 'kontrolli';
-      tsTeade(kahtlane ? 'Kontrolli summad üle enne salvestamist' : '✓ Loetud — vaata üle ja salvesta', kahtlane ? '#fb923c' : '#4ade80');
+      var kaartTeade = r.kaart_id ? ' · 💳 ' + r.kaart_nimi : (r.kaart_last4 ? ' · ⚠️ tundmatu kaart ****' + r.kaart_last4 : ' · kaarti tšekilt ei leitud — vali käsitsi');
+      tsTeade((kahtlane ? 'Kontrolli summad üle enne salvestamist' : '✓ Loetud — vaata üle ja salvesta') + kaartTeade, kahtlane || !r.kaart_id ? '#fb923c' : '#4ade80');
       if (window.rpAiKmTeade) window.rpAiKmTeade('ts-teade', r);
     } else {
       tsTeade((r && r.veateade) || 'AI ei lugenud — täida käsitsi', '#fb923c');
@@ -86,6 +88,17 @@
     fd.append('kirjeldus', document.getElementById('ts-kirjeldus').value);
     fd.append('summa', document.getElementById('ts-summa').value || 0);
     fd.append('kaibemaks', document.getElementById('ts-kaibemaks').value || 0);
+    fd.append('kaart_id', (document.getElementById('ts-kaart') || {}).value || '');
+    // Topeltkontroll: sama summa ±1 päev on juba olemas?
+    try {
+      var tp = await api('/api/arved/sisse/topelt?kuupaev=' + encodeURIComponent(document.getElementById('ts-kuupaev').value) + '&summa=' + encodeURIComponent(document.getElementById('ts-summa').value || 0));
+      if (tp && tp.kirjed && tp.kirjed.length) {
+        var t = tp.kirjed.map(function (k) { return k.kuupaev.split('-').reverse().join('.') + ' ' + (k.kirjeldus || '') + ' ' + parseFloat(k.summa).toFixed(2) + ' €'; }).join('\n');
+        if (!confirm('⚠️ Võib olla topelt — selline tšekk on juba olemas:\n' + t + '\n\nSalvestan ikkagi?')) {
+          nupp.disabled = false; nupp.textContent = '💾 Salvesta tšekk'; return;
+        }
+      }
+    } catch (e) {}
     var r = await api('/api/arved/tsekk-kiire', { method: 'POST', body: fd });
     nupp.disabled = false;
     nupp.textContent = '💾 Salvesta tšekk';
@@ -135,6 +148,7 @@
       + '<div class="vorm-grupp"><label>Kuhu läheb</label><select id="ts-ettevote"></select></div>'
       + '</div>'
       + '<div class="vorm-grupp" style="margin-bottom:12px"><label>Kirjeldus</label><input type="text" id="ts-kirjeldus" placeholder="nt Lidli objekti kruvid"></div>'
+      + '<div class="vorm-grupp" style="margin-bottom:12px"><label>Makstud kaardiga</label><select id="ts-kaart"><option value="">— teadmata / ülekanne / sularaha —</option></select></div>'
       + '<div class="vorm-rida col2">'
       + '<div class="vorm-grupp"><label>Summa kokku (€)</label><input type="number" step="0.01" id="ts-summa"></div>'
       + '<div class="vorm-grupp"><label>Käibemaks (€)</label><input type="number" step="0.01" id="ts-kaibemaks"></div>'
@@ -144,6 +158,16 @@
     document.body.appendChild(modal);
     modal.addEventListener('click', function (e) { if (e.target === this) window.tsSulge(); });
 
+    // Maksekaardid (firma kaart / isiklikud kaardid — isiklikud tuleb omanikule hüvitada)
+    api('/api/arved/maksekaardid').then(function (r) {
+      var sel = document.getElementById('ts-kaart');
+      if (!sel || !r || !Array.isArray(r.kaardid)) return;
+      r.kaardid.filter(function (k) { return k.aktiivne !== false; }).forEach(function (k) {
+        var o = document.createElement('option');
+        o.value = k.id; o.textContent = (k.tyyp === 'firma' ? '🏢 ' : '👤 ') + k.nimi + ' ****' + k.last4;
+        sel.appendChild(o);
+      });
+    }).catch(function () {});
     // "Kuhu läheb" valik — vaikimisi MUU, sest enamik kaardiostudest on üldkulud.
     api('/api/admin/ettevotted').then(function (list) {
       var sel = document.getElementById('ts-ettevote');

@@ -129,6 +129,8 @@
     <div class="filtrid">
       <div><label class="silt">Suund</label>
         <select id="f-suund" onchange="laadiRead()"><option value="">Kõik</option><option value="sisse">Laekumised (sisse)</option><option value="valja">Väljaminekud (välja)</option></select></div>
+      <div id="f-vaste-grupp"><label class="silt">Vaste</label>
+        <select id="f-vaste" onchange="joonistaRead()"><option value="">Kõik lahtised</option><option value="pole">❗ Vastet pole — sisse kandmata</option><option value="on">💡 Vaste pakutud — vaja kinnitada</option></select></div>
       <div><label class="silt">Alates</label><input type="date" id="f-algus" onchange="laadiRead()"></div>
       <div><label class="silt">Kuni</label><input type="date" id="f-lopp" onchange="laadiRead()"></div>
       <div style="min-width:auto"><button class="nupp hall" onclick="tyhjendaFiltrid()">Tühjenda</button></div>
@@ -244,10 +246,10 @@
       var seotud = g('seotud', true).arv + g('seotud', false).arv;
       var ign = g('ignoreeritud', true).arv + g('ignoreeritud', false).arv;
       document.getElementById('kv').innerHTML =
-        '<div class="sisse"><b>' + ls.arv + '</b><small>' + eur(ls.summa) + '</small><span>Laekumised sisse kandmata</span></div>' +
-        '<div class="valja"><b>' + lv.arv + '</b><small>' + eur(Math.abs(lv.summa)) + '</small><span>Väljaminekud sisse kandmata</span></div>' +
-        '<div><b>' + seotud + '</b><span>Seotud arvetega</span></div>' +
-        '<div><b>' + ign + '</b><span>Ignoreeritud</span></div>';
+        '<div class="sisse" style="cursor:pointer" title="Näita ainult neid" onclick="naitaKaardilt(\'sisse\')"><b>' + ls.arv + '</b><small>' + eur(ls.summa) + '</small><span>Laekumised sisse kandmata</span></div>' +
+        '<div class="valja" style="cursor:pointer" title="Näita ainult neid" onclick="naitaKaardilt(\'valja\')"><b>' + lv.arv + '</b><small>' + eur(Math.abs(lv.summa)) + '</small><span>Väljaminekud sisse kandmata</span></div>' +
+        '<div style="cursor:pointer" onclick="naitaKaardilt(\'seotud\')"><b>' + seotud + '</b><span>Seotud arvetega</span></div>' +
+        '<div style="cursor:pointer" onclick="naitaKaardilt(\'ignoreeritud\')"><b>' + ign + '</b><span>Ignoreeritud</span></div>';
       document.getElementById('valjavotted').innerHTML = r.valjavotted.length ? r.valjavotted.map(function (v) {
         return '<tr><td>' + esc(v.loodud) + '</td><td>' + esc(v.failinimi) + '</td><td>' + kp(v.algus) + ' – ' + kp(v.lopp) + '</td><td>' + v.ridu + ' / ' + v.uusi + '</td>'
           + '<td><button class="nupp punane vaike" onclick="kustutaValjavote(' + v.id + ')">Kustuta</button></td></tr>';
@@ -271,13 +273,22 @@
     }
 
     // ── Read ──
+    // Ülevaate kaardile vajutus: näita ainult neid ridu (lahtised + suund, või seotud/ignoreeritud)
+    function naitaKaardilt(mis) {
+      document.getElementById('f-vaste').value = '';
+      if (mis === 'sisse' || mis === 'valja') { document.getElementById('f-suund').value = mis; valiSakk('lahtine'); }
+      else { document.getElementById('f-suund').value = ''; valiSakk(mis); }
+      document.getElementById('sakid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     function valiSakk(s) {
       sakk = s;
+      document.getElementById('f-vaste-grupp').style.display = s === 'lahtine' ? '' : 'none';
       document.querySelectorAll('.sakk').forEach(function (b) { b.classList.toggle('ak', b.dataset.s === s); });
       laadiRead();
     }
     function tyhjendaFiltrid() {
       document.getElementById('f-suund').value = ''; document.getElementById('f-algus').value = ''; document.getElementById('f-lopp').value = '';
+      document.getElementById('f-vaste').value = '';
       laadiRead();
     }
     function filtriParam() {
@@ -295,14 +306,17 @@
       joonistaRead();
     }
     function joonistaRead() {
-      var kindlaid = read.filter(function (x) { return x.vasted && x.vasted[0] && x.vasted[0].kindlus === 'kindel'; }).length;
+      // Vaste filter (ainult lahtiste vahelehel): kas rakendus pakub sobivat arvet/tšekki või mitte
+      var vf = sakk === 'lahtine' ? document.getElementById('f-vaste').value : '';
+      var nahtavad = vf ? read.filter(function (x) { var on = !!(x.vasted && x.vasted.length); return vf === 'on' ? on : !on; }) : read;
+      var kindlaid = nahtavad.filter(function (x) { return x.vasted && x.vasted[0] && x.vasted[0].kindlus === 'kindel'; }).length;
       document.getElementById('kindlad-riba').style.display = kindlaid ? '' : 'none';
       document.getElementById('kindlad-nupp').textContent = '✓ Kinnita kõik kindlad vasted (' + kindlaid + ')';
-      if (!read.length) {
-        document.getElementById('read').innerHTML = '<div class="tyhi">' + (sakk === 'lahtine' ? '🎉 Kõik on sisse kantud — midagi pole lahtiselt.' : 'Ridu pole.') + '</div>';
+      if (!nahtavad.length) {
+        document.getElementById('read').innerHTML = '<div class="tyhi">' + (sakk === 'lahtine' && !vf && !read.length ? '🎉 Kõik on sisse kantud — midagi pole lahtiselt.' : 'Ridu pole.') + '</div>';
         return;
       }
-      document.getElementById('read').innerHTML = read.map(function (x, i) {
+      document.getElementById('read').innerHTML = nahtavad.map(function (x) { var i = read.indexOf(x);
         var summa = parseFloat(x.summa), sisse = summa > 0;
         var h = '<div class="rida"><div class="rida-ylal"><div style="min-width:0">'
           + '<div class="rida-osapool">' + esc(x.osapool || '(osapool puudub)') + '</div>'

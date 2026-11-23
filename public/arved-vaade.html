@@ -57,6 +57,13 @@
     <div id="sisseTabel"><div class="laadimine">Laadimine...</div></div>
   </div>
 
+  <div class="kaart" id="huvitadaKaart" style="display:none">
+    <div class="kaart-hdr" style="justify-content:flex-start;gap:16px" title="Royal Paigalduse kulud, mis maksti isikliku kaardiga — summa tuleb kaardi omanikule tagasi maksta">
+      <span>💳 Hüvitada (Royal Paigalduse kulud, makstud isikliku kaardiga)</span>
+    </div>
+    <div id="huvitadaTabel"></div>
+  </div>
+
 <script src="/failid.js"></script>
 <script>
 var TOKEN = localStorage.getItem('workerToken') || localStorage.getItem('adminToken') || '';
@@ -117,16 +124,18 @@ async function laadi() {
           '<td>' + (a.fail_url ? '<a class="laadi" href="' + a.fail_url + '" target="_blank">📎 Fail</a>' : '<a class="laadi" href="#" onclick="rpLaeFail(\'/api/arved/' + a.id + '/pdf\', TOKEN, \'Arve.pdf\', { ava: true });return false;">📄 PDF</a>') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
+  joonistaHuvitada(r.huvitada || []);
   sisseValitud = {};
   var sisseDiv = document.getElementById('sisseTabel');
   if (!r.sisse.length) {
     sisseDiv.innerHTML = '<div class="tyhi">Selles kuus üleslaetud tšekke/arveid pole.</div>';
     document.getElementById('av-zip-nupp').style.display = 'none';
   } else {
-    sisseDiv.innerHTML = '<table><thead><tr><th><input type="checkbox" onchange="valiKoikSisse(this.checked)"></th><th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th><th>Käibemaks</th><th>Kokku</th><th>Staatus</th><th></th></tr></thead><tbody>' +
+    sisseDiv.innerHTML = '<table><thead><tr><th><input type="checkbox" onchange="valiKoikSisse(this.checked)"></th><th>Kuupäev</th><th>Tähtaeg</th><th>Ettevõte</th><th>Kirjeldus</th><th>Makstud</th><th>Käibemaks</th><th>Kokku</th><th>Staatus</th><th></th></tr></thead><tbody>' +
       r.sisse.map(function(s) {
         return '<tr><td><input type="checkbox" onchange="valiSisse(' + s.id + ', this.checked)"></td>' +
           '<td>' + fmtKp(s.kuupaev) + '</td><td>' + (s.tahtaeg ? fmtKp(s.tahtaeg) : '—') + '</td><td>' + (s.ettevote_nimi || '—') + '</td><td>' + (s.kirjeldus || '') + '</td>' +
+          '<td>' + makstudSilt(s) + '</td>' +
           '<td>' + fmtEur(s.kaibemaks) + '</td>' +
           '<td style="font-weight:600">' + fmtEur(s.summa) + '</td>' +
           '<td><span class="staatus" style="' + (s.staatus === 'makstud' ? 'background:rgba(74,222,128,0.15);color:#4ade80' : 'background:rgba(251,191,36,0.15);color:#fbbf24') + '">' + (s.staatus === 'makstud' ? '✅ Makstud' : '⏳ Ootel') + '</span></td>' +
@@ -135,6 +144,31 @@ async function laadi() {
   }
 }
 
+function escH(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+// Millise kaardiga maksti: firma kaart / isiklik kaart (hüvitada või hüvitatud)
+function makstudSilt(s) {
+  if (!s.kaart_nimi) return '<span style="color:var(--text3)">—</span>';
+  if (s.kaart_tyyp !== 'isiklik') return '🏢 ' + escH(s.kaart_nimi);
+  return '👤 ' + escH(s.kaart_omanik) + ' isiklik ' + (s.huvitatud
+    ? '<span class="staatus" style="background:rgba(74,222,128,0.15);color:#4ade80">hüvitatud</span>'
+    : '<span class="staatus" style="background:rgba(251,146,60,0.15);color:#fb923c">hüvitada</span>');
+}
+function joonistaHuvitada(list) {
+  var kaart = document.getElementById('huvitadaKaart');
+  if (!list.length) { kaart.style.display = 'none'; return; }
+  kaart.style.display = '';
+  var grupid = {};
+  list.forEach(function(x) { (grupid[x.omanik] = grupid[x.omanik] || []).push(x); });
+  document.getElementById('huvitadaTabel').innerHTML = Object.keys(grupid).map(function(omanik) {
+    var read = grupid[omanik];
+    var kokku = read.reduce(function(a, x) { return a + (parseFloat(x.summa) || 0); }, 0);
+    return '<div style="padding:12px 16px 4px;font-weight:700">' + escH(omanik) + ' — hüvitada <span style="color:#fb923c">' + fmtEur(kokku) + '</span> <span style="font-weight:400;color:var(--text3);font-size:12px">(' + read.length + ' tšekki, kaart ****' + escH(read[0].last4) + ')</span></div>' +
+      '<table><thead><tr><th>Kuupäev</th><th>Kirjeldus</th><th>Summa</th><th></th></tr></thead><tbody>' +
+      read.map(function(x) {
+        return '<tr><td>' + fmtKp(x.kuupaev) + '</td><td>' + escH(x.kirjeldus || '') + '</td><td style="font-weight:600">' + fmtEur(x.summa) + '</td><td>' + (x.fail_url ? '<a class="laadi" href="' + x.fail_url + '" target="_blank">📎 Fail</a>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }).join('');
+}
 var sisseValitud = {};
 var valjaZipIdid = [];
 function laadiValjaZip() {

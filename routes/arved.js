@@ -653,6 +653,99 @@ router.post('/admin/lubatud/:workerId', noudaAdmin, async (req, res) => {
   }
 });
 
+// ── MAKSEKAARDID (tabel luuakse db.js-is) ─────────────────────────────────────
+// AI loeb tšekilt kaardi 4 viimast numbrit -> leiame kaardi. Tagastab { kaart_last4, kaart_id, kaart_nimi }.
+async function leiaKaart(loetud) {
+  const last4 = String(loetud || '').replace(/\D/g, '').slice(-4);
+  if (last4.length !== 4) return { kaart_last4: '', kaart_id: null, kaart_nimi: '' };
+  try {
+    const r = await pool.query('SELECT id, nimi FROM maksekaardid WHERE last4=$1 AND aktiivne=true', [last4]);
+    return { kaart_last4: last4, kaart_id: r.rows[0] ? r.rows[0].id : null, kaart_nimi: r.rows[0] ? r.rows[0].nimi : '' };
+  } catch (e) { return { kaart_last4: last4, kaart_id: null, kaart_nimi: '' }; }
+}
+function kaartIdVormist(v) { const n = parseInt(v, 10); return n > 0 ? n : null; }
+// Kõik tšekid lähevad vaikimisi müüja (Royal Paigaldus) alla, kui AI ostjat tšekilt ei tuvastanud
+async function vaikimisiMuujaId() {
+  try { const r = await pool.query('SELECT id FROM arve_muujad WHERE vaikimisi=true LIMIT 1'); return r.rows[0] ? r.rows[0].id : null; }
+  catch (e) { return null; }
+}
+
+router.get('/maksekaardid', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, last4, nimi, omanik, tyyp, aktiivne FROM maksekaardid ORDER BY tyyp DESC, nimi');
+    res.json({ ok: true, kaardid: r.rows });
+  } catch (err) { res.json({ ok: true, kaardid: [] }); }
+});
+router.post('/maksekaardid', noudaAdmin, async (req, res) => {
+  const last4 = String(req.body.last4 || '').replace(/\D/g, '');
+  const omanik = String(req.body.omanik || '').trim().slice(0, 120);
+  const tyyp = req.body.tyyp === 'firma' ? 'firma' : 'isiklik';
+  if (last4.length !== 4) return res.json({ ok: false, veateade: 'Kaardi 4 viimast numbrit' });
+  if (!omanik) return res.json({ ok: false, veateade: 'Kelle kaart?' });
+  const nimi = String(req.body.nimi || '').trim().slice(0, 120) || `${omanik} ${tyyp === 'firma' ? 'firmakaart' : 'isiklik'}`;
+  try {
+    const r = await pool.query(
+      `INSERT INTO maksekaardid (last4, nimi, omanik, tyyp) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (last4) DO UPDATE SET nimi=EXCLUDED.nimi, omanik=EXCLUDED.omanik, tyyp=EXCLUDED.tyyp, aktiivne=true RETURNING *`,
+      [last4, nimi, omanik, tyyp]);
+    res.json({ ok: true, kaart: r.rows[0] });
+  } catch (err) { res.status(500).json({ ok: false, veateade: err.message }); }
+});
+
+// Hüvitamise kokkuvõte: isiklike kaartidega makstud tšekid omaniku kaupa (kogu aeg, mitte ainult valitud kuu)
+router.get('/sisse/huvitamine', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT k.id, k.last4, k.nimi, k.omanik, k.tyyp,
+              COUNT(s.id)::int AS tsekke,
+              COALESCE(SUM(s.summa), 0) AS kokku,
+              COALESCE(SUM(s.summa) FILTER (WHERE s.huvitatud), 0) AS huvitatud,
+              COALESCE(SUM(s.summa) FILTER (WHERE NOT s.huvitatud), 0) AS huvitada,
+              COUNT(s.id) FILTER (WHERE NOT s.huvitatud)::int AS huvitamata_tsekke
+       FROM maksekaardid k LEFT JOIN arve_sisse s ON s.kaart_id = k.id
+       GROUP BY k.id ORDER BY k.tyyp DESC, k.omanik`);
+    res.json({ ok: true, kaardid: r.rows });
+  } catch (err) { res.json({ ok: false, veateade: err.message, kaardid: [] }); }
+});
+
+// Topeltkontroll enne salvestamist: sama summa ja kuupäev ±1 päev
+router.get('/sisse/topelt', noudaAdmin, async (req, res) => {
+  const summa = parseFloat(req.query.summa);
+  const kp = puhasKuupaev(req.query.kuupaev);
+  const ilmaId = parseInt(req.query.ilma_id, 10) || 0;
+  if (!kp || !(summa > 0)) return res.json({ ok: true, kirjed: [] });
+  try {
+    const r = await pool.query(
+      `SELECT s.id, to_char(s.kuupaev,'YYYY-MM-DD') AS kuupaev, s.kirjeldus, s.summa, k.nimi AS kaart_nimi
+       FROM arve_sisse s LEFT JOIN maksekaardid k ON k.id = s.kaart_id
+       WHERE ABS(s.summa - $1) < 0.005 AND s.kuupaev BETWEEN $2::date - 1 AND $2::date + 1 AND s.id <> $3
+       ORDER BY s.kuupaev LIMIT 5`, [summa, kp, ilmaId]);
+    res.json({ ok: true, kirjed: r.rows });
+  } catch (err) { res.json({ ok: true, kirjed: [] }); }
+});
+
+router.put('/sisse/:id(\\d+)/kaart', noudaAdmin, async (req, res) => {
+  try {
+    await pool.query('UPDATE arve_sisse SET kaart_id=$1 WHERE id=$2', [kaartIdVormist(req.body.kaart_id), req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, veateade: err.message }); }
+});
+router.put('/sisse/:id(\\d+)/huvitatud', noudaAdmin, async (req, res) => {
+  const h = !!req.body.huvitatud;
+  try {
+    await pool.query('UPDATE arve_sisse SET huvitatud=$1, huvitatud_kp=$2 WHERE id=$3', [h, h ? new Date().toISOString().slice(0, 10) : null, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ ok: false, veateade: err.message }); }
+});
+// Hulgi: märgi ühe kaardi kõik hüvitamata tšekid hüvitatuks (nt kui maksid Liisile kogu summa korraga)
+router.put('/sisse/huvitatud-kaart/:kaartId(\\d+)', noudaAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `UPDATE arve_sisse SET huvitatud=true, huvitatud_kp=CURRENT_DATE WHERE kaart_id=$1 AND NOT huvitatud RETURNING id`, [req.params.kaartId]);
+    res.json({ ok: true, muudetud: r.rowCount });
+  } catch (err) { res.status(500).json({ ok: false, veateade: err.message }); }
+});
+
 // ── SISSETULEVAD (tšekid/arved, mida ise maksnud — üleslaadimine + nimekiri) ──
 router.get('/sisse', noudaAdmin, async (req, res) => {
   const { kuu, aasta } = req.query;
@@ -662,8 +755,10 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
     if (kuu) { params.push(kuu); where += ` AND EXTRACT(MONTH FROM s.kuupaev) = $${params.length}`; }
     if (aasta) { params.push(aasta); where += ` AND EXTRACT(YEAR FROM s.kuupaev) = $${params.length}`; }
     const r = await pool.query(
-      `SELECT s.*, e.nimi as ettevote_nimi FROM arve_sisse s
+      `SELECT s.*, e.nimi as ettevote_nimi, k.nimi AS kaart_nimi, k.omanik AS kaart_omanik, k.tyyp AS kaart_tyyp, k.last4 AS kaart_last4
+       FROM arve_sisse s
        LEFT JOIN ettevotted e ON s.ettevote_id = e.id
+       LEFT JOIN maksekaardid k ON k.id = s.kaart_id
        WHERE ${where} ORDER BY s.kuupaev DESC, s.id DESC`,
       params
     );
@@ -674,7 +769,9 @@ router.get('/sisse', noudaAdmin, async (req, res) => {
 });
 router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) => {
   const { kuupaev, tahtaeg, ettevote_id, kirjeldus, summa, kaibemaks, staatus } = req.body;
-  const muujaId = parseInt(req.body.muuja_id, 10) || null; // AI tuvastatud meie ettevõte (valikuline)
+  // AI tuvastatud meie ettevõte; kui puudub, läheb vaikimisi müüja (Royal Paigaldus) alla
+  const muujaId = parseInt(req.body.muuja_id, 10) || await vaikimisiMuujaId();
+  const kaartId = kaartIdVormist(req.body.kaart_id);
   if (!kuupaev) return res.json({ ok: false, veateade: 'Kuupäev on kohustuslik' });
   // Väldi täiesti tühjade kirjete tekkimist (nt kogemata Salvesta vajutamine ilma faili/summata).
   if (!req.file && !(parseFloat(summa) || 0) && !(kirjeldus || '').trim()) {
@@ -702,6 +799,10 @@ router.post('/sisse', noudaAdmin, uploadSisse.single('fail'), async (req, res) =
     if (muujaId) {
       try { await pool.query('UPDATE arve_sisse SET muuja_id=$1 WHERE id=$2', [muujaId, r.rows[0].id]); r.rows[0].muuja_id = muujaId; }
       catch (e) { console.warn('Kulu müüja määramine ebaõnnestus:', e.message); }
+    }
+    if (kaartId) {
+      try { await pool.query('UPDATE arve_sisse SET kaart_id=$1 WHERE id=$2', [kaartId, r.rows[0].id]); r.rows[0].kaart_id = kaartId; }
+      catch (e) { console.warn('Kulu kaardi määramine ebaõnnestus:', e.message); }
     }
     res.json({ ok: true, kirje: r.rows[0] });
   } catch (err) {
@@ -742,6 +843,9 @@ router.put('/sisse/:id(\\d+)', noudaAdmin, uploadSisse.single('fail'), async (re
         `UPDATE arve_sisse SET kuupaev=$1, tahtaeg=$2, ettevote_id=$3, kirjeldus=$4, summa=$5, kaibemaks=$6 WHERE id=$7`,
         [kuupaev, tahtaeg || null, ettevote_id || null, kirjeldus || '', parseFloat(summa) || 0, parseFloat(kaibemaks) || 0, req.params.id]
       );
+    }
+    if (req.body.kaart_id !== undefined) {
+      await pool.query('UPDATE arve_sisse SET kaart_id=$1 WHERE id=$2', [kaartIdVormist(req.body.kaart_id), req.params.id]);
     }
     const uuendatud = await pool.query('SELECT * FROM arve_sisse WHERE id=$1', [req.params.id]);
     res.json({ ok: true, kirje: uuendatud.rows[0] });
@@ -824,7 +928,8 @@ router.post('/sisse/loe', noudaAdmin, aiFailid(uploadSisse), async (req, res) =>
     const juhis = `Sa vaatad ühte OSTUARVET või kulutšekki. See dokument on väljastatud ühele MEIE ettevõtetest. Meie ettevõtted on: ${meieTekst(meie)}. MEIE oleme sellel dokumendil alati OSTJA/KLIENT, mitte kunagi müüja.
 Loe dokumendilt välja MÜÜJA andmed — see on teine osapool, kellele me maksame (tavaliselt dokumendi ülaosas logo juures, või väljadel "Müüja", "Väljastaja", "Saatja", "Teenusepakkuja", või kelle pangakontole makse tehakse). ÄRA KUNAGI kirjuta väljale "ettevote" ühegi meie ettevõtte nime — need oleme meie ise, ostja, mitte müüja!
 Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
-"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI meie ettevõte)", "meie_ettevote": "see meie ettevõtte nimi ülaltoodud nimekirjast täpselt samal kujul, kes on dokumendil ostja (nimi või registrikood dokumendil); kui ostjat pole näha (nt tavaline poetšekk), tühi string", "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)" ning allpool kirjeldatud summaväljad.
+"ettevote": "müüja ehk kauba/teenuse pakkuja ettevõtte nimi (MITTE KUNAGI meie ettevõte)", "meie_ettevote": "see meie ettevõtte nimi ülaltoodud nimekirjast täpselt samal kujul, kes on dokumendil ostja (nimi või registrikood dokumendil); kui ostjat pole näha (nt tavaline poetšekk), tühi string", "kuupaev": "YYYY-MM-DD (arve/tšeki väljastamise kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on dokumendil kirjas; kui tegu on juba tasutud tšekiga, mille tähtaega pole, jäta tühjaks)",
+"kaart": "makse KAARDI 4 viimast numbrit, kui tšekil/arvel on kaardimakse näha (nt "************6501", "Visa ****2450", "Kaart: xxxx4645" -> ainult 4 numbrit "6501"); kui kaardinumbrit pole näha (nt sularaha või pangaülekanne), tühi string". Lisaks allpool kirjeldatud summaväljad.
 Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
     const t = await loeDokument(req, juhis, { summad: true });
     if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
@@ -853,7 +958,8 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
       tahtaeg: puhasKuupaev(väljad.tahtaeg),
       ettevote_id: ettevoteId,
       muuja_id: meieLeitud ? meieLeitud.id : null,
-      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : ''
+      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : '',
+      ...(await leiaKaart(väljad.kaart))
     });
   } catch (err) {
     console.error(err);
@@ -876,7 +982,8 @@ Seejärel:
 - kui suund="sisse": väljale "vastaspool" kirjuta MÜÜJA nimi, kellelt me ostsime. ÄRA KUNAGI kirjuta väljale "vastaspool" ühegi meie ettevõtte nime — need oleme meie ise!
 - väljale "meie_ettevote" kirjuta see meie ettevõtte nimi ülaltoodud nimekirjast täpselt samal kujul, kes on dokumendil meie pool (müüja või ostja); kui seda pole näha (nt tavaline poetšekk), tühi string.
 Vasta AINULT ühe JSON-objektiga, ilma muu tekstita, koodiplokkideta. Väljad:
-"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "meie_ettevote": "meie ettevõtte nimi nimekirjast või tühi string", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)" ning allpool kirjeldatud summaväljad.
+"suund": "valja" või "sisse", "vastaspool": "teise osapoole ettevõtte nimi", "meie_ettevote": "meie ettevõtte nimi nimekirjast või tühi string", "number": "arve number kui nähtaval, muidu tühi string", "kuupaev": "YYYY-MM-DD (dokumendi kuupäev)", "tahtaeg": "YYYY-MM-DD (maksetähtaeg, kui on kirjas, muidu tühi string)",
+"kaart": "makse KAARDI 4 viimast numbrit, kui tšekil/arvel on kaardimakse näha (nt "************6501", "Visa ****2450", "Kaart: xxxx4645" -> ainult 4 numbrit "6501"); kui kaardinumbrit pole näha (nt sularaha või pangaülekanne), tühi string". Lisaks allpool kirjeldatud summaväljad.
 Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasuta 0.`;
     const t = await loeDokument(req, juhis, { summad: true });
     if (!t.ok) return res.json({ ok: false, veateade: t.veateade });
@@ -903,7 +1010,8 @@ Kui mõnda tekstivälja ei leia, kasuta tühja stringi; kui summat ei leia, kasu
       km_kontroll: t.summad.km_kontroll,
       ettevote_id: ettevoteId,
       muuja_id: meieLeitud ? meieLeitud.id : null,
-      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : ''
+      muuja_nimi: meieLeitud ? meieLeitud.ettevote_nimi : '',
+      ...(await leiaKaart(väljad.kaart))
     });
   } catch (err) {
     console.error(err);
@@ -962,11 +1070,22 @@ router.get('/vaade', noudaArvedLubatud, async (req, res) => {
     if (kuu) { sp.push(kuu); sWhere += ` AND EXTRACT(MONTH FROM s.kuupaev) = $${sp.length}`; }
     if (aasta) { sp.push(aasta); sWhere += ` AND EXTRACT(YEAR FROM s.kuupaev) = $${sp.length}`; }
     const sisse = await pool.query(
-      `SELECT s.*, e.nimi as ettevote_nimi FROM arve_sisse s LEFT JOIN ettevotted e ON s.ettevote_id = e.id
+      `SELECT s.*, e.nimi as ettevote_nimi, k.nimi AS kaart_nimi, k.omanik AS kaart_omanik, k.tyyp AS kaart_tyyp
+       FROM arve_sisse s LEFT JOIN ettevotted e ON s.ettevote_id = e.id
+       LEFT JOIN maksekaardid k ON k.id = s.kaart_id
        WHERE ${sWhere} ORDER BY s.kuupaev DESC, s.id DESC`,
       sp
     );
-    res.json({ ok: true, valja: valja.rows, sisse: sisse.rows });
+    // Raamatupidajale: isikliku kaardiga makstud ja veel hüvitamata Royal Paigalduse kulud (kogu aeg, mitte ainult valitud kuu)
+    let huvitada = [];
+    try {
+      const h = await pool.query(
+        `SELECT s.id, to_char(s.kuupaev,'YYYY-MM-DD') AS kuupaev, s.kirjeldus, s.summa, s.fail_url, k.omanik, k.nimi AS kaart_nimi, k.last4
+         FROM arve_sisse s JOIN maksekaardid k ON k.id = s.kaart_id
+         WHERE k.tyyp = 'isiklik' AND NOT s.huvitatud ORDER BY k.omanik, s.kuupaev`);
+      huvitada = h.rows;
+    } catch (e) { /* veerge pole veel */ }
+    res.json({ ok: true, valja: valja.rows, sisse: sisse.rows, huvitada });
   } catch (err) {
     res.status(500).json({ ok: false, veateade: err.message });
   }
@@ -1932,8 +2051,8 @@ router.post('/tsekk-kiire', noudaAdmin, uploadSisse.single('fail'), async (req, 
       stream.end(req.file.buffer);
     });
     const r = await pool.query(
-      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id, fail_resource_type, muuja_id)
-       VALUES ($1,$2,$3,$4,$5,'makstud',$6,$7,$8,$9) RETURNING *`,
+      `INSERT INTO arve_sisse (kuupaev, ettevote_id, kirjeldus, summa, kaibemaks, staatus, fail_url, fail_public_id, fail_resource_type, muuja_id, kaart_id)
+       VALUES ($1,$2,$3,$4,$5,'makstud',$6,$7,$8,$9,$10) RETURNING *`,
       [
         req.body.kuupaev || new Date().toISOString().split('T')[0],
         req.body.ettevote_id || null,
@@ -1943,7 +2062,8 @@ router.post('/tsekk-kiire', noudaAdmin, uploadSisse.single('fail'), async (req, 
         result.secure_url,
         result.public_id,
         cloudinaryResourceType(req.file.mimetype),
-        muujaId
+        muujaId,
+        kaartIdVormist(req.body.kaart_id)
       ]
     );
     res.json({ ok: true, kirje: r.rows[0] });
