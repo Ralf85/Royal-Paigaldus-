@@ -9,6 +9,20 @@ function noudaSisslogimist(req, res, next) {
   next();
 }
 
+// Kellaajad minutiteks; kui lõpp <= algus, läheb kirje üle südaöö (+24h). nihe = päeva nihe minutites.
+function minVahemik(algus, lopp, nihe) {
+  const m = (x) => { const [h, mm] = String(x).split(':'); return (parseInt(h, 10) || 0) * 60 + (parseInt(mm, 10) || 0); };
+  const a = m(algus); let l = m(lopp);
+  if (l <= a) l += 1440;
+  return [a + nihe, l + nihe];
+}
+// Kuupäev kujul AAAA-KK-PP
+function kpYmdAbi(d) {
+  if (!d) return '';
+  if (typeof d === 'string') return d.slice(0, 10);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 // KAASTÖÖTAJAD: töötaja saab töökirje lisamisel märkida, kes olid temaga samal objektil koos.
 // Igale kaaslasele tekib tema enda töökirje (samad kuupäev, kellaajad, objekt, kirjeldus; km 0, pildid
 // jäävad ainult lisaja kirjele). lisas_worker_id = kes kirje tema eest lisas, koos_kirje_id = lisaja kirje.
@@ -30,10 +44,24 @@ async function lisaKaaslasteKirjed(req, k, kaaslasteIdd) {
          WHERE w.id = $1 AND we.ettevote_id = $2 AND w.aktiivne = true`, [kid, k.ettevote_id]);
       if (!w.rows.length) { tulemus.vahele.push({ nimi: '#' + kid, pohjus: 'pole selle ettevõttega seotud' }); continue; }
       const nimi = w.rows[0].nimi;
+      // Kattuvuse kontroll minutites; üle südaöö minev kirje (nt 21:30–00:30) loetakse järgmisse päeva ulatuvaks.
+      // Vaatame ka eelmise päeva kirjeid, mis võivad üle südaöö sellesse päeva ulatuda.
       const kattub = await pool.query(
-        `SELECT 1 FROM tookirjed WHERE worker_id = $1 AND kuupaev = $2 AND algus < $4::time AND lopp > $3::time LIMIT 1`,
-        [kid, k.kuupaev, k.algus, k.lopp]);
-      if (kattub.rows.length) { tulemus.vahele.push({ nimi, pohjus: 'tal on sel ajal juba kirje' }); continue; }
+        `SELECT t.kuupaev, t.algus, t.lopp, e.nimi AS ettevote, COALESCE(o.nimi, '') AS objekt
+         FROM tookirjed t JOIN ettevotted e ON e.id = t.ettevote_id LEFT JOIN objektid o ON o.id = t.objekt_id
+         WHERE t.worker_id = $1 AND t.kuupaev BETWEEN ($2::date - 1) AND $2::date`,
+        [kid, k.kuupaev]);
+      const uusVahemik = minVahemik(k.algus, k.lopp, 0);
+      const ees = kattub.rows.find(r => {
+        const nihe = kpYmdAbi(r.kuupaev) === String(k.kuupaev).slice(0, 10) ? 0 : -1440;
+        const v = minVahemik(r.algus, r.lopp, nihe);
+        return v[0] < uusVahemik[1] && v[1] > uusVahemik[0];
+      });
+      if (ees) {
+        const kp = kpYmdAbi(ees.kuupaev).split('-').reverse().slice(0, 2).join('.');
+        tulemus.vahele.push({ nimi, pohjus: `tal on juba kirje ${kp} ${String(ees.algus).slice(0, 5)}–${String(ees.lopp).slice(0, 5)} (${ees.ettevote}${ees.objekt ? ', ' + ees.objekt : ''})` });
+        continue;
+      }
       const uus = await pool.query(
         `INSERT INTO tookirjed (worker_id, ettevote_id, objekt_id, kuupaev, algus, lopp, tunnid, kommentaar, kilomeetrid, km_raha,
            lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk, lisas_worker_id, koos_kirje_id)
