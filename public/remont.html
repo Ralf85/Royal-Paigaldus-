@@ -239,6 +239,8 @@
   tr.mt-rida.avatud td { background: #181c24; border-bottom-color: transparent; }
   tr.mt-detail td { background: #181c24; padding: 4px 14px 16px; }
   table.mt tfoot td { font-weight: 800; border-top: 1px solid rgba(255,255,255,0.12); border-bottom: none; }
+  .kinnitamata-silt { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px; background: rgba(251,146,60,0.18); color: #fb923c; border: 1px solid rgba(251,146,60,0.45); vertical-align: middle; white-space: nowrap; }
+  .mt-rida.kinnitamata > td:first-child { box-shadow: inset 3px 0 0 #fb923c; }
   .tapp { font-size: 10px; vertical-align: middle; } .tapp.punane { color: #f87171; } .tapp.kollane { color: #fcd34d; }
   input.arv-linnuke { width: 22px; height: 22px; accent-color: #22c55e; cursor: pointer; margin: 0; vertical-align: middle; }
   input.arv-linnuke:disabled { cursor: wait; opacity: .5; }
@@ -891,6 +893,13 @@ function joonistaTood() {
 // Reale vajutades avaneb detail (pilt, tooted, nupud). Adminil on veerus "Royali arvetes" linnuke:
 // linnuke peale = tšekk läheb Royal Paigalduse sissetulevatesse arvetesse, maha = võetakse sealt välja.
 var kuluAvatud = null;
+var kuluAinultKinnitamata = false;
+function kuluKinnitamataLylita() { kuluAinultKinnitamata = !kuluAinultKinnitamata; joonistaKulud(); }
+async function kinnitaKulu(id) {
+  var r = await api('/kulud/' + id + '/kinnita', { method: 'POST', body: '{}' });
+  if (!r || !r.ok) { alert((r && r.veateade) || 'Ei õnnestunud'); return; }
+  await laadi();
+}
 function kuluAvaSulge(id) { kuluAvatud = kuluAvatud === id ? null : id; joonistaKulud(); }
 
 // Linnuke ei kasuta brauseri prompt/confirm aknaid (Safari võib need vaikselt ära jätta) —
@@ -948,8 +957,12 @@ function joonistaKulud() {
     kokku += Number(k.summa) || 0; kN += Number(k.naabri_summa) || 0; kM += Number(k.minu_summa) || 0;
     kKm += Number(k.kaibemaks) || 0; if (k.arvetes) arvetes++;
   });
+  var kinnitamataArv = A.kulud.filter(function (k) { return k.kinnitamata; }).length;
+  if (!kinnitamataArv) kuluAinultKinnitamata = false;
   html += '<div class="mt-pea"><div>' + A.kulud.length + ' tšekki · kokku <b>' + raha(kokku) + '</b>'
-    + (admin && A.kulud.length ? ' · Royali arvetes <b>' + arvetes + ' / ' + A.kulud.length + '</b>' : '') + '</div>'
+    + (admin && A.kulud.length ? ' · Royali arvetes <b>' + arvetes + ' / ' + A.kulud.length + '</b>' : '')
+    + (admin && kinnitamataArv ? ' · <span class="kinnitamata-silt" style="cursor:pointer" onclick="kuluKinnitamataLylita()" title="Vajuta, et näha ainult neid">⚠ ' + kinnitamataArv + ' kinnitamata' + (kuluAinultKinnitamata ? ' — näita kõiki' : '') + '</span>' : '')
+    + '</div>'
     + (admin ? '<button class="btn kuld" onclick="uusKulu()">+ Lisa tšekk</button>' : '') + '</div>';
   if (!A.kulud.length) {
     html += '<div class="kaart"><div class="tyhi">Materjale pole veel lisatud.</div></div>';
@@ -963,16 +976,20 @@ function joonistaKulud() {
     + (admin ? '<th class="p">KM</th><th class="k">Royali arvetes</th>' : '')
     + '</tr></thead><tbody>';
   A.kulud.forEach(function (k) {
+    if (kuluAinultKinnitamata && !k.kinnitamata) return;
     var avatud = kuluAvatud === k.id;
     var puudub = !k.foto_url;
     var uusTootajalt = admin && k.tootaja && !k.tootaja.ule_vaadatud;
     var isiklik = admin && k.tootaja && k.tootaja.maksis === 'isiklik';
-    html += '<tr class="mt-rida' + (avatud ? ' avatud' : '') + '" onclick="kuluAvaSulge(' + k.id + ')">'
+    html += '<tr class="mt-rida' + (avatud ? ' avatud' : '') + (k.kinnitamata ? ' kinnitamata' : '') + '" onclick="kuluAvaSulge(' + k.id + ')">'
       + '<td class="kp">' + esc(kp(k.kuupaev).slice(0, 5)) + '</td>'
       + '<td class="pood">' + esc(k.kirjeldus) + ' <span class="nool">' + (avatud ? '▴' : '▾') + '</span>'
       + (puudub ? ' <span class="tapp punane" title="Tšeki pilt puudub">●</span>' : '')
-      + (uusTootajalt ? ' <span class="tapp kollane" title="Töötaja lisatud — vaata jaotus üle">●</span>' : '')
-      + (admin && k.arvetest ? ' <span class="tapp" style="color:#60a5fa" title="Lisatud Arvete lehelt (projekt TELJE 10) — vaikimisi kõik ' + esc(s.minu_nimi) + ' kanda. Ava „Muuda“ ja jaota.">●</span>' : '')
+      + (k.kinnitamata
+          ? (admin
+            ? ' <span class="kinnitamata-silt" title="' + (k.arvetest ? 'Lisatud Arvete lehelt — vaikimisi kõik ' + esc(s.minu_nimi) + ' kanda' : 'Töötaja lisatud') + '. Ava ja vajuta „Muuda jaotust“ või „✓ Kinnita“.">⚠ kinnitamata' + (k.arvetest ? ' · Arvetest' : uusTootajalt ? ' · töötajalt' : '') + '</span>'
+            : ' <span class="kinnitamata-silt" title="' + esc(s.minu_nimi) + ' pole selle tšeki jaotust veel üle vaadanud">jaotamisel</span>')
+          : '')
       + (k.maksja === 'naaber' ? '<div class="alam">maksis ' + esc(s.naabri_nimi) + '</div>' : '')
       + '</td>'
       + '<td class="p">' + raha(k.summa) + '</td>'
@@ -994,7 +1011,7 @@ function joonistaKulud() {
     + '<td class="p m">' + raha(kM) + '</td><td class="p n">' + raha(kN) + '</td>'
     + (admin ? '<td class="p">' + raha(kKm) + '</td><td class="k h">' + arvetes + ' / ' + A.kulud.length + '</td>' : '')
     + '</tr></tfoot></table></div>';
-  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="tapp kollane">●</span> töötaja lisatud, vaata üle &nbsp; <span class="tapp" style="color:#60a5fa">●</span> lisatud Arvete lehelt, jaota &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu) või võtab sealt välja. „hüvitis ✓" = töötaja maksis oma kaardiga.</div>';
+  if (admin) html += '<div class="vihje" style="margin-top:8px"><span class="tapp punane">●</span> tšeki pilt puudub &nbsp; <span class="kinnitamata-silt">⚠ kinnitamata</span> sa pole seda tšekki ise jaotanud (tuli Arvete lehelt või töötajalt) — ava, kontrolli jaotus ja vajuta „✓ Kinnita“ või „Muuda jaotust“ &nbsp;·&nbsp; Linnuke „Royali arvetes" lisab tšeki Royal Paigalduse arvetesse (küsib käibemaksu) või võtab sealt välja. „hüvitis ✓" = töötaja maksis oma kaardiga.</div>';
   document.getElementById('paneel-kulud').innerHTML = html;
 }
 
@@ -1018,7 +1035,9 @@ function kuluDetailHtml(k) {
     html += ribaHtml(k.summa > 0 ? k.naabri_summa / k.summa * 100 : 0, raha(k.minu_summa), raha(k.naabri_summa));
   }
   if (saabMuuta()) {
-    html += '<div class="kirje-nupud"><button class="btn vaike kuldne" onclick="muudaKulu(' + k.id + ', true)">Muuda jaotust</button>'
+    if (k.kinnitamata) html += '<div class="kirje-meta" style="color:#fb923c;margin-top:6px">⚠ Kinnitamata — ' + (k.arvetest ? 'tuli Arvete lehelt, praegu kõik ' + esc(s.minu_nimi) + ' kanda.' : 'töötaja lisatud.') + ' Kui jaotus on õige, vajuta „✓ Kinnita“.</div>';
+    html += '<div class="kirje-nupud">' + (k.kinnitamata ? '<button class="btn vaike kuldne" onclick="kinnitaKulu(' + k.id + ')">✓ Kinnita</button>' : '')
+      + '<button class="btn vaike kuldne" onclick="muudaKulu(' + k.id + ', true)">Muuda jaotust</button>'
       + '<button class="btn vaike" onclick="muudaKulu(' + k.id + ')">Muuda</button>'
       + (k.foto_url ? '<a class="btn vaike" href="' + esc(k.foto_url) + '" target="_blank" rel="noopener">Ava tšekk</a>' : '')
       + '<button class="btn vaike punane" onclick="kustutaKulu(' + k.id + ')">Kustuta</button></div>';

@@ -327,6 +327,8 @@ async function koguAndmed() {
       foto_pdf: k.foto_tyyp === 'raw',
       kaibemaks: parseFloat(k.kaibemaks) || 0, arvetes: !!k.arve_sisse_id,
       arvetest: !!k.arvetest_tulnud,
+      // Kinnitamata = Ralf pole seda tšekki ise jaotanud/kinnitanud: tuli Arvete lehelt või töötaja lisas
+      kinnitamata: !!k.arvetest_tulnud || (!!k.tootaja_maksis && !k.ule_vaadatud),
       read: kuluRead[k.id] || [],
       // Töötaja lisatud tšekk (ainult adminile, vt /andmed)
       tootaja: k.tootaja_maksis ? {
@@ -929,6 +931,13 @@ async function kustutaKuluKirje(k) {
   }
   await pool.query(`DELETE FROM remont_kulud WHERE id=$1`, [k.id]);
 }
+// Kinnita tšekk ilma muutmata (praegune jaotus on õige) — kaob "kinnitamata" märge
+router.post('/kulud/:id/kinnita', noudaAdmin, async (req, res) => {
+  const r = await pool.query(
+    `UPDATE remont_kulud SET arvetest_tulnud=false, ule_vaadatud=true WHERE id=$1 RETURNING id`, [req.params.id]);
+  if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  res.json({ ok: true });
+});
 router.delete('/kulud/:id', noudaAdmin, async (req, res) => {
   const v = await pool.query(`SELECT * FROM remont_kulud WHERE id=$1`, [req.params.id]);
   if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
