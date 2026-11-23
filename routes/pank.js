@@ -98,6 +98,14 @@ router.use(async (req, res, next) => {
 // ── ABIFUNKTSIOONID ─────────────────────────────────────────────────────────
 
 function dekodeeri(puhver) {
+  // UTF-16 (mõni eksport, nt Excelis "Unicode text") — BOM FF FE / FE FF või iga teine bait null
+  if ((puhver[0] === 0xFF && puhver[1] === 0xFE) || (puhver.length > 3 && puhver[1] === 0 && puhver[3] === 0)) {
+    return puhver.toString('utf16le').replace(/^\uFEFF/, '');
+  }
+  if (puhver[0] === 0xFE && puhver[1] === 0xFF) {
+    const b = Buffer.from(puhver); b.swap16();
+    return b.toString('utf16le').replace(/^\uFEFF/, '');
+  }
   let s = puhver.toString('utf8');
   if (s.includes('�')) {
     // Vanemad Swedbanki CSV-d on Windows-1257 (Balti) kodeeringus — muidu tulevad õ/ä/ö/ü valesti.
@@ -144,8 +152,11 @@ function sentides(n) { return Math.round(Math.abs(parseFloat(n) || 0) * 100); }
 // ── CSV (Swedbank) ─────────────────────────────────────────────────────────
 
 function loeCsvRead(tekst) {
-  const esimene = tekst.split(/\r?\n/)[0] || '';
-  const eraldaja = (esimene.match(/;/g) || []).length >= (esimene.match(/,/g) || []).length ? ';' : ',';
+  // Eraldaja: see märk (; , tab), mida esimestes ridades kõige rohkem on (pealkirjaread ei sega)
+  const algus = tekst.split(/\r?\n/).slice(0, 15).join('\n');
+  const loe = (m) => (algus.match(m) || []).length;
+  const kandidaadid = [[';', loe(/;/g)], [',', loe(/,/g)], ['\t', loe(/\t/g)]].sort((a, b) => b[1] - a[1]);
+  const eraldaja = kandidaadid[0][0];
   const read = []; let rida = [], vali = '', jutus = false;
   for (let i = 0; i < tekst.length; i++) {
     const c = tekst[i];
@@ -166,33 +177,54 @@ function loeCsvRead(tekst) {
   return read;
 }
 
-// Päiste nimed eesti ja inglise keelses Swedbanki (ja sarnases) väljavõttes
+// Päiste nimed eesti ja inglise keelses Swedbanki (ja sarnases) väljavõttes.
+// Võrdlus käib normaliseeritud kujul (väiketähed, ilma jutumärkide, sulgude ja kirjavahemärkideta).
 const PAISED = {
-  konto: ['kliendi konto', 'client account', 'konto', 'account'],
-  reatyyp: ['reatüüp', 'row type', 'rea tüüp'],
-  kuupaev: ['kuupäev', 'date', 'kande kuupäev', 'tehingu kuupäev', 'booking date'],
-  osapool: ['saaja/maksja', 'beneficiary/payer', 'saaja / maksja', 'saaja või maksja nimi', 'counterparty'],
-  osapoole_konto: ['saaja/maksja konto', 'beneficiary/payer account', 'saaja või maksja konto', 'vastaspoole konto', 'counterparty account'],
-  selgitus: ['selgitus', 'details', 'makse selgitus', 'description'],
-  summa: ['summa', 'amount'],
+  konto: ['kliendi konto', 'client account', 'konto', 'account', 'konto number', 'account number'],
+  reatyyp: ['reatüüp', 'row type', 'rea tüüp', 'kirje tüüp', 'record type'],
+  kuupaev: ['kuupäev', 'date', 'kande kuupäev', 'tehingu kuupäev', 'booking date', 'kandekuupäev', 'transaction date', 'value date', 'väärtuspäev', 'kuupaev'],
+  osapool: ['saaja/maksja', 'beneficiary/payer', 'saaja / maksja', 'saaja või maksja nimi', 'counterparty', 'saaja maksja', 'beneficiary payer', 'saaja/maksja nimi', 'payee/payer', 'osapool', 'counterparty name'],
+  osapoole_konto: ['saaja/maksja konto', 'beneficiary/payer account', 'saaja või maksja konto', 'vastaspoole konto', 'counterparty account', 'saaja maksja konto', 'beneficiary payer account'],
+  selgitus: ['selgitus', 'details', 'makse selgitus', 'description', 'selgitus/kirjeldus', 'kirjeldus', 'payment details'],
+  summa: ['summa', 'amount', 'summa eur', 'amount eur', 'tehingu summa', 'transaction amount'],
   valuuta: ['valuuta', 'currency'],
-  dk: ['deebet/kreedit', 'debit/credit', 'deebet/kreedit (d/c)', 'd/c', 'd/k'],
-  arhiiv: ['arhiveerimistunnus', 'transfer reference', 'archive id', 'arhiivitunnus', 'kande viide'],
+  dk: ['deebet/kreedit', 'debit/credit', 'deebet/kreedit (d/c)', 'd/c', 'd/k', 'deebet kreedit', 'debit credit', 'deebet/kreedit d/c', 'debit/credit d/c'],
+  arhiiv: ['arhiveerimistunnus', 'transfer reference', 'archive id', 'arhiivitunnus', 'kande viide', 'archiving code', 'arhiveerimiskood', 'tehingu id', 'transaction id'],
   tyyp: ['tehingu tüüp', 'transaction type', 'tüüp', 'type'],
-  viide: ['viitenumber', 'reference number', 'viide', 'reference']
+  viide: ['viitenumber', 'reference number', 'viide', 'reference', 'viite number']
 };
+function normPais(h) {
+  return String(h || '').replace(/^\uFEFF/, '').toLowerCase()
+    .replace(/[()"'.:]/g, ' ').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
+}
+const PAISED_NORM = Object.fromEntries(Object.entries(PAISED).map(([k, nimed]) => [k, nimed.map(normPais)]));
+function leiaVeerud(rida) {
+  const pais = rida.map(normPais);
+  const idx = {};
+  for (const [voti, nimed] of Object.entries(PAISED_NORM)) {
+    idx[voti] = pais.findIndex(h => nimed.includes(h));
+  }
+  // Varuvõimalus: "summa"/"kuupäev" sõna päise sees (nt "Summa (EUR)", "Kande kuupäev 2026")
+  if (idx.summa < 0) idx.summa = pais.findIndex(h => /^(summa|amount)\b/.test(h));
+  if (idx.kuupaev < 0) idx.kuupaev = pais.findIndex(h => /kuupäev|kuupaev|\bdate\b/.test(h));
+  return { idx, pais };
+}
 
 function parsiCsv(tekst) {
   const read = loeCsvRead(tekst);
   if (read.length < 2) throw new Error('Fail on tühi või pole CSV');
-  const pais = read[0].map(h => h.trim().toLowerCase().replace(/\s+/g, ' '));
-  const idx = {};
-  for (const [voti, nimed] of Object.entries(PAISED)) {
-    idx[voti] = pais.findIndex(h => nimed.includes(h));
+  // Päiserida ei pruugi olla esimene (mõnel ekspordil on enne pealkirja-/kontoread) — otsi esimesest 15 reast
+  let paiseRida = -1, idx = null, esimenePais = null;
+  for (let i = 0; i < Math.min(read.length, 15); i++) {
+    const l = leiaVeerud(read[i]);
+    if (!esimenePais) esimenePais = l.pais;
+    if (l.idx.kuupaev >= 0 && l.idx.summa >= 0) { paiseRida = i; idx = l.idx; break; }
   }
-  if (idx.kuupaev < 0 || idx.summa < 0) {
-    throw new Error('Ei tundnud väljavõtet ära (puudub kuupäeva või summa veerg). Lae Swedbanki internetipangast "Konto väljavõte" CSV või XML vormingus.');
+  if (paiseRida < 0) {
+    const naide = (esimenePais || []).filter(Boolean).slice(0, 12).join(' | ');
+    throw new Error('Ei tundnud väljavõtet ära (puudub kuupäeva või summa veerg). Faili esimese rea veerud: ' + (naide || '—') + '. Lae Swedbanki internetipangast "Konto väljavõte" CSV või XML vormingus.');
   }
+  read.splice(0, paiseRida);
   const v = (r, k) => (idx[k] >= 0 ? String(r[idx[k]] || '').trim() : '');
   const tulem = [];
   for (const r of read.slice(1)) {
