@@ -57,6 +57,9 @@
   .ymarda button { background: var(--bg3); border: 0.5px solid var(--piir); color: var(--tekst2); border-radius: 6px; font-size: 11px; padding: 4px 6px; cursor: pointer; font-family: inherit; }
   .hoiatus { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(251,146,60,0.18); color: var(--oranz); margin-left: 6px; }
   .vahe { font-size: 11.5px; color: var(--roheline); font-weight: 700; }
+  tr.kaubik td { background: rgba(96,165,250,0.06); }
+  tr.kaubik td.pood { color: var(--sinine); }
+  .kaubik-info { font-size: 12.5px; color: var(--tekst2); margin-top: 10px; }
   .tyhi { text-align: center; padding: 30px 10px; color: var(--tekst3); font-size: 14px; }
   .salvestatud { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--roheline); color: #052e12; font-weight: 800; font-size: 13px; padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .salvestatud.naha { opacity: 1; }
@@ -89,7 +92,7 @@
     var TOKEN = localStorage.getItem('adminToken') || '';
     if (localStorage.getItem('teema') === 'hele') document.body.classList.add('hele');
     if (!TOKEN) window.location = '/admin-login';
-    var grupid = [], ettevotted = [];
+    var grupid = [], ettevotted = [], kaubik = [], kaubikTeade = null;
     var HIND_H = 27, HIND_KM = 0.5; // Lidli hinnad (km-ta) — vahe eurodes näidatakse ainult Lidlile
 
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -143,6 +146,8 @@
       var r = await api('/api/arveldus?' + q);
       if (!r.ok) { document.getElementById('paevad').innerHTML = '<div class="tyhi">' + esc(r.veateade || 'Viga') + '</div>'; return; }
       grupid = r.grupid || [];
+      kaubik = r.kaubik || [];
+      kaubikTeade = r.kaubik_teade || null;
       joonista();
     }
 
@@ -155,19 +160,31 @@
       var paevi = Object.keys(k.paevi).length, yleVaatamata = Object.keys(k.yle).length;
       var lidl = onLidl();
       var voit = (k.at - k.tt) * HIND_H + (k.ak - k.tk) * HIND_KM;
-      document.getElementById('kokkuvote-kaart').style.display = grupid.length ? '' : 'none';
+      document.getElementById('kokkuvote-kaart').style.display = (grupid.length || kaubik.length) ? '' : 'none';
       document.getElementById('kokkuvote').innerHTML =
         '<div><b>' + arv(k.tt, 2) + ' → ' + arv(k.at, 2) + ' h</b><span>tunnid: tegelik → arvele</span></div>' +
         '<div><b>' + arv(k.tk, 1) + ' → ' + arv(k.ak, 1) + ' km</b><span>km: tegelik → arvele</span></div>' +
         (lidl ? '<div class="voit"><b>' + (voit >= 0 ? '+' : '') + eur(voit) + '</b><span>vahe arvel (km-ta, ' + HIND_H + ' €/h, ' + arv(HIND_KM, 2) + ' €/km)</span></div>'
               : '<div><b>' + (k.at - k.tt >= 0 ? '+' : '') + arv(k.at - k.tt, 2) + ' h</b><span>vahe tundides</span></div>') +
         '<div><b style="color:' + (yleVaatamata ? 'var(--oranz)' : 'var(--roheline)') + '">' + (paevi - yleVaatamata) + ' / ' + paevi + '</b><span>päeva üle vaadatud</span></div>';
+      var rent = kaubik.filter(function (x) { return x.tyyp === 'rent'; }), soit = kaubik.filter(function (x) { return x.tyyp === 'soit'; });
+      var kInfo = '';
+      if (rent.length || soit.length) {
+        kInfo = '🚐 Kaubik: <b>' + rent.reduce(function (a, x) { return a + x.kogus; }, 0) + ' rendipäeva</b> (' + eur(rent.reduce(function (a, x) { return a + x.summa; }, 0)) + ')'
+          + (soit.length ? ' · päeviku sõidud <b>' + arv(soit.reduce(function (a, x) { return a + x.kogus; }, 0), 1) + ' km</b> (' + eur(soit.reduce(function (a, x) { return a + x.summa; }, 0)) + ')' : '')
+          + ' — muudetakse <a href="/kaubik-admin" target="_blank" style="color:var(--sinine)">kaubiku lehel</a>.';
+      }
+      if (kaubikTeade && !/^🚐 Lisatud/.test(kaubikTeade)) kInfo += (kInfo ? '<br>' : '') + esc(kaubikTeade);
+      document.getElementById('kokkuvote').insertAdjacentHTML('afterend', '');
+      var ki = document.getElementById('kaubik-info');
+      if (!ki) { ki = document.createElement('div'); ki.id = 'kaubik-info'; ki.className = 'kaubik-info'; document.getElementById('kokkuvote-kaart').appendChild(ki); }
+      ki.innerHTML = kInfo;
     }
 
     function joonista() {
       joonistaKokkuvote();
       var div = document.getElementById('paevad');
-      if (!grupid.length) { div.innerHTML = '<div class="tyhi">Sellel perioodil töökirjeid pole.</div>'; return; }
+      if (!grupid.length && !kaubik.length) { div.innerHTML = '<div class="tyhi">Sellel perioodil töökirjeid pole.</div>'; return; }
       var ainult = document.getElementById('f-ainult').checked;
       var paevad = [];
       var jargi = {};
@@ -175,15 +192,24 @@
         if (!jargi[g.kuupaev]) { jargi[g.kuupaev] = []; paevad.push(g.kuupaev); }
         jargi[g.kuupaev].push(i);
       });
+      var kaubikPaeval = {};
+      kaubik.forEach(function (x) {
+        if (!x.kuupaev) return;
+        (kaubikPaeval[x.kuupaev] = kaubikPaeval[x.kuupaev] || []).push(x);
+        if (!jargi[x.kuupaev]) { jargi[x.kuupaev] = []; paevad.push(x.kuupaev); }
+      });
+      paevad.sort();
       var html = '';
       paevad.forEach(function (kp) {
         var idx = jargi[kp];
-        var koikOk = idx.every(function (i) { return grupid[i].ule_vaadatud && !grupid[i].muutunud; });
+        var koikOk = idx.length ? idx.every(function (i) { return grupid[i].ule_vaadatud && !grupid[i].muutunud; }) : true;
+        var kRead = kaubikPaeval[kp] || [];
         if (ainult && koikOk) return;
         var tt = 0, at = 0, tk = 0, ak = 0;
         idx.forEach(function (i) { var g = grupid[i]; tt += g.tegelik_tunnid; at += g.arve_tunnid; tk += g.tegelik_km; ak += g.arve_km; });
         html += '<div class="paev' + (koikOk ? ' ok' : '') + '">'
-          + '<div class="paev-pea"><div><b>' + kpPikk(kp) + '</b><span class="meta">' + arv(tt, 2) + ' h → <b style="color:var(--kuld)">' + arv(at, 2) + ' h</b> · ' + arv(tk, 1) + ' → ' + arv(ak, 1) + ' km</span></div>'
+          + '<div class="paev-pea"><div><b>' + kpPikk(kp) + '</b><span class="meta">' + arv(tt, 2) + ' h → <b style="color:var(--kuld)">' + arv(at, 2) + ' h</b> · ' + arv(tk, 1) + ' → ' + arv(ak, 1) + ' km'
+          + (kRead.some(function (x) { return x.tyyp === 'rent'; }) ? ' · <span style="color:var(--sinine)">🚐 rent</span>' : '') + '</span></div>'
           + '<label class="lyliti"><input type="checkbox"' + (koikOk ? ' checked' : '') + ' onchange="paevOk(\'' + kp + '\', this.checked)"> ' + (koikOk ? '✓ Üle vaadatud' : 'Märgi üle vaadatuks') + '</label></div>'
           + '<div class="tabel-umbris"><table><thead><tr><th>Pood</th><th>Projekt · töötajad</th><th class="p">Tegelik h</th><th class="p">Arvele h</th><th class="p">Tegelik km</th><th class="p">Arvele km</th></tr></thead><tbody>';
         idx.forEach(function (i) {
@@ -199,6 +225,14 @@
             + '<td class="p"><input class="arv' + (g.km_muudetud ? ' muudetud' : '') + '" inputmode="decimal" value="' + arv(g.arve_km, 1) + '" onchange="muuda(' + i + ', \'km\', this.value)">'
             + (g.km_muudetud ? '<div class="vahe">' + (g.arve_km - g.tegelik_km >= 0 ? '+' : '') + arv(g.arve_km - g.tegelik_km, 1) + ' km</div>' : '') + '</td>'
             + '</tr>';
+        });
+        kRead.forEach(function (x) {
+          html += '<tr class="kaubik"><td class="pood">🚐 ' + (x.tyyp === 'rent' ? 'Kaubiku rent' : 'Kaubiku sõit') + '</td>'
+            + '<td>' + esc(x.kirjeldus) + '<div class="alam">muudetakse kaubiku lehel</div></td>'
+            + (x.tyyp === 'rent'
+              ? '<td class="p" colspan="2">' + arv(x.kogus, 0) + ' ' + esc(x.uhik) + ' × ' + eur(x.hind) + '</td><td></td>'
+              : '<td colspan="2"></td><td class="p">' + arv(x.kogus, 1) + ' km</td>')
+            + '<td class="p"><b>' + eur(x.summa) + '</b></td></tr>';
         });
         html += '</tbody></table></div></div>';
       });

@@ -695,7 +695,7 @@ async function arveInfo(algus, lopp, ettevoteId) {
         sulgudes = komm.join('; ');
       }
       read.push({ kirjeldus: `${s.kaubiku_nimi} rent ${kpL(kp)}` + (sulgudes ? ` (${sulgudes.slice(0, 120)})` : ''),
-        kogus: 1, uhik: 'päev', hind: h.paevahind, summa: r2(h.paevahind) });
+        kogus: 1, uhik: 'päev', hind: h.paevahind, summa: r2(h.paevahind), detail_kp: kp });
     });
   }
   if (h.km_hind > 0) {

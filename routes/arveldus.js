@@ -111,7 +111,23 @@ router.get('/', noudaAdmin, async (req, res) => {
   if (!ettevote_id || !algus || !lopp) return res.json({ ok: false, veateade: 'Vali ettevõte ja periood' });
   try {
     const grupid = await arveldatavadGrupid(ettevote_id, algus, lopp);
-    res.json({ ok: true, grupid });
+    // Kaubik (ainult Lidl): rendipäevad ja kaubiku päeviku sõidud päevade kaupa — näha ülevaates,
+    // muudetakse /kaubik-admin lehel. Samad read lähevad arvele (rent kokku, sõidud Transport reale).
+    let kaubik = [], kaubikTeade = null;
+    try {
+      const e = await pool.query('SELECT tyyp FROM ettevotted WHERE id=$1', [ettevote_id]);
+      if (e.rows.length && e.rows[0].tyyp === 'lidl') {
+        const k = await require('./kaubik').arveInfo(algus, lopp, ettevote_id);
+        kaubikTeade = k.teade || null;
+        kaubik = (k.read || []).map(x => ({
+          kuupaev: String(x.detail_kp || '').slice(0, 10),
+          tyyp: x.kaubik_km ? 'soit' : 'rent',
+          kirjeldus: x.kaubik_km ? (x.detail_kirjeldus || x.kirjeldus) : x.kirjeldus,
+          kogus: +x.kogus || 0, uhik: x.uhik || '', hind: +x.hind || 0, summa: +x.summa || 0
+        }));
+      }
+    } catch (e) { kaubikTeade = 'Kaubiku ridu ei saanud laadida: ' + e.message; }
+    res.json({ ok: true, grupid, kaubik, kaubik_teade: kaubikTeade });
   } catch (err) {
     console.error('arveldus:', err);
     res.status(500).json({ ok: false, veateade: err.message });
