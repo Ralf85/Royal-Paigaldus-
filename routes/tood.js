@@ -28,7 +28,9 @@ function kpYmdAbi(d) {
 // jäävad ainult lisaja kirjele). lisas_worker_id = kes kirje tema eest lisas, koos_kirje_id = lisaja kirje.
 const kaaslasteVeerud = pool.query(
   `ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS lisas_worker_id INTEGER;
-   ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS koos_kirje_id INTEGER;`
+   ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS koos_kirje_id INTEGER;
+   ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS jagatud_grupp VARCHAR(50);
+   ALTER TABLE tookirjed ADD COLUMN IF NOT EXISTS jagatud_osa VARCHAR(10);`
 ).catch(err => console.error('tookirjed kaaslaste veergude loomine ebaõnnestus:', err.message));
 
 // Loob kaaslastele oma töökirjed (kasutavad nii uue kirje lisamine kui olemasoleva muutmine).
@@ -150,7 +152,71 @@ router.get('/objektid/:ettevoteId', async (req, res) => {
 });
 
 // Lisa töökirje
+// MITU OBJEKTI ÜHE KIRJEGA (nt Lidli "Transporditeenus": üks sõit mitmesse poodi).
+// Aeg ja km jagatakse objektide vahel VÕRDSELT: tekib N tavalist töökirjet järjestikuste ajavahemikega
+// (nt 10:30–18:30 nelja poe peale -> 10:30–12:30, 12:30–14:30, ...), km = kokku / N. Nii näeb iga pood
+// Lidli aruannetes ja arvel oma osa ning kõik olemasolevad aruanded töötavad muutmata.
+// Lisakulu ja pildid jäävad esimesele kirjele; kaaslased lisatakse igale osale.
+function hhmm(min) { min = ((min % 1440) + 1440) % 1440; return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
 router.post('/lisa', noudaSisslogimist, async (req, res) => {
+  const objektid = Array.isArray(req.body.objektid)
+    ? Array.from(new Set(req.body.objektid.map(x => parseInt(x, 10)).filter(x => x > 0))).slice(0, 30)
+    : [];
+  if (objektid.length < 2) return lisaUksKirje(req, res);
+
+  const { algus, lopp } = req.body;
+  const { minutid } = tunnidKellaajast(algus, lopp);
+  const n = objektid.length;
+  if (!(minutid > 0)) return res.json({ ok: false, veateade: 'Kontrolli kellaaegu' });
+  if (minutid < n) return res.json({ ok: false, veateade: `Liiga lühike aeg ${n} objekti jaoks` });
+  const [ah, am] = String(algus).split(':').map(Number);
+  const alguseMin = ah * 60 + am;
+  const kmKokku = req.body.km_soiduk === 'puudub' ? 0 : (parseFloat(req.body.kilomeetrid) || 0);
+  const kmOsa = Math.floor(kmKokku / n * 10) / 10;
+  const grupp = String(req.body.klient_id || ('g' + Date.now() + Math.random().toString(36).slice(2, 7))).slice(0, 40);
+  const tulemused = [];
+  let kasutatudMin = 0, kasutatudKm = 0;
+  for (let i = 0; i < n; i++) {
+    const viimane = i === n - 1;
+    const osaMin = viimane ? minutid - kasutatudMin : Math.floor(minutid / n);
+    const osaKm = viimane ? Math.round((kmKokku - kasutatudKm) * 10) / 10 : kmOsa;
+    const keha = Object.assign({}, req.body, {
+      objekt_id: objektid[i],
+      algus: hhmm(alguseMin + kasutatudMin),
+      lopp: hhmm(alguseMin + kasutatudMin + osaMin),
+      kilomeetrid: osaKm,
+      lisakulu_summa: i === 0 ? req.body.lisakulu_summa : 0,
+      lisakulu_selgitus: i === 0 ? req.body.lisakulu_selgitus : '',
+      klient_id: req.body.klient_id ? (String(req.body.klient_id).slice(0, 34) + '-' + (i + 1)) : null
+    });
+    delete keha.objektid;
+    kasutatudMin += osaMin; kasutatudKm += osaKm;
+    const r = await new Promise(resolve => {
+      const vale = { statusCode: 200, status(c) { this.statusCode = c; return this; }, json(x) { resolve(x); } };
+      lisaUksKirje(Object.assign(Object.create(Object.getPrototypeOf(req)), req, { body: keha }), vale);
+    });
+    if (!r || !r.ok) {
+      if (!tulemused.length) return res.json(r || { ok: false, veateade: 'Serveri viga' });
+      return res.json({ ok: false, veateade: `Salvestati ${tulemused.length}/${n} objekti, siis tekkis viga: ${(r && r.veateade) || 'serveri viga'}. Kontrolli kirjeid.` });
+    }
+    tulemused.push(r);
+  }
+  try {
+    await kaaslasteVeerud;
+    const idd = tulemused.map(t => t.kirjeId);
+    for (let i = 0; i < idd.length; i++) {
+      await pool.query('UPDATE tookirjed SET jagatud_grupp=$1, jagatud_osa=$2 WHERE id=$3', [grupp, `${i + 1}/${n}`, idd[i]]);
+    }
+  } catch (e) { console.error('jagatud_grupp:', e.message); }
+  const kaaslased = { lisatud: [], vahele: [] };
+  tulemused.forEach(t => { if (t.kaaslased) { kaaslased.lisatud.push(...(t.kaaslased.lisatud || [])); kaaslased.vahele.push(...(t.kaaslased.vahele || [])); } });
+  kaaslased.lisatud = Array.from(new Set(kaaslased.lisatud));
+  const tunnid = tulemused.reduce((a, t) => a + (parseFloat(t.tunnid) || 0), 0);
+  res.json({ ok: true, kirjeId: tulemused[0].kirjeId, tunnid: tunnid.toFixed(2), jagatud: n,
+    tunnidOsa: (parseFloat(tulemused[0].tunnid) || 0).toFixed(2), kmOsa, kaaslased });
+});
+
+async function lisaUksKirje(req, res) {
   const { ettevote_id, objekt_id, kuupaev, algus, lopp, kommentaar, kilomeetrid, lisakulu_summa, lisakulu_selgitus, lidl_projekt_id, km_soiduk } = req.body;
   const klientId = req.body.klient_id ? String(req.body.klient_id).slice(0, 40) : null;
   try {
@@ -204,7 +270,7 @@ router.post('/lisa', noudaSisslogimist, async (req, res) => {
     console.error(err);
     res.status(500).json({ ok: false, veateade: 'Serveri viga' });
   }
-});
+}
 
 // Kustuta töökirje
 router.delete('/kustuta/:id', noudaSisslogimist, async (req, res) => {
