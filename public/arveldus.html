@@ -190,7 +190,7 @@
           var g = grupid[i];
           html += '<tr>'
             + '<td class="pood">' + esc(g.objekt_nimi) + (g.muutunud ? '<span class="hoiatus" title="Töötaja lisas või muutis kirjet pärast sinu ülevaatust — kontrolli üle">⚠ muutunud</span>' : '') + '</td>'
-            + '<td>' + esc(g.projekt_nimi) + '<div class="alam">' + esc(g.tootajad) + (g.kirjeid > 1 ? ' · ' + g.kirjeid + ' kirjet' : '') + '</div></td>'
+            + '<td>' + esc(g.projekt_nimi) + '<div class="alam">' + esc(g.ajad || g.tootajad).split(' · ').join('<br>') + '</div></td>'
             + '<td class="p">' + arv(g.tegelik_tunnid, 2) + '</td>'
             + '<td class="p" style="white-space:nowrap"><input class="arv' + (g.tunnid_muudetud ? ' muudetud' : '') + '" inputmode="decimal" value="' + arv(g.arve_tunnid, 2) + '" onchange="muuda(' + i + ', \'t\', this.value)">'
             + '<span class="ymarda"><button title="Ümarda üles täis pooltunnini" onclick="ymarda(' + i + ', 0.5)">½</button><button title="Ümarda üles täistunnini" onclick="ymarda(' + i + ', 1)">1</button></span>'
