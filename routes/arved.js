@@ -567,16 +567,18 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     };
     if (viis === 'objektid') {
       const r = await pool.query(
+        // Projekti JA objekti kaupa: sama poe eri projektid (nt "Nutikassa riiulid" ja "Transporditeenus")
+        // on eraldi ridadel ja read on projektide kaupa koos (projekt, siis pood).
         `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
                 SUM(t.tunnid) as tunnid,
                 SUM(t.kilomeetrid) as km,
-                string_agg(DISTINCT NULLIF(COALESCE(lp.nimi, t.kommentaar), ''), ' | ') as kirjeldused
+                COALESCE(lp.nimi, string_agg(DISTINCT NULLIF(t.kommentaar, ''), ' | ')) as kirjeldused
          FROM tookirjed t
          LEFT JOIN objektid o ON t.objekt_id = o.id
          LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
-         GROUP BY o.nimi
-         ORDER BY o.nimi`,
+         GROUP BY lp.nimi, o.nimi
+         ORDER BY (lp.nimi IS NULL), lp.nimi, (o.nimi IS NULL), o.nimi`,
         [ettevote_id, algus, lopp]
       );
       const read = [];
