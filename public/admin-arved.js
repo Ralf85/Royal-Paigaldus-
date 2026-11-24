@@ -581,7 +581,7 @@ function avJoonistaRead() {
   const body = document.getElementById('av-read-body');
   body.innerHTML = avRead.map((r, idx) => `
     <tr>
-      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)">${Array.isArray(r.detail) && r.detail.length ? `<div style="font-size:11px;color:var(--hall);margin-top:2px">📎 ${r.detail.length} ${r.detail[0] && r.detail[0].tyyp === 'lisakulu' ? 'kulu' : 'sõitu'} läheb arve PDF-i lisalehele</div>` : ''}</td>
+      <td><input type="text" value="${(r.kirjeldus||'').replace(/"/g,'&quot;')}" oninput="avUuendaRida(${idx},'kirjeldus',this.value)">${Array.isArray(r.detail) && r.detail.length ? `<div style="font-size:11px;color:var(--hall);margin-top:2px">📎 ${r.detail.length} ${r.detail[0] && r.detail[0].tyyp === 'lisakulu' ? 'kulu' : 'sõitu'} eraldi aruandes (📎 nupp arvete nimekirjas)</div>` : ''}</td>
       <td><input type="number" step="0.1" value="${r.kogus}" oninput="avUuendaRida(${idx},'kogus',this.value)"></td>
       <td><input type="text" value="${r.uhik||''}" oninput="avUuendaRida(${idx},'uhik',this.value)"></td>
       <td><input type="number" step="0.01" value="${r.hind}" oninput="avUuendaRida(${idx},'hind',this.value)"></td>
@@ -904,13 +904,13 @@ function avLaadiFailAlla(url, failiNimi) {
   a.click();
   a.remove();
 }
-async function avAvaArvePdf(id, viis, aken, number) {
+async function avAvaArvePdf(id, viis, aken, number, aruanne) {
   if (viis === 'vaata' && aken === undefined) aken = avAvaTyhiAken();
   const arve = avArvedList.find(x => x.id === id);
   const nr = number || (arve && arve.number) || id;
-  const failiNimi = `Arve ${String(nr).replace(/[\\/:*?"<>|]/g, '-')}.pdf`;
+  const failiNimi = `Arve ${String(nr).replace(/[\\/:*?"<>|]/g, '-')}${aruanne ? ' aruanne' : ''}.pdf`;
   try {
-    const r = await fetch(`/api/arved/${id}/pdf`, { headers: { 'x-session-token': TOKEN } });
+    const r = await fetch(`/api/arved/${id}/${aruanne ? 'aruanne' : 'pdf'}`, { headers: { 'x-session-token': TOKEN } });
     if (!r.ok) {
       const tekst = r.status === 401 ? 'Sessioon on aegunud. Palun logi uuesti sisse.' : (await r.text()).slice(0, 200);
       throw new Error(tekst || `HTTP ${r.status}`);
@@ -1031,6 +1031,7 @@ function avJoonistaArvedTabel() {
           ${a.fail_url
             ? `<a href="${avFailUrl(a.fail_url)}" target="_blank" class="av-tegevus-ikoon" title="Ava fail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>`
             : `<button type="button" onclick="avAvaArvePdf(${a.id}, 'vaata')" class="av-tegevus-ikoon" title="Ava PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`}
+          ${a.on_aruanne ? `<button type="button" onclick="avAvaArvePdf(${a.id}, 'vaata', undefined, undefined, true)" class="av-tegevus-ikoon" title="Aruanne: transpordi sõidud ja lisakulud eraldi (arvest eraldi PDF)">📎</button>` : ''}
           <button type="button" onclick="avAvaArvePdf(${a.id}, 'laadi')" class="av-tegevus-ikoon" title="Laadi PDF alla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 19h16"/></svg></button>
           ${!a.fail_url && !a.kreedit_algne_arve_id && !avArvedList.some(x => x.kreedit_algne_arve_id === a.id)
             ? `<button type="button" onclick="avMuudaArve(${a.id})" class="av-tegevus-ikoon" title="Muuda arvet (sama number)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>` : ''}

@@ -504,7 +504,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       if (tyyp !== 'lidl') return [];
       const l = await pool.query(
         `SELECT to_char(t.kuupaev,'YYYY-MM-DD') AS kp, COALESCE(o.nimi, 'Objekt määramata') AS objekt,
-                t.lisakulu_summa AS summa, COALESCE(t.lisakulu_selgitus, '') AS selgitus
+                t.lisakulu_summa AS summa, COALESCE(NULLIF(t.lisakulu_selgitus, ''), t.kommentaar, '') AS selgitus
          FROM tookirjed t LEFT JOIN objektid o ON o.id = t.objekt_id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3 AND COALESCE(t.lisakulu_summa, 0) > 0
          ORDER BY t.kuupaev, o.nimi`, [ettevote_id, algus, lopp]);
@@ -517,7 +517,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       });
       const koosKmKokku = detail.reduce((a, d) => a + d.hind, 0);
       const ilmaKm = +(koosKmKokku / kmKoef).toFixed(2);
-      return [{ kirjeldus: `Lisakulud (${detail.length} tk, vt lisaleht)`, kogus: 1, uhik: 'tk', hind: ilmaKm, summa: ilmaKm, detail }];
+      return [{ kirjeldus: 'Lisakulud', kogus: 1, uhik: 'tk', hind: ilmaKm, summa: ilmaKm, detail }];
     };
     const valmisRead = async (read) => (await valmisReadKm(read)).concat(await lisakuluRead());
     const valmisReadKm = async (read) => {
@@ -561,7 +561,7 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       });
       detail.sort((a, b) => String(a.kp).localeCompare(String(b.kp)));
       const kogus = Math.round(koikKm.reduce((s, r) => s + (+r.kogus || 0), 0) * 10) / 10;
-      const transport = { kirjeldus: 'Transport (sõidud lisalehel)', kogus, uhik: 'km', hind: hindKm,
+      const transport = { kirjeldus: 'Transport', kogus, uhik: 'km', hind: hindKm,
         summa: +(kogus * hindKm).toFixed(2), detail };
       return read.filter(r => r.uhik !== 'km').concat([transport]).concat(kaubikMuu).map(puhas);
     };
@@ -1159,7 +1159,8 @@ router.get('/', noudaAdmin, async (req, res) => {
     // Müüja nimi kaasa (m.ettevote_nimi as muuja_nimi) — kasutaja teeb arveid mitme erineva
     // enda ettevõtte alt (mitte ainult Royal Paigaldus), et Arvete ajaloos saaks müüja järgi filtreerida.
     const r = await pool.query(
-      `SELECT a.*, e.nimi as ettevote_nimi, m.ettevote_nimi as muuja_nimi
+      `SELECT a.*, e.nimi as ettevote_nimi, m.ettevote_nimi as muuja_nimi,
+              EXISTS (SELECT 1 FROM arve_read r WHERE r.arve_id = a.id AND r.detail IS NOT NULL) AS on_aruanne
        FROM arved a
        LEFT JOIN ettevotted e ON a.ettevote_id = e.id
        LEFT JOIN arve_muujad m ON a.muuja_id = m.id
@@ -1954,6 +1955,20 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
     doc.text(muuja.ettevote_nimi.toUpperCase() + (muuja.swift ? '  SWIFT ' + muuja.swift : ''), leftX, footY, { width: CONTENT_W, align: 'right' });
     if (muuja.pangakonto) doc.text('IBAN ' + muuja.pangakonto, leftX, footY + 11, { width: CONTENT_W, align: 'right' });
 
+
+    doc.end();
+    return doc;
+}
+
+// LISADE ARUANNE (eraldi PDF, mitte arve osa): arve ridade detail — Lidli "Transport" rea iga sõit ja
+// "Lisakulud" rea iga kulu. Põhiarve jääb puhtaks; aruande saab vajadusel Lidlile eraldi saata.
+function renderLisadPdf(arve, read) {
+    const onKreedit = !!arve.kreedit_algne_arve_id;
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const MARGIN = 40, PAGE_W = 595.28, CONTENT_W = PAGE_W - MARGIN * 2;
+    const leftX = MARGIN;
+    let y = MARGIN;
+    let esimeneLeht = true;
     // ── LISALEHT: rea detail (nt Lidli "Transport" rea iga sõit eraldi: kuupäev, pood, km, summa) ──
     read.forEach(r => {
       let det = r.detail;
@@ -1963,10 +1978,11 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
       const summaW = leftX + CONTENT_W - dc.summa - 4;
       const onLisakulu = det[0] && det[0].tyyp === 'lisakulu';
       const lisaPais = (jatk) => {
-        doc.addPage();
+        if (!esimeneLeht) doc.addPage();
+        esimeneLeht = false;
         y = MARGIN;
         doc.fillColor('#000').font('Helvetica-Bold').fontSize(13)
-          .text((onLisakulu ? 'Lisa: lisakulude detail' : 'Lisa: transpordi detail') + (jatk ? ' (järg)' : ''), leftX, y);
+          .text((onLisakulu ? 'Aruanne: lisakulud' : 'Aruanne: transpordi sõidud') + (jatk ? ' (järg)' : ''), leftX, y);
         doc.font('Helvetica').fontSize(9)
           .text(`${onKreedit ? 'Kreeditarve' : 'Arve'} nr ${arve.number}  ·  ${fmtKp(arve.kuupaev)}`, leftX, y + 3, { width: CONTENT_W, align: 'right' });
         y += 20;
@@ -2010,7 +2026,7 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
       doc.text('Kokku', dc.kirj, y);
       if (onLisakulu) {
         doc.text(fmtEur(Math.round(koosKmKokku * 100) / 100), dc.hind - 15, y, { width: 60, align: 'right' });
-        doc.text(fmtEur(parseFloat(r.summa) || Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
+        doc.text(fmtEur(Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
       } else {
         doc.text(fmtNum(Math.round(kmKokku * 10) / 10), dc.km, y, { width: 45, align: 'right' });
         doc.text(fmtEur(Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
@@ -2027,6 +2043,14 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
     doc.end();
     return doc;
 }
+function onLisasid(read) {
+  return read.some(r => {
+    let d = r.detail;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+    return Array.isArray(d) && d.length > 0;
+  });
+}
+
 
 // ── PDF GENEREERIMINE (admin + lubatud raamatupidaja) ────────────────────
 router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
@@ -2051,6 +2075,24 @@ router.get('/:id/pdf', noudaArvedLubatud, async (req, res) => {
 } catch (err) {
     console.error(err);
     res.status(500).send('Viga PDF genereerimisel: ' + err.message);
+  }
+});
+
+router.get('/:id/aruanne', noudaArvedLubatud, async (req, res) => {
+  try {
+    const a = await pool.query('SELECT * FROM arved WHERE id=$1', [req.params.id]);
+    const arve = a.rows[0];
+    if (!arve) return res.status(404).send('Arvet ei leitud');
+    const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
+    if (!onLisasid(readR.rows)) return res.status(404).send('Sellel arvel pole aruande detaili (transpordi sõite ega lisakulusid).');
+    const doc = renderLisadPdf(arve, readR.rows);
+    const failiNimi = String(arve.number).replace(/[\\/:*?"<>|]/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', require('../csvabi').failiPais(`${failiNimi} aruanne.pdf`, 'inline'));
+    doc.pipe(res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Viga aruande genereerimisel: ' + err.message);
   }
 });
 
