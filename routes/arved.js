@@ -526,50 +526,16 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
         ['kaubik_km', 'detail_kp', 'detail_kp_tekst', 'detail_kirjeldus'].forEach(v => delete x[v]);
         return x;
       };
-      if (tyyp !== 'lidl') return read.concat(kaubikuRead).map(puhas);
-      const kaubikKm = kaubikuRead.filter(r => r.kaubik_km);
-      const kaubikMuu = kaubikuRead.filter(r => !r.kaubik_km);
-      const tooKm = read.filter(r => r.uhik === 'km');
-      const koikKm = tooKm.concat(kaubikKm);
-      const hinnad = Array.from(new Set(koikKm.map(r => +r.hind)));
-      // Erinevate km-hindade korral jääb vana loogika (read eraldi), et summad ei läheks valeks.
-      if (!koikKm.length || hinnad.length !== 1) return read.concat(kaubikuRead).map(puhas);
-      const hindKm = hinnad[0];
-      const kpTekst = (k) => `${k.slice(8, 10)}.${k.slice(5, 7)}`;
-      const detail = [];
-      if (tooKm.length) {
-        // Töökirjete km päeva ja poe kaupa (sama filter mis arve ridadel: ettevõte + periood)
-        const d = await pool.query(
-          `SELECT to_char(t.kuupaev,'YYYY-MM-DD') AS kp, COALESCE(o.nimi, 'Objekt määramata') AS objekt,
-                  t.km_soiduk, SUM(t.kilomeetrid) AS km
-           FROM tookirjed t LEFT JOIN objektid o ON o.id = t.objekt_id
-           WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3 AND COALESCE(t.kilomeetrid, 0) > 0
-           GROUP BY t.kuupaev, o.nimi, t.km_soiduk
-           ORDER BY t.kuupaev, o.nimi`,
-          [ettevote_id, algus, lopp]
-        );
-        d.rows.forEach(r => {
-          const km = parseFloat(r.km) || 0;
-          detail.push({ kp: r.kp, kp_tekst: kpTekst(r.kp),
-            kirjeldus: (r.km_soiduk === 'kaubik' ? 'Kaubik – ' : '') + r.objekt,
-            km, hind: hindKm, summa: +(km * hindKm).toFixed(2) });
-        });
-      }
-      kaubikKm.forEach(r => {
-        detail.push({ kp: r.detail_kp || '', kp_tekst: r.detail_kp_tekst || '',
-          kirjeldus: r.detail_kirjeldus || r.kirjeldus, km: +r.kogus || 0, hind: hindKm, summa: +(+r.summa || 0).toFixed(2) });
-      });
-      detail.sort((a, b) => String(a.kp).localeCompare(String(b.kp)));
-      const kogus = Math.round(koikKm.reduce((s, r) => s + (+r.kogus || 0), 0) * 10) / 10;
-      const transport = { kirjeldus: 'Transport', kogus, uhik: 'km', hind: hindKm,
-        summa: +(kogus * hindKm).toFixed(2), detail };
-      return read.filter(r => r.uhik !== 'km').concat([transport]).concat(kaubikMuu).map(puhas);
+      // Lidl (alates 24.11.2026): km-read jäävad poe kaupa poe tundide alla, kaubiku päeviku sõidud ja
+      // rent (kombo) lähevad kõige alla — ühte "Transport" rida enam ei tehta.
+      return read.concat(kaubikuRead).map(puhas);
     };
     if (viis === 'objektid') {
       const r = await pool.query(
-        // Projekti JA objekti kaupa: sama poe eri projektid (nt "Nutikassa riiulid" ja "Transporditeenus")
-        // on eraldi ridadel ja read on projektide kaupa koos (projekt, siis pood).
-        `SELECT COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
+        // POE KAUPA: iga poe all on selle poe tunnid (projekti kaupa, nt "Nutikassa riiulid" ja
+        // "Transporditeenus" eraldi) ja kohe järgmisel real sama poe transport (km). "Objekt määramata"
+        // ja kombo-read (kaubiku päeviku sõidud mitme poe peale, kaubiku rent, lisakulud) on kõige all.
+        `SELECT o.nimi IS NULL AS maaramata, COALESCE(o.nimi, 'Objekt määramata') as objekt_nimi,
                 SUM(t.tunnid) as tunnid,
                 SUM(t.kilomeetrid) as km,
                 COALESCE(lp.nimi, string_agg(DISTINCT NULLIF(t.kommentaar, ''), ' | ')) as kirjeldused
@@ -578,20 +544,24 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
          LEFT JOIN lidl_projektid lp ON t.lidl_projekt_id = lp.id
          WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3
          GROUP BY lp.nimi, o.nimi
-         ORDER BY (lp.nimi IS NULL), lp.nimi, (o.nimi IS NULL), o.nimi`,
+         ORDER BY (o.nimi IS NULL), o.nimi, (lp.nimi IS NULL), lp.nimi`,
         [ettevote_id, algus, lopp]
       );
-      const read = [];
+      // Poe kaupa kokku: tunniread (projekti kaupa) ja üks transpordirida poe km-iga
+      const poed = [];
+      const poeJargi = {};
       r.rows.forEach(row => {
+        const voti = row.objekt_nimi;
+        if (!poeJargi[voti]) { poeJargi[voti] = { nimi: voti, maaramata: row.maaramata, tunnid: [], km: 0 }; poed.push(poeJargi[voti]); }
         const tunnid = parseFloat(row.tunnid) || 0;
-        const km = parseFloat(row.km) || 0;
-        if (tunnid > 0) {
-          const kirjeldusAlus = row.kirjeldused || 'Tehtud tööd';
-          read.push({ kirjeldus: `${kirjeldusAlus} (${row.objekt_nimi})`, kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
-        }
-        if (km > 0) {
-          read.push({ kirjeldus: `Transport (${row.objekt_nimi})`, kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
-        }
+        if (tunnid > 0) poeJargi[voti].tunnid.push({ kirjeldus: `${row.kirjeldused || 'Tehtud tööd'} (${voti})`, kogus: tunnid, uhik: 'h', hind, summa: +(tunnid * hind).toFixed(2) });
+        poeJargi[voti].km += parseFloat(row.km) || 0;
+      });
+      const read = [];
+      poed.filter(p => !p.maaramata).concat(poed.filter(p => p.maaramata)).forEach(p => {
+        p.tunnid.forEach(x => read.push(x));
+        const km = Math.round(p.km * 10) / 10;
+        if (km > 0) read.push({ kirjeldus: `Transport (${p.nimi})`, kogus: km, uhik: 'km', hind: 0.5, summa: +(km * 0.5).toFixed(2) });
       });
       return res.json({ ok: true, read: await valmisRead(read), kaubik_teade: kaubikTeade });
     }
