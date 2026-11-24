@@ -61,7 +61,7 @@ async function arveldatavadGrupid(ettevoteId, algus, lopp, lisaTingimus, lisaPar
   let lisa = '';
   if (lisaTingimus) { params.push(lisaParam); lisa = `AND ${lisaTingimus.replace(/\$X/g, '$' + params.length)}`; }
   const r = await pool.query(
-    `SELECT t.kuupaev, COALESCE(t.objekt_id, 0) AS objekt_id, COALESCE(t.lidl_projekt_id, 0) AS lidl_projekt_id,
+    `SELECT to_char(t.kuupaev, 'YYYY-MM-DD') AS kp, COALESCE(t.objekt_id, 0) AS objekt_id, COALESCE(t.lidl_projekt_id, 0) AS lidl_projekt_id,
             COALESCE(o.nimi, 'Objekt määramata') AS objekt_nimi, lp.nimi AS projekt_nimi,
             string_agg(DISTINCT NULLIF(t.kommentaar, ''), ' | ') AS kommentaarid,
             string_agg(DISTINCT w.nimi, ', ') AS tootajad,
@@ -90,7 +90,7 @@ async function arveldatavadGrupid(ettevoteId, algus, lopp, lisaTingimus, lisaPar
     const muutunud = g.snap_tunnid !== null && g.snap_km !== null &&
       (Math.abs(r2(g.snap_tunnid) - tegT) > 0.004 || Math.abs(r1(g.snap_km) - tegKm) > 0.04);
     return {
-      kuupaev: kpStr(g.kuupaev), objekt_id: g.objekt_id, lidl_projekt_id: g.lidl_projekt_id,
+      kuupaev: g.kp, objekt_id: g.objekt_id, lidl_projekt_id: g.lidl_projekt_id,
       objekt_nimi: g.objekt_nimi, maaramata: !g.objekt_id,
       projekt_nimi: g.projekt_nimi || g.kommentaarid || 'Tehtud tööd',
       tootajad: g.tootajad || '', kirjeid: g.kirjeid,
