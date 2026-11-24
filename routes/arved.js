@@ -122,6 +122,7 @@ function puhastaDetail(d) {
   if (!Array.isArray(d) || !d.length) return null;
   const read = d.slice(0, 1000).map(x => ({
     kp: String(x.kp || '').slice(0, 10), kp_tekst: String(x.kp_tekst || '').slice(0, 30),
+    tyyp: x.tyyp === 'lisakulu' ? 'lisakulu' : 'transport',
     kirjeldus: String(x.kirjeldus || '').slice(0, 300),
     km: parseFloat(x.km) || 0, hind: parseFloat(x.hind) || 0, summa: parseFloat(x.summa) || 0
   }));
@@ -496,7 +497,30 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
     // Lidl: KÕIK km-read (töökirjete poodide km + kaubiku päeviku sõidud) pannakse arvel kokku ÜHELE
     // "Transport" reale. Iga sõit eraldi (kuupäev, pood/kommentaar, km, summa) läheb selle rea `detail`
     // välja ja prinditakse arve PDF-i lisalehele "Transpordi detail". Kaubiku rendi päevaread jäävad eraldi.
-    const valmisRead = async (read) => {
+    // Lidl: töökirjete LISAKULUD (nt JetExpress, utiliseerimine, parkla) lähevad arvele ÜHE reana
+    // "Lisakulud" — töötaja sisestatud summa on koos KM-ga, arvele läheb summa ilma KM-ta (÷1,24),
+    // millele arve lisab 24% => Lidl maksab täpselt sama summa. Iga kulu eraldi on arve PDF-i lisalehel.
+    const lisakuluRead = async () => {
+      if (tyyp !== 'lidl') return [];
+      const l = await pool.query(
+        `SELECT to_char(t.kuupaev,'YYYY-MM-DD') AS kp, COALESCE(o.nimi, 'Objekt määramata') AS objekt,
+                t.lisakulu_summa AS summa, COALESCE(t.lisakulu_selgitus, '') AS selgitus
+         FROM tookirjed t LEFT JOIN objektid o ON o.id = t.objekt_id
+         WHERE t.ettevote_id = $1 AND t.kuupaev BETWEEN $2 AND $3 AND COALESCE(t.lisakulu_summa, 0) > 0
+         ORDER BY t.kuupaev, o.nimi`, [ettevote_id, algus, lopp]);
+      if (!l.rows.length) return [];
+      const kmKoef = 1.24;
+      const detail = l.rows.map(r => {
+        const koosKm = +(parseFloat(r.summa) || 0).toFixed(2);
+        return { kp: r.kp, kp_tekst: `${r.kp.slice(8, 10)}.${r.kp.slice(5, 7)}`, tyyp: 'lisakulu',
+          kirjeldus: r.objekt + (r.selgitus ? ` – ${r.selgitus}` : ''), km: 0, hind: koosKm, summa: +(koosKm / kmKoef).toFixed(2) };
+      });
+      const koosKmKokku = detail.reduce((a, d) => a + d.hind, 0);
+      const ilmaKm = +(koosKmKokku / kmKoef).toFixed(2);
+      return [{ kirjeldus: `Lisakulud (${detail.length} tk, vt lisaleht)`, kogus: 1, uhik: 'tk', hind: ilmaKm, summa: ilmaKm, detail }];
+    };
+    const valmisRead = async (read) => (await valmisReadKm(read)).concat(await lisakuluRead());
+    const valmisReadKm = async (read) => {
       const puhas = (r) => {
         const x = Object.assign({}, r);
         ['kaubik_km', 'detail_kp', 'detail_kp_tekst', 'detail_kirjeldus'].forEach(v => delete x[v]);
@@ -1935,53 +1959,63 @@ function renderArvePdf(muuja, arve, read, logoBuf, valikud) {
       if (!Array.isArray(det) || !det.length) return;
       const dc = { kp: leftX, kirj: leftX + 60, km: leftX + 330, hind: leftX + 385, summa: leftX + 440 };
       const summaW = leftX + CONTENT_W - dc.summa - 4;
+      const onLisakulu = det[0] && det[0].tyyp === 'lisakulu';
       const lisaPais = (jatk) => {
         doc.addPage();
         y = MARGIN;
         doc.fillColor('#000').font('Helvetica-Bold').fontSize(13)
-          .text('Lisa: transpordi detail' + (jatk ? ' (järg)' : ''), leftX, y);
+          .text((onLisakulu ? 'Lisa: lisakulude detail' : 'Lisa: transpordi detail') + (jatk ? ' (järg)' : ''), leftX, y);
         doc.font('Helvetica').fontSize(9)
           .text(`${onKreedit ? 'Kreeditarve' : 'Arve'} nr ${arve.number}  ·  ${fmtKp(arve.kuupaev)}`, leftX, y + 3, { width: CONTENT_W, align: 'right' });
         y += 20;
         if (!jatk) {
           const periood = arve.algus && arve.lopp ? `Periood ${fmtKp(arve.algus)} – ${fmtKp(arve.lopp)}. ` : '';
-          doc.fillColor('#333333').text(`${periood}Arve rida „${r.kirjeldus}" sõitude kaupa.`, leftX, y, { width: CONTENT_W });
-          y += 18;
+          const sissejuhatus = onLisakulu
+            ? `${periood}Arve rida „${r.kirjeldus}" kulude kaupa. Summa koos KM-ga on tasutud kulu, arvele läheb summa KM-ta (+24% KM).`
+            : `${periood}Arve rida „${r.kirjeldus}" sõitude kaupa.`;
+          doc.fillColor('#333333').text(sissejuhatus, leftX, y, { width: CONTENT_W });
+          y += doc.heightOfString(sissejuhatus, { width: CONTENT_W }) + 8;
         }
         doc.rect(leftX, y, CONTENT_W, 18).fill('#cfe2f3');
         doc.fillColor('#000').font('Helvetica-Bold').fontSize(9);
         doc.text('Kuupäev', dc.kp + 4, y + 5);
-        doc.text('Pood / sõit', dc.kirj, y + 5);
-        doc.text('Km', dc.km, y + 5, { width: 45, align: 'right' });
-        doc.text('Hind', dc.hind, y + 5, { width: 45, align: 'right' });
+        doc.text(onLisakulu ? 'Pood / kulu' : 'Pood / sõit', dc.kirj, y + 5);
+        if (!onLisakulu) doc.text('Km', dc.km, y + 5, { width: 45, align: 'right' });
+        doc.text(onLisakulu ? 'Koos KM' : 'Hind', dc.hind - (onLisakulu ? 15 : 0), y + 5, { width: 60, align: 'right' });
         doc.text('Summa km-ta', dc.summa, y + 5, { width: summaW, align: 'right' });
         y += 22;
         doc.font('Helvetica').fontSize(9);
       };
       lisaPais(false);
-      let kmKokku = 0, summaKokku = 0;
+      let kmKokku = 0, summaKokku = 0, koosKmKokku = 0;
       det.forEach(d => {
         const kpT = d.kp_tekst || (d.kp ? fmtKp(d.kp) : '');
         const h = Math.max(doc.heightOfString(d.kirjeldus || '', { width: 260 }), 12) + 6;
         if (y + h > 780) lisaPais(true);
         doc.text(kpT, dc.kp + 4, y, { width: 54 });
         doc.text(d.kirjeldus || '', dc.kirj, y, { width: 260 });
-        doc.text(fmtNum(d.km), dc.km, y, { width: 45, align: 'right' });
-        doc.text(fmtEur(d.hind), dc.hind, y, { width: 45, align: 'right' });
+        if (!onLisakulu) doc.text(fmtNum(d.km), dc.km, y, { width: 45, align: 'right' });
+        doc.text(fmtEur(d.hind), dc.hind - (onLisakulu ? 15 : 0), y, { width: 60, align: 'right' });
         doc.text(fmtEur(d.summa), dc.summa, y, { width: summaW, align: 'right' });
         y += h;
         doc.moveTo(leftX, y - 3).lineTo(leftX + CONTENT_W, y - 3).strokeColor('#dddddd').stroke();
         kmKokku += parseFloat(d.km) || 0; summaKokku += parseFloat(d.summa) || 0;
+        koosKmKokku += parseFloat(d.hind) || 0;
       });
       if (y + 40 > 790) lisaPais(true);
       y += 4;
       doc.font('Helvetica-Bold').fontSize(9).fillColor('#000');
       doc.text('Kokku', dc.kirj, y);
-      doc.text(fmtNum(Math.round(kmKokku * 10) / 10), dc.km, y, { width: 45, align: 'right' });
-      doc.text(fmtEur(Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
+      if (onLisakulu) {
+        doc.text(fmtEur(Math.round(koosKmKokku * 100) / 100), dc.hind - 15, y, { width: 60, align: 'right' });
+        doc.text(fmtEur(parseFloat(r.summa) || Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
+      } else {
+        doc.text(fmtNum(Math.round(kmKokku * 10) / 10), dc.km, y, { width: 45, align: 'right' });
+        doc.text(fmtEur(Math.round(summaKokku * 100) / 100), dc.summa, y, { width: summaW, align: 'right' });
+      }
       y += 16;
       // Kui arve real on km käsitsi muudetud, ei klapi lisa enam arvega — anname sellest märku.
-      if (Math.abs(Math.round(kmKokku * 10) / 10 - (parseFloat(r.kogus) || 0)) > 0.05) {
+      if (!onLisakulu && Math.abs(Math.round(kmKokku * 10) / 10 - (parseFloat(r.kogus) || 0)) > 0.05) {
         doc.font('Helvetica').fontSize(8).fillColor('#b45309')
           .text(`NB: arve real on ${fmtNum(r.kogus)} km — lisa summa erineb, sest arve rida on käsitsi muudetud.`, leftX, y, { width: CONTENT_W });
         doc.fillColor('#000');
