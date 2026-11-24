@@ -1,6 +1,8 @@
 // admin-arved.js — Arved, Müüjad, Oma arved. Viimane fail: kutsub lõpus init().
 // ── ARVED ─────────────────────────────────────────────────────────
 let avRead = [];
+// Lidli arve raport (poe ja päeva kaupa, arvelduse ülevaate ümardatud andmetega) — tuleb autotäitmisest ja salvestatakse arvega
+let avAruanne = null;
 
 function avFmtEur(n) { return (parseFloat(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 
@@ -235,6 +237,7 @@ function avLopetaMuutmine(tyhjenda) {
     document.getElementById('av-uus-klient-link').style.display = 'block';
     const info = document.getElementById('av-viimane-info'); if (info) info.style.display = 'none';
     avRead = [];
+    avAruanne = null;
     avLisaRida();
   }
   avmMuujaValitud(); // taastab müüja käibemaksu % ja järgmise numbri
@@ -283,6 +286,7 @@ async function avMuudaArve(id) {
   document.getElementById('av-algus').value = a.algus ? String(a.algus).slice(0, 10) : '';
   document.getElementById('av-lopp').value = a.lopp ? String(a.lopp).slice(0, 10) : '';
   avKmProtsent = parseFloat(a.kaibemaks_protsent) || 0;
+  avAruanne = a.aruanne || null;
   avRead = (r.read || []).map(x => ({
     kirjeldus: x.kirjeldus || '', kogus: parseFloat(x.kogus) || 0, uhik: x.uhik || '',
     hind: parseFloat(x.hind) || 0, summa: parseFloat(x.summa) || 0,
@@ -615,7 +619,8 @@ function avRenderAutotaitaNupud() {
     return;
   }
   if (e.tyyp === 'lidl') {
-    koht.innerHTML = nupp('objektid', `Lidl – täida poodide kaupa (${AV_FIKS_TUNNIHINNAD.lidl} €/h)`, '#eab308');
+    koht.innerHTML = `<button class="nupp hall" style="font-size:12px;padding:6px 12px" title="Vaata päevad üle ja ümarda arvele minevad tunnid/km — töötajate kirjeid ei muuda" onclick="avAvaArveldus()">🧮 1. Arvelduse ülevaade</button>`
+      + nupp('objektid', `2. Lidl – täida arve (${AV_FIKS_TUNNIHINNAD.lidl} €/h)`, '#eab308');
   } else if (e.tyyp === 'cramo') {
     koht.innerHTML = nupp('tootajad', `Cramo – täida töötajate kaupa (${AV_FIKS_TUNNIHINNAD.cramo} €/h)`, '#ef4444');
   } else {
@@ -623,6 +628,14 @@ function avRenderAutotaitaNupud() {
   }
 }
 
+function avAvaArveldus() {
+  const { tyyp, id } = avKlientValik();
+  const q = new URLSearchParams();
+  if (tyyp === 'ettevote' && id) q.set('ettevote', id);
+  const a = document.getElementById('av-algus').value, l = document.getElementById('av-lopp').value;
+  if (a) q.set('algus', a); if (l) q.set('lopp', l);
+  window.open('/arveldus?' + q.toString(), '_blank');
+}
 async function avAutotaida(viis) {
   const { tyyp, id } = avKlientValik();
   const ettevoteId = tyyp === 'ettevote' ? id : null;
@@ -642,6 +655,7 @@ async function avAutotaida(viis) {
   if (!r.ok) return naitaTeade('arve-teade', 'viga', r.veateade || 'Autotäitmine ebaõnnestus');
   if (!r.read.length) return naitaTeade('arve-teade', 'viga', 'Sellel perioodil ei leitud töökirjeid.' + (r.kaubik_teade ? ' ' + r.kaubik_teade : ''));
   avRead = r.read;
+  avAruanne = r.aruanne || null;
   avJoonistaRead();
   // Lidl: näitame, kas ja mis kaubiku read lisati (või miks mitte) — vt routes/kaubik.js arveInfo
   if (r.kaubik_teade) naitaTeade('arve-teade', /^🚐 Lisatud/.test(r.kaubik_teade) ? 'ok' : 'viga', r.kaubik_teade);
@@ -671,6 +685,7 @@ function avArveKeha() {
     algus: document.getElementById('av-algus').value || null,
     lopp: document.getElementById('av-lopp').value || null,
     read: kehtivadRead,
+    aruanne: avAruanne,
     arve_id: avMuudetavArve ? avMuudetavArve.id : null
   };
 }
@@ -794,6 +809,7 @@ async function avSalvestaArve() {
   naitaTeade('arve-teade', 'ok', `✅ Arve nr ${r.number} loodud!`);
   avAvaArvePdf(r.id, 'vaata', pdfAken, r.number);
   avRead = [];
+  avAruanne = null;
   avLisaRida();
   document.getElementById('av-po').value = '';
   document.getElementById('av-viide-tyyp').value = 'po';

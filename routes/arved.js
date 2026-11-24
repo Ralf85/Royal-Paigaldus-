@@ -116,8 +116,15 @@ tagaNumbriSkeem().catch(err => console.error('Arve numbri skeemi loomine ebaõnn
 
 // Arve rea lisadetail (nt Lidli "Transport" rea iga sõit eraldi) — näidatakse arve PDF-i lisalehel.
 // Kuju: [{ kp: 'YYYY-MM-DD', kp_tekst: '18.11', kirjeldus, km, hind, summa }]
-const detailVeergValmis = pool.query('ALTER TABLE arve_read ADD COLUMN IF NOT EXISTS detail JSONB')
+const detailVeergValmis = pool.query('ALTER TABLE arve_read ADD COLUMN IF NOT EXISTS detail JSONB; ALTER TABLE arved ADD COLUMN IF NOT EXISTS aruanne JSONB;')
   .catch(err => console.error('arve_read.detail veeru loomine ebaõnnestus:', err.message));
+// Arve raport (Lidl): poe ja päeva kaupa jaotus arvele läinud (ümardatud) väärtustega — tehakse
+// autotäitmisel ja salvestatakse arvega (arved.aruanne), et raport klapiks arvega ka hiljem.
+function puhastaAruanne(a) {
+  if (!a || typeof a !== 'object' || !Array.isArray(a.poed)) return null;
+  const s = JSON.stringify(a);
+  return s.length > 2000000 ? null : s;
+}
 function puhastaDetail(d) {
   if (!Array.isArray(d) || !d.length) return null;
   const read = d.slice(0, 1000).map(x => ({
@@ -530,6 +537,74 @@ router.get('/autotaita', noudaAdmin, async (req, res) => {
       // rent (kombo) lähevad kõige alla — ühte "Transport" rida enam ei tehta.
       return read.concat(kaubikuRead).map(puhas);
     };
+    // ── LIDL: LÜHIKE ARVE + RAPORT (alates 24.11.2026) ─────────────────────────────────────
+    // Tunnid ja km tulevad ARVELDUSE ÜLEVAATEST (routes/arveldus.js): admini ümardatud "arvele"
+    // väärtused päeva → poe → projekti kaupa (kus ümardust pole, seal tegelik). Arvel on ainult
+    // kokkuvõtted: iga projekt (h), Transport (km), kaubiku rent (päevad), lisakulud. Kogu jaotus poe
+    // ja päeva kaupa läheb arve raportisse (arved.aruanne -> 📎 PDF), mille summa = arve summa.
+    if (tyyp === 'lidl' && viis === 'objektid') {
+      const { arveldatavadGrupid } = require('./arveldus');
+      const grupid = (await arveldatavadGrupid(ettevote_id, algus, lopp))
+        .filter(g => g.arve_tunnid > 0 || g.arve_km > 0);
+      const r2 = n => Math.round((parseFloat(n) || 0) * 100) / 100;
+      const r1 = n => Math.round((parseFloat(n) || 0) * 10) / 10;
+      const KM_HIND = 0.5;
+      // Projektid (tunnid)
+      const projektid = new Map();
+      grupid.forEach(g => projektid.set(g.projekt_nimi, (projektid.get(g.projekt_nimi) || 0) + g.arve_tunnid));
+      const projNimed = Array.from(projektid.keys()).sort((a, b) => (a === 'Tehtud tööd') - (b === 'Tehtud tööd') || a.localeCompare(b, 'et'));
+      const read = [];
+      projNimed.forEach(n => {
+        const h = r2(projektid.get(n));
+        if (h > 0) read.push({ kirjeldus: n, kogus: h, uhik: 'h', hind, summa: r2(h * hind) });
+      });
+      // Transport: poodide km + kaubiku päeviku sõidud (sama km-hinnaga ühel real)
+      const soidud = kaubikuRead.filter(x => x.kaubik_km);
+      const rendiRead = kaubikuRead.filter(x => !x.kaubik_km);
+      const tooKm = r1(grupid.reduce((a, g) => a + g.arve_km, 0));
+      const samaHinnaga = soidud.filter(x => Math.abs((+x.hind || 0) - KM_HIND) < 0.0001);
+      const teiseHinnaga = soidud.filter(x => Math.abs((+x.hind || 0) - KM_HIND) >= 0.0001);
+      const transpKm = r1(tooKm + samaHinnaga.reduce((a, x) => a + (+x.kogus || 0), 0));
+      if (transpKm > 0) read.push({ kirjeldus: 'Transport', kogus: transpKm, uhik: 'km', hind: KM_HIND, summa: r2(transpKm * KM_HIND) });
+      teiseHinnaga.forEach(x => read.push({ kirjeldus: x.kirjeldus, kogus: x.kogus, uhik: 'km', hind: x.hind, summa: x.summa }));
+      // Kaubiku rent: päevad kokku (hinna kaupa)
+      const rent = new Map();
+      rendiRead.forEach(x => {
+        const v = String(+x.hind || 0);
+        const o = rent.get(v) || { nimi: String(x.kirjeldus).replace(/ rent .*$/, ' rent'), kogus: 0, uhik: x.uhik || 'päev', hind: +x.hind || 0 };
+        o.kogus += +x.kogus || 0; rent.set(v, o);
+      });
+      rent.forEach(o => read.push({ kirjeldus: o.nimi, kogus: o.kogus, uhik: o.uhik, hind: o.hind, summa: r2(o.kogus * o.hind) }));
+      // Lisakulud (üks rida KM-ta; iga kulu raportis)
+      const lisa = await lisakuluRead();
+      const lisakulud = lisa.length ? (lisa[0].detail || []) : [];
+      lisa.forEach(x => read.push({ kirjeldus: x.kirjeldus, kogus: x.kogus, uhik: x.uhik, hind: x.hind, summa: x.summa }));
+
+      // RAPORT: poe kaupa (päevad), kombo (kaubiku päeviku sõidud, rent), lisakulud
+      const poed = [];
+      const poeJargi = {};
+      grupid.slice().sort((a, b) => (a.maaramata - b.maaramata)
+        || ((parseInt(a.objekt_nimi, 10) || 1e9) - (parseInt(b.objekt_nimi, 10) || 1e9))
+        || a.objekt_nimi.localeCompare(b.objekt_nimi, 'et') || a.kuupaev.localeCompare(b.kuupaev)).forEach(g => {
+        let p = poeJargi[g.objekt_nimi];
+        if (!p) { p = poeJargi[g.objekt_nimi] = { nimi: g.objekt_nimi, maaramata: g.maaramata, read: [], tunnid: 0, km: 0, kokku: 0 }; poed.push(p); }
+        const too = r2(g.arve_tunnid * hind), transport = r2(g.arve_km * KM_HIND);
+        p.read.push({ kp: g.kuupaev, projekt: g.projekt_nimi, tootajad: g.tootajad, tunnid: g.arve_tunnid, km: g.arve_km, too, transport, kokku: r2(too + transport) });
+        p.tunnid = r2(p.tunnid + g.arve_tunnid); p.km = r1(p.km + g.arve_km); p.kokku = r2(p.kokku + too + transport);
+      });
+      const kombo = {
+        soidud: soidud.map(x => ({ kp: x.detail_kp || '', kp_tekst: x.detail_kp_tekst || '', kirjeldus: x.detail_kirjeldus || x.kirjeldus, km: +x.kogus || 0, hind: +x.hind || 0, summa: r2(x.summa) })),
+        rent: rendiRead.map(x => ({ kirjeldus: x.kirjeldus, kogus: +x.kogus || 0, uhik: x.uhik || 'päev', hind: +x.hind || 0, summa: r2(x.summa) }))
+      };
+      const kokkuKmta = r2(read.reduce((a, x) => a + (+x.summa || 0), 0));
+      const aruanne = { versioon: 1, tyyp: 'lidl', algus, lopp, hind_h: hind, hind_km: KM_HIND, poed, kombo, lisakulud,
+        kokku_kmta: kokkuKmta, koostatud: new Date().toISOString() };
+      const yleVaatamata = new Set();
+      (await arveldatavadGrupid(ettevote_id, algus, lopp)).forEach(g => { if (!g.ule_vaadatud || g.muutunud) yleVaatamata.add(g.kuupaev); });
+      const ylevaateTeade = yleVaatamata.size ? `⚠️ Arvelduse ülevaates on ${yleVaatamata.size} päeva üle vaatamata — arvele läksid neil päevadel tegelikud tunnid.` : null;
+      return res.json({ ok: true, read, aruanne, kaubik_teade: [kaubikTeade, ylevaateTeade].filter(Boolean).join(' ') || null });
+    }
+
     if (viis === 'objektid') {
       const r = await pool.query(
         // POE KAUPA: iga poe all on selle poe tunnid (projekti kaupa, nt "Nutikassa riiulid" ja
@@ -1130,7 +1205,7 @@ router.get('/', noudaAdmin, async (req, res) => {
     // enda ettevõtte alt (mitte ainult Royal Paigaldus), et Arvete ajaloos saaks müüja järgi filtreerida.
     const r = await pool.query(
       `SELECT a.*, e.nimi as ettevote_nimi, m.ettevote_nimi as muuja_nimi,
-              EXISTS (SELECT 1 FROM arve_read r WHERE r.arve_id = a.id AND r.detail IS NOT NULL) AS on_aruanne
+              (a.aruanne IS NOT NULL OR EXISTS (SELECT 1 FROM arve_read r WHERE r.arve_id = a.id AND r.detail IS NOT NULL)) AS on_aruanne
        FROM arved a
        LEFT JOIN ettevotted e ON a.ettevote_id = e.id
        LEFT JOIN arve_muujad m ON a.muuja_id = m.id
@@ -1324,6 +1399,8 @@ router.post('/', noudaAdmin, async (req, res) => {
       [number, kp, tahtaeg, viitenumber, ettevote_id || null, ostja_nimi, ostja_aadress || '', ostja_rg_kood || '', ostja_kmkr || '', kontaktisik || '', po_number || '', viideTyyp, algus || null, lopp || null, summaKmTa, kaibemaksProtsent, kaibemaks, kokku, valitudMuujaId]
     );
     const arveId = arveR.rows[0].id;
+    await detailVeergValmis;
+    await client.query('UPDATE arved SET aruanne=$1 WHERE id=$2', [puhastaAruanne(req.body.aruanne), arveId]);
 
     let jrk = 0;
     for (const rida of read) {
@@ -1647,6 +1724,7 @@ router.put('/:id(\\d+)', noudaAdmin, async (req, res) => {
        b.ostja_kmkr || '', b.kontaktisik || '', b.po_number || '', viideTyyp, b.algus || null, b.lopp || null,
        summaKmTa, kaibemaks, kokku, arve.id]
     );
+    if (b.aruanne !== undefined) await client.query('UPDATE arved SET aruanne=$1 WHERE id=$2', [puhastaAruanne(b.aruanne), arve.id]);
     await client.query('DELETE FROM arve_read WHERE arve_id=$1', [arve.id]);
     let jrk = 0;
     for (const rida of read) {
@@ -2013,6 +2091,140 @@ function renderLisadPdf(arve, read) {
     doc.end();
     return doc;
 }
+// ARVE RAPORT (Lidl): poe kaupa päevad (projekt, tunnid, km, summad), kombo-read ja lisakulud —
+// andmed arvelduse ülevaatest (ümardatud), salvestatud arvega (arved.aruanne). Kokku = arve summa km-ta.
+function renderRaportPdf(arve, a) {
+  const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  const M = 40, W = 595.28 - M * 2, ALL = 790;
+  let y = M;
+  const c = { kp: M + 4, proj: M + 62, h: M + 262, too: M + 312, km: M + 372, tr: M + 422, kokku: M + 472 };
+  const kokkuW = M + W - c.kokku - 4;
+  const per = a.algus && a.lopp ? `${fmtKp(a.algus)} – ${fmtKp(a.lopp)}` : '';
+  const pais = (jatk) => {
+    doc.fillColor('#000').font('Helvetica-Bold').fontSize(15).text('Arve raport' + (jatk ? ' (järg)' : ''), M, y);
+    doc.font('Helvetica').fontSize(9).text(`Arve nr ${arve.number}  ·  ${fmtKp(arve.kuupaev)}`, M, y + 4, { width: W, align: 'right' });
+    y += 22;
+    if (!jatk) {
+      doc.fillColor('#333').fontSize(9).text(`${arve.ostja_nimi || ''}${per ? '  ·  periood ' + per : ''}  ·  ${fmtEur(a.hind_h)} €/h, ${fmtEur(a.hind_km)} €/km (km-ta)`, M, y, { width: W });
+      y += 18;
+    }
+  };
+  const uusLeht = () => { doc.addPage(); y = M; pais(true); };
+  const kontrolli = (h) => { if (y + h > ALL) uusLeht(); };
+  const tabeliPais = (veerud) => {
+    kontrolli(40);
+    doc.rect(M, y, W, 16).fill('#cfe2f3');
+    doc.fillColor('#000').font('Helvetica-Bold').fontSize(8.5);
+    veerud.forEach(([t, x, w, al]) => doc.text(t, x, y + 4, { width: w, align: al || 'left' }));
+    y += 19; doc.font('Helvetica').fontSize(8.5);
+  };
+  const joon = (varv) => { doc.moveTo(M, y - 2).lineTo(M + W, y - 2).strokeColor(varv || '#e5e7eb').stroke(); };
+  const pealkiri = (t) => { kontrolli(50); y += 6; doc.fillColor('#000').font('Helvetica-Bold').fontSize(11).text(t, M, y); y += 16; };
+
+  pais(false);
+  const sum = { too: 0, tr: 0, rent: 0, lisa: 0 };
+
+  // POED
+  pealkiri('Poodide kaupa');
+  const poeVeerud = [['Kuupäev', c.kp, 54], ['Projekt', c.proj, 196], ['Tunnid', c.h, 44, 'right'], ['Töö €', c.too, 56, 'right'],
+    ['Km', c.km, 46, 'right'], ['Transp. €', c.tr, 46, 'right'], ['Kokku €', c.kokku, kokkuW, 'right']];
+  tabeliPais(poeVeerud);
+  (a.poed || []).forEach(p => {
+    kontrolli(30 + 13 * Math.min(p.read.length, 3));
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000').text(p.nimi, c.kp, y, { width: 300 });
+    y += 13; doc.font('Helvetica').fontSize(8.5);
+    p.read.forEach(r => {
+      kontrolli(14);
+      doc.fillColor('#333');
+      doc.text(fmtKp(r.kp).slice(0, 5), c.kp, y, { width: 54 });
+      doc.text(r.projekt || '', c.proj, y, { width: 196, lineBreak: false, ellipsis: true });
+      doc.text(fmtNum(r.tunnid), c.h, y, { width: 44, align: 'right' });
+      doc.text(fmtEur(r.too), c.too, y, { width: 56, align: 'right' });
+      doc.text(r.km ? fmtNum(r.km) : '—', c.km, y, { width: 46, align: 'right' });
+      doc.text(r.transport ? fmtEur(r.transport) : '—', c.tr, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(r.kokku), c.kokku, y, { width: kokkuW, align: 'right' });
+      y += 13;
+      sum.too += r.too; sum.tr += r.transport;
+    });
+    doc.font('Helvetica-Bold').fillColor('#000');
+    doc.text('Pood kokku', c.proj, y, { width: 196 });
+    doc.text(fmtNum(p.tunnid), c.h, y, { width: 44, align: 'right' });
+    doc.text(p.km ? fmtNum(p.km) : '—', c.km, y, { width: 46, align: 'right' });
+    doc.text(fmtEur(p.kokku), c.kokku, y, { width: kokkuW, align: 'right' });
+    y += 15; joon(); y += 3; doc.font('Helvetica');
+  });
+
+  // KOMBO
+  const k = a.kombo || {};
+  if ((k.soidud && k.soidud.length) || (k.rent && k.rent.length)) {
+    pealkiri('Kaubik (sõidud mitme poe peale ja rent)');
+    tabeliPais([['Kuupäev', c.kp, 54], ['Kirjeldus', c.proj, 300], ['Kogus', c.km, 46, 'right'], ['Hind', c.tr, 46, 'right'], ['Kokku €', c.kokku, kokkuW, 'right']]);
+    (k.soidud || []).forEach(x => {
+      const h = Math.max(doc.heightOfString(x.kirjeldus || '', { width: 300 }), 11) + 3;
+      kontrolli(h);
+      doc.fillColor('#333').text(x.kp_tekst || (x.kp ? fmtKp(x.kp).slice(0, 5) : ''), c.kp, y, { width: 54 });
+      doc.text(x.kirjeldus || '', c.proj, y, { width: 300 });
+      doc.text(fmtNum(x.km) + ' km', c.km, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(x.hind), c.tr, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(x.summa), c.kokku, y, { width: kokkuW, align: 'right' });
+      y += h; sum.tr += x.summa;
+    });
+    (k.rent || []).forEach(x => {
+      const h = Math.max(doc.heightOfString(x.kirjeldus || '', { width: 300 }), 11) + 3;
+      kontrolli(h);
+      doc.fillColor('#333').text('', c.kp, y);
+      doc.text(x.kirjeldus || '', c.proj, y, { width: 300 });
+      doc.text(fmtNum(x.kogus) + ' ' + (x.uhik || ''), c.km, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(x.hind), c.tr, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(x.summa), c.kokku, y, { width: kokkuW, align: 'right' });
+      y += h; sum.rent += x.summa;
+    });
+    y += 4; joon();
+  }
+
+  // LISAKULUD
+  if (a.lisakulud && a.lisakulud.length) {
+    pealkiri('Lisakulud');
+    tabeliPais([['Kuupäev', c.kp, 54], ['Pood / kulu', c.proj, 300], ['Koos KM', c.km, 46, 'right'], ['', c.tr, 46], ['KM-ta €', c.kokku, kokkuW, 'right']]);
+    a.lisakulud.forEach(x => {
+      const h = Math.max(doc.heightOfString(x.kirjeldus || '', { width: 300 }), 11) + 3;
+      kontrolli(h);
+      doc.fillColor('#333').text(x.kp_tekst || '', c.kp, y, { width: 54 });
+      doc.text(x.kirjeldus || '', c.proj, y, { width: 300 });
+      doc.text(fmtEur(x.hind), c.km, y, { width: 46, align: 'right' });
+      doc.text(fmtEur(x.summa), c.kokku, y, { width: kokkuW, align: 'right' });
+      y += h;
+    });
+    sum.lisa = a.lisakulud.reduce((s, x) => s + (parseFloat(x.hind) || 0), 0) / 1.24;
+    y += 4; joon();
+  }
+
+  // KOKKUVÕTE
+  kontrolli(110);
+  y += 10;
+  const rida = (silt, v, paks) => {
+    doc.font(paks ? 'Helvetica-Bold' : 'Helvetica').fontSize(paks ? 10 : 9).fillColor('#000');
+    doc.text(silt, M + 260, y, { width: 150 });
+    doc.text(v, M + 260, y, { width: W - 264, align: 'right' });
+    y += paks ? 16 : 13;
+  };
+  rida('Tööd', fmtEur(sum.too));
+  rida('Transport', fmtEur(sum.tr));
+  if (sum.rent) rida('Kaubiku rent', fmtEur(sum.rent));
+  if (sum.lisa) rida('Lisakulud (KM-ta)', fmtEur(Math.round(sum.lisa * 100) / 100));
+  doc.moveTo(M + 260, y).lineTo(M + W, y).strokeColor('#000').stroke(); y += 5;
+  rida('Kokku km-ta', fmtEur(a.kokku_kmta), true);
+  const arveKmta = parseFloat(arve.summa_km_ta) || 0;
+  if (Math.abs(arveKmta - (parseFloat(a.kokku_kmta) || 0)) > 0.009) {
+    y += 4;
+    doc.font('Helvetica').fontSize(8).fillColor('#b45309')
+      .text(`NB: arve summa km-ta on ${fmtEur(arveKmta)} — arve ridu on pärast raporti koostamist käsitsi muudetud.`, M, y, { width: W });
+  } else {
+    doc.font('Helvetica').fontSize(8).fillColor('#6b7280').text('Raporti summa võrdub arve summaga (km-ta).', M + 260, y, { width: W - 264, align: 'right' });
+  }
+  doc.end();
+  return doc;
+}
 function onLisasid(read) {
   return read.some(r => {
     let d = r.detail;
@@ -2054,8 +2266,10 @@ router.get('/:id/aruanne', noudaArvedLubatud, async (req, res) => {
     const arve = a.rows[0];
     if (!arve) return res.status(404).send('Arvet ei leitud');
     const readR = await pool.query('SELECT * FROM arve_read WHERE arve_id=$1 ORDER BY jrk_nr', [req.params.id]);
-    if (!onLisasid(readR.rows)) return res.status(404).send('Sellel arvel pole aruande detaili (transpordi sõite ega lisakulusid).');
-    const doc = renderLisadPdf(arve, readR.rows);
+    let doc;
+    if (arve.aruanne && Array.isArray(arve.aruanne.poed)) doc = renderRaportPdf(arve, arve.aruanne);
+    else if (onLisasid(readR.rows)) doc = renderLisadPdf(arve, readR.rows);
+    else return res.status(404).send('Sellel arvel pole raportit. Tee arve uuesti nupuga „Lidl – täida“.');
     const failiNimi = String(arve.number).replace(/[\\/:*?"<>|]/g, '-');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', require('../csvabi').failiPais(`${failiNimi} aruanne.pdf`, 'inline'));

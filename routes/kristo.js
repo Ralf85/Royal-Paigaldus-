@@ -363,6 +363,30 @@ async function lisaKuluLehed(wb, kirjeldus, poed, st) {
     ['tunnid', 'km', 'too', 'transport'].forEach(v => { p[v] += k[v]; });
   });
 
+  // Tunnid ja km = ARVELE LÄINUD väärtused (arvelduse ülevaade, routes/arveldus.js): kus admin on
+  // päeva/poe/projekti tunde või km-e kliendile ümardanud, kasutatakse neid — nii klapib Excel arvega.
+  // Töötajate tegelikke tunde siin enam ei näidata.
+  try {
+    const { arveldatavadGrupid } = require('./arveldus');
+    const e = await pool.query(`SELECT id FROM ettevotted WHERE tyyp='lidl' ORDER BY id LIMIT 1`);
+    if (e.rows.length) {
+      const grupid = await arveldatavadGrupid(e.rows[0].id, null, null, `COALESCE(lp.nimi, t.kommentaar, 'Määramata') = $X`, kirjeldus);
+      const arvele = new Map();
+      grupid.forEach(g => {
+        if (!g.objekt_id) return;
+        const a = arvele.get(g.objekt_id) || { tunnid: 0, km: 0 };
+        a.tunnid += g.arve_tunnid; a.km += g.arve_km;
+        arvele.set(g.objekt_id, a);
+      });
+      poeKaupa.forEach((p, objektId) => {
+        const a = arvele.get(objektId);
+        if (!a) return;
+        p.tunnid = a.tunnid; p.km = a.km;
+        p.too = r2(a.tunnid * LIDL_TUNNIHIND); p.transport = r2(a.km * LIDL_KM_HIND);
+      });
+    }
+  } catch (e) { console.error('Lidl Excel arvele läinud tunnid:', e.message); }
+
   // Poe kaupa kokku (Lidli hindadega, km-ta) — läheb "Poed" lehe veergu L "Poe kulu kokku €"
   const kokku = { kaike: 0, tunnid: 0, km: 0, too: 0, transport: 0, kmta: 0, kmga: 0 };
   const poeKulu = new Map();
