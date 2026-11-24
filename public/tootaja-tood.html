@@ -633,7 +633,7 @@
       if (etteVoteTyyp !== 'lidl') return false;
       var lpSel = document.getElementById('lidl-projekt-select');
       var opt = lpSel && lpSel.options[lpSel.selectedIndex];
-      return !!(opt && opt.value && /transport/i.test(opt.textContent));
+      return !!(opt && opt.value && /transpor[dt]/i.test(opt.textContent));
     }
     function lisaObjektiValik() {
       var rida = document.createElement('div');
