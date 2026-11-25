@@ -264,6 +264,25 @@
   #suurpilt { display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,0.94); z-index: 99; align-items: center; justify-content: center; padding: 16px; }
   #suurpilt img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
   #suurpilt button { position: absolute; top: 14px; right: 14px; width: 42px; height: 42px; border: none; border-radius: 50%; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px; cursor: pointer; }
+
+  /* Logi */
+  .logi-filtrid { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .logi-filtrid .btn.valitud { border-color: #c9a84c; color: #f3e3b0; background: rgba(201,168,76,0.12); }
+  .logi-rida { display: flex; gap: 11px; padding: 11px 15px; border-bottom: 0.5px solid rgba(255,255,255,0.05); }
+  .logi-rida:last-child { border-bottom: none; }
+  .logi-kell { font-size: 12px; color: #7c8494; min-width: 40px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+  .logi-sisu { flex: 1; min-width: 0; }
+  .logi-pealkiri { font-size: 13.5px; font-weight: 600; line-height: 1.35; word-break: break-word; }
+  .logi-kes { font-size: 12px; color: #8b93a1; margin-top: 2px; }
+  .logi-det { font-size: 12px; color: #b6bdc9; margin-top: 4px; line-height: 1.5; }
+  .logi-det div::before { content: '· '; color: #5b6472; }
+  .logi-markus { font-size: 11px; color: #fcd34d; margin-top: 4px; }
+  .logi-summa { font-size: 13px; font-weight: 700; color: #f3e3b0; white-space: nowrap; padding-top: 1px; }
+  .tegevus { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; margin-right: 6px; vertical-align: 1px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .tegevus.lisas { background: #0f2a1a; color: #86efac; }
+  .tegevus.muutis { background: #3b2f0b; color: #fcd34d; }
+  .tegevus.kustutas { background: #2a1010; color: #f87171; }
+  .tegevus.kinnitas { background: #0f1f3a; color: #93c5fd; }
 </style>
 </head>
 <body>
@@ -300,6 +319,7 @@
     <div class="paneel" id="paneel-kulud"></div>
     <div class="paneel" id="paneel-maksed"></div>
     <div class="paneel" id="paneel-osad"></div>
+    <div class="paneel" id="paneel-logi"></div>
     <div class="paneel" id="paneel-seaded"></div>
   </main>
 </div>
@@ -584,6 +604,7 @@ async function logiValja() {
 
 function lylitaEelvaade() {
   eelvaade = !eelvaade;
+  LOGI = null;
   if (eelvaade && aktiivneTab === 'seaded') aktiivneTab = 'tood';
   joonista();
   window.scrollTo(0, 0);
@@ -597,6 +618,7 @@ async function laadi() {
   }
   A = r;
   roll = r.roll;
+  LOGI = null;
   document.getElementById('loginVaade').style.display = 'none';
   document.getElementById('appVaade').style.display = 'block';
   joonista();
@@ -623,22 +645,71 @@ function joonista() {
 
   joonistaYlevaade();
 
-  var tabid = [['tood', 'Tööd'], ['kulud', 'Materjalid'], ['maksed', 'Maksed'], ['osad', 'Jaotus']];
+  var tabid = [['tood', 'Tööd'], ['kulud', 'Materjalid'], ['maksed', 'Maksed'], ['osad', 'Jaotus'], ['logi', 'Logi']];
   if (saabMuuta()) tabid.push(['seaded', 'Seaded']);
   document.getElementById('tabid').innerHTML = tabid.map(function (t) {
     return '<button class="tab' + (t[0] === aktiivneTab ? ' aktiivne' : '') + '" onclick="valiTab(\'' + t[0] + '\')">' + t[1] + '</button>';
   }).join('');
-  ['tood', 'kulud', 'maksed', 'osad', 'seaded'].forEach(function (t) {
+  ['tood', 'kulud', 'maksed', 'osad', 'logi', 'seaded'].forEach(function (t) {
     document.getElementById('paneel-' + t).className = 'paneel' + (t === aktiivneTab ? ' aktiivne' : '');
   });
   joonistaTood();
   joonistaKulud();
   joonistaMaksed();
   joonistaOsad();
+  if (aktiivneTab === 'logi') joonistaLogi();
   if (saabMuuta()) joonistaSeaded();
 }
 
-function valiTab(t) { aktiivneTab = t; joonista(); }
+function valiTab(t) { if (t === 'logi') LOGI = null; aktiivneTab = t; joonista(); }
+
+// ── Logi: millal ja kes mida sisestas/muutis ─────────────────────
+// Laetakse iga kord, kui Logi vahekaart avatakse (ja pärast muudatusi, kui vahekaart on lahti).
+var LOGI = null, logiLaeb = false, logiFilter = 'koik';
+var LOGI_TEGEVUS = { lisas: 'Lisas', muutis: 'Muutis', kustutas: 'Kustutas', kinnitas: 'Kinnitas' };
+async function joonistaLogi() {
+  var el = document.getElementById('paneel-logi');
+  if (!LOGI) {
+    el.innerHTML = '<div class="kaart"><div class="tyhi">Laen logi…</div></div>';
+    if (logiLaeb) return;
+    logiLaeb = true;
+    var r = await api('/logi' + (eelvaade ? '?eelvaade=1' : ''));
+    logiLaeb = false;
+    if (!r.ok) { el.innerHTML = '<div class="kaart"><div class="tyhi">' + esc(r.veateade || 'Logi ei saanud laadida') + '</div></div>'; return; }
+    LOGI = r.syndmused || [];
+  }
+  var filtrid = [['koik', 'Kõik'], ['too', 'Tööd'], ['kulu', 'Materjalid'], ['makse', 'Maksed'], ['jaotus', 'Jaotus']];
+  var html = '<div class="vihje">Kõik sissekanded ajalises järjekorras: millal ja kes tunnid, tšekid või maksed sisestas, muutis või kustutas. '
+    + 'Tšekkide ja maksete varasemad muudatused (enne logi tegemist) pole teada — nende puhul on näha sisestamise aeg.</div>';
+  html += '<div class="logi-filtrid">' + filtrid.map(function (f) {
+    return '<button class="btn vaike' + (logiFilter === f[0] ? ' valitud' : '') + '" onclick="valiLogiFilter(\'' + f[0] + '\')">' + f[1] + '</button>';
+  }).join('') + '</div>';
+  var nahtav = LOGI.filter(function (e) {
+    if (logiFilter === 'koik') return true;
+    if (logiFilter === 'jaotus') return e.tyyp === 'jaotus' || e.tyyp === 'seaded';
+    return e.tyyp === logiFilter;
+  });
+  if (!nahtav.length) {
+    html += '<div class="kaart"><div class="tyhi">Logis pole veel sissekandeid.</div></div>';
+    el.innerHTML = html;
+    return;
+  }
+  html += '<div class="kaart">';
+  var paev = '';
+  nahtav.forEach(function (e) {
+    var p = String(e.aeg).slice(0, 10);
+    if (p !== paev) { paev = p; html += '<div class="paev">' + esc(kpPikk(p)) + '</div>'; }
+    html += '<div class="logi-rida"><div class="logi-kell">' + esc(String(e.aeg).slice(11, 16)) + '</div><div class="logi-sisu">'
+      + '<div class="logi-pealkiri"><span class="tegevus ' + esc(e.tegevus) + '">' + esc(LOGI_TEGEVUS[e.tegevus] || e.tegevus) + '</span>' + esc(e.pealkiri) + '</div>'
+      + (e.kes ? '<div class="logi-kes">' + esc(e.kes) + '</div>' : '')
+      + (e.detailid && e.detailid.length ? '<div class="logi-det">' + e.detailid.map(function (d) { return '<div>' + esc(d) + '</div>'; }).join('') + '</div>' : '')
+      + (e.markus && !eelvaade ? '<div class="logi-markus">🔒 ' + esc(e.markus) + '</div>' : '')
+      + '</div>' + (e.summa !== null && e.summa !== undefined ? '<div class="logi-summa">' + raha(e.summa) + '</div>' : '') + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+function valiLogiFilter(f) { logiFilter = f; joonistaLogi(); }
 
 function isikHtml(kes) {
   var s = A.seaded;

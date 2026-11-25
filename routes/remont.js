@@ -140,6 +140,24 @@ async function looTabelid() {
     ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS ule_vaadatud BOOLEAN NOT NULL DEFAULT true;
     ALTER TABLE remont_kulud ADD COLUMN IF NOT EXISTS arvetest_tulnud BOOLEAN NOT NULL DEFAULT false;
   `);
+  // Tegevuste logi (vt logi() ja GET /logi) — Kerttu näeb, millal mida sisestati/muudeti.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS remont_logi (
+      id SERIAL PRIMARY KEY,
+      loodud TIMESTAMP NOT NULL DEFAULT NOW(),
+      tyyp VARCHAR(20) NOT NULL,
+      tegevus VARCHAR(20) NOT NULL,
+      kes VARCHAR(80),
+      kes_naabrile VARCHAR(80),
+      pealkiri TEXT NOT NULL,
+      detailid JSONB,
+      summa DECIMAL(10,2),
+      obj_id INTEGER,
+      ainult_admin BOOLEAN NOT NULL DEFAULT false,
+      admin_markus TEXT
+    );
+    CREATE INDEX IF NOT EXISTS remont_logi_loodud_idx ON remont_logi(loodud);
+  `);
   await pool.query(`INSERT INTO remont_seaded (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
   // Ettevõte "TELJE 10" — selle alla teevad töötajad töökirjeid. Tüüp on 'muu', et ükski
   // olemasolev tüübipõhine erireegel (Lidl, Cramo lõunapaus jne) sellele ei rakenduks.
@@ -221,6 +239,51 @@ function loeProtsent(v) {
 function kpEt(kp) {
   const o = String(kp || '').split('-');
   return o.length === 3 ? `${o[2]}.${o[1]}.${o[0]}` : String(kp || '');
+}
+
+// ── TEGEVUSTE LOGI ────────────────────────────────────────────────────────
+// Iga muudatus TELJE 10 moodulis kirjutatakse remont_logi tabelisse. Kerttu näeb logi lehel "Logi".
+// tyyp: 'kulu' | 'too' | 'makse' | 'jaotus' | 'seaded'; tegevus: 'lisas' | 'muutis' | 'kustutas' | 'kinnitas'
+// kes_naabrile — kui Kerttule tuleb näidata teist nime (töötaja tšekk -> "Royal Paigaldus").
+// ainult_admin — raamatupidamise sündmused (nt arvetesse lisamine), mida Kerttu ei näe.
+// Logimise viga ei tohi kunagi põhitegevust katki teha.
+async function logi(t) {
+  try {
+    await pool.query(
+      `INSERT INTO remont_logi (loodud, tyyp, tegevus, kes, kes_naabrile, pealkiri, detailid, summa, obj_id, ainult_admin, admin_markus)
+       VALUES (COALESCE($1, NOW()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [t.aeg || null, t.tyyp, t.tegevus, t.kes || null, t.kes_naabrile || null, String(t.pealkiri || '').slice(0, 500),
+       JSON.stringify((t.detailid || []).filter(Boolean)), Number.isFinite(t.summa) ? r2(t.summa) : null,
+       t.obj_id || null, !!t.ainult_admin, t.admin_markus || null]);
+  } catch (e) { console.error('TELJE 10 logi:', e.message); }
+}
+async function minuNimi() {
+  try { const r = await pool.query(`SELECT minu_nimi, naabri_nimi FROM remont_seaded WHERE id=1`); return r.rows[0]; }
+  catch (e) { return { minu_nimi: 'Ralf', naabri_nimi: 'Kerttu' }; }
+}
+const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+const prots = (p) => (p === null || p === undefined ? 'tööosa järgi' : String(r2(p)).replace('.', ',') + '%');
+// Tšeki hetkeseis logi jaoks (enne ja pärast muutmist)
+async function kuluSeis(id) {
+  const k = await pool.query(
+    `SELECT id, to_char(kuupaev,'YYYY-MM-DD') AS kuupaev, kirjeldus, summa, naabri_summa, maksja, tootaja_maksis,
+            (SELECT COUNT(*) FROM remont_kulu_read r WHERE r.kulu_id = k.id) AS ridu
+     FROM remont_kulud k WHERE id=$1`, [id]);
+  if (!k.rowCount) return null;
+  const x = k.rows[0];
+  return { kuupaev: x.kuupaev, pood: x.kirjeldus, summa: r2(x.summa), naabri: r2(x.naabri_summa), maksja: x.maksja,
+           ridu: parseInt(x.ridu, 10) || 0, tootaja: !!x.tootaja_maksis };
+}
+function kuluMuutused(v, u, n) {
+  const d = [];
+  if (!v || !u) return d;
+  if (v.kuupaev !== u.kuupaev) d.push(`Kuupäev ${kpEt(v.kuupaev)} → ${kpEt(u.kuupaev)}`);
+  if (v.pood !== u.pood) d.push(`Pood „${v.pood}“ → „${u.pood}“`);
+  if (v.summa !== u.summa) d.push(`Summa ${eur(v.summa)} → ${eur(u.summa)}`);
+  if (v.naabri !== u.naabri) d.push(`${n.naabri_nimi} osa ${eur(v.naabri)} → ${eur(u.naabri)}`);
+  if (v.maksja !== u.maksja) d.push(`Maksja ${v.maksja === 'naaber' ? n.naabri_nimi : n.minu_nimi} → ${u.maksja === 'naaber' ? n.naabri_nimi : n.minu_nimi}`);
+  if (v.ridu !== u.ridu) d.push(`Tooteridu ${v.ridu} → ${u.ridu}`);
+  return d;
 }
 
 
@@ -461,7 +524,7 @@ async function syncArvetest() {
      FROM remont_kulud k WHERE k.arvetest_tulnud = true AND r.kulu_id = k.id AND (r.summa IS DISTINCT FROM k.summa OR r.nimetus IS DISTINCT FROM k.kirjeldus)`);
   // 3) Uued TELJE 10 arved, millel siin veel tšekki pole
   const uued = await pool.query(
-    `SELECT a.id, a.kuupaev, COALESCE(NULLIF(a.kirjeldus, ''), 'Tšekk') AS kirjeldus, a.summa, COALESCE(a.kaibemaks, 0) AS kaibemaks,
+    `SELECT a.id, a.kuupaev, to_char(a.kuupaev,'YYYY-MM-DD') AS kp, a.loodud, COALESCE(NULLIF(a.kirjeldus, ''), 'Tšekk') AS kirjeldus, a.summa, COALESCE(a.kaibemaks, 0) AS kaibemaks,
             a.fail_url, a.fail_resource_type
      FROM arve_sisse a
      WHERE a.ettevote_id = $1 AND a.summa > 0
@@ -476,6 +539,10 @@ async function syncArvetest() {
     await pool.query(
       `INSERT INTO remont_kulu_read (kulu_id, jrk, nimetus, summa, naabri_protsent, naabri_summa) VALUES ($1,1,$2,$3,0,0)`,
       [k.rows[0].id, a.kirjeldus, a.summa]);
+    const nn = await minuNimi();
+    await logi({ tyyp: 'kulu', tegevus: 'lisas', kes: nn.minu_nimi, aeg: a.loodud || null,
+      pealkiri: `Tšekk: ${a.kirjeldus}, ${kpEt(a.kp)}`, summa: parseFloat(a.summa) || 0, obj_id: k.rows[0].id,
+      detailid: ['Lisatud Arvete lehel', 'Jaotus veel määramata'] });
   }
 }
 
@@ -512,7 +579,14 @@ router.post('/seaded', noudaAdmin, async (req, res) => {
   if (!projekt || !mina || !naaber) return res.json({ ok: false, veateade: 'Täida nimed' });
   if (!Number.isFinite(hind) || hind < 0 || hind > 1000) return res.json({ ok: false, veateade: 'Kontrolli tunnihinda' });
   if (pin && (pin.length < 4 || pin.length > 20)) return res.json({ ok: false, veateade: 'PIN peab olema 4–20 märki' });
-  const vana = await pool.query(`SELECT naabri_pin FROM remont_seaded WHERE id=1`);
+  const vana = await pool.query(`SELECT naabri_pin, projekti_nimi, minu_nimi, naabri_nimi, tunnihind FROM remont_seaded WHERE id=1`);
+  {
+    const v = vana.rows[0], dd = [];
+    if (r2(v.tunnihind) !== r2(hind)) dd.push(`Tunnihind ${eur(v.tunnihind)}/h → ${eur(hind)}/h`);
+    if (v.projekti_nimi !== projekt) dd.push(`Projekti nimi „${v.projekti_nimi}“ → „${projekt}“`);
+    if (v.minu_nimi !== mina || v.naabri_nimi !== naaber) dd.push(`Osapooled ${v.minu_nimi} ja ${v.naabri_nimi} → ${mina} ja ${naaber}`);
+    if (dd.length) await logi({ tyyp: 'seaded', tegevus: 'muutis', kes: mina, pealkiri: 'Seaded muudetud', detailid: dd });
+  }
   await pool.query(
     `UPDATE remont_seaded SET projekti_nimi=$1, minu_nimi=$2, naabri_nimi=$3, tunnihind=$4, naabri_pin=$5 WHERE id=1`,
     [projekt, mina, naaber, r2(hind), pin || null]
@@ -533,6 +607,9 @@ router.post('/osad', noudaAdmin, async (req, res) => {
     `INSERT INTO objektid (nimi, ettevote_id) VALUES ($1, $2) RETURNING id`, [nimi, s.rows[0].ettevote_id]
   );
   await pool.query(`INSERT INTO remont_osad (objekt_id, naabri_protsent) VALUES ($1, $2)`, [o.rows[0].id, p]);
+  const nn = await minuNimi();
+  await logi({ tyyp: 'jaotus', tegevus: 'lisas', kes: nn.minu_nimi, pealkiri: `Uus tööosa „${nimi}“`,
+    detailid: [`${nn.naabri_nimi} osa ${prots(p)}`], obj_id: o.rows[0].id });
   res.json({ ok: true, id: o.rows[0].id });
 });
 
@@ -543,6 +620,9 @@ router.put('/osad/:id', noudaAdmin, async (req, res) => {
   if (!nimi) return res.json({ ok: false, veateade: 'Sisesta tööosa nimi' });
   if (p === null) return res.json({ ok: false, veateade: 'Osa peab olema 0–100%' });
   const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
+  const vanaOsa = await pool.query(
+    `SELECT o.nimi, o.aktiivne, ro.naabri_protsent FROM objektid o LEFT JOIN remont_osad ro ON ro.objekt_id = o.id WHERE o.id=$1`,
+    [req.params.id]);
   const o = await pool.query(
     `UPDATE objektid SET nimi=$1, aktiivne=$2 WHERE id=$3 AND ettevote_id=$4 RETURNING id`,
     [nimi, b.aktiivne !== false, req.params.id, s.rows[0].ettevote_id]
@@ -553,6 +633,14 @@ router.put('/osad/:id', noudaAdmin, async (req, res) => {
      ON CONFLICT (objekt_id) DO UPDATE SET naabri_protsent = EXCLUDED.naabri_protsent`,
     [req.params.id, p]
   );
+  if (vanaOsa.rowCount) {
+    const v = vanaOsa.rows[0], nn = await minuNimi(), dd = [];
+    const vp = v.naabri_protsent === null ? null : r2(v.naabri_protsent);
+    if (v.nimi !== nimi) dd.push(`Nimi „${v.nimi}“ → „${nimi}“`);
+    if (vp !== p) dd.push(`${nn.naabri_nimi} osa ${prots(vp)} → ${prots(p)}`);
+    if (!!v.aktiivne !== (b.aktiivne !== false)) dd.push(b.aktiivne !== false ? 'Tööosa taasavatud' : 'Tööosa suletud');
+    if (dd.length) await logi({ tyyp: 'jaotus', tegevus: 'muutis', kes: nn.minu_nimi, pealkiri: `Tööosa „${nimi}“ muudetud`, detailid: dd, obj_id: parseInt(req.params.id, 10) });
+  }
   res.json({ ok: true });
 });
 
@@ -562,8 +650,14 @@ router.put('/tood/:id/jaotus', noudaAdmin, async (req, res) => {
   const b = req.body || {};
   const s = await pool.query(`SELECT ettevote_id FROM remont_seaded WHERE id=1`);
   const ettevoteId = s.rows[0].ettevote_id;
-  const kirje = await pool.query(`SELECT id FROM tookirjed WHERE id=$1 AND ettevote_id=$2`, [req.params.id, ettevoteId]);
+  const kirje = await pool.query(
+    `SELECT t.id, to_char(t.kuupaev,'YYYY-MM-DD') AS kuupaev, t.tunnid, t.objekt_id, w.nimi AS tootaja, o.nimi AS osa,
+            j.naabri_protsent AS oma
+     FROM tookirjed t JOIN workers w ON w.id = t.worker_id LEFT JOIN objektid o ON o.id = t.objekt_id
+     LEFT JOIN remont_too_jaotus j ON j.tookirje_id = t.id
+     WHERE t.id=$1 AND t.ettevote_id=$2`, [req.params.id, ettevoteId]);
   if (!kirje.rowCount) return res.json({ ok: false, veateade: 'Töökirjet ei leitud' });
+  const vanaK = kirje.rows[0];
 
   let objektId = null;
   if (b.objekt_id) {
@@ -584,6 +678,17 @@ router.put('/tood/:id/jaotus', noudaAdmin, async (req, res) => {
        ON CONFLICT (tookirje_id) DO UPDATE SET naabri_protsent = EXCLUDED.naabri_protsent`,
       [req.params.id, p]
     );
+  }
+  {
+    const nn = await minuNimi(), dd = [];
+    const vp = vanaK.oma === null ? null : r2(vanaK.oma);
+    if ((vanaK.objekt_id || null) !== objektId) {
+      const uo = objektId ? (await pool.query(`SELECT nimi FROM objektid WHERE id=$1`, [objektId])).rows[0] : null;
+      dd.push(`Tööosa „${vanaK.osa || '—'}“ → „${uo ? uo.nimi : '—'}“`);
+    }
+    if (vp !== p) dd.push(`${nn.naabri_nimi} osa ${prots(vp)} → ${prots(p)}`);
+    if (dd.length) await logi({ tyyp: 'too', tegevus: 'muutis', kes: nn.minu_nimi,
+      pealkiri: `Töö jaotus: ${vanaK.tootaja}, ${kpEt(vanaK.kuupaev)} (${String(r2(vanaK.tunnid)).replace('.', ',')} h)`, detailid: dd, obj_id: vanaK.id });
   }
   res.json({ ok: true });
 });
@@ -850,6 +955,11 @@ router.post('/kulud', noudaAdmin, uploadDok.single('fail'), async (req, res) => 
   if (k.viga) return res.json({ ok: false, veateade: k.viga });
   const t = await salvestaKulu(k, req.file, null);
   if (t.viga) return res.json({ ok: false, veateade: t.viga });
+  const nn = await minuNimi();
+  await logi({ tyyp: 'kulu', tegevus: 'lisas', kes: nn.minu_nimi, pealkiri: `Tšekk: ${k.kirjeldus}, ${kpEt(k.kuupaev)}`,
+    summa: k.summa, obj_id: t.id,
+    detailid: [`${k.read.length} tooterida`, `${nn.naabri_nimi} osa ${eur(k.naabriSumma)}`,
+      k.maksja === 'naaber' ? `Maksis ${nn.naabri_nimi}` : null] });
   res.json({ ok: true, id: t.id, arvetes: t.arvetes });
 });
 
@@ -897,6 +1007,10 @@ router.post('/kulud/:id/arvetesse', noudaAdmin, async (req, res) => {
     if (t.viga) return res.json({ ok: false, veateade: t.viga });
     // Linnukese vahetamine ei tähenda, et töötaja tšekk on üle vaadatud — taastame endise oleku.
     if (vana.tootaja_maksis) await pool.query(`UPDATE remont_kulud SET ule_vaadatud=$1 WHERE id=$2`, [!!vana.ule_vaadatud, id]);
+    const nn = await minuNimi();
+    await logi({ tyyp: 'kulu', tegevus: 'muutis', kes: nn.minu_nimi, ainult_admin: true, obj_id: id, summa: r2(summa),
+      pealkiri: `Tšekk: ${vana.kirjeldus}, ${kpEt(vana.kp)}`,
+      detailid: [lisa ? `Lisatud Royali arvetesse (käibemaks ${eur(km)})` : 'Eemaldatud Royali arvetest'] });
     res.json({ ok: true, id: t.id, arvetes: t.arvetes });
   } catch (e) {
     console.error('Tšeki arvetesse lisamine:', e);
@@ -915,8 +1029,15 @@ router.post('/kulud/:id/uuenda', noudaAdmin, uploadDok.single('fail'), async (re
   if (v0.rows.length && v0.rows[0].tootaja_maksis === 'isiklik' && v0.rows[0].arve_sisse_id && !k.arvetesse) {
     return res.json({ ok: false, veateade: 'See on töötaja kuluhüvitis — see peab jääma Royali arvetesse (märgi seal makstuks, kui töötajale on tagasi makstud)' });
   }
+  const enne = await kuluSeis(id);
   const t = await salvestaKulu(k, req.file, id);
   if (t.viga) return res.json({ ok: false, veateade: t.viga });
+  const parast = await kuluSeis(id);
+  const nn = await minuNimi();
+  const dd = kuluMuutused(enne, parast, nn);
+  if (req.file) dd.push('Uus tšeki fail');
+  await logi({ tyyp: 'kulu', tegevus: 'muutis', kes: nn.minu_nimi, pealkiri: `Tšekk: ${k.kirjeldus}, ${kpEt(k.kuupaev)}`,
+    summa: k.summa, obj_id: id, detailid: dd.length ? dd : ['Tšekk üle vaadatud ja salvestatud (summad samad)'] });
   res.json({ ok: true, id: t.id, arvetes: t.arvetes });
 });
 
@@ -936,12 +1057,18 @@ router.post('/kulud/:id/kinnita', noudaAdmin, async (req, res) => {
   const r = await pool.query(
     `UPDATE remont_kulud SET arvetest_tulnud=false, ule_vaadatud=true WHERE id=$1 RETURNING id`, [req.params.id]);
   if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const ks = await kuluSeis(req.params.id), nn = await minuNimi();
+  if (ks) await logi({ tyyp: 'kulu', tegevus: 'kinnitas', kes: nn.minu_nimi, pealkiri: `Tšekk: ${ks.pood}, ${kpEt(ks.kuupaev)}`,
+    summa: ks.summa, obj_id: parseInt(req.params.id, 10), detailid: [`Jaotus kinnitatud — ${nn.naabri_nimi} osa ${eur(ks.naabri)}`] });
   res.json({ ok: true });
 });
 router.delete('/kulud/:id', noudaAdmin, async (req, res) => {
   const v = await pool.query(`SELECT * FROM remont_kulud WHERE id=$1`, [req.params.id]);
   if (!v.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const ks = await kuluSeis(req.params.id), nn = await minuNimi();
   await kustutaKuluKirje(v.rows[0]);
+  if (ks) await logi({ tyyp: 'kulu', tegevus: 'kustutas', kes: nn.minu_nimi, pealkiri: `Tšekk: ${ks.pood}, ${kpEt(ks.kuupaev)}`,
+    summa: ks.summa, obj_id: parseInt(req.params.id, 10), detailid: [`${nn.naabri_nimi} osa oli ${eur(ks.naabri)}`, ks.ridu ? `${ks.ridu} tooterida` : null] });
   res.json({ ok: true });
 });
 
@@ -1022,6 +1149,10 @@ router.post('/tootaja/tsekk', noudaTsekiTootajat, uploadDok.single('fail'), asyn
   };
   const t = await salvestaKulu(k, req.file, null);
   if (t.viga) return res.json({ ok: false, veateade: t.viga });
+  await logi({ tyyp: 'kulu', tegevus: 'lisas', kes: k.tootaja.nimi, kes_naabrile: 'Royal Paigaldus',
+    pealkiri: `Tšekk: ${pood}, ${kpEt(b.kuupaev)}`, summa, obj_id: t.id,
+    detailid: [`${minu.length} tooterida`, 'Jaotus veel määramata'],
+    admin_markus: `${k.tootaja.nimi} maksis ${maksis === 'isiklik' ? 'isikliku kaardiga (kuluhüvitis)' : 'oma ettevõtte kaardiga (lisakulu)'}` });
   res.json({ ok: true, id: t.id, summa, maksis });
 });
 
@@ -1056,6 +1187,12 @@ router.delete('/tootaja/tsekk/:id', noudaTsekiTootajat, async (req, res) => {
     return res.json({ ok: false, veateade: 'Seda tšekki ei saa enam kustutada — palun ütle Ralfile.' });
   }
   await kustutaKuluKirje(k);
+  {
+    const w = await pool.query(`SELECT nimi FROM workers WHERE id=$1`, [req.session.workerId]);
+    await logi({ tyyp: 'kulu', tegevus: 'kustutas', kes: w.rows.length ? w.rows[0].nimi : 'töötaja', kes_naabrile: 'Royal Paigaldus',
+      pealkiri: `Tšekk: ${k.kirjeldus}, ${kpEt(new Date(k.kuupaev).toLocaleDateString('sv-SE', { timeZone: 'Europe/Tallinn' }))}`,
+      summa: parseFloat(k.summa) || 0, obj_id: k.id, detailid: ['Lisaja kustutas oma tšeki 24 h jooksul'] });
+  }
   res.json({ ok: true });
 });
 
@@ -1088,13 +1225,198 @@ router.post('/maksed', noudaAdmin, async (req, res) => {
     `INSERT INTO remont_maksed (kuupaev, summa, suund, kommentaar) VALUES ($1,$2,$3,$4)`,
     [b.kuupaev, r2(summa), b.suund === 'naabrile' ? 'naabrile' : 'naabrilt', String(b.kommentaar || '').trim().slice(0, 300)]
   );
+  {
+    const nn = await minuNimi(), uusId = (await pool.query(`SELECT MAX(id) AS id FROM remont_maksed`)).rows[0].id;
+    const kom = String(b.kommentaar || '').trim();
+    await logi({ tyyp: 'makse', tegevus: 'lisas', kes: nn.minu_nimi, obj_id: uusId, summa: r2(summa),
+      pealkiri: `Makse ${b.suund === 'naabrile' ? nn.minu_nimi + ' → ' + nn.naabri_nimi : nn.naabri_nimi + ' → ' + nn.minu_nimi}, ${kpEt(b.kuupaev)}`,
+      detailid: kom ? [kom.slice(0, 300)] : [] });
+  }
   res.json({ ok: true });
 });
 
 router.delete('/maksed/:id', noudaAdmin, async (req, res) => {
-  const r = await pool.query(`DELETE FROM remont_maksed WHERE id=$1`, [req.params.id]);
+  const r = await pool.query(`DELETE FROM remont_maksed WHERE id=$1 RETURNING id, to_char(kuupaev,'YYYY-MM-DD') AS kp, summa, suund`, [req.params.id]);
   if (!r.rowCount) return res.json({ ok: false, veateade: 'Kirjet ei leitud' });
+  const m = r.rows[0], nn = await minuNimi();
+  await logi({ tyyp: 'makse', tegevus: 'kustutas', kes: nn.minu_nimi, obj_id: m.id, summa: parseFloat(m.summa) || 0,
+    pealkiri: `Makse ${m.suund === 'naabrile' ? nn.minu_nimi + ' → ' + nn.naabri_nimi : nn.naabri_nimi + ' → ' + nn.minu_nimi}, ${kpEt(m.kp)}` });
   res.json({ ok: true });
+});
+
+// ── LOGI (admin + naaber) ─────────────────────────────────────────────────
+// Kõik sündmused ajalises järjekorras: millal ja kes mida sisestas, muutis või kustutas.
+// Allikad:
+//  * remont_logi — selle mooduli tegevused (tšekid, maksed, jaotus, seaded), kirjutatakse alates logi loomisest
+//  * audit_log — töötajate töökirjete lisamine/muutmine/kustutamine (rakendus on seda alati salvestanud)
+//  * TAGANTJÄRELE: tšekid, maksed ja töökirjed, mille kohta logirida pole, saavad sündmuse oma loomise ajast
+// Kerttule ei näidata: raamatupidamise sündmusi (ainult_admin), kes töötajatest tšeki lisas ja kuidas maksis,
+// km-e, lisakulusid ega tunnitasusid.
+const TLN = (col) => `to_char((${col} AT TIME ZONE current_setting('TimeZone')) AT TIME ZONE 'Europe/Tallinn', 'YYYY-MM-DD HH24:MI:SS')`;
+const LOGI_ALGUS = '2026-09-15'; // TELJE 10 algas oktoobris 2026 — varasemaid audit_log ridu pole vaja lugeda
+function audKp(x) {
+  if (!x) return '';
+  const s = String(x);
+  if (s.length > 10 && s.includes('T')) {
+    const d = new Date(s);
+    if (!isNaN(d)) return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Tallinn' });
+  }
+  return s.slice(0, 10);
+}
+const kell = (x) => (x == null ? '' : String(x).slice(0, 5));
+const tundi = (x) => String(r2(parseFloat(x) || 0)).replace('.', ',') + ' h';
+function paevaVahe(aeg, kp) {
+  const a = new Date(String(aeg).slice(0, 10) + 'T12:00:00Z'), b = new Date(String(kp).slice(0, 10) + 'T12:00:00Z');
+  return isNaN(a) || isNaN(b) ? 0 : Math.round((a - b) / 86400000);
+}
+
+router.get('/logi', noudaVaatajat, async (req, res) => {
+  try { await syncArvetest(); } catch (e) { console.error('TELJE 10 arvete sünkroonimine:', e.message); }
+  // ?eelvaade=1 — admin vaatab logi Kerttu pilguga (sama mis "Kerttu vaade" nupp)
+  const onAdmin = req.remontRoll === 'admin' && req.query.eelvaade !== '1';
+  const sR = await pool.query(`SELECT * FROM remont_seaded WHERE id=1`);
+  const seaded = sR.rows[0];
+  const M = seaded.minu_nimi, N = seaded.naabri_nimi, ettevoteId = seaded.ettevote_id;
+  const eR = await pool.query(`SELECT nimi FROM ettevotted WHERE id=$1`, [ettevoteId]);
+  const ettevoteNimi = eR.rows.length ? eR.rows[0].nimi : ETTEVOTTE_NIMI;
+  const syndmused = [];
+  const lisa = (e) => syndmused.push(Object.assign({ detailid: [], summa: null, markus: '', taastatud: false, jrk: syndmused.length }, e));
+
+  // 1) Mooduli enda logi
+  const lR = await pool.query(
+    `SELECT id, ${TLN('loodud')} AS aeg, tyyp, tegevus, kes, kes_naabrile, pealkiri, detailid, summa, obj_id, ainult_admin, admin_markus
+     FROM remont_logi ${onAdmin ? '' : 'WHERE ainult_admin = false'} ORDER BY loodud, id`);
+  const logitudKulud = new Set(), logitudMaksed = new Set();
+  lR.rows.forEach(x => {
+    if (x.tegevus === 'lisas' && x.tyyp === 'kulu' && x.obj_id) logitudKulud.add(x.obj_id);
+    if (x.tegevus === 'lisas' && x.tyyp === 'makse' && x.obj_id) logitudMaksed.add(x.obj_id);
+    lisa({
+      aeg: x.aeg, tyyp: x.tyyp, tegevus: x.tegevus,
+      kes: onAdmin ? (x.kes || '') : (x.kes_naabrile || x.kes || ''),
+      pealkiri: x.pealkiri, detailid: Array.isArray(x.detailid) ? x.detailid : [],
+      summa: x.summa === null ? null : parseFloat(x.summa),
+      markus: onAdmin ? (x.admin_markus || '') + (x.ainult_admin ? (x.admin_markus ? ' · ' : '') + 'nähtav ainult sulle' : '') : ''
+    });
+  });
+
+  // 2) Tšekid, mille lisamise kohta logirida pole (lisatud enne logi loomist) — aeg tšeki loomisest
+  const kR = await pool.query(
+    `SELECT k.id, ${TLN('LEAST(k.loodud, COALESCE(a.loodud, k.loodud))')} AS aeg, to_char(k.kuupaev,'YYYY-MM-DD') AS kp,
+            k.kirjeldus, k.summa, k.naabri_summa, k.maksja, k.tootaja_maksis, k.arvetest_tulnud, k.ule_vaadatud, w.nimi AS tootaja,
+            (SELECT COUNT(*) FROM remont_kulu_read r WHERE r.kulu_id = k.id) AS ridu
+     FROM remont_kulud k LEFT JOIN arve_sisse a ON a.id = k.arve_sisse_id LEFT JOIN workers w ON w.id = k.tootaja_id`);
+  kR.rows.forEach(k => {
+    if (logitudKulud.has(k.id)) return;
+    const kinnitamata = k.arvetest_tulnud || (k.tootaja_maksis && !k.ule_vaadatud);
+    lisa({
+      aeg: k.aeg, tyyp: 'kulu', tegevus: 'lisas', taastatud: true,
+      kes: k.tootaja_maksis ? (onAdmin ? (k.tootaja || 'töötaja') : 'Royal Paigaldus') : M,
+      pealkiri: `Tšekk: ${k.kirjeldus}, ${kpEt(k.kp)}`, summa: parseFloat(k.summa) || 0,
+      detailid: [parseInt(k.ridu, 10) ? `${parseInt(k.ridu, 10)} tooterida` : null,
+        kinnitamata ? 'Jaotus veel kinnitamata' : `${N} osa praegu ${eur(k.naabri_summa)}`,
+        k.maksja === 'naaber' ? `Maksis ${N}` : null, k.arvetest_tulnud ? 'Lisatud Arvete lehel' : null].filter(Boolean),
+      markus: onAdmin && k.tootaja_maksis ? `${k.tootaja || 'töötaja'} maksis ${k.tootaja_maksis === 'isiklik' ? 'isikliku kaardiga' : 'oma ettevõtte kaardiga'}` : ''
+    });
+  });
+
+  // 3) Maksed ilma logireata
+  const mR = await pool.query(`SELECT id, ${TLN('loodud')} AS aeg, to_char(kuupaev,'YYYY-MM-DD') AS kp, summa, suund, kommentaar FROM remont_maksed`);
+  mR.rows.forEach(m => {
+    if (logitudMaksed.has(m.id)) return;
+    lisa({ aeg: m.aeg, tyyp: 'makse', tegevus: 'lisas', taastatud: true, kes: M, summa: parseFloat(m.summa) || 0,
+      pealkiri: `Makse ${m.suund === 'naabrile' ? M + ' → ' + N : N + ' → ' + M}, ${kpEt(m.kp)}`,
+      detailid: m.kommentaar ? [m.kommentaar] : [] });
+  });
+
+  // 4) Töökirjed: audit_log + praegused kirjed
+  const osadR = await pool.query(`SELECT id, nimi FROM objektid WHERE ettevote_id=$1`, [ettevoteId]);
+  const osaNimi = {};
+  osadR.rows.forEach(o => { osaNimi[String(o.id)] = o.nimi; });
+  const tR = await pool.query(
+    `SELECT t.id, ${TLN('t.loodud')} AS aeg, to_char(t.kuupaev,'YYYY-MM-DD') AS kp, to_char(t.algus,'HH24:MI') AS algus,
+            to_char(t.lopp,'HH24:MI') AS lopp, t.tunnid, t.kommentaar, t.objekt_id, w.nimi AS tootaja
+     FROM tookirjed t JOIN workers w ON w.id = t.worker_id WHERE t.ettevote_id=$1`, [ettevoteId]);
+  const kirjed = new Set(tR.rows.map(t => String(t.id)));
+  const tootajaKirjel = {};
+  tR.rows.forEach(t => { tootajaKirjel[String(t.id)] = t.tootaja; });
+
+  const aR = await pool.query(
+    `SELECT a.tegevus, a.details, ${TLN('a.loodud')} AS aeg, w.nimi AS kes
+     FROM audit_log a LEFT JOIN workers w ON w.id = a.worker_id
+     WHERE a.tegevus IN ('LISA_TOOKIRJE','LISA_TOOKIRJE_KAASLASELE','MUUDA_TOOKIRJE','KUSTUTA_TOOKIRJE','ADMIN_MUUTIS_TOOKIRJET','ADMIN_KUSTUTAS_TOOKIRJE')
+       AND a.loodud >= $1
+     ORDER BY a.loodud, a.id`, [LOGI_ALGUS]);
+  const audit = [];
+  aR.rows.forEach(r => {
+    let d;
+    try { d = typeof r.details === 'string' ? JSON.parse(r.details) : r.details; } catch (e) { return; }
+    if (!d || d.kirje_id === undefined || d.kirje_id === null) return;
+    audit.push({ tegevus: r.tegevus, d, aeg: r.aeg, kes: r.kes || '', id: String(d.kirje_id) });
+    // Ka kustutatud TELJE 10 kirjed tunneb ära lisamise logirea järgi
+    if ((r.tegevus === 'LISA_TOOKIRJE' || r.tegevus === 'LISA_TOOKIRJE_KAASLASELE') && String(d.ettevote_id) === String(ettevoteId)) {
+      kirjed.add(String(d.kirje_id));
+      if (r.tegevus === 'LISA_TOOKIRJE' && !tootajaKirjel[String(d.kirje_id)]) tootajaKirjel[String(d.kirje_id)] = r.kes;
+      if (r.tegevus === 'LISA_TOOKIRJE_KAASLASELE' && !tootajaKirjel[String(d.kirje_id)]) tootajaKirjel[String(d.kirje_id)] = d.kaaslane;
+    }
+  });
+  const lisatudLogiga = new Set();
+  const hiline = (aeg, kp) => {
+    const v = paevaVahe(aeg, kp);
+    return v >= 2 ? `Kirja pandud ${v} päeva pärast tööd` : null;
+  };
+  audit.forEach(a => {
+    const d = a.d;
+    if (a.tegevus === 'KUSTUTA_TOOKIRJE') {
+      if (!kirjed.has(a.id) && d.ettevote !== ettevoteNimi) return;
+    } else if (!kirjed.has(a.id)) return;
+    const kp = audKp(d.kuupaev);
+    if (a.tegevus === 'LISA_TOOKIRJE' || a.tegevus === 'LISA_TOOKIRJE_KAASLASELE') {
+      lisatudLogiga.add(a.id);
+      const kaaslasele = a.tegevus === 'LISA_TOOKIRJE_KAASLASELE';
+      lisa({ aeg: a.aeg, tyyp: 'too', tegevus: 'lisas', kes: a.kes,
+        pealkiri: `Tunnid${kaaslasele ? ' töötajale ' + (d.kaaslane || '') : ''}: ${kpEt(kp)} ${kell(d.algus)}–${kell(d.lopp)} (${tundi(d.tunnid)})`,
+        detailid: [d.objekt_id && osaNimi[String(d.objekt_id)] ? 'Tööosa: ' + osaNimi[String(d.objekt_id)] : null,
+          d.kommentaar ? String(d.kommentaar).slice(0, 300) : null, hiline(a.aeg, kp)] });
+    } else if (a.tegevus === 'MUUDA_TOOKIRJE') {
+      const dd = [];
+      const vkp = audKp(d.vana_kuupaev);
+      if (vkp && kp && vkp !== kp) dd.push(`Kuupäev ${kpEt(vkp)} → ${kpEt(kp)}`);
+      if (d.vana_algus !== undefined && (kell(d.vana_algus) !== kell(d.algus) || kell(d.vana_lopp) !== kell(d.lopp)))
+        dd.push(`Kellaaeg ${kell(d.vana_algus)}–${kell(d.vana_lopp)} → ${kell(d.algus)}–${kell(d.lopp)}`);
+      if (d.vana_tunnid !== undefined && r2(d.vana_tunnid) !== r2(d.tunnid)) dd.push(`Tunnid ${tundi(d.vana_tunnid)} → ${tundi(d.tunnid)}`);
+      if (d.vana_kommentaar !== undefined && String(d.vana_kommentaar || '') !== String(d.kommentaar || ''))
+        dd.push(`Kirjeldus „${String(d.vana_kommentaar || '—').slice(0, 120)}“ → „${String(d.kommentaar || '—').slice(0, 120)}“`);
+      if (!dd.length) return; // muutus ainult km/lisakulu vms — see pole jagamise osa
+      lisa({ aeg: a.aeg, tyyp: 'too', tegevus: 'muutis', kes: a.kes, pealkiri: `Tunnid muudetud: ${kpEt(kp)}`, detailid: dd });
+    } else if (a.tegevus === 'ADMIN_MUUTIS_TOOKIRJET') {
+      const v = d.vana || {}, u = d.uus || {}, dd = [];
+      if (audKp(v.kuupaev) !== audKp(u.kuupaev)) dd.push(`Kuupäev ${kpEt(audKp(v.kuupaev))} → ${kpEt(audKp(u.kuupaev))}`);
+      if (kell(v.algus) !== kell(u.algus) || kell(v.lopp) !== kell(u.lopp)) dd.push(`Kellaaeg ${kell(v.algus)}–${kell(v.lopp)} → ${kell(u.algus)}–${kell(u.lopp)}`);
+      if (r2(v.tunnid) !== r2(u.tunnid)) dd.push(`Tunnid ${tundi(v.tunnid)} → ${tundi(u.tunnid)}`);
+      if (!dd.length) dd.push('Kirjeldus või muu info muudetud');
+      lisa({ aeg: a.aeg, tyyp: 'too', tegevus: 'muutis', kes: M,
+        pealkiri: `Tunnid muudetud (${a.kes || tootajaKirjel[a.id] || 'töötaja'}): ${kpEt(audKp(u.kuupaev || v.kuupaev))}`, detailid: dd });
+    } else if (a.tegevus === 'KUSTUTA_TOOKIRJE' || a.tegevus === 'ADMIN_KUSTUTAS_TOOKIRJE') {
+      const admin = a.tegevus === 'ADMIN_KUSTUTAS_TOOKIRJE';
+      lisa({ aeg: a.aeg, tyyp: 'too', tegevus: 'kustutas', kes: admin ? M : a.kes,
+        pealkiri: `Tunnid kustutatud${admin ? ' (' + (a.kes || tootajaKirjel[a.id] || 'töötaja') + ')' : ''}: ${kpEt(kp)} ${kell(d.algus)}–${kell(d.lopp)} (${tundi(d.tunnid)})`,
+        detailid: d.objekt ? ['Tööosa: ' + d.objekt] : [] });
+    }
+  });
+  // Töökirjed, mille lisamise logirida pole — aeg kirje loomisest
+  tR.rows.forEach(t => {
+    if (lisatudLogiga.has(String(t.id))) return;
+    lisa({ aeg: t.aeg, tyyp: 'too', tegevus: 'lisas', kes: t.tootaja, taastatud: true,
+      pealkiri: `Tunnid: ${kpEt(t.kp)} ${t.algus}–${t.lopp} (${tundi(t.tunnid)})`,
+      detailid: [t.objekt_id && osaNimi[String(t.objekt_id)] ? 'Tööosa: ' + osaNimi[String(t.objekt_id)] : null,
+        t.kommentaar ? String(t.kommentaar).slice(0, 300) : null, hiline(t.aeg, t.kp)].filter(Boolean) });
+  });
+
+  syndmused.forEach(e => { e.detailid = (e.detailid || []).filter(Boolean); });
+  // Uuemad eespool; sama sekundi sündmustest hiljem lisatu eespool
+  syndmused.sort((a, b) => String(b.aeg).localeCompare(String(a.aeg)) || b.jrk - a.jrk);
+  syndmused.forEach(e => { e.aeg = String(e.aeg).slice(0, 16); delete e.jrk; });
+  res.json({ ok: true, syndmused });
 });
 
 // ── EXCEL (admin + naaber) ────────────────────────────────────────────────
