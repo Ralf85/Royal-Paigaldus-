@@ -613,6 +613,8 @@ function joonista() {
 
   var nupud = '<button class="btn" onclick="laeExcel()">⬇ Excel</button>';
   if (roll === 'admin' && !eelvaade) {
+    // Materjalide koond (kogused, ühikuhinnad, kategooriad) — ainult adminile, ka server lubab ainult adminil
+    nupud += '<button class="btn" onclick="laeMaterjalidExcel()">⬇ Materjalid Excel</button>';
     nupud += '<button class="btn" onclick="lylitaEelvaade()">👁 ' + esc(s.naabri_nimi) + ' vaade</button>'
       + '<a class="btn" href="/admin">← Admin</a>';
   }
@@ -1610,6 +1612,9 @@ async function kustutaMakse(id) {
 // ── Excel ────────────────────────────────────────────────────────
 function laeExcel() {
   window.rpLaeFail('/api/remont/excel', token, 'telje10.xlsx');
+}
+function laeMaterjalidExcel() {
+  window.rpLaeFail('/api/remont/materjalid-excel', token, 'telje10_materjalid.xlsx');
 }
 
 alusta();

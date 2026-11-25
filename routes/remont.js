@@ -1249,4 +1249,278 @@ router.get('/excel', noudaVaatajat, async (req, res) => {
   res.end();
 });
 
+// ── MATERJALIDE EXCEL (AINULT ADMIN) ──────────────────────────────────────
+// Kõik tšekkide tooteread ühes failis: kogus, ühik, ühikuhind, kategooria (kruvid, OSB/plaadid, puit ...)
+// ja kui palju kogusest/summast on Ralfi ning kui palju Kerttu kanda.
+// Kogus tuleb toote nimest: AI kirjutab selle nime lõppu sulgudesse, nt "OSB 12mm 2500x1250 (10 tk)".
+// Kui kogust pole, jääb kogus ja ühikuhind tühjaks (summa ja jaotus on alati olemas).
+
+// Ühikute ühtlustamine, et "tk", "tk." ja "tükki" läheksid koondis kokku.
+function normYhik(y) {
+  const u = String(y || '').toLowerCase().replace(/\./g, '').trim();
+  if (!u) return 'tk';
+  if (['tk', 'tükk', 'tükki', 'tykk', 'pcs', 'pc', 'st', 'h'].includes(u)) return u === 'h' ? 'h' : 'tk';
+  if (['m2', 'm²', 'ruutm', 'ruutmeetrit'].includes(u)) return 'm²';
+  if (['m3', 'm³', 'tm'].includes(u)) return 'm³';
+  if (['m', 'jm', 'meetrit'].includes(u)) return 'm';
+  if (['pk', 'pakk', 'pakki', 'pkt'].includes(u)) return 'pk';
+  if (['l', 'ltr', 'liitrit'].includes(u)) return 'l';
+  if (['kg', 'kilo'].includes(u)) return 'kg';
+  if (['rl', 'rull', 'rulli'].includes(u)) return 'rull';
+  if (['kmpl', 'kompl', 'komplekt', 'kpl'].includes(u)) return 'kmpl';
+  if (['leht', 'lehte'].includes(u)) return 'leht';
+  if (['kott', 'kotti'].includes(u)) return 'kott';
+  return u;
+}
+
+// "Kruvi 4,2x50 (200 tk)" -> { nimi: 'Kruvi 4,2x50', kogus: 200, yhik: 'tk' }
+// Sulgudes mõõdud ("(5x50)") EI ole kogus — ühik tohib sisaldada ainult tähti (ja m2/m3).
+function lahutaKogus(nimetus) {
+  const t = String(nimetus || '').trim();
+  const m = t.match(/^(.*?)\s*\(\s*(-?\d+(?:[.,]\d+)?)\s*([a-zA-ZõäöüšžÕÄÖÜŠŽ²³.]{0,12}[23]?)\s*\)\s*$/);
+  if (!m) return { nimi: t, kogus: null, yhik: '' };
+  const kogus = parseFloat(m[2].replace(',', '.'));
+  if (!Number.isFinite(kogus) || kogus === 0) return { nimi: m[1].trim() || t, kogus: null, yhik: '' };
+  return { nimi: m[1].trim() || t, kogus, yhik: normYhik(m[3]) };
+}
+
+// Kategooria toote nime järgi. Järjekord on oluline: "kipsikruvi" on kruvi, "plaadiliim" on liim.
+const MATERJALI_KATEGOORIAD = [
+  ['Transport ja teenused', /transport|kohaletoim|veoteenus|tarnetasu|saatmine|kättetoim|\brent|pant|tõsteteenus|lõiketeenus|lõikamine/],
+  ['Kruvid ja kinnitusvahendid', /kruv|nael|tüübel|tyybel|ankru|ankur|polt|mutter|seib|klamb|kinnitus|nurgik|naast|keermelatt|tõmbeneet|needid|neet|riputi|tala ?king/],
+  ['Segud, liimid, vahud', /segu|liim|vaht|hermeetik|silikoon|krohv|betoon|tsement|tasandus|mört|morter|vuugi/],
+  ['Värvid ja viimistlus', /värv|varv|krunt|lakk|pahtel|peits|immutus|puiduõli|õlivaha/],
+  ['OSB ja plaadid', /osb|kips|vineer|plaat|mdf|puitlaast|fibo|tsementkiud|tuuletõkkeplaat/],
+  ['Puit ja saematerjal', /prus|laud|liist|saemat|höövel|hoovel|puit|sarik|latt|roov|terrass|voodri|kant/],
+  ['Isolatsioon ja kiled', /vill|isolats|penoplast|\beps\b|\bxps\b|kile|aurutõke|tuuletõke|membraan|soojustus/],
+  ['Elekter', /kaabel|juhe|pistik|lüliti|harukarp|valgusti|lamp|led|kaitselüliti|gofreer/],
+  ['Torutööd', /toru|liitmik|kraan|segisti|sifoon|äravool|trapp|ventiil/],
+  ['Tööriistad ja tarvikud', /tera|otsak|puur|teip|\blint|kinda|kindad|pintsel|rull|lõikeketas|ketas|liivapaber|lihv|mõõdu|pliiats|kott|prügi|nuga|kruvikeeraja|haamer|aku|patarei|tolm|kaitse/]
+];
+function materjaliKategooria(nimi, summa) {
+  const n = String(nimi || '').toLowerCase();
+  if (summa < 0 && /allahind|soodus|discount|kupong|boonus/.test(n)) return 'Allahindlused';
+  for (const [kat, re] of MATERJALI_KATEGOORIAD) if (re.test(n)) return kat;
+  return 'Muu';
+}
+
+router.get('/materjalid-excel', noudaAdmin, async (req, res) => {
+  try { await syncArvetest(); } catch (e) { console.error('TELJE 10 arvete sünkroonimine:', e.message); }
+  const ExcelJS = require('exceljs');
+  const d = await koguAndmed();
+  const s = d.seaded;
+  const M = s.minu_nimi, N = s.naabri_nimi;
+  const wb = new ExcelJS.Workbook();
+  const RAHA = '#,##0.00 "€"';
+  const YHIKUHIND = '#,##0.00## "€"';
+  const KOGUS = 'General';
+  const piir = { style: 'thin', color: { argb: 'FFB8CCE4' } };
+  const raam = { top: piir, bottom: piir, left: piir, right: piir };
+  const r4 = (n) => Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
+
+  // Sama kujundus mis /excel lehel: tumesinine pealkiri, punane päis, vahelduvad read, sinine KOKKU-rida.
+  function leht(nimi, pealkiri, veerud, read, kokku, markus) {
+    const ws = wb.addWorksheet(nimi);
+    const n = veerud.length;
+    ws.mergeCells(1, 1, 1, n);
+    const t = ws.getCell(1, 1);
+    t.value = pealkiri;
+    t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
+    t.font = { name: 'Arial', bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+    t.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 34;
+    let algus = 2;
+    if (markus) {
+      ws.mergeCells(2, 1, 2, n);
+      const mc = ws.getCell(2, 1);
+      mc.value = markus;
+      mc.font = { name: 'Arial', italic: true, size: 9, color: { argb: 'FF666666' } };
+      mc.alignment = { wrapText: true, vertical: 'middle' };
+      ws.getRow(2).height = 30;
+      algus = 3;
+    }
+    const hdr = ws.getRow(algus);
+    hdr.height = 32;
+    veerud.forEach((v, i) => {
+      const c = hdr.getCell(i + 1);
+      c.value = v.pealkiri;
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0504D' } };
+      c.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+      c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      c.border = raam;
+      ws.getColumn(i + 1).width = v.laius;
+    });
+    function kirjuta(rida, vaartused, taust, paks, fondiVarv) {
+      vaartused.forEach((val, i) => {
+        const c = rida.getCell(i + 1);
+        const onLink = val && typeof val === 'object' && val.hyperlink;
+        c.value = val === undefined || val === '' ? (val === '' ? '' : null) : val;
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: taust } };
+        c.font = { name: 'Arial', size: 10, bold: paks, color: { argb: onLink && !paks ? 'FF0563C1' : fondiVarv }, underline: onLink ? true : undefined };
+        c.border = raam;
+        c.alignment = { vertical: 'middle', wrapText: !veerud[i].fmt && !onLink, horizontal: typeof val === 'number' ? 'right' : 'left' };
+        if (veerud[i].fmt && typeof val === 'number') c.numFmt = veerud[i].fmt;
+      });
+    }
+    read.forEach((r, i) => kirjuta(ws.getRow(algus + 1 + i), r, i % 2 === 0 ? 'FFFFFFFF' : 'FFDCE6F1', false, 'FF000000'));
+    if (kokku) kirjuta(ws.getRow(algus + 1 + read.length), kokku, 'FF1F3864', true, 'FFFFFFFF');
+    if (read.length) ws.autoFilter = { from: { row: algus, column: 1 }, to: { row: algus, column: n } };
+    ws.views = [{ state: 'frozen', ySplit: algus }];
+    return ws;
+  }
+
+  // ── Kõik tooteread ühte nimekirja ──
+  const vanimEes = (a, b) => a.kuupaev.localeCompare(b.kuupaev) || a.id - b.id;
+  const kulud = d.kulud.slice().sort(vanimEes);
+  const read = [];
+  const ilmaRidadeta = [];
+  kulud.forEach(x => {
+    const rr = x.read && x.read.length ? x.read
+      : [{ nimetus: x.kirjeldus, summa: x.summa, naabri_protsent: x.summa ? r2(x.naabri_summa / x.summa * 100) : 0, naabri_summa: x.naabri_summa }];
+    // Tšekk ilma tooteridadeta = üks rida, mille nimi on sama mis tšeki nimi (nt Arvete lehelt tulnud).
+    if (rr.length === 1 && String(rr[0].nimetus).trim() === String(x.kirjeldus).trim()) ilmaRidadeta.push(x);
+    rr.forEach(rd => {
+      const l = lahutaKogus(rd.nimetus);
+      const summa = r2(rd.summa);
+      const p = Number(rd.naabri_protsent) || 0;
+      const nSumma = r2(rd.naabri_summa);
+      read.push({
+        kuupaev: x.kuupaev, pood: x.kirjeldus, nimi: l.nimi, kogus: l.kogus, yhik: l.yhik,
+        yhikuhind: l.kogus ? r4(summa / l.kogus) : null,
+        summa, protsent: p, nSumma, mSumma: r2(summa - nSumma),
+        nKogus: l.kogus ? r4(l.kogus * p / 100) : null,
+        mKogus: l.kogus ? r4(l.kogus * (100 - p) / 100) : null,
+        kategooria: materjaliKategooria(l.nimi, summa),
+        maksja: x.maksja === 'naaber' ? N : M,
+        kinnitamata: !!x.kinnitamata,
+        tootaja: x.tootaja ? x.tootaja.nimi : '',
+        foto: x.foto_url || ''
+      });
+    });
+  });
+
+  // ── Koond toodete kaupa (sama nimi + sama ühik = sama toode) ──
+  const koond = new Map();
+  read.forEach(r => {
+    const voti = r.kategooria + '|' + r.nimi.toLowerCase().replace(/\s+/g, ' ') + '|' + (r.kogus ? r.yhik : '');
+    let k = koond.get(voti);
+    if (!k) {
+      k = { kategooria: r.kategooria, nimi: r.nimi, yhik: r.kogus ? r.yhik : '', kordi: 0, kogus: 0, kogusegaSumma: 0,
+            min: null, max: null, summa: 0, mKogus: 0, mSumma: 0, nKogus: 0, nSumma: 0, onKogus: false };
+      koond.set(voti, k);
+    }
+    k.kordi++;
+    k.summa += r.summa; k.mSumma += r.mSumma; k.nSumma += r.nSumma;
+    if (r.kogus) {
+      k.onKogus = true;
+      k.kogus += r.kogus; k.kogusegaSumma += r.summa;
+      k.mKogus += r.mKogus; k.nKogus += r.nKogus;
+      if (r.yhikuhind > 0) {
+        k.min = k.min === null ? r.yhikuhind : Math.min(k.min, r.yhikuhind);
+        k.max = k.max === null ? r.yhikuhind : Math.max(k.max, r.yhikuhind);
+      }
+    }
+  });
+  const katJrk = MATERJALI_KATEGOORIAD.map(x => x[0]).concat(['Muu', 'Allahindlused']);
+  const koondRead = Array.from(koond.values()).sort((a, b) =>
+    katJrk.indexOf(a.kategooria) - katJrk.indexOf(b.kategooria) || b.summa - a.summa);
+
+  // ── Kategooriate koond ──
+  const kat = new Map();
+  read.forEach(r => {
+    let k = kat.get(r.kategooria);
+    if (!k) { k = { ridu: 0, summa: 0, mSumma: 0, nSumma: 0 }; kat.set(r.kategooria, k); }
+    k.ridu++; k.summa += r.summa; k.mSumma += r.mSumma; k.nSumma += r.nSumma;
+  });
+  const katRead = katJrk.filter(x => kat.has(x)).map(x => ({ nimi: x, ...kat.get(x) }));
+
+  const kokku = read.reduce((a, r) => { a.summa += r.summa; a.m += r.mSumma; a.n += r.nSumma; return a; }, { summa: 0, m: 0, n: 0 });
+  const tana = new Date().toISOString().slice(0, 10);
+  const ilmaKoguseta = read.filter(r => !r.kogus && r.summa > 0).length;
+  const kinnitamataTsekke = kulud.filter(x => x.kinnitamata).length;
+
+  // Leht 1: kokkuvõte kategooriate kaupa
+  leht('Kokkuvõte', `${s.projekti_nimi} — materjalid kategooriate kaupa (seis ${kpEt(tana)})`, [
+    { pealkiri: 'Kategooria', laius: 32 }, { pealkiri: 'Ridu', laius: 9, fmt: '0' },
+    { pealkiri: 'Summa kokku', laius: 15, fmt: RAHA },
+    { pealkiri: `${M} osa`, laius: 15, fmt: RAHA }, { pealkiri: `${N} osa`, laius: 15, fmt: RAHA },
+    { pealkiri: `${N} osa %`, laius: 11, fmt: '0.0"%"' }
+  ], katRead.map(k => [k.nimi, k.ridu, r2(k.summa), r2(k.mSumma), r2(k.nSumma), k.summa ? r2(k.nSumma / k.summa * 100) : 0]),
+  ['KOKKU', read.length, r2(kokku.summa), r2(kokku.m), r2(kokku.n), kokku.summa ? r2(kokku.n / kokku.summa * 100) : 0],
+  `Tšekke ${kulud.length}, tooteridu ${read.length}. ` +
+  (ilmaRidadeta.length ? `${ilmaRidadeta.length} tšekil pole tooteridu (vt leht „Ilma tooteridadeta“) — need on kategoorias „Muu“. ` : '') +
+  (kinnitamataTsekke ? `${kinnitamataTsekke} tšekki on kinnitamata. ` : '') +
+  'Kategooria määratakse toote nime järgi automaatselt.');
+
+  // Leht 2: koond toodete kaupa
+  leht('Toodete koond', 'Mida ja kui palju osteti — toodete kaupa', [
+    { pealkiri: 'Kategooria', laius: 24 }, { pealkiri: 'Toode', laius: 44 }, { pealkiri: 'Ostukordi', laius: 9, fmt: '0' },
+    { pealkiri: 'Kogus kokku', laius: 11, fmt: KOGUS }, { pealkiri: 'Ühik', laius: 7 },
+    { pealkiri: 'Keskm. ühikuhind', laius: 13, fmt: YHIKUHIND },
+    { pealkiri: 'Min hind', laius: 11, fmt: YHIKUHIND }, { pealkiri: 'Max hind', laius: 11, fmt: YHIKUHIND },
+    { pealkiri: 'Summa kokku', laius: 14, fmt: RAHA },
+    { pealkiri: `${M} kogus`, laius: 11, fmt: KOGUS }, { pealkiri: `${M} summa`, laius: 13, fmt: RAHA },
+    { pealkiri: `${N} kogus`, laius: 11, fmt: KOGUS }, { pealkiri: `${N} summa`, laius: 13, fmt: RAHA }
+  ], koondRead.map(k => [
+    k.kategooria, k.nimi, k.kordi,
+    k.onKogus ? r4(k.kogus) : '', k.yhik,
+    k.onKogus && k.kogus ? r4(k.kogusegaSumma / k.kogus) : '',
+    k.min === null ? '' : k.min, k.max === null ? '' : k.max,
+    r2(k.summa),
+    k.onKogus ? r4(k.mKogus) : '', r2(k.mSumma),
+    k.onKogus ? r4(k.nKogus) : '', r2(k.nSumma)
+  ]), ['KOKKU', '', read.length, '', '', '', '', '', r2(kokku.summa), '', r2(kokku.m), '', r2(kokku.n)],
+  'Sama nimi ja ühik loetakse üheks tooteks. Ühikuhind = rea summa ÷ kogus (koos käibemaksuga, nagu tšekil makstud). ' +
+  (ilmaKoguseta ? `${ilmaKoguseta} real polnud kogust kirjas — neil on ainult summa.` : ''));
+
+  // Leht 3: kõik ostud ridade kaupa
+  leht('Kõik ostud', 'Kõik tooted tšekkide kaupa', [
+    { pealkiri: 'Kuupäev', laius: 11 }, { pealkiri: 'Pood / tšekk', laius: 22 }, { pealkiri: 'Kategooria', laius: 22 },
+    { pealkiri: 'Toode', laius: 40 }, { pealkiri: 'Kogus', laius: 9, fmt: KOGUS }, { pealkiri: 'Ühik', laius: 7 },
+    { pealkiri: 'Ühikuhind', laius: 11, fmt: YHIKUHIND }, { pealkiri: 'Summa', laius: 12, fmt: RAHA },
+    { pealkiri: `${N} %`, laius: 9, fmt: 'General' },
+    { pealkiri: `${M} kogus`, laius: 10, fmt: KOGUS }, { pealkiri: `${M} summa`, laius: 12, fmt: RAHA },
+    { pealkiri: `${N} kogus`, laius: 10, fmt: KOGUS }, { pealkiri: `${N} summa`, laius: 12, fmt: RAHA },
+    { pealkiri: 'Kes maksis', laius: 11 }, { pealkiri: 'Lisas töötaja', laius: 14 },
+    { pealkiri: 'Olek', laius: 12 }, { pealkiri: 'Tšekk', laius: 10 }
+  ], read.map(r => [
+    kpEt(r.kuupaev), r.pood, r.kategooria, r.nimi,
+    r.kogus === null ? '' : r.kogus, r.kogus === null ? '' : r.yhik, r.yhikuhind === null ? '' : r.yhikuhind,
+    r.summa, r.protsent,
+    r.mKogus === null ? '' : r.mKogus, r.mSumma, r.nKogus === null ? '' : r.nKogus, r.nSumma,
+    r.maksja, r.tootaja, r.kinnitamata ? 'kinnitamata' : 'kinnitatud',
+    r.foto ? { text: 'Ava', hyperlink: r.foto } : 'puudub'
+  ]), ['KOKKU', '', '', '', '', '', '', r2(kokku.summa), '', '', r2(kokku.m), '', r2(kokku.n), '', '', '', '']);
+
+  // Leht 4: ainult read, kus Kerttul on osa
+  const nRead = read.filter(r => r.nSumma !== 0);
+  leht(`${N} osa`.slice(0, 31), `Materjalid, millest osa on ${N} kanda`, [
+    { pealkiri: 'Kuupäev', laius: 11 }, { pealkiri: 'Pood / tšekk', laius: 22 }, { pealkiri: 'Kategooria', laius: 22 },
+    { pealkiri: 'Toode', laius: 40 }, { pealkiri: 'Kogus kokku', laius: 10, fmt: KOGUS }, { pealkiri: 'Ühik', laius: 7 },
+    { pealkiri: 'Ühikuhind', laius: 11, fmt: YHIKUHIND }, { pealkiri: 'Rea summa', laius: 12, fmt: RAHA },
+    { pealkiri: `${N} %`, laius: 9, fmt: 'General' },
+    { pealkiri: `${N} kogus`, laius: 10, fmt: KOGUS }, { pealkiri: `${N} summa`, laius: 12, fmt: RAHA }
+  ], nRead.map(r => [
+    kpEt(r.kuupaev), r.pood, r.kategooria, r.nimi,
+    r.kogus === null ? '' : r.kogus, r.kogus === null ? '' : r.yhik, r.yhikuhind === null ? '' : r.yhikuhind,
+    r.summa, r.protsent, r.nKogus === null ? '' : r.nKogus, r.nSumma
+  ]), ['KOKKU', '', '', '', '', '', '', r2(nRead.reduce((a, r) => a + r.summa, 0)), '', '', r2(nRead.reduce((a, r) => a + r.nSumma, 0))]);
+
+  // Leht 5: tšekid, mille tooted on veel lahti võtmata
+  if (ilmaRidadeta.length) {
+    leht('Ilma tooteridadeta', 'Tšekid, millel pole tooteridu — tee neile „Detailne jagamine“', [
+      { pealkiri: 'Kuupäev', laius: 11 }, { pealkiri: 'Pood / tšekk', laius: 34 }, { pealkiri: 'Summa', laius: 13, fmt: RAHA },
+      { pealkiri: `${N} osa`, laius: 13, fmt: RAHA }, { pealkiri: 'Olek', laius: 12 }, { pealkiri: 'Tšekk', laius: 10 }
+    ], ilmaRidadeta.map(x => [
+      kpEt(x.kuupaev), x.kirjeldus, x.summa, x.naabri_summa, x.kinnitamata ? 'kinnitamata' : 'kinnitatud',
+      x.foto_url ? { text: 'Ava', hyperlink: x.foto_url } : 'puudub'
+    ]), ['KOKKU', '', r2(ilmaRidadeta.reduce((a, x) => a + x.summa, 0)), r2(ilmaRidadeta.reduce((a, x) => a + x.naabri_summa, 0)), '', '']);
+  }
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', failiPais(`${s.projekti_nimi}_materjalid_${tana}.xlsx`));
+  await wb.xlsx.write(res);
+  res.end();
+});
+
 module.exports = router;
