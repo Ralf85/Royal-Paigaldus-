@@ -149,6 +149,9 @@ td.c, th.c { text-align: center; }
 .mk { background: var(--pind); border: 1px solid var(--joon2); border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .mk:hover { border-color: var(--kuld3); }
 .mk .avatar { width: 64px; height: 64px; font-size: 22px; }
+.mk-pilt { position: relative; }
+.mk-kaamera { position: absolute; right: -6px; bottom: -4px; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(180deg, var(--kuld2), var(--kuld));
+  display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; border: 2px solid var(--pind); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 .mk .n { font-weight: 800; }
 .mk.arhiiv { opacity: .45; }
 

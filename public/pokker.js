@@ -799,17 +799,24 @@ async function mangijadLeht() {
   var h = '<h1 class="leht kuldne">MÄNGIJAD</h1><div class="rida" style="margin-bottom:14px">' + (onAdmin() ? '<button class="kuldnupp" onclick="lisaMangija()">+ Lisa mängija</button>' : '') +
     '<label class="c"><input type="checkbox" ' + (NAITA_ARHIIV ? 'checked' : '') + ' onchange="NAITA_ARHIIV=this.checked;marsruut()"> Näita arhiveerituid</label></div><div class="mangijakaardid">';
   m.filter(function (x) { return NAITA_ARHIIV || !x.arhiveeritud; }).forEach(function (x) {
-    h += '<div class="mk' + (x.arhiveeritud ? ' arhiiv' : '') + '" onclick="location.hash=\'mangija/' + x.id + '\'">' + avatar(x.nimi, x.foto_url) + '<div class="n">' + esc(x.nimi) + '</div>' +
+    h += '<div class="mk' + (x.arhiveeritud ? ' arhiiv' : '') + '" onclick="location.hash=\'mangija/' + x.id + '\'"><div class="mk-pilt">' + avatar(x.nimi, x.foto_url) +
+      (onAdmin() ? '<label class="mk-kaamera" title="Lisa / vaheta pilt" onclick="event.stopPropagation()">📷<input type="file" accept="image/*" style="display:none" onchange="laeFoto(' + x.id + ',this)"></label>' : '') +
+      '</div><div class="n">' + esc(x.nimi) + '</div>' +
       '<div class="hall vaike">' + x.turniire + ' turniiri' + (x.voite ? ' • 🏆 ' + x.voite : '') + '</div></div>';
   });
   $('sisu').innerHTML = h + '</div>';
 }
 function lisaMangija() {
-  modaal('<h3>UUS MÄNGIJA</h3><label class="v">Nimi<input id="um-nimi" placeholder="Ees- ja perekonnanimi"></label><div class="modaal-nupud"><button onclick="sulgeModaal()">Tühista</button><button class="kuldnupp" id="um-ok">Lisa</button></div>');
+  modaal('<h3>UUS MÄNGIJA</h3><label class="v">Nimi<input id="um-nimi" placeholder="Ees- ja perekonnanimi"></label>' +
+    '<label class="v" style="margin-top:12px">Profiilipilt (valikuline)<input type="file" id="um-foto" accept="image/*"></label>' +
+    '<div class="modaal-nupud"><button onclick="sulgeModaal()">Tühista</button><button class="kuldnupp" id="um-ok">Lisa</button></div>');
   $('um-nimi').focus();
   $('um-ok').onclick = async function () {
     var d = await api('/mangijad', 'POST', { nimi: $('um-nimi').value });
-    if (d.ok) { sulgeModaal(); toast('Mängija lisatud'); AJUTINE.mangijad = null; marsruut(); }
+    if (!d.ok) return;
+    var foto = $('um-foto').files && $('um-foto').files[0];
+    sulgeModaal(); toast('Mängija lisatud'); AJUTINE.mangijad = null;
+    if (foto) await saadaFoto(d.id, foto); else marsruut();
   };
 }
 async function mangijaLeht(id) {
@@ -860,10 +867,32 @@ function muudaMangijat(id) {
     if ($('mm-foto-x')) $('mm-foto-x').onclick = async function () { var r = await api('/mangijad/' + id + '/foto', 'DELETE'); if (r.ok) { sulgeModaal(); marsruut(); } };
   });
 }
+// Telefonipilt vähendatakse enne üleslaadimist (max 800 px, JPEG) — kiire ka mobiilse netiga.
+function vahendaPilt(fail) {
+  return new Promise(function (resolve) {
+    try {
+      var url = URL.createObjectURL(fail), img = new Image();
+      img.onload = function () {
+        var max = 800, k = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { resolve(b || fail); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(fail); };
+      img.src = url;
+    } catch (e) { resolve(fail); }
+  });
+}
 async function laeFoto(id, input) {
   if (!input.files || !input.files[0]) return;
-  var fd = new FormData(); fd.append('foto', input.files[0]);
+  await saadaFoto(id, input.files[0]);
+}
+async function saadaFoto(id, fail) {
   toast('Laen pilti üles…');
+  var pilt = await vahendaPilt(fail);
+  var fd = new FormData(); fd.append('foto', pilt, 'foto.jpg');
   var r = await fetch('/api/pokker/mangijad/' + id + '/foto', { method: 'POST', headers: { 'x-session-token': TOKEN }, body: fd });
   var d = await r.json();
   if (d.ok) { toast('Pilt salvestatud'); AJUTINE.mangijad = null; marsruut(); } else toast(d.veateade || 'Pildi üleslaadimine ebaõnnestus', true);
